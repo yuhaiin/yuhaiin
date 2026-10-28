@@ -205,6 +205,128 @@ func TestFailoverRecoveryFallbackAndNetworkSeparation(t *testing.T) {
 	}
 }
 
+// A recovered preferred Node remains subject to the active metric policy.
+// Sticky return must not pin an unusable survivor or block a third alternative.
+func TestPreferredRecoveryAcrossMetricPolicies(t *testing.T) {
+	now := time.Unix(10000, 0)
+	for _, mode := range []string{"lowest_latency", "highest_throughput", "balanced"} {
+		t.Run(mode, func(t *testing.T) {
+			s, inputs := selectionFixture(now)
+			s.Policy.Mode, s.Policy.PreferredID = mode, "a"
+			s.Policy.Weights = contract.SelectorWeights{RTT: 1, Download: 1}
+			for i := range inputs[0].health.Samples {
+				inputs[0].health.Samples[i].RTTMS = 20
+				inputs[1].health.Samples[i].RTTMS = 180
+			}
+			old := contract.SelectorDecision{NodeID: "b", Since: now.Add(-time.Hour).UnixMilli()}
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "b" || d.Reason != "preferred_return_disabled" || d.Since != old.Since {
+				t.Fatal("return-disabled policy did not retain healthy survivor", d)
+			}
+			s.Policy.ReturnToPreferred = true
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "a" {
+				t.Fatal("qualified preferred did not return", d)
+			}
+			old.Since = now.UnixMilli()
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "b" || d.Reason != "hold_or_cooldown" {
+				t.Fatal("preferred bypassed hold", d)
+			}
+			old.Since = now.Add(-time.Hour).UnixMilli()
+			for i := range inputs[0].health.Samples {
+				inputs[0].health.Samples[i].RTTMS = 180
+				inputs[1].health.Samples[i].RTTMS = 20
+			}
+			inputs[0].speed.DownloadMbps = 10
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "b" {
+				t.Fatal("preferred overrode better metric", d)
+			}
+			// Failure overrides return suppression and hold, including expiry.
+			s.Policy.ReturnToPreferred = false
+			inputs[0], inputs[1] = inputs[1], inputs[0]
+			inputs[0].config.NodeID, inputs[1].config.NodeID = "a", "b"
+			inputs[1].health = contract.ChannelHealth{}
+			inputs[1].speed = contract.ThroughputMeasurement{}
+			old.Since = now.UnixMilli()
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "a" {
+				t.Fatal("return suppression prevented emergency failover", d)
+			}
+			if d := evaluateSelector(s, inputs, contract.SelectorDecision{}, now); d.NodeID != "a" {
+				t.Fatal("initial selection suppressed preferred", d)
+			}
+		})
+	}
+}
+
+func TestPreferredReturnRequiresFreshImprovementAndSeparateUDP(t *testing.T) {
+	now := time.Unix(10000, 0)
+	for _, mode := range []string{"lowest_latency", "highest_throughput", "balanced"} {
+		t.Run(mode, func(t *testing.T) {
+			s, inputs := selectionFixture(now)
+			s.Policy.Mode, s.Policy.PreferredID, s.Policy.ReturnToPreferred = mode, "a", true
+			s.Policy.Weights = contract.SelectorWeights{RTT: 1}
+			for i := range inputs[0].health.Samples {
+				inputs[0].health.Samples[i].RTTMS = 49
+				inputs[1].health.Samples[i].RTTMS = 52
+			}
+			inputs[0].speed.DownloadMbps, inputs[1].speed.DownloadMbps = 105, 100
+			old := contract.SelectorDecision{NodeID: "b", Since: now.Add(-time.Hour).UnixMilli()}
+			want := map[string]string{"lowest_latency": "latency_hysteresis", "highest_throughput": "throughput_hysteresis", "balanced": "score_hysteresis"}[mode]
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "b" || d.Reason != want {
+				t.Fatal("preferred bypassed improvement threshold", d)
+			}
+			for i := range inputs[0].health.Samples {
+				inputs[0].health.Samples[i].At = now.Add(-3 * time.Minute).UnixMilli()
+			}
+			inputs[0].speed.At = now.Add(-3 * time.Minute).UnixMilli()
+			if d := evaluateSelector(s, inputs, old, now); d.NodeID != "b" || d.Candidates[0].Eligible {
+				t.Fatal("expired preferred was ranked", d)
+			}
+		})
+	}
+	s, inputs := selectionFixture(now)
+	s.Policy.PreferredID = "b"
+	for i := range inputs {
+		inputs[i].udp = true
+		for j := range inputs[i].health.Samples {
+			inputs[i].health.Samples[j].Kind = "dns"
+			inputs[i].health.Samples[j].Target = s.Policy.UDPLatencyTarget
+		}
+	}
+	old := contract.SelectorDecision{NodeID: "a", Since: now.Add(-time.Hour).UnixMilli()}
+	if d := evaluateSelector(s, inputs, old, now); d.NodeID != "a" || d.Reason != "preferred_return_disabled" {
+		t.Fatal("UDP ignored its return policy", d)
+	}
+	s.Policy.ReturnToPreferred = true
+	if d := evaluateSelector(s, inputs, old, now); d.NodeID != "b" {
+		t.Fatal("UDP preferred did not return with fresh DNS evidence", d)
+	}
+}
+
+func TestPreferredRecoveryKeepsOtherCandidatesRanked(t *testing.T) {
+	now := time.Unix(10000, 0)
+	s, inputs := selectionFixture(now)
+	s.Policy.PreferredID = "b"
+	third := inputs[1]
+	third.config.NodeID = "c"
+	third.health.Samples = slices.Clone(third.health.Samples)
+	for i := range third.health.Samples {
+		third.health.Samples[i].RTTMS = 60
+	}
+	inputs = append(inputs, third)
+	old := contract.SelectorDecision{NodeID: "a", Since: now.Add(-time.Hour).UnixMilli()}
+	if d := evaluateSelector(s, inputs, old, now); d.NodeID != "c" {
+		t.Fatal("sticky preferred blocked a better non-preferred alternative", d)
+	}
+	s.Policy.Mode = "failover"
+	// A configured preference also controls initial main selection. The return
+	// switch only controls whether to leave an eligible survivor later.
+	if d := evaluateSelector(s, inputs, contract.SelectorDecision{}, now); d.NodeID != "b" {
+		t.Fatal("initial failover preference ignored", d)
+	}
+	if d := evaluateSelector(s, inputs, old, now); d.NodeID != "a" || d.Reason != "sticky_failover" {
+		t.Fatal(d)
+	}
+}
+
 func TestWeightedDistributionAndDisabledCandidates(t *testing.T) {
 	now := time.Unix(10000, 0)
 	s, in := selectionFixture(now)
@@ -308,5 +430,34 @@ func TestSelectedFallbackCannotResurrectOpenCircuit(t *testing.T) {
 	s.Policy.Locked = true
 	if d := evaluateSelector(s, in, contract.SelectorDecision{}, now); d.NodeID != "a" || d.Reason != "manual_lock" {
 		t.Fatal("explicit manual lock changed", d)
+	}
+}
+
+func BenchmarkSelectorPreferredRecoveryRanking(b *testing.B) {
+	for _, size := range []int{100, 1000} {
+		for _, mode := range []string{"lowest_latency", "highest_throughput", "balanced"} {
+			for _, returning := range []bool{false, true} {
+				b.Run(fmt.Sprintf("%s/%d/return=%t", mode, size, returning), func(b *testing.B) {
+					now := time.Unix(10000, 0)
+					s, pair := selectionFixture(now)
+					s.Policy.Mode, s.Policy.PreferredID, s.Policy.ReturnToPreferred = mode, "0", returning
+					inputs := make([]selectionInput, size)
+					for i := range inputs {
+						inputs[i] = pair[min(i, 1)]
+						inputs[i].config.NodeID = fmt.Sprint(i)
+						inputs[i].health.Samples = slices.Clone(inputs[i].health.Samples)
+						for j := range inputs[i].health.Samples {
+							inputs[i].health.Samples[j].RTTMS = float64(20 + min(i, 1)*100)
+						}
+					}
+					old := contract.SelectorDecision{NodeID: "1", Since: now.Add(-time.Hour).UnixMilli()}
+					b.ReportAllocs()
+					b.ResetTimer()
+					for b.Loop() {
+						evaluateSelector(s, inputs, old, now)
+					}
+				})
+			}
+		}
 	}
 }

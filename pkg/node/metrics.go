@@ -22,7 +22,7 @@ func metricMode(mode string) string {
 }
 func metricReason(reason string) string {
 	switch reason {
-	case "manual", "manual_lock", "failover", "lowest_latency", "highest_throughput", "balanced", "weighted", "no_healthy_candidate", "fallback_selected", "fallback_unknown", "hold_or_cooldown", "latency_hysteresis", "score_hysteresis", "throughput_hysteresis", "sticky_failover", "selected_node_unavailable":
+	case "manual", "manual_lock", "failover", "lowest_latency", "highest_throughput", "balanced", "weighted", "no_healthy_candidate", "fallback_selected", "fallback_unknown", "hold_or_cooldown", "latency_hysteresis", "score_hysteresis", "throughput_hysteresis", "sticky_failover", "preferred_return_disabled", "selected_node_unavailable":
 		return reason
 	default:
 		return "other"
@@ -66,7 +66,7 @@ func newReliabilityMetrics() *reliabilityMetrics {
 		probes:      counter("probes_total", "Completed manual/scheduled probe outcomes, including local skips.", "kind", "outcome"),
 		speed:       counter("speed_tests_total", "Manual/scheduled active download test outcomes.", "outcome"),
 		switches:    counter("selector_switches_total", "Compiled selector changes after initial selection.", "network", "mode", "reason"),
-		suppressed:  counter("selector_suppressed_total", "Decision evaluations retaining the current choice due to hysteresis/hold rules.", "network", "mode", "reason"),
+		suppressed:  counter("selector_suppressed_total", "Decision evaluations retaining the current choice due to hysteresis, hold or preferred-return policy.", "network", "mode", "reason"),
 		rtt:         prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "yuhaiin_outbound_probe_rtt_seconds", Help: "Successful complete probe duration excluding admission/bandwidth wait.", Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 15, 30}}, []string{"kind"}),
 		upload:      prometheus.NewHistogram(prometheus.HistogramOpts{Name: "yuhaiin_outbound_active_upload_mbps", Help: "Successful target/time-specific active upload measurements acknowledged by the configured endpoint; not business Bps or capacity guarantees.", Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500}}),
 		download:    prometheus.NewHistogram(prometheus.HistogramOpts{Name: "yuhaiin_outbound_active_download_mbps", Help: "Successful target/time-specific active download measurements, including applied traffic limits; not business Bps or capacity guarantees.", Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500}}),

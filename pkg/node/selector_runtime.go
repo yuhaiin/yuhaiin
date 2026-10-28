@@ -228,7 +228,7 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 					}
 					s.runtime.metrics.switches.WithLabelValues(network, metricMode(mode), metricReason(d.Reason)).Inc()
 				}
-			} else if strings.Contains(d.Reason, "hysteresis") || d.Reason == "hold_or_cooldown" {
+			} else if strings.Contains(d.Reason, "hysteresis") || d.Reason == "hold_or_cooldown" || d.Reason == "sticky_failover" || d.Reason == "preferred_return_disabled" {
 				p.status.Suppressed++
 				mode := "manual"
 				if config.Policy != nil {

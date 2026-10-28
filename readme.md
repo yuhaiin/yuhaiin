@@ -226,7 +226,7 @@ Contributions, bug reports, and reproducible interoperability tests are welcome.
 Opt-in selectors support priority failover, fresh RTT, measured download speed,
 normalized balanced scoring, and weighted new connections. Manual selection
 remains the compatibility default. The management UI exposes candidate evidence,
-thresholds, manual lock, and bounded manual download tests. See the
+thresholds, manual lock, bounded manual download tests, and explicit preferred-node recovery. Metric-mode return must still clear ranking and switching thresholds. See the
 [intelligent selector guide](docs/intelligent-selectors.md) for configuration,
 measurement limits, migrations, and the remaining reliability rollout work.
 

@@ -8,8 +8,8 @@ reads status; decisions are made by the backend while the browser is closed.
 The selection engine extends existing node observations and persistence. The
 monitoring follow-up adds shared scheduled probes, optional periodic download
 tests, global defaults and selector overrides. Closed/Open/Half-open admission
-adds bounded recovery trials and generation-safe evidence. Prometheus additions
-and traffic-control qualification remain subsequent reliability work.
+adds bounded recovery trials and generation-safe evidence. Prometheus metrics and traffic-control qualification extend the same runtime;
+remaining completion items are tracked in the enterprise reliability audit.
 
 ## Configure and observe
 
@@ -29,12 +29,36 @@ refresh. Referenced disabled nodes cannot receive traffic.
 | `weighted` | Random tickets proportional to weights among eligible candidates |
 
 Set `locked: true` to temporarily use `nodeId` while retaining the automatic
-policy. Unlock to resume it. `failover` is sticky by default after recovery;
-`returnToPreferred` permits returning to the best priority/preferred node.
-Other metric modes re-rank only after their improvement/hold rules permit it.
-Weighted mode distributes new connection/session creations and has no single
-fixed winner. Status shows the first eligible priority candidate as its
-representative; connection metadata contains the actual chosen node.
+policy. Unlock to resume it. The optional preferred node is a candidate, not a
+replacement for health/capability checks. Click **Preferred** again to clear it.
+
+- `failover`: initial selection uses the healthy preferred node when configured,
+  otherwise priority. After failover it keeps an eligible survivor by default;
+  `returnToPreferred` allows returning by preferred/priority order once hold and
+  cooldown permit it.
+- `lowest_latency`, `highest_throughput`, `balanced`: with a preferred node set,
+  disabling return keeps an eligible non-preferred survivor and continues ranking
+  other non-preferred alternatives. Enabling return only admits the preferred
+  node when it wins the metric and clears the same improvement/hold/cooldown
+  rules. A slower preferred node never overrides the metric. Without a preferred
+  node, these modes keep their ordinary ranking behavior.
+- Initial selection and loss of the current candidate's eligibility permit the
+  preferred node regardless of return suppression; the setting cannot pin an
+  unhealthy, disabled, stale or unusable survivor. TCP and UDP apply it to their
+  own evidence independently. The precompiled admission order may also use the
+  preferred node if the current candidate cannot admit a circuit recovery trial;
+  no transport request has started at that point and nothing is replayed.
+- `weighted`: distributes new connection/session creations by weight and has no
+  single fixed winner. Preference/return controls do not apply and are hidden.
+  Status shows the first eligible priority candidate as its representative;
+  connection metadata contains the actual chosen node.
+
+Status reports `preferred_return_disabled` when that policy selects an
+alternative to the best preferred metric. Retained choices count in the bounded
+suppression metrics alongside hysteresis/hold/sticky-failover reasons. Candidate
+health and raw metrics remain visible; suppressing return does not mark the
+preferred candidate unhealthy. The existing policy JSON stores these settings,
+with no new migration. Existing manual configurations remain unchanged.
 
 TCP and UDP have independent evidence and decisions. Opening a PacketConn alone
 does not create UDP remote-success evidence. A received datagram records one
@@ -328,6 +352,23 @@ ready or disconnected/failed/unhealthy state; unsupported status is skipped.
 Neither a proxy constructor nor PacketConn creation proves a remote handshake.
 No native provider is invented for a protocol that lacks one.
 
+The currently exposed native providers are:
+
+| Provider | Cached native evidence | Deliberate limit |
+| --- | --- | --- |
+| OpenVPN | Existing native session error/auth/closed state; initialized session without error reports connected. | Does not start a login or test arbitrary destinations. |
+| GlobalProtect | Existing gateway session, authentication, idle-disconnect and reconnect state. | Idle demand-driven sessions are not reported as a new handshake. |
+| L2TP | Existing native session/auth/closed state. | Static mode reports configured, which cannot establish native health. |
+| SoftEther | Existing session and running/receive-loop state. | Connected is cached tunnel-session evidence, not a fresh remote application reply. |
+| Tailnet | Existing in-memory backend/control state and assigned addresses. | Configured/control readiness is not a peer WireGuard handshake and does not create native success samples. |
+
+These reads use an already cached proxy exposing `NodeRuntimeStatusProvider`.
+Other protocols, or wrapping chains that do not expose that interface, are not
+assigned native handshake evidence. They can still use real end-to-end TCP,
+HTTPS, DNS or STUN observations through the complete candidate chain. No
+provider lookup issues a Tailnet status RPC, starts a protocol client or claims
+that a healthy native control plane proves every data destination reachable.
+
 Probes call the candidate Node directly, including its actual protocol chain,
 never an automatic Selector or the system's default Direct route. Fixed Node
 references and existing dependency-cycle validation prevent Selector recursion.
@@ -585,3 +626,34 @@ existing tick performs these batches once per five seconds. The added cold
 fields follow the existing hot counters. Fake-transport connection admission
 retains the preceding allocation counts. These figures exclude complete process
 RSS, SQLite traffic persistence, TLS/VPN resources and real-link capacity.
+
+
+## Preferred recovery qualification
+
+Pure strategy tests cover all three metric modes with return enabled/disabled,
+initial choice, healthy/stale/unusable survivors, a recovered preferred node,
+insufficient improvement, hold/cooldown and a third non-preferred improvement.
+UDP uses its own comparable DNS evidence. A real SQLite/runtime fixture saves
+and reloads the policy, checks actual fake-transport admission and bounded
+suppression metrics, then enables return while preserving an established stream.
+These tests are deterministic and require no public network. EN/JA/KO editor
+coverage and real-browser Save/readback checks at 1440/360/320 px separately
+verify the frontend configuration flow; synthetic browser fixtures are not a
+backend reachability test.
+
+The local Linux/amd64 Go 1.27.3 three-run benchmark uses three fresh samples per
+candidate. At 100 candidates, median metric-ranking times for return-disabled /
+return-enabled were 17.95/15.06 microseconds (RTT), 18.01/15.05 microseconds
+(download) and 21.46/19.25 microseconds (balanced). At 1,000 candidates they were
+189.46/161.70, 191.48/161.06 and 220.48/190.42 microseconds, respectively. Tracking
+non-preferred alternatives adds no allocation: both settings use 1 allocation
+for RTT/download ranking and 1,001 for 1,000-candidate balanced explanations.
+The latter allocations already belong to candidate score components.
+
+The same run gives median fake-transport TCP/UDP admission of 319/94 ns for
+manual, 749/445 ns for failover and 786/476 ns for weighted selection; observed
+UDP sends retain 0 B/op and 0 allocations. Ranking is snapshot work, separate
+from these connection/packet paths. These measurements compare configurations
+of this implementation, not before/after commits, maximum-history workloads,
+peak process resources, physical VPN speed or remote latency. Commands and
+[raw output](benchmarks/data/preferred-recovery-2026-10-28/local.txt) are retained.

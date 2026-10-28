@@ -1,0 +1,67 @@
+Source: dcad8389 plus preferred-return implementation and benchmark changes in this PR.
+Go 1.27.3, Linux amd64, Ryzen 5 5600G. Three repetitions per case.
+Command: go test ./pkg/node -run '^$' -bench '^(BenchmarkSelectorPreferredRecoveryRanking|BenchmarkSelectorConnectionCreation|BenchmarkObservedPacketSend)$' -benchmem -benchtime=200ms -count=3
+Fixture: three current samples per candidate, one healthy current node, preferred metric winner.
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	  734097	       315.7 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	  768576	       319.2 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	  781810	       320.7 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 2542545	        92.88 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 2562841	        95.27 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 2551722	        94.06 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  286419	       749.3 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  291578	       749.8 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  290361	       745.9 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  452646	       444.7 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  446790	       451.5 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  479814	       441.9 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  302080	       783.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  271350	       786.2 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  304774	       787.3 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  408582	       490.2 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  475789	       476.2 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  472635	       476.3 ns/op	     288 B/op	       6 allocs/op
+BenchmarkObservedPacketSend-12                            	58380793	         4.043 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                            	59711013	         4.032 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                            	59387300	         4.023 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/100/return=false-12         	   13335	     17946 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/100/return=false-12         	   13329	     17958 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/100/return=false-12         	   13426	     17867 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/100/return=true-12          	   15894	     15059 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/100/return=true-12          	   15897	     15057 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/100/return=true-12          	   15826	     15203 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/100/return=false-12     	   13324	     17989 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/100/return=false-12     	   13353	     18014 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/100/return=false-12     	   13282	     18050 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/100/return=true-12      	   16009	     15109 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/100/return=true-12      	   15984	     15019 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/100/return=true-12      	   15937	     15047 ns/op	   18432 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/100/return=false-12               	    9848	     21358 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/100/return=false-12               	   10000	     21457 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/100/return=false-12               	   10000	     22952 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/100/return=true-12                	   12271	     19367 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/100/return=true-12                	   12462	     19248 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/100/return=true-12                	   12562	     19139 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/1000/return=false-12        	    1240	    189456 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/1000/return=false-12        	    1269	    190409 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/1000/return=false-12        	    1249	    188398 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/1000/return=true-12         	    1464	    161702 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/1000/return=true-12         	    1459	    164710 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/lowest_latency/1000/return=true-12         	    1488	    161305 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/1000/return=false-12    	    1250	    190917 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/1000/return=false-12    	    1244	    191479 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/1000/return=false-12    	    1206	    193191 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/1000/return=true-12     	    1454	    159724 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/1000/return=true-12     	    1459	    164085 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/highest_throughput/1000/return=true-12     	    1486	    161062 ns/op	  188416 B/op	       1 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/1000/return=false-12              	    1095	    220480 ns/op	  236416 B/op	    1001 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/1000/return=false-12              	    1102	    222313 ns/op	  236416 B/op	    1001 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/1000/return=false-12              	    1101	    218492 ns/op	  236416 B/op	    1001 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/1000/return=true-12               	    1257	    193914 ns/op	  236416 B/op	    1001 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/1000/return=true-12               	    1269	    190421 ns/op	  236416 B/op	    1001 allocs/op
+BenchmarkSelectorPreferredRecoveryRanking/balanced/1000/return=true-12               	    1318	    188324 ns/op	  236416 B/op	    1001 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	13.866s

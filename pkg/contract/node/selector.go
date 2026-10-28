@@ -20,7 +20,12 @@ type SelectorPolicy struct {
 	Locked         bool                `json:"locked,omitzero"`
 	// Fallback is reject (default), selected, or priority_unknown. It never
 	// bypasses routing by falling back to Direct.
-	Fallback              string            `json:"fallback,omitempty"`
+	Fallback string `json:"fallback,omitempty"`
+	// ReturnToPreferred permits leaving an eligible survivor after recovery.
+	// Failover uses preferred/priority order; metric modes still require the
+	// preferred candidate to win ranking and clear improvement/hold thresholds.
+	// Without a preferred ID, metric modes continue normal ranking. Weighted
+	// and manual modes ignore this switch.
 	ReturnToPreferred     bool              `json:"returnToPreferred,omitzero"`
 	LatencyTarget         string            `json:"latencyTarget,omitempty"`
 	UDPLatencyTarget      string            `json:"udpLatencyTarget,omitempty"`

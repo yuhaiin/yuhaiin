@@ -38,7 +38,9 @@ func evaluateSelector(selector contract.Selector, inputs []selectionInput, previ
 		}
 		return d
 	}
-	best, current := -1, -1
+	best, alternative, current := -1, -1, -1
+	stickyPreferred := p.PreferredID != "" && !p.ReturnToPreferred &&
+		(p.Mode == "lowest_latency" || p.Mode == "highest_throughput" || p.Mode == "balanced")
 	for i, in := range inputs {
 		c := scoreCandidate(p, in, now)
 		d.Candidates = append(d.Candidates, c)
@@ -49,7 +51,17 @@ func evaluateSelector(selector contract.Selector, inputs []selectionInput, previ
 			if best == -1 || betterCandidate(p, in.config, c, inputs[best].config, d.Candidates[best]) {
 				best = i
 			}
+			if stickyPreferred && in.config.NodeID != p.PreferredID &&
+				(alternative == -1 || betterCandidate(p, in.config, c, inputs[alternative].config, d.Candidates[alternative])) {
+				alternative = i
+			}
 		}
+	}
+	// A sticky preferred return never disables a healthy candidate or prevents
+	// initial/emergency selection. Rank the other eligible alternatives so a
+	// recovered preference cannot freeze ordinary metric improvements.
+	if stickyPreferred && current >= 0 && inputs[current].config.NodeID != p.PreferredID && inputs[best].config.NodeID == p.PreferredID {
+		best, d.Reason = alternative, "preferred_return_disabled"
 	}
 	if best == -1 {
 		d.Reason = "no_healthy_candidate"
@@ -123,7 +135,7 @@ func priorityLess(a, b contract.SelectorCandidate) bool {
 }
 
 func betterCandidate(p contract.SelectorPolicy, a contract.SelectorCandidate, am contract.SelectorCandidateStatus, b contract.SelectorCandidate, bm contract.SelectorCandidateStatus) bool {
-	if p.ReturnToPreferred && p.PreferredID != "" && p.Mode == "failover" {
+	if p.PreferredID != "" && p.Mode == "failover" {
 		if (a.NodeID == p.PreferredID) != (b.NodeID == p.PreferredID) {
 			return a.NodeID == p.PreferredID
 		}

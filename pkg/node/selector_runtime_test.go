@@ -13,6 +13,7 @@ import (
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestSelectorRuntimeNoDatabaseOnConnectionPathAndLiveReload(t *testing.T) {
@@ -260,5 +261,97 @@ func TestSpeedBudgetUpgradeRefusesLegacyUsageUntilUTCReset(t *testing.T) {
 	var reserved int64
 	if err := r.sqlite.DB().QueryRowContext(t.Context(), `SELECT accounting_version,reserved_bytes FROM node_speed_budget`).Scan(&version, &reserved); err != nil || version != 2 || reserved != req.MaxBytes+contract.SpeedTransportAllowance {
 		t.Fatal(version, reserved, err)
+	}
+}
+
+func TestPreferredRecoveryRuntimePersistenceAdmissionAndMetrics(t *testing.T) {
+	r, saved := qualificationSelector(t, "failover")
+	svc := NewSelectorService(r)
+	p := saved.Policy
+	p.Mode, p.PreferredID = "lowest_latency", "a"
+	p.LatencyTarget, p.MinSamples = "https://probe.example/health", 1
+	p.MinHoldMS, p.CooldownMS = 1, 1
+	p.Circuit = &contract.CircuitConfig{Disabled: true}
+	for _, id := range []string{"a", "b"} {
+		rtt := 180.0
+		if id == "b" {
+			rtt = 100
+		}
+		r.observer.counter(id).remoteEvidence(true, contract.HealthSample{Kind: "https", Target: p.LatencyTarget, RTTMS: rtt, OK: true}, nil)
+	}
+	var err error
+	saved, err = svc.Save(t.Context(), saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Add(time.Second)
+	rebuild := func(at time.Time) contract.SelectorRuntimeStatus {
+		t.Helper()
+		r.selectors.mu.Lock()
+		defer r.selectors.mu.Unlock()
+		r.selectors.rebuild(at)
+		return r.selectors.snapshot.Load().items[saved.ID].status
+	}
+	if v := rebuild(now); v.TCP.NodeID != "b" {
+		t.Fatal("initial metric ranking did not select b", v)
+	}
+	for range 16 {
+		r.observer.counter("a").remoteEvidence(true, contract.HealthSample{Kind: "https", Target: p.LatencyTarget, RTTMS: 20, OK: true}, nil)
+	}
+	status := rebuild(now.Add(time.Second))
+	if status.TCP.NodeID != "b" || status.TCP.Reason != "preferred_return_disabled" || status.Suppressed == 0 {
+		t.Fatal("runtime ignored sticky recovery policy", status)
+	}
+	// Admission uses that compiled decision and leaves existing runtime owners
+	// intact. Neither ranking nor SQL is needed to open this fake transport.
+	proxy, err := r.GetTarget(t.Context(), "tcp", "proxy", contractroute.Target{Type: "selector", ID: saved.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, _ := netapi.ParseAddress("tcp", "example.invalid:443")
+	conn, err := proxy.Conn(netapi.WithContext(t.Context()), addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.observer.counter("a").activeTCP.Load() != 0 || r.observer.counter("b").activeTCP.Load() != 1 {
+		_ = conn.Close()
+		t.Fatal("admission bypassed sticky selection")
+	}
+	defer conn.Close()
+	reg := prometheus.NewPedanticRegistry()
+	reg.MustRegister(r.Metrics())
+	found := false
+	for _, m := range metricFamily(t, reg, "yuhaiin_outbound_selector_suppressed_total").Metric {
+		for _, label := range m.Label {
+			if label.GetName() == "reason" && label.GetValue() == "preferred_return_disabled" && m.GetCounter().GetValue() > 0 {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatal("preferred suppression missing from bounded metrics")
+	}
+	saved.Policy.ReturnToPreferred = true
+	saved, err = svc.Save(t.Context(), saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := rebuild(now.Add(2 * time.Second)); v.TCP.NodeID != "a" || v.Revision != saved.Revision {
+		t.Fatal("saved return policy did not activate", v)
+	}
+	if r.observer.counter("b").activeTCP.Load() != 1 {
+		t.Fatal("selection change replaced an established stream")
+	}
+	next, err := proxy.Conn(netapi.WithContext(t.Context()), addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer next.Close()
+	if r.observer.counter("a").activeTCP.Load() != 1 || r.observer.counter("b").activeTCP.Load() != 1 {
+		t.Fatal("new connection did not use the returned preferred node")
+	}
+	items, err := svc.List(t.Context())
+	if err != nil || len(items) != 1 || !items[0].Policy.ReturnToPreferred || items[0].Policy.PreferredID != "a" {
+		t.Fatal("recovery policy was not persisted", items, err)
 	}
 }
