@@ -32,7 +32,7 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if queryInt(t, db.DB(), `SELECT count(*) FROM management_users`) != 1 {
 		t.Fatal("migration replaced identities")
 	}
-	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 5 {
+	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 6 {
 		t.Fatal("migration applied more than once")
 	}
 	info, err := os.Stat(path)
