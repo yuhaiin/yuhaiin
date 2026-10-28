@@ -79,9 +79,13 @@ func ChallengeHash(peerChallenge, authChallenge [ChallengeLen]byte, username str
 // 8-octet challenge hash encrypted with the NT password hash under three DES
 // keys.
 func GenerateNTResponse(authChallenge, peerChallenge [ChallengeLen]byte, username, password string) [NTResponseLen]byte {
-	challenge := ChallengeHash(peerChallenge, authChallenge, username)
-	passwordHash := NTPasswordHash(password)
-	return challengeResponse(challenge, passwordHash)
+	return GenerateNTResponseFromHash(authChallenge, peerChallenge, username, NTPasswordHash(password))
+}
+
+// GenerateNTResponseFromHash verifies MS-CHAPv2 with a credential's NT hash.
+// The hash is password-equivalent and must be protected as an authentication secret.
+func GenerateNTResponseFromHash(authChallenge, peerChallenge [ChallengeLen]byte, username string, hash [16]byte) [NTResponseLen]byte {
+	return challengeResponse(ChallengeHash(peerChallenge, authChallenge, username), hash)
 }
 
 // challengeResponse is RFC 2759 section 8.5: pad the 16-octet hash to 21, split
@@ -126,7 +130,11 @@ var (
 // response (RFC 2759 section 8.7), so the client can verify the server proved
 // knowledge of the password.
 func AuthenticatorResponse(authChallenge, peerChallenge [ChallengeLen]byte, username, password string, ntResponse [NTResponseLen]byte) string {
-	passwordHash := NTPasswordHash(password)
+	return AuthenticatorResponseFromHash(authChallenge, peerChallenge, username, NTPasswordHash(password), ntResponse)
+}
+
+// AuthenticatorResponseFromHash computes the response using an NT hash.
+func AuthenticatorResponseFromHash(authChallenge, peerChallenge [ChallengeLen]byte, username string, passwordHash [16]byte, ntResponse [NTResponseLen]byte) string {
 	passwordHashHash := ntPasswordHashHash(passwordHash)
 
 	h := sha1.New()

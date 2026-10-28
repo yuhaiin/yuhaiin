@@ -1,14 +1,113 @@
 package auth
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 	"testing"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
+
+func TestSSTPCredentialsScopeAndRevocation(t *testing.T) {
+	store := testStore(t)
+	admin := testUser(t, store, "admin", Admin)
+	user := testUser(t, store, "alice", NoManagement)
+	credentials, err := NewProxyCredentials(t.Context(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer credentials.Close()
+
+	issued, err := credentials.Issue(t.Context(), principal(admin), ProxyCredentialRequest{
+		Owner: user.ID, Name: "laptop", Inbounds: []string{"sstp-entry"}, Protocols: []string{"sstp"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var challenge, peer [16]byte
+	if _, err := rand.Read(challenge[:]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rand.Read(peer[:]); err != nil {
+		t.Fatal(err)
+	}
+	response := mschap.GenerateNTResponse(challenge, peer, user.Login, issued.Secret)
+	verify := credentials.MSCHAPv2Verifier("sstp-entry", []string{user.ID})
+	identity, hash, err := verify(t.Context(), user.Login, challenge, peer, response)
+	if err != nil || identity.UserID != user.ID || identity.CredentialID != issued.ID ||
+		hash != mschap.NTPasswordHash(issued.Secret) {
+		t.Fatalf("invalid SSTP authentication result: %v", err)
+	}
+	for _, verifier := range []proxyauth.MSCHAPv2Verifier{
+		credentials.MSCHAPv2Verifier("other-entry", []string{user.ID}),
+		credentials.MSCHAPv2Verifier("sstp-entry", []string{admin.ID}),
+	} {
+		if _, _, err := verifier(t.Context(), user.Login, challenge, peer, response); err == nil {
+			t.Fatal("out-of-scope credential accepted")
+		}
+	}
+	if _, _, err := verify(t.Context(), "unknown", challenge, peer, response); err == nil {
+		t.Fatal("unexpected username accepted")
+	}
+	response[0] ^= 0xff
+	if _, _, err := verify(t.Context(), user.Login, challenge, peer, response); err == nil {
+		t.Fatal("incorrect challenge response accepted")
+	}
+	if err := credentials.Revoke(t.Context(), principal(admin), issued.ID); err != nil {
+		t.Fatal(err)
+	}
+	if identity.Valid() {
+		t.Fatal("revoked identity remained valid")
+	}
+}
+
+func TestSSTPLegacyCredentialRequiresRotation(t *testing.T) {
+	store := testStore(t)
+	owner := testUser(t, store, "sstp-owner", NoManagement)
+	credentials, err := NewProxyCredentials(t.Context(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer credentials.Close()
+	original, err := credentials.Issue(t.Context(), principal(owner), ProxyCredentialRequest{Name: "legacy", Protocols: []string{"sstp"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Existing records contain only SHA-256 verifiers and have no NT hash.
+	if _, err := store.db.ExecContext(t.Context(), "UPDATE proxy_credentials SET sstp_nt_hash=NULL WHERE id=?", original.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := credentials.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	var challenge, peer [16]byte
+	if _, err := rand.Read(challenge[:]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rand.Read(peer[:]); err != nil {
+		t.Fatal(err)
+	}
+	verify := credentials.MSCHAPv2Verifier("entry", []string{owner.ID})
+	oldResponse := mschap.GenerateNTResponse(challenge, peer, owner.Login, original.Secret)
+	if _, _, err := verify(t.Context(), owner.Login, challenge, peer, oldResponse); err == nil {
+		t.Fatal("legacy credential with no NT hash was admitted")
+	}
+	rotated, err := credentials.Rotate(t.Context(), principal(owner), original.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := mschap.GenerateNTResponse(challenge, peer, owner.Login, rotated.Secret)
+	if _, _, err := verify(t.Context(), owner.Login, challenge, peer, response); err != nil {
+		t.Fatalf("rotated credential failed: %v", err)
+	}
+	if _, _, err := verify(t.Context(), owner.Login, challenge, peer, oldResponse); err == nil {
+		t.Fatal("superseded credential was admitted")
+	}
+}
 
 func TestDeleteProxyCredentialRemovesRecordAndCancelsSessions(t *testing.T) {
 	for _, state := range []string{"active", "revoked", "expired"} {

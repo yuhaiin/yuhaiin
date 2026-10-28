@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json/v2"
@@ -13,6 +14,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
@@ -47,6 +49,8 @@ type proxyRecord struct {
 	identity       *proxyauth.Identity
 	cancel         context.CancelFunc
 	verifier, wire [32]byte
+	ntHash         [16]byte
+	hasNTHash      bool
 }
 
 // ProxyCredentials owns a bounded, revocable authentication snapshot. The hot
@@ -146,7 +150,7 @@ func (p *ProxyCredentials) Reload() error {
 }
 
 func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
-	rows, err := p.store.db.QueryContext(p.ctx, `SELECT c.id,c.user_id,c.name,c.inbounds,c.protocols,c.created_at,c.expires_at,c.revoked,c.verifier,c.wire_verifier,c.generation,u.login
+	rows, err := p.store.db.QueryContext(p.ctx, `SELECT c.id,c.user_id,c.name,c.inbounds,c.protocols,c.created_at,c.expires_at,c.revoked,c.verifier,c.wire_verifier,c.sstp_nt_hash,c.generation,u.login
  FROM proxy_credentials c JOIN management_users u ON u.id=c.user_id
  WHERE c.revoked=0 AND u.disabled=0 AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, time.Now().Unix())
 	if err != nil {
@@ -158,7 +162,8 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 		r := new(proxyRecord)
 		var inbounds, protocols string
 		var verifier, wire []byte
-		if err := rows.Scan(&r.ID, &r.UserID, &r.Name, &inbounds, &protocols, &r.CreatedAt, &r.ExpiresAt, &r.Revoked, &verifier, &wire, &r.generation, &r.login); err != nil {
+		var ntHash []byte
+		if err := rows.Scan(&r.ID, &r.UserID, &r.Name, &inbounds, &protocols, &r.CreatedAt, &r.ExpiresAt, &r.Revoked, &verifier, &wire, &ntHash, &r.generation, &r.login); err != nil {
 			return nil, err
 		}
 		if len(verifier) != 32 || len(wire) != 32 {
@@ -172,6 +177,13 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 		}
 		copy(r.verifier[:], verifier)
 		copy(r.wire[:], wire)
+		if len(ntHash) != 0 && len(ntHash) != 16 {
+			return nil, ErrInvalid
+		}
+		if len(ntHash) == 16 {
+			copy(r.ntHash[:], ntHash)
+			r.hasNTHash = true
+		}
 		out[r.ID] = r
 	}
 	return out, rows.Err()
@@ -222,6 +234,34 @@ func (p *ProxyCredentials) Verifier(inboundID, protocol string, allowedUsers []s
 	}
 }
 
+// MSCHAPv2Verifier authenticates SSTP challenge responses using the existing
+// revocable per-device secrets. Only newly issued or rotated credentials have
+// NT-hash material; pre-migration credentials must be rotated for SSTP.
+func (p *ProxyCredentials) MSCHAPv2Verifier(inboundID string, allowedUsers []string) proxyauth.MSCHAPv2Verifier {
+	allowedUsers = slices.Clone(allowedUsers)
+	return func(ctx context.Context, username string, challenge, peerChallenge [16]byte, response [24]byte) (*proxyauth.Identity, [16]byte, error) {
+		if ctx.Err() != nil {
+			return nil, [16]byte{}, proxyauth.ErrUnauthorized
+		}
+		p.mu.RLock()
+		defer p.mu.RUnlock()
+		for _, record := range p.records {
+			if !record.hasNTHash || !record.identity.Valid() ||
+				!strings.EqualFold(username, record.login) ||
+				!slices.Contains(allowedUsers, record.UserID) ||
+				(len(record.Inbounds) > 0 && !slices.Contains(record.Inbounds, inboundID)) ||
+				(len(record.Protocols) > 0 && !slices.Contains(record.Protocols, "sstp")) {
+				continue
+			}
+			expected := mschap.GenerateNTResponseFromHash(challenge, peerChallenge, username, record.ntHash)
+			if subtle.ConstantTimeCompare(expected[:], response[:]) == 1 {
+				return record.identity, record.ntHash, nil
+			}
+		}
+		return nil, [16]byte{}, proxyauth.ErrUnauthorized
+	}
+}
+
 func validateProxyRequest(r ProxyCredentialRequest) error {
 	if strings.TrimSpace(r.Name) == "" || len(r.Name) > 128 || len(r.Inbounds) > 256 || len(r.Protocols) > 5 || r.ExpiresAt < 0 || (r.ExpiresAt != 0 && r.ExpiresAt <= time.Now().Unix()) {
 		return ErrInvalid
@@ -232,7 +272,7 @@ func validateProxyRequest(r ProxyCredentialRequest) error {
 		}
 	}
 	for _, v := range r.Protocols {
-		if !slices.Contains([]string{"http", "socks5", "yuubinsya", "hysteria2"}, v) {
+		if !slices.Contains([]string{"http", "socks5", "yuubinsya", "hysteria2", "sstp"}, v) {
 			return ErrInvalid
 		}
 	}
@@ -292,10 +332,11 @@ func issueProxy(ctx context.Context, tx *sql.Tx, r ProxyCredentialRequest) (Issu
 	verifier := sha256.Sum256([]byte(secret))
 	wireToken := sha256.Sum256([]byte(secret + "+s@1t"))
 	wire := sha256.Sum256(wireToken[:])
+	ntHash := mschap.NTPasswordHash(secret)
 	inbounds, _ := json.Marshal(r.Inbounds)
 	protocols, _ := json.Marshal(r.Protocols)
 	c := ProxyCredential{ID: uuid.New().String(), UserID: r.Owner, Name: r.Name, Inbounds: slices.Clone(r.Inbounds), Protocols: slices.Clone(r.Protocols), CreatedAt: time.Now().Unix(), ExpiresAt: r.ExpiresAt}
-	_, err := tx.ExecContext(ctx, `INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,generation,inbounds,protocols,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, c.ID, c.UserID, c.Name, verifier[:], wire[:], generation, string(inbounds), string(protocols), c.CreatedAt, c.ExpiresAt)
+	_, err := tx.ExecContext(ctx, `INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,sstp_nt_hash,generation,inbounds,protocols,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.ID, c.UserID, c.Name, verifier[:], wire[:], ntHash[:], generation, string(inbounds), string(protocols), c.CreatedAt, c.ExpiresAt)
 	return IssuedProxyCredential{ProxyCredential: c, Secret: secret}, err
 }
 
