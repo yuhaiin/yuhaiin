@@ -5,7 +5,7 @@ MS-CHAPv2, IPv4 IPCP and SSTP SHA-256 crypto binding. Each authenticated
 session gets a separate in-memory Lightweight TCP/IP stack. It does not create
 a host TUN/TAP interface, install routes, or require CAP_NET_ADMIN.
 
-Example inbound contract (use a real certificate and change all credentials):
+Example inbound contract (use a valid server certificate and real user IDs):
 
 ```json
 {
@@ -26,7 +26,6 @@ Example inbound contract (use a real certificate and change all credentials):
       "dns": "1.1.1.1",
       "mtu": 1400,
       "maxSessions": 2
-      
     }
   }
 }
@@ -54,6 +53,7 @@ SSTP. An NT hash is password-equivalent and must be protected; it is never
 included in backups or configuration exports. Revocation, expiry, disabling the
 user, or listener shutdown closes authenticated SSTP sessions.
 
-Use a valid TLS certificate and protect access to the management database. RADIUS, EAP, PAP, IPv6 and Ethernet bridging are not
+Use a valid TLS certificate and protect access to the management database.
+RADIUS, EAP, PAP, IPv6 and Ethernet bridging are not
 implemented. Interoperability with Windows RRAS and other SSTP clients still
 needs independent real-peer verification.

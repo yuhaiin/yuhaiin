@@ -16,7 +16,7 @@ owners. Existing management API tokens retain their original scope snapshots.
 Each user can have up to 64 active inbound credentials, for example one per
 phone, computer or router. A generated `yp_...` secret appears once, on creation
 or rotation. Each credential has a name, optional expiry, optional inbound IDs,
-and optional protocols (`http`, `socks5`, `yuubinsya`, `hysteria2`). Empty scope
+and optional protocols (`http`, `socks5`, `yuubinsya`, `hysteria2`, `sstp`). Empty scope
 lists permit all supported protocols or inbounds that explicitly authorize the
 owner. A credential never grants access to an otherwise unauthorized inbound.
 Rotation atomically replaces the credential and closes its previous sessions;
@@ -35,7 +35,12 @@ HTTP and SOCKS5 clients use the user's login name and generated secret. Hysteria
 uses the secret as `auth`; Yuubinsya uses it as `password`, including with existing
 clients and packet formats. Usernames remain case-insensitive. User secrets do
 not authenticate management APIs, and management passwords, sessions and API
-tokens do not authenticate proxy traffic.
+tokens do not authenticate proxy traffic. SSTP uses the user's login name and
+per-device secret through MS-CHAPv2. Because that protocol requires an NT hash,
+a password-equivalent verifier is retained only in the private management
+database for newly issued and rotated device credentials. Existing credentials
+must be rotated before using SSTP, and SSTP never accepts an API login password.
+Revocation and user disablement close SSTP sessions as well.
 
 Private `management.db` stores SHA-256 verifiers of random secrets. For Yuubinsya
 it stores a second SHA-256 of the protocol's wire token, not the replayable wire
@@ -75,7 +80,7 @@ is unchanged. When present, empty legacy authentication fields do not allow
 anonymous access. An empty `users` list admits no user credentials. Configuring
 user authentication without the identity module fails explicitly.
 
-Supported listeners: HTTP, SOCKS5, Mixed, Yuubinsya and Hysteria2. Mixed disables
+Supported listeners: HTTP, SOCKS5, Mixed, Yuubinsya, Hysteria2 and SSTP. Mixed disables
 SOCKS4 while user authentication is enabled because SOCKS4 has no password proof.
 Authenticated SOCKS5 UDP uses a relay port associated with the authenticated TCP
 control connection and pinned to its peer IP/source port; the legacy shared UDP
