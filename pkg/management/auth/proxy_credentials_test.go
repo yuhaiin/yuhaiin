@@ -65,6 +65,36 @@ func TestSSTPCredentialsScopeAndRevocation(t *testing.T) {
 	}
 }
 
+func TestSSTPLegacyCredentialRequiresRotation(t *testing.T) {
+    store := testStore(t)
+    owner := testUser(t, store, "sstp-owner", NoManagement)
+    credentials, err := NewProxyCredentials(t.Context(), store)
+    if err != nil { t.Fatal(err) }
+    defer credentials.Close()
+    original, err := credentials.Issue(t.Context(), principal(owner), ProxyCredentialRequest{Name: "legacy", Protocols: []string{"sstp"}})
+    if err != nil { t.Fatal(err) }
+    // Existing records contain only SHA-256 verifiers and have no NT hash.
+    if _, err := store.db.ExecContext(t.Context(), "UPDATE proxy_credentials SET sstp_nt_hash=NULL WHERE id=?", original.ID); err != nil { t.Fatal(err) }
+    if err := credentials.Reload(); err != nil { t.Fatal(err) }
+    var challenge, peer [16]byte
+    if _, err := rand.Read(challenge[:]); err != nil { t.Fatal(err) }
+    if _, err := rand.Read(peer[:]); err != nil { t.Fatal(err) }
+    verify := credentials.MSCHAPv2Verifier("entry", []string{owner.ID})
+    oldResponse := mschap.GenerateNTResponse(challenge, peer, owner.Login, original.Secret)
+    if _, _, err := verify(t.Context(), owner.Login, challenge, peer, oldResponse); err == nil {
+        t.Fatal("legacy credential with no NT hash was admitted")
+    }
+    rotated, err := credentials.Rotate(t.Context(), principal(owner), original.ID)
+    if err != nil { t.Fatal(err) }
+    response := mschap.GenerateNTResponse(challenge, peer, owner.Login, rotated.Secret)
+    if _, _, err := verify(t.Context(), owner.Login, challenge, peer, response); err != nil {
+        t.Fatalf("rotated credential failed: %v", err)
+    }
+    if _, _, err := verify(t.Context(), owner.Login, challenge, peer, oldResponse); err == nil {
+        t.Fatal("superseded credential was admitted")
+    }
+}
+
 func TestDeleteProxyCredentialRemovesRecordAndCancelsSessions(t *testing.T) {
 	for _, state := range []string{"active", "revoked", "expired"} {
 		t.Run(state, func(t *testing.T) {
