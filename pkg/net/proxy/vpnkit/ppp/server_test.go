@@ -88,7 +88,7 @@ func TestServerPPPRejectsWrongPassword(t *testing.T) {
 	client := New("alice", "wrong", queuedTransport{&clientPackets}, &testClientHandler{})
 	handler := &testServerHandler{}
 	server, err := NewServer(net.IPv4(10, 90, 0, 1), net.IPv4(10, 90, 0, 2), nil,
-		func(name string) (string, bool) { return "correct", name == "alice" },
+		testMSCHAPVerifier("correct"),
 		queuedTransport{&serverPackets}, handler)
 	if err != nil {
 		t.Fatal(err)
