@@ -379,6 +379,8 @@ func (s *Server) serve(raw net.Conn, clientIP netip.Addr) error {
 			if link.device == nil || !validClientPacket(packet, link.clientIP, s.mtu) {
 				return errors.New("sstp: unauthenticated or spoofed IP packet")
 			}
+			// PPP may pad the information field beyond the IP total length.
+			packet = packet[:int(packet[2])<<8|int(packet[3])]
 			if err := link.device.InjectPacket(packet); err != nil {
 				return err
 			}
@@ -397,10 +399,10 @@ func (s *Server) serve(raw net.Conn, clientIP netip.Addr) error {
 }
 
 func validClientPacket(b []byte, ip netip.Addr, mtu int) bool {
-	if len(b) < 20 || len(b) > mtu || b[0]>>4 != 4 || int(b[0]&0xf)*4 < 20 || int(b[0]&0xf)*4 > len(b) {
+	if len(b) < 20 || b[0]>>4 != 4 || int(b[0]&0xf)*4 < 20 || int(b[0]&0xf)*4 > len(b) {
 		return false
 	}
-	if int(b[2])<<8|int(b[3]) != len(b) {
+	if total := int(b[2])<<8 | int(b[3]); total < int(b[0]&0xf)*4 || total > len(b) || total > mtu {
 		return false
 	}
 	addr := ip.As4()

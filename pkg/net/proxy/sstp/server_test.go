@@ -36,6 +36,10 @@ func TestServerRejectsSpoofedIP(t *testing.T) {
 	if validClientPacket(packet, netip.MustParseAddr("10.90.0.3"), 1400) {
 		t.Fatal("spoofed packet accepted")
 	}
+	packet = append(packet, 0, 0, 0, 0)
+	if !validClientPacket(packet, client, 1400) {
+		t.Fatal("PPP padding rejected")
+	}
 	packet[3] = 19
 	if validClientPacket(packet, client, 1400) {
 		t.Fatal("invalid IP length accepted")
