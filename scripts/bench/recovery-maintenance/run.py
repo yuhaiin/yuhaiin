@@ -39,12 +39,19 @@ def main():
         executable, test = Path(tmp, 'yuhaiin'), Path(tmp, 'drill.test')
         environment = dict(os.environ, CGO_ENABLED='0')
         run(['go', 'build', '-o', str(executable), './cmd/yuhaiin'], env=environment)
+        run(['go', 'run', './cmd/update-metadata', '-binary', str(executable),
+             '-os', 'linux', '-arch', 'amd64'], env=environment)
+        catalog = json.loads(Path(str(executable) + '.update.json').read_text())
+        next_schema = catalog['schemas']['configuration'][-1]['version'] + 1
         run(['go', 'test', '-c', '-o', str(test), './cmd/yuhaiin/internal/servicehost'], env=environment)
         # Build real future-schema executables and their matching descriptors.
         # Go overlays keep fault injection out of all production source files.
         fixtures = []
         migration_path = root / 'pkg/storage/sqlite/migrations.go'
-        migrated = migration_path.read_text().rsplit('\n}', 1)[0] + "\n{Version: 24, Name: \"protected_update_drill\", Statements: []string{`INSERT INTO metadata(key,value) VALUES('protected_update_drill','migrated')`}},\n}\n"
+        migrated = migration_path.read_text().rsplit('\n}', 1)[0] + (
+            '\n{Version: ' + str(next_schema) + ', Name: "protected_update_drill", '
+            'Statements: []string{`INSERT INTO metadata(key,value) '
+            "VALUES('protected_update_drill','migrated')`}},\n}\n")
         migration_overlay = Path(tmp, 'migrations.go')
         migration_overlay.write_text(migrated)
         health_path = root / 'pkg/app/recovery_health.go'

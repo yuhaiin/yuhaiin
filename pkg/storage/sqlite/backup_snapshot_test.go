@@ -27,7 +27,7 @@ func TestInspectBackupSnapshotWALAndSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	version, err := InspectBackupSnapshot(t.Context(), snapshot, "configuration")
-	if err != nil || version != 23 {
+	if err != nil || version != 24 {
 		t.Fatalf("snapshot inspection: %d, %v", version, err)
 	}
 	opened, err := Open(t.Context(), snapshot)
@@ -64,6 +64,7 @@ func TestInspectBackupSnapshotDoesNotMigrateUnknownFutureOrIncompleteSchema(t *t
 		"DELETE FROM migrate WHERE version=10",
 		"UPDATE metadata SET value='19' WHERE key='schema_version'",
 		"DROP TABLE settings_json",
+		"DROP TABLE certificate_acme_accounts",
 		"DROP TABLE migrate; CREATE VIEW migrate AS SELECT 1 AS version, 'foreign' AS name",
 		"PRAGMA foreign_keys=OFF; CREATE TABLE recovery_fk_parent(id INTEGER PRIMARY KEY); CREATE TABLE recovery_fk_child(id INTEGER REFERENCES recovery_fk_parent(id)); INSERT INTO recovery_fk_child(id) VALUES(1)",
 	} {

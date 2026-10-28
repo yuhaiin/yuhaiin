@@ -103,6 +103,9 @@ func InspectBackupSnapshot(ctx context.Context, path, kind string) (int, error) 
 	// recognized prefixes are inspected without applying migrations; the restore
 	// compatibility/maintenance layer decides whether an upgrade is acceptable.
 	if count == len(known) {
+		if kind == "configuration" && last >= 24 {
+			required = append(required, "managed_certificates", "managed_certificate_material", "certificate_dns_providers", "certificate_acme_accounts", "certificate_references", "certificate_dns_cleanup")
+		}
 		for _, table := range required {
 			var found string
 			if err := conn.QueryRowContext(ctx, "SELECT name FROM sqlite_schema WHERE type='table' AND name=?", table).Scan(&found); err != nil {

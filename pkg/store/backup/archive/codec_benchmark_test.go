@@ -45,10 +45,14 @@ func BenchmarkRecoveryArchiveExternalRecipient(b *testing.B) {
 				b.Fatal(err)
 			}
 			encryption := Encryption{Recipient: key.Recipient().String()}
+			schema, err := sqlite.SupportedSchemaVersion("configuration")
+			if err != nil {
+				b.Fatal(err)
+			}
 			manifest := contractrecovery.Manifest{
 				ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance",
 				Build: contractrecovery.Build{Version: "benchmark", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
-				Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity.bin", Role: "protocol_identity"}},
+				Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: schema}, {Path: "identity.bin", Role: "protocol_identity"}},
 			}
 			b.SetBytes(size)
 			b.ReportAllocs()

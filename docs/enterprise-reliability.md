@@ -91,7 +91,16 @@ metadata mismatches before bootstrap/journal-mode changes, sharing the archive
 verifier's migration-prefix check. It does not make older unguarded executables
 safe by themselves; protected update coordination also validates the target receipt capability.
 
-## Stage 3 — certificate lifecycle (pending)
+## Stage 3 — certificate lifecycle (in progress; not exposed yet)
+
+The internal foundation now implements stable resource/private account storage
+in schema 24, revision/lease and deletion-reference protection, real HTTP-01
+issuance through x/crypto/acme, account reuse, exact SAN/chain validation and an
+atomic TLS cache. A local HTTPS CA verifies the actual JWS, HTTP proof and CSR;
+tests exercise renewal and continued traffic on an established TLS stream.
+See [implemented behavior and remaining integration](managed-certificates.md).
+The production listener adapters, DNS provider, automatic scheduler, permissions,
+RPC, frontend and complete restart/failure qualification are still missing.
 
 Extend pkg/cert and existing management/gateway TLS with stable managed-resource
 IDs and hot-reloaded verified certificate snapshots. Keep site certificates,
@@ -306,7 +315,8 @@ bound receipt after actual application/listener readiness. A potentially migrate
 failed target remains stopped for explicit paired offline recovery; no old binary
 is silently started against new stores. The public status/cancellation/offline CLI
 and EN/JA/KO confirmation/result UI use the same ownership model. The real service
-runner adds schema-24 success, post-migration startup failure, helper SIGKILL and
-actual schema-23 CLI recovery; no production migration/fault hook is added.
+runner adds a real next-schema success, post-migration startup failure, helper
+SIGKILL and actual source-schema CLI recovery. It derives both versions from
+the build's catalog (originally 23 to 24); no production migration/fault hook is added.
 Release descriptors declare the independent startup-receipt capability. See
 [workflow, tests and resource scope](update-rollback.md#protected-update-and-offline-recovery).

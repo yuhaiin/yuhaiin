@@ -247,6 +247,11 @@ Measurement resource limits and finite-label reliability metrics: [measurement b
 
 Enterprise reliability is being developed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622) and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535). See the [delivery tracker](docs/enterprise-reliability.md) for implemented and pending stages.
 
+The internal [managed-certificate foundation](docs/managed-certificates.md) now
+includes private schema-24 storage, local-CA-tested HTTP-01 issuance and a verified
+hot certificate cache. Production listener/RPC/UI and automatic renewal wiring
+remain in progress; existing TLS configuration keeps its current behavior.
+
 Backup transfer bounds and the disaster-recovery implementation status:
 [backup and recovery](docs/backup-recovery.md).
 

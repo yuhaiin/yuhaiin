@@ -40,6 +40,10 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 	if _, err := os.Stat("/run/systemd/container"); err != nil {
 		t.Fatal("isolated systemd container required")
 	}
+	sourceSchema, err := sqlite.SupportedSchemaVersion("configuration")
+	if err != nil {
+		t.Fatal(err)
+	}
 	command := func(args ...string) error {
 		out, err := exec.CommandContext(t.Context(), "systemctl", args...).CombinedOutput()
 		if err != nil {
@@ -203,7 +207,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if err := db.QueryRowContext(t.Context(), "SELECT CAST(value AS INTEGER) FROM metadata WHERE key='schema_version'").Scan(&version); err != nil {
 				t.Fatal(err)
 			}
-			if scenario != "killed_startup" && version != 24 {
+			if scenario != "killed_startup" && version != sourceSchema+1 {
 				t.Fatal("real migration did not persist before readiness outcome", version)
 			}
 			if scenario == "healthy_migration" {
@@ -266,7 +270,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer read.Close()
-			if err := read.QueryRowContext(t.Context(), "SELECT CAST(value AS INTEGER) FROM metadata WHERE key='schema_version'").Scan(&version); err != nil || version != 23 {
+			if err := read.QueryRowContext(t.Context(), "SELECT CAST(value AS INTEGER) FROM metadata WHERE key='schema_version'").Scan(&version); err != nil || version != sourceSchema {
 				t.Fatal("source schema not recovered", version, err)
 			}
 		})

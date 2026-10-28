@@ -62,7 +62,11 @@ func TestRecoveryCLIKeyGenerationAndOfflineVerification(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	manifest := contractrecovery.Manifest{ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", Build: contractrecovery.Build{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()}, Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}}}
+	schema, err := sqlite.SupportedSchemaVersion("configuration")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := contractrecovery.Manifest{ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", Build: contractrecovery.Build{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()}, Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: schema}}}
 	archive := filepath.Join(directory, "full.yhb")
 	if _, err := backuparchive.WriteFile(t.Context(), archive, snapshot, manifest, backuparchive.Encryption{Recipient: generated.Recipient}); err != nil {
 		t.Fatal(err)

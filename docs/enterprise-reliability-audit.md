@@ -69,9 +69,11 @@ unchanged. This observation is not a substitute for migration compatibility test
 
 ## Stage 3
 
-ACME/certificate lifecycle remains unimplemented in this work. Stable managed
-certificate references, HTTP-01, a real DNS-01 provider, safe account/provider-key
-persistence, renewal/backoff/deduplication, verified hot replacement,
-Management/Gateway integration, reference protection, EN/JA/KO UI and deterministic
-local-CA/provider tests are all still required. Existing management TLS, site
-termination, MITM CA and TLS Auto CA must retain their distinct ownership.
+ACME is partially implemented internally and is not yet available to administrators.
+`managed-certificates.md` records the schema-24 private store, revision/lease and
+reference protection, real RFC 8555 HTTP-01 issuance and account reuse, verified
+atomic certificate cache, and local signing-CA/TLS integration tests. The actual
+Gateway challenge mount, real DNS-01 provider, automatic renewal/backoff/ARI,
+Management/Gateway lifecycle wiring, permissions/RPC, EN/JA/KO UI, clone renewal
+ownership and restart/provider/failure qualification remain required. Existing
+management TLS, site termination, MITM CA and TLS Auto CA retain their ownership.

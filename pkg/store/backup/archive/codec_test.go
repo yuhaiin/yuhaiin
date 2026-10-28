@@ -50,10 +50,14 @@ func recoveryFixture(t *testing.T) (string, contractrecovery.Manifest, *age.X255
 	if err != nil {
 		t.Fatal(err)
 	}
+	schema, err := sqlite.SupportedSchemaVersion("configuration")
+	if err != nil {
+		t.Fatal(err)
+	}
 	manifest := contractrecovery.Manifest{
 		ID: uuid.New().String(), InstanceID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance",
 		Build: contractrecovery.Build{Version: "fixture", Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
-		Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: 23}, {Path: "identity/device.json", Role: "protocol_identity"}},
+		Files: []contractrecovery.File{{Path: "state.db", Role: "configuration_database", SchemaVersion: schema}, {Path: "identity/device.json", Role: "protocol_identity"}},
 	}
 	return directory, manifest, identity
 }
