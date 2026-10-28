@@ -19,7 +19,7 @@ func TestReverseTCPHandsRawStreamToInboundHandler(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = listener.Close() })
 	handler := netapi.NewChannelHandler(t.Context())
-	server, err := contractProtocol(contract.NewTypedProtocol(contract.ReverseTCPProtocol{Target: "target.example:443"}), netapi.NewListener(listener, nil), handler, [2]netip.Prefix{})
+	server, err := contractProtocol(contract.NewTypedProtocol(contract.ReverseTCPProtocol{Target: "target.example:443"}), netapi.NewListener(listener, nil), handler, [2]netip.Prefix{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

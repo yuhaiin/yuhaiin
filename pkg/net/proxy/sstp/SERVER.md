@@ -14,6 +14,7 @@ Example inbound contract (use a real certificate and change all credentials):
   "enabled": true,
   "network": {"type": "tcp_udp", "tcp_udp": {"host": "127.0.0.1:8443", "udp": "tcp_only"}},
   "transports": [],
+  "authentication": {"users": ["USER_ID"]},
   "protocol": {
     "type": "sstp",
     "sstp": {
@@ -24,8 +25,8 @@ Example inbound contract (use a real certificate and change all credentials):
       "clientAddresses": ["10.90.0.2", "10.90.0.3"],
       "dns": "1.1.1.1",
       "mtu": 1400,
-      "maxSessions": 2,
-      "users": [{"username": "alice", "password": "REPLACE_ME"}]
+      "maxSessions": 2
+      
     }
   }
 }
@@ -40,10 +41,19 @@ not CIDRs. IP source validation prevents clients from sending traffic under
 another address. Sessions are bounded by the address pool and maxSessions.
 Forwarding uses the existing inbound handler and routing rules, not host NAT.
 
-MS-CHAPv2 is legacy authentication: it requires a plaintext credential or NT
-hash equivalent. Ordinary salted login password hashes do not work. SSTP
-credentials are therefore configured separately from HTTP/API user accounts.
-Protect stored settings, restrict who can administer the inbound, and use a
-valid server certificate. RADIUS, EAP, PAP, IPv6 and Ethernet bridging are not
+SSTP uses the same management users and device credentials as other inbound
+protocols. Configure `authentication.users` with allowed user IDs and issue
+a per-device proxy credential with the `sstp` protocol scope. Connect using
+the account's login name and the one-time `yp_...` device secret as the PPP
+username and password. Management passwords and API tokens are not accepted.
+
+MS-CHAPv2 requires an NT-hash verifier, which is stored in the private
+management identity database only for newly issued or rotated device
+credentials. Older proxy credentials must be rotated to become usable with
+SSTP. An NT hash is password-equivalent and must be protected; it is never
+included in backups or configuration exports. Revocation, expiry, disabling the
+user, or listener shutdown closes authenticated SSTP sessions.
+
+Use a valid TLS certificate and protect access to the management database. RADIUS, EAP, PAP, IPv6 and Ethernet bridging are not
 implemented. Interoperability with Windows RRAS and other SSTP clients still
 needs independent real-peer verification.

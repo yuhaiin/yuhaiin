@@ -3,8 +3,7 @@ package ppp
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/subtle"
-	"errors"
+		"errors"
 	"fmt"
 	"net"
 
@@ -13,7 +12,7 @@ import (
 
 // ServerHandler receives events after the server has authenticated the peer.
 type ServerHandler interface {
-	ServerAuthenticated(username, password string, ntResponse [mschap.NTResponseLen]byte)
+	ServerAuthenticated(ntHash [16]byte, ntResponse [mschap.NTResponseLen]byte)
 	ServerNetworkUp()
 }
 
@@ -22,7 +21,7 @@ type ServerHandler interface {
 type ServerSession struct {
 	transport               Transport
 	handler                 ServerHandler
-	lookup                  func(string) (string, bool)
+	authenticate            func(string, [16]byte, [16]byte, [24]byte) ([16]byte, error)
 	localIP, clientIP, dns  net.IP
 	phase                   phase
 	next                    byte
@@ -35,15 +34,15 @@ type ServerSession struct {
 	naks                    int
 }
 
-func NewServer(localIP, clientIP, dns net.IP, lookup func(string) (string, bool), tr Transport, handler ServerHandler) (*ServerSession, error) {
-	if localIP.To4() == nil || clientIP.To4() == nil || localIP.Equal(clientIP) || lookup == nil || tr == nil || handler == nil {
+func NewServer(localIP, clientIP, dns net.IP, authenticate func(string, [16]byte, [16]byte, [24]byte) ([16]byte, error), tr Transport, handler ServerHandler) (*ServerSession, error) {
+	if localIP.To4() == nil || clientIP.To4() == nil || localIP.Equal(clientIP) || authenticate == nil || tr == nil || handler == nil {
 		return nil, errors.New("ppp: invalid server configuration")
 	}
 	if dns != nil && dns.To4() == nil {
 		return nil, errors.New("ppp: DNS must be IPv4")
 	}
 	return &ServerSession{
-		transport: tr, handler: handler, lookup: lookup,
+		transport: tr, handler: handler, authenticate: authenticate,
 		localIP:  append(net.IP(nil), localIP.To4()...),
 		clientIP: append(net.IP(nil), clientIP.To4()...),
 		dns:      append(net.IP(nil), dns.To4()...),
@@ -168,21 +167,20 @@ func (s *ServerSession) chap(pkt cpPacket) error {
 	if username == "" || len(username) > 256 {
 		return errors.New("ppp: invalid username")
 	}
-	password, ok := s.lookup(username)
-	var peerChallenge [mschap.ChallengeLen]byte
+		var peerChallenge [mschap.ChallengeLen]byte
 	copy(peerChallenge[:], value[:16])
 	var response [mschap.NTResponseLen]byte
 	copy(response[:], value[24:48])
-	expected := mschap.GenerateNTResponse(s.challenge, peerChallenge, username, password)
-	if !ok || subtle.ConstantTimeCompare(expected[:], response[:]) != 1 {
+	ntHash, err := s.authenticate(username, s.challenge, peerChallenge, response)
+    if err != nil {
 		_ = s.send(ProtocolCHAP, cpPacket{Code: chapFailure, ID: pkt.ID, Body: []byte("E=691 R=0 M=Authentication failed")})
 		return ErrAuth
 	}
-	success := mschap.AuthenticatorResponse(s.challenge, peerChallenge, username, password, response)
+	success := mschap.AuthenticatorResponseFromHash(s.challenge, peerChallenge, username, ntHash, response)
 	if err := s.send(ProtocolCHAP, cpPacket{Code: chapSuccess, ID: pkt.ID, Body: []byte(success)}); err != nil {
 		return err
 	}
-	s.handler.ServerAuthenticated(username, password, response)
+	s.handler.ServerAuthenticated(ntHash, response)
 	s.phase = phaseIPCP
 	s.ipcpID = s.nextID()
 	s.ipcpRequest = marshalOptions([]option{{Type: optIPAddress, Value: s.localIP}})

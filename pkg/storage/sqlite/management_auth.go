@@ -15,7 +15,7 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration} {
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration} {
 			var name string
 			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
 			if err == nil {
@@ -34,6 +34,12 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		return nil
 	})
 }
+
+// SSTP needs a password-equivalent NT hash for its MS-CHAPv2 challenge protocol.
+// Existing credentials cannot be upgraded without the original one-time secret.
+var managementSSTPMigration = Migration{Version: 6, Name: "sstp_proxy_verifiers", Statements: []string{
+    `ALTER TABLE proxy_credentials ADD COLUMN sstp_nt_hash BLOB`,
+}}
 
 var managementAuditMigration = Migration{Version: 5, Name: "management_audit_context", Statements: []string{
 	`ALTER TABLE management_security_events ADD COLUMN source TEXT NOT NULL DEFAULT ''`,

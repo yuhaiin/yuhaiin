@@ -2,6 +2,8 @@ package ppp
 
 import (
 	"net"
+    "crypto/subtle"
+    "errors"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
@@ -19,8 +21,8 @@ type testServerHandler struct {
 	up   bool
 }
 
-func (h *testServerHandler) ServerAuthenticated(user, _ string, _ [mschap.NTResponseLen]byte) {
-	h.user = user
+func (h *testServerHandler) ServerAuthenticated(_ [16]byte, _ [mschap.NTResponseLen]byte) {
+	h.user = "alice"
 }
 func (h *testServerHandler) ServerNetworkUp() { h.up = true }
 
@@ -33,13 +35,24 @@ func (h *testClientHandler) Authenticated(_ [mschap.NTResponseLen]byte) {}
 func (h *testClientHandler) NetworkUp(cfg IPConfig)                     { h.address = cfg.LocalIP }
 func (h *testClientHandler) Closed(err error)                           { h.closed = err }
 
+func testMSCHAPVerifier(password string) func(string, [16]byte, [16]byte, [24]byte) ([16]byte, error) {
+    return func(username string, server, peer [16]byte, response [24]byte) ([16]byte, error) {
+        hash := mschap.NTPasswordHash(password)
+        expected := mschap.GenerateNTResponseFromHash(server, peer, username, hash)
+        if subtle.ConstantTimeCompare(expected[:], response[:]) != 1 {
+            return [16]byte{}, errors.New("invalid challenge")
+        }
+        return hash, nil
+    }
+}
+
 func TestServerPPPInteroperatesWithClient(t *testing.T) {
 	var clientPackets, serverPackets [][]byte
 	clientHandler := &testClientHandler{}
 	serverHandler := &testServerHandler{}
 	client := New("alice", "correct", queuedTransport{&clientPackets}, clientHandler)
 	server, err := NewServer(net.IPv4(10, 90, 0, 1), net.IPv4(10, 90, 0, 2), net.IPv4(1, 1, 1, 1),
-		func(name string) (string, bool) { return "correct", name == "alice" },
+		testMSCHAPVerifier("correct"),
 		queuedTransport{&serverPackets}, serverHandler)
 	if err != nil {
 		t.Fatal(err)

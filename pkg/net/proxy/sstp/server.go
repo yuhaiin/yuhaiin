@@ -2,6 +2,7 @@ package sstp
 
 import (
 	"bytes"
+    "context"
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/tls"
@@ -21,19 +22,13 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/ppp"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
+    "github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 )
 
 const (
 	maxSSTPHeader    = 16384
 	handshakeTimeout = 20 * time.Second
 )
-
-// ServerUser is an MS-CHAPv2 credential. The server needs the actual password
-// (or an equivalent NT hash), not an Argon2/bcrypt application-login hash.
-type ServerUser struct {
-	Username string
-	Password string
-}
 
 // ServerConfig controls the rootless IPv4 SSTP listener. Addresses are host
 // addresses, not subnets; each active session reserves one client address.
@@ -43,7 +38,7 @@ type ServerConfig struct {
 	DNS             string
 	MTU             int
 	MaxSessions     int
-	Users           []ServerUser
+	Authenticate    proxyauth.MSCHAPv2Verifier
 }
 
 type Server struct {
@@ -53,7 +48,7 @@ type Server struct {
 	serverIP  netip.Addr
 	dns       net.IP
 	mtu       int
-	users     map[string]string
+	authenticate proxyauth.MSCHAPv2Verifier
 	available chan netip.Addr
 	done      chan struct{}
 	wg        sync.WaitGroup
@@ -98,19 +93,9 @@ func NewServer(cfg ServerConfig, tlsConfig *tls.Config, listener net.Listener, h
 	if cfg.MaxSessions < 1 || cfg.MaxSessions > len(cfg.ClientAddresses) {
 		return nil, errors.New("sstp: maxSessions must be within the address pool size")
 	}
-	users := make(map[string]string, len(cfg.Users))
-	for _, u := range cfg.Users {
-		if u.Username == "" || u.Password == "" || len(u.Username) > 256 {
-			return nil, errors.New("sstp: each user requires a username and password")
-		}
-		if _, duplicate := users[u.Username]; duplicate {
-			return nil, errors.New("sstp: duplicate username")
-		}
-		users[u.Username] = u.Password
-	}
-	if len(users) == 0 {
-		return nil, errors.New("sstp: at least one user is required")
-	}
+	if cfg.Authenticate == nil {
+        return nil, errors.New("sstp: authenticated identity verifier is required")
+    }
 	var dns net.IP
 	if cfg.DNS != "" {
 		addr, err := netip.ParseAddr(cfg.DNS)
@@ -136,7 +121,7 @@ func NewServer(cfg ServerConfig, tlsConfig *tls.Config, listener net.Listener, h
 	}
 	s := &Server{
 		listener: listener, tlsConfig: config, handler: handler, serverIP: serverIP,
-		dns: dns, mtu: cfg.MTU, users: users, available: available,
+		dns: dns, mtu: cfg.MTU, authenticate: cfg.Authenticate, available: available,
 		done: make(chan struct{}), conns: make(map[net.Conn]struct{}),
 	}
 	s.wg.Add(1)
@@ -208,6 +193,8 @@ type serverLink struct {
 	certDER       []byte
 	hlak          [mschap.HLAKLen]byte
 	authenticated bool
+    identity *proxyauth.Identity
+    authStop func() bool
 	bound         bool
 	up            bool
 	device        *wireguard.LightweightNetTun
@@ -233,13 +220,14 @@ func (l *serverLink) writePacket(pkt []byte) error {
 	return err
 }
 
-func (l *serverLink) ServerAuthenticated(_ string, password string, ntResponse [mschap.NTResponseLen]byte) {
-	l.hlak = mschap.ClientHLAK(password, ntResponse)
+func (l *serverLink) ServerAuthenticated(hash [16]byte, ntResponse [mschap.NTResponseLen]byte) {
+    l.hlak = mschap.ClientHLAKFromHash(hash, ntResponse)
 	l.authenticated = true
 }
 func (l *serverLink) ServerNetworkUp() { l.up = true }
 
 func (l *serverLink) close() {
+    if l.authStop != nil { l.authStop() }
 	_ = l.conn.Close()
 	if l.flows != nil {
 		_ = l.flows.Close()
@@ -327,10 +315,15 @@ func (s *Server) serve(raw net.Conn, clientIP netip.Addr) error {
 
 	sv4 := s.serverIP.As4()
 	cv4 := clientIP.As4()
-	p, err := ppp.NewServer(net.IP(sv4[:]), net.IP(cv4[:]), s.dns, func(user string) (string, bool) {
-		password, ok := s.users[user]
-		return password, ok
-	}, link, link)
+	p, err := ppp.NewServer(net.IP(sv4[:]), net.IP(cv4[:]), s.dns,
+        func(username string, authChallenge, peerChallenge [16]byte, response [24]byte) ([16]byte, error) {
+            identity, ntHash, err := s.authenticate(context.Background(), username, authChallenge, peerChallenge, response)
+            if err != nil { return [16]byte{}, err }
+            if identity == nil || !identity.Valid() { return [16]byte{}, proxyauth.ErrUnauthorized }
+            link.identity = identity
+            link.authStop = context.AfterFunc(identity.Context, func() { _ = conn.Close() })
+            return ntHash, nil
+        }, link, link)
 	if err != nil {
 		return err
 	}
@@ -418,7 +411,7 @@ func (l *serverLink) startData() error {
 		return err
 	}
 	l.device = dev
-	flows, err := lightweighttun.NewFromStack(dev.Stack(), l.server.handler, []netip.Prefix{addr}, "sstp")
+	flows, err := lightweighttun.NewFromStack(dev.Stack(), netapi.WithIdentityHandler(l.server.handler, l.identity), []netip.Prefix{addr}, "sstp")
 	if err != nil {
 		return err
 	}

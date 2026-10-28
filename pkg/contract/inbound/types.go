@@ -288,8 +288,8 @@ type WireguardPeer struct {
 
 func (WireguardProtocol) ProtocolType() string { return ProtocolWireguard }
 
-// SSTPProtocol terminates PPP connections with independent in-memory IP stacks.
-// Passwords are needed for MS-CHAPv2; application-login hashes cannot be reused.
+// SSTPProtocol terminates PPP connections with isolated in-memory IP stacks.
+// User access is managed through the inbound's Authentication field.
 type SSTPProtocol struct {
 	TLS             *ServerTLSConfig `json:"tls"`
 	ServerAddress   string           `json:"serverAddress"`
@@ -297,12 +297,6 @@ type SSTPProtocol struct {
 	DNS             string           `json:"dns,omitzero"`
 	MTU             int              `json:"mtu,omitzero"`
 	MaxSessions     int              `json:"maxSessions,omitzero"`
-	Users           []SSTPUser       `json:"users"`
-}
-
-type SSTPUser struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
 }
 
 func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
@@ -733,9 +727,12 @@ func (t Transport) nonNilCount() int {
 }
 
 func (i Inbound) Validate() error {
+    if i.Protocol.Type == ProtocolSSTP && i.Authentication == nil {
+        return fmt.Errorf("sstp inbound requires user authentication")
+    }
 	if i.Authentication != nil {
 		switch i.Protocol.Type {
-		case ProtocolHTTP, ProtocolSocks5, ProtocolMixed, ProtocolYuubinsya, ProtocolHysteria2:
+		case ProtocolHTTP, ProtocolSocks5, ProtocolMixed, ProtocolYuubinsya, ProtocolHysteria2, ProtocolSSTP:
 		default:
 			return fmt.Errorf("user authentication is unsupported for protocol %q", i.Protocol.Type)
 		}

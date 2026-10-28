@@ -93,7 +93,7 @@ func TestTLSProtocolCompatibility(t *testing.T) {
 						assert.NoError(t, err)
 					}
 					handler := &tlsCompatHandler{destination: make(chan string, 1)}
-					srv, err := contractProtocol(tc.protocol, lis, handler, [2]netip.Prefix{})
+					srv, err := contractProtocol(tc.protocol, lis, handler, [2]netip.Prefix{}, nil, nil)
 					assert.NoError(t, err)
 					t.Cleanup(func() { srv.Close() })
 
