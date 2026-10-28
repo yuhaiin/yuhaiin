@@ -30,6 +30,9 @@ jobs:
       - name: Test recovery staging and backup key ACLs
         run: go test -count=1 -run '^TestWindowsRecoveryArtifactsHavePrivateACLs$' ./pkg/store/backup/archive
 
+      - name: Test recovery journal path validation
+        run: go test -count=1 -run '^TestRecoveryMaintenanceGuardValidatesNestedJournalDirectories$' ./pkg/app/backup/recovery
+
       - name: Download release binary
         uses: actions/download-artifact@v8
         with:
