@@ -21,6 +21,15 @@ jobs:
   test:
     runs-on: ${{ inputs.runner }}
     steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: windows-recovery-acl
+
+      - name: Test recovery staging and backup key ACLs
+        run: go test -count=1 -run '^TestWindowsRecoveryArtifactsHavePrivateACLs$' ./pkg/store/backup/archive
+
       - name: Download release binary
         uses: actions/download-artifact@v8
         with:

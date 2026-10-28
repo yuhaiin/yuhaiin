@@ -27,10 +27,20 @@ systemd user service with lingering enabled, where the current process is the
 actual MainPID of `yuhaiin.service`. The helper retains that account's UID/GID
 rather than acquiring a different file identity. Enable lingering for the user
 with `loginctl enable-linger` so its manager survives logout; the server refuses
-automatic maintenance if it cannot verify this prerequisite. Standalone, macOS,+Windows and embedded hosts need further host
+automatic maintenance if it cannot verify this prerequisite. Standalone, macOS,
+Windows and embedded hosts need further host
 integration; the offline CLI remains separate. Windows restore activation also
 retains its documented directory-sync limitation. These are current support
 boundaries, not completion of the full cross-platform recovery objective.
+
+On Windows, backup snapshot and archive-preview staging directories, generated
+backup identity files and newly written archives use protected ACLs created
+before writing content. Access is limited to the process account and Local
+System; descendants inherit the staging directory's ACL. The operation fails
+before writing secrets if the filesystem does not enforce persistent ACLs.
+Use a trusted parent directory; administrators and the account running the
+service can change its permissions. This does not enable Windows restore
+activation or establish crash durability for Windows directory operations.
 
 The full-backup interval is at least 60 minutes and at most one year. The default
 is daily, with a 30-minute per-job deadline; the maximum deadline is 24 hours.

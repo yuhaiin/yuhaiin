@@ -17,6 +17,7 @@ import (
 	"filippo.io/age"
 
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	"github.com/Asutorufa/yuhaiin/pkg/store/backup/privatefs"
 )
 
 const (
@@ -252,7 +253,7 @@ func GenerateIdentityFile(ctx context.Context, destination string) (string, erro
 }
 
 func publishRecoveryFile(ctx context.Context, destination string, write func(*os.File) error) error {
-	output, err := os.CreateTemp(filepath.Dir(destination), ".recovery-write-*")
+	output, err := privatefs.CreateTemp(filepath.Dir(destination), ".recovery-write-")
 	if err != nil {
 		return err
 	}
@@ -353,7 +354,7 @@ func PrepareWithSpaceCheck(ctx context.Context, src io.Reader, stagingParent str
 			return nil, err
 		}
 	}
-	directory, err := os.MkdirTemp(stagingParent, ".recovery-stage-*")
+	directory, err := privatefs.MkdirTemp(stagingParent, ".recovery-stage-")
 	if err != nil {
 		return nil, err
 	}

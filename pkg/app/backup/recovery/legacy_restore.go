@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+	"github.com/Asutorufa/yuhaiin/pkg/store/backup/privatefs"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -37,7 +38,7 @@ func RestoreConfiguration(ctx context.Context, directory string, data []byte) er
 	if err := GuardMaintenance(directory); err != nil {
 		return err
 	}
-	stage, err := os.MkdirTemp(directory, ".recovery-stage-*")
+	stage, err := privatefs.MkdirTemp(directory, ".recovery-stage-")
 	if err != nil {
 		return err
 	}

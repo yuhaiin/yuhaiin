@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	s3pkg "github.com/Asutorufa/yuhaiin/pkg/s3"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/Asutorufa/yuhaiin/pkg/store/backup/privatefs"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -139,7 +140,7 @@ type backupSnapshot struct {
 
 func (b *Backup) snapshotStateDB(ctx context.Context) (_ *backupSnapshot, resultErr error) {
 	statePath := paths.PathGenerator.State(b.dir)
-	directory, err := os.MkdirTemp(filepath.Dir(statePath), ".state-backup-*")
+	directory, err := privatefs.MkdirTemp(filepath.Dir(statePath), ".state-backup-")
 	if err != nil {
 		return nil, err
 	}

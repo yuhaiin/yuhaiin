@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+	"github.com/Asutorufa/yuhaiin/pkg/store/backup/privatefs"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -80,7 +81,7 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 	if err := checkSpace(filepath.Dir(destination), 0); err != nil {
 		return empty, err
 	}
-	snapshot, err := os.MkdirTemp(directory, ".recovery-snapshot-*")
+	snapshot, err := privatefs.MkdirTemp(directory, ".recovery-snapshot-")
 	if err != nil {
 		return empty, err
 	}
