@@ -63,6 +63,28 @@ type schedulerStatus struct {
 	Completed, Failed      uint64
 }
 
+// A running job's limit applies until it finishes, even if another job in the
+// same traffic class has a higher limit. Limits are capped at sixteen.
+type probeGroup struct {
+	running int
+	limits  [maxProbeConcurrency + 1]int
+}
+
+func (g *probeGroup) canStart(limit int) bool {
+	if g == nil {
+		return true
+	}
+	if g.running >= limit {
+		return false
+	}
+	for i := 1; i <= g.running; i++ {
+		if g.limits[i] > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // probeScheduler owns a single queue timer and at most sixteen workers for the
 // whole core. Inactive nodes have neither resident goroutines nor timers.
 // replace cancels removed/changed work synchronously, including queued work.
@@ -70,7 +92,7 @@ type schedulerStatus struct {
 // Callbacks must honor their context; no forwarding operation runs a callback.
 // All queue/state mutations are serialized independently of forwarding.
 type probeScheduler struct {
-	groupRunning            map[string]int
+	groups                  map[string]*probeGroup
 	skipped                 uint64
 	ctx                     context.Context
 	cancel                  context.CancelFunc
@@ -87,7 +109,7 @@ type probeScheduler struct {
 
 func newProbeScheduler() *probeScheduler {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &probeScheduler{ctx: ctx, cancel: cancel, groupRunning: map[string]int{}, jobs: map[string]*scheduledProbe{}, work: make(chan probeWork, maxProbeConcurrency), wake: make(chan struct{}, 1)}
+	s := &probeScheduler{ctx: ctx, cancel: cancel, groups: map[string]*probeGroup{}, jobs: map[string]*scheduledProbe{}, work: make(chan probeWork, maxProbeConcurrency), wake: make(chan struct{}, 1)}
 	s.wg.Go(s.loop)
 	return s
 }
@@ -166,14 +188,20 @@ func (s *probeScheduler) loop() {
 					break
 				}
 				heap.Pop(&s.queue)
-				if s.groupRunning[j.group] >= j.concurrency {
+				group := s.groups[j.group]
+				if !group.canStart(j.concurrency) {
 					blocked = append(blocked, j)
 					continue
+				}
+				if group == nil {
+					group = &probeGroup{}
+					s.groups[j.group] = group
 				}
 				ctx, cancel := context.WithTimeout(s.ctx, j.timeout)
 				j.active, j.cancel = true, cancel
 				s.running++
-				s.groupRunning[j.group]++
+				group.running++
+				group.limits[j.concurrency]++
 				s.work <- probeWork{j, ctx}
 			}
 			// Jobs blocked by their concurrency cap wait for a completion/wake, not a
@@ -213,9 +241,11 @@ func (s *probeScheduler) worker() {
 			work.job.active = false
 			work.job.cancel = nil
 			s.running--
-			s.groupRunning[work.job.group]--
-			if s.groupRunning[work.job.group] == 0 {
-				delete(s.groupRunning, work.job.group)
+			group := s.groups[work.job.group]
+			group.running--
+			group.limits[work.job.concurrency]--
+			if group.running == 0 {
+				delete(s.groups, work.job.group)
 			}
 			s.completed++
 			if errors.Is(err, errProbeSkipped) || errors.Is(err, context.Canceled) {

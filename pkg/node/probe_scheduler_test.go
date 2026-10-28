@@ -125,6 +125,56 @@ func TestProbeSchedulerIndependentTrafficClassLimits(t *testing.T) {
 		}
 	})
 }
+
+func TestProbeSchedulerRespectsActiveJobConcurrency(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		first, next int
+	}{
+		{"stricter job starts first", 1, 2},
+		{"stricter job starts second", 2, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newProbeScheduler()
+				defer s.close()
+				finished := make(chan struct{})
+				var firstStarted, nextStarted atomic.Bool
+				first := probeJob{group: "speed", key: "first", interval: time.Minute, timeout: time.Hour, concurrency: tc.first, run: func(ctx context.Context) error {
+					firstStarted.Store(true)
+					select {
+					case <-finished:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}}
+				next := probeJob{group: "speed", key: "next", interval: time.Minute, timeout: time.Hour, concurrency: tc.next, run: func(context.Context) error {
+					nextStarted.Store(true)
+					return nil
+				}}
+				s.replace([]probeJob{first}, 2)
+				time.Sleep(6 * time.Second)
+				synctest.Wait()
+				if !firstStarted.Load() {
+					t.Fatal("first test did not start")
+				}
+				s.replace([]probeJob{first, next}, 2)
+				time.Sleep(6 * time.Second)
+				synctest.Wait()
+				if nextStarted.Load() {
+					t.Fatal("speed tests overlapped despite a concurrency limit of one")
+				}
+				close(finished)
+				synctest.Wait()
+				if !nextStarted.Load() {
+					t.Fatal("waiting speed test did not start after the limit was released")
+				}
+			})
+		})
+	}
+}
+
 func TestProbeSchedulerFailureCooldown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newProbeScheduler()

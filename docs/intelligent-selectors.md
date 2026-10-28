@@ -401,6 +401,9 @@ unlimited retry loop. They never reset a daily reservation by rescheduling.
 Identical speed requests share a job only when concurrency, jitter and network
 cost policy also match. Different execution settings can therefore generate
 additional tests, subject to the same shared limits and daily budget.
+While a test is running, its concurrency limit applies to the whole speed-test
+class, even if another scheduled test permits a higher limit. Waiting tests are
+admitted after a running test finishes or is canceled.
 
 Network offline transitions cancel tasks. The existing interface-monitor callback
 coalesces to the latest interface state, cancels old-network work, and spreads
