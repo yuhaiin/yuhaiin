@@ -4,9 +4,10 @@ Review uses one PR per repository, both targeting `main`:
 [backend #622](https://github.com/yuhaiin/yuhaiin/pull/622) and
 [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
 The implementation extends existing owners and does not depend on the unmerged
-enterprise identity/resource/security stacks. The backend base is `dada430a`
-and frontend base `391e4db`. No Controller/Agent, Raft, distributed state, WAF
-or new VPN protocol is introduced.
+enterprise identity/resource/security stacks. The backend includes main through
+`c1638a81` and the frontend includes main through `82022f5`. This PR adds no
+Controller/Agent, Raft, distributed state, WAF or VPN protocol; SSTP server
+support is inherited from main.
 
 This document describes the current result, rather than a chronological list of
 component PRs. The [requirement matrix](enterprise-reliability-audit.md) records

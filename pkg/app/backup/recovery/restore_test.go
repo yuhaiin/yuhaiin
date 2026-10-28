@@ -19,6 +19,7 @@ import (
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/mschap"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
@@ -108,6 +109,83 @@ func TestRecoveryRestoredTokenScopeAndRevocationRemainEffective(t *testing.T) {
 	}
 	if _, err := restored.Authenticate(t.Context(), revoked.Secret, "token"); !errors.Is(err, managementauth.ErrUnauthorized) {
 		t.Fatal("a credential revoked before the snapshot became valid")
+	}
+}
+
+func TestRecoverySSTPCredentialsPreservedForOriginalAndResetForClone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("offline activation needs directory synchronization")
+	}
+	source, key := testfixture.BasicDeployment(t)
+	db, err := sqlite.OpenManagement(t.Context(), filepath.Join(source, "management.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials, err := managementauth.NewProxyCredentials(t.Context(), managementauth.NewStore(db.DB()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := managementauth.Principal{UserID: "owner", CredentialType: "session", Permissions: managementauth.RolePermissions(managementauth.Admin)}
+	issue := func(name string) managementauth.IssuedProxyCredential {
+		t.Helper()
+		result, err := credentials.Issue(t.Context(), actor, managementauth.ProxyCredentialRequest{Name: name, Inbounds: []string{"sstp-entry"}, Protocols: []string{"sstp"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	active, revoked := issue("active"), issue("revoked")
+	if err := credentials.Revoke(t.Context(), actor, revoked.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := credentials.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "sstp.yhb")
+	manifest, err := Create(t.Context(), source, path, backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"original", "clone"} {
+		t.Run(mode, func(t *testing.T) {
+			target := t.TempDir()
+			_, err := Restore(t.Context(), target, bytes.NewReader(archive), backuparchive.Decryption{Identity: key.String()}, RestoreOptions{Mode: mode, ConfirmedMaintenance: true,
+				ConfirmBackupID: manifest.ID, ConfirmSourceInstanceID: manifest.InstanceID, ConfirmTargetInstanceID: "empty", ConfirmSourceStopped: true, ConfirmCredentialRevival: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored, err := sqlite.OpenManagement(t.Context(), filepath.Join(target, "management.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer restored.Close()
+			proxy, err := managementauth.NewProxyCredentials(t.Context(), managementauth.NewStore(restored.DB()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proxy.Close()
+			challenge, peer := [16]byte{1, 2, 3}, [16]byte{4, 5, 6}
+			verify := proxy.MSCHAPv2Verifier("sstp-entry", []string{"owner"})
+			response := mschap.GenerateNTResponse(challenge, peer, "owner", active.Secret)
+			identity, _, err := verify(t.Context(), "owner", challenge, peer, response)
+			if mode == "original" && (err != nil || identity.CredentialID != active.ID) {
+				t.Fatalf("original did not retain the SSTP verifier: %v", err)
+			}
+			if mode == "clone" && err == nil {
+				t.Fatal("clone accepted the original SSTP credential")
+			}
+			response = mschap.GenerateNTResponse(challenge, peer, "owner", revoked.Secret)
+			if _, _, err := verify(t.Context(), "owner", challenge, peer, response); err == nil {
+				t.Fatal("a revoked SSTP credential became valid")
+			}
+		})
 	}
 }
 

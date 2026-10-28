@@ -21,7 +21,7 @@ func knownMigrations(kind string) ([]Migration, error) {
 	case "configuration":
 		return migrations, nil
 	case "management":
-		return []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration}, nil
+		return []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration}, nil
 	default:
 		return nil, errors.New("unknown SQLite store kind")
 	}

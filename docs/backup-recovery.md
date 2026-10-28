@@ -27,6 +27,13 @@ file set under a confirmed maintenance window, including protocol identity
 owners. It must not be described as an atomic online cross-database snapshot
 merely because individual SQLite snapshots pass.
 
+The management database catalog includes main's version 6 SSTP verifier migration.
+Original-instance recovery retains active and revoked verifier state from the
+snapshot; a clone creates a separate management identity database and does not
+reuse those credentials. A version 5 database upgrades without fabricating an
+SSTP verifier for credentials issued before that migration; such credentials
+still require rotation for SSTP as documented by the existing credential owner.
+
 ## Existing S3 backup transfer
 
 The existing configuration format, S3 credentials/settings and object name

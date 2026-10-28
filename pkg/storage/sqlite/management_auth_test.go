@@ -62,6 +62,60 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	}
 }
 
+func TestManagementSSTPMigrationPreservesExistingCredentialsAndSnapshots(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "management.db")
+	old, err := open(t.Context(), path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := bootstrapBase(ctx, db); err != nil {
+			return err
+		}
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration} {
+			if err := applyMigration(ctx, db, migration); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),randomblob(32),1,1);
+		INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,generation,inbounds,protocols,created_at) VALUES('credential','owner','legacy',x'0102',x'0304',1,'[]','["sstp"]',1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := OpenManagement(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var verifier, wire, ntHash []byte
+	if err := upgraded.DB().QueryRowContext(t.Context(), `SELECT verifier, wire_verifier, sstp_nt_hash FROM proxy_credentials WHERE id='credential'`).Scan(&verifier, &wire, &ntHash); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(verifier, []byte{1, 2}) || !bytes.Equal(wire, []byte{3, 4}) || ntHash != nil {
+		t.Fatal("migration changed existing verifiers or fabricated an SSTP hash")
+	}
+	if err := upgraded.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != 6 || catalog[5].Name != "sstp_proxy_verifiers" {
+		t.Fatalf("upgraded management catalog = %v: %v", catalog, err)
+	}
+	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
+	version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30)
+	if err != nil || version != 6 {
+		t.Fatalf("snapshot of upgraded management store: version=%d err=%v", version, err)
+	}
+	reopened, err := OpenManagement(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestManagementInitializationMigration(t *testing.T) {
 	for _, state := range []string{"empty", "pending", "enrolled", "reset"} {
 		t.Run(state, func(t *testing.T) {

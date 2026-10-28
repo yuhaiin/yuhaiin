@@ -18,7 +18,11 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration} {
+		migrations, err := knownMigrations("management")
+		if err != nil {
+			return err
+		}
+		for _, migration := range migrations {
 			var name string
 			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
 			if err == nil {
