@@ -155,6 +155,7 @@ type SelectorController interface {
 	References(context.Context, string) ([]contractroute.Reference, error)
 }
 type V2Services struct {
+	Certificates     CertificateController
 	Gateway          GatewayController
 	Settings         SettingsController
 	Inbounds         InboundStore

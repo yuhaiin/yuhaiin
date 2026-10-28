@@ -30,11 +30,13 @@ type WorkspaceGateway struct {
 }
 
 type ListenerSource struct {
-	Listen          string   `json:"listen"`
-	AllowedSources  []string `json:"allowedSources"`
-	TLSMode         string   `json:"tlsMode"`
-	CertificateFile string   `json:"certificateFile,omitempty"`
-	KeyFile         string   `json:"keyFile,omitempty"`
+	Listen                string   `json:"listen"`
+	AllowedSources        []string `json:"allowedSources"`
+	TLSMode               string   `json:"tlsMode"`
+	CertificateFile       string   `json:"certificateFile,omitempty"`
+	KeyFile               string   `json:"keyFile,omitempty"`
+	ManagedCertificateIDs []string `json:"managedCertificateIds,omitempty"`
+	ACMEHTTP01            bool     `json:"acmeHttp01,omitzero"`
 }
 
 // InterceptionSettings controls HTTP/TLS handling after Routing selects the
@@ -143,6 +145,7 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 			entry.Listener = &ListenerSource{
 				Listen: g.Listen, AllowedSources: g.AllowedSources, TLSMode: g.TLSMode,
 				CertificateFile: g.CertificateFile, KeyFile: g.KeyFile,
+				ManagedCertificateIDs: g.ManagedCertificateIDs, ACMEHTTP01: g.ACMEHTTP01,
 			}
 		}
 		usedPools := make(map[string]bool)
@@ -249,6 +252,7 @@ func ConfigFromWorkspace(doc Workspace) (Config, error) {
 			entry.Listen, entry.AllowedSources = g.Listener.Listen, g.Listener.AllowedSources
 			entry.TLSMode, entry.CertificateFile, entry.KeyFile =
 				g.Listener.TLSMode, g.Listener.CertificateFile, g.Listener.KeyFile
+			entry.ManagedCertificateIDs, entry.ACMEHTTP01 = g.Listener.ManagedCertificateIDs, g.Listener.ACMEHTTP01
 		}
 		pools := map[string]bool{}
 		for _, pool := range g.BackendPools {

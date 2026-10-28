@@ -9,11 +9,51 @@ import (
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
 )
 
 type GatewayStore struct{ db *sql.DB }
 
 func NewGatewayStore(db *sql.DB) *GatewayStore { return &GatewayStore{db} }
+
+// SynchronizeCertificateReferences repairs ownership after a configuration-only
+// import, before startup publishes listeners. Private certificate tables are not
+// part of that import; deletion guards must reflect the imported Gateway draft.
+func (s *GatewayStore) SynchronizeCertificateReferences(ctx context.Context, cfg contract.Config) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var revision uint64
+	err = tx.QueryRowContext(ctx, `SELECT revision FROM gateway_configuration WHERE id=1`).Scan(&revision)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if revision != cfg.Revision {
+		return ErrConflict
+	}
+	var old int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM certificate_references WHERE kind='gateway'`).Scan(&old); err != nil {
+		return err
+	}
+	count := 0
+	for _, g := range cfg.Gateways {
+		count += len(g.ManagedCertificateIDs)
+	}
+	if old == 0 && count == 0 {
+		return tx.Commit()
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM certificate_references WHERE kind='gateway'`); err != nil {
+		return err
+	}
+	for _, g := range cfg.Gateways {
+		if err := certificates.ReplaceReferences(ctx, tx, "gateway", g.ID, g.Name, g.ManagedCertificateIDs); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
 
 func (s *GatewayStore) Load(ctx context.Context) (contract.Config, error) {
 	var data string
@@ -95,6 +135,14 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM gateway_references`); err != nil {
 		return cfg, err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM certificate_references WHERE kind='gateway'`); err != nil {
+		return cfg, err
+	}
+	for _, g := range cfg.Gateways {
+		if err := certificates.ReplaceReferences(ctx, tx, "gateway", g.ID, g.Name, g.ManagedCertificateIDs); err != nil {
+			return cfg, err
+		}
 	}
 	ref := func(owner, name, kind, id string) error {
 		if id == "" {

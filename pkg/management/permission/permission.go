@@ -19,6 +19,8 @@ const (
 	ConnectionsRead           Permission = "connections:read"
 	ConnectionsWrite          Permission = "connections:write"
 	GatewayRead               Permission = "gateway:read"
+	CertificatesRead          Permission = "certificates:read"
+	CertificatesManage        Permission = "certificates:manage"
 	GatewayWrite              Permission = "gateway:write"
 	SettingsRead              Permission = "settings:read"
 	SettingsWrite             Permission = "settings:write"
@@ -46,6 +48,8 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{CertificatesRead, "certificates", "View managed HTTPS certificates, renewal status and public DNS provider configuration."},
+	{CertificatesManage, "certificates", "Manage HTTPS certificates, DNS credentials and certificate issuance."},
 	{UsageOwn, "users", "View your own traffic usage and connection audit."},
 	{UsageRead, "users", "View traffic usage and connection audits for all users."},
 	{ProxyCredentialsOwn, "users", "Create, revoke, and rotate your own inbound proxy credentials."},

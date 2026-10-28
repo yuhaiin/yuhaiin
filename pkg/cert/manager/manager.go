@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 	"uuid"
 
@@ -25,16 +26,21 @@ type Options struct {
 // Manager owns one cancellable worker and one timer for at most 64 resources.
 // SQLite is read only at startup, a due deadline or explicit configuration work.
 type Manager struct {
-	options         Options
-	Cache           *Cache
-	mu              sync.Mutex
-	started, closed bool
-	cancel          context.CancelFunc
-	activeID        string
-	activeCancel    context.CancelFunc
-	cleanupRetry    time.Time
-	wake            chan struct{}
-	wg              sync.WaitGroup
+	options             Options
+	Cache               *Cache
+	mu                  sync.Mutex
+	started, closed     bool
+	cancel              context.CancelFunc
+	activeID            string
+	activeCancel        context.CancelFunc
+	cleanupRetry        time.Time
+	wake                chan struct{}
+	wg                  sync.WaitGroup
+	eventMu             sync.Mutex
+	events              []contract.Event
+	eventSequence       uint64
+	metricSnapshot      atomic.Pointer[metricSnapshot]
+	successes, failures atomic.Uint64
 }
 
 func New(options Options) (*Manager, error) {
@@ -81,6 +87,14 @@ func (m *Manager) Wake() {
 	}
 }
 func (m *Manager) report(code string) {
+	m.eventMu.Lock()
+	m.eventSequence++
+	if len(m.events) == 64 {
+		copy(m.events, m.events[1:])
+		m.events = m.events[:63]
+	}
+	m.events = append(m.events, contract.Event{Sequence: m.eventSequence, At: m.options.Now(), Code: code})
+	m.eventMu.Unlock()
 	if m.options.Report != nil {
 		m.options.Report(code)
 	}
@@ -130,6 +144,9 @@ func (m *Manager) Renew(ctx context.Context, id string, revision uint64) (contra
 
 func (m *Manager) List(ctx context.Context) ([]contract.Resource, error) {
 	resources, err := m.options.Store.List(ctx)
+	if err == nil {
+		m.publishMetrics(resources)
+	}
 	for i := range resources {
 		r := &resources[i]
 		if !r.Status.NotAfter.IsZero() && !m.options.Now().Before(r.Status.NotAfter) {
@@ -181,6 +198,7 @@ func (m *Manager) step(ctx context.Context) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	m.publishMetrics(resources)
 	now := m.options.Now()
 	var next time.Time
 	cleanupAt, err := m.options.Store.NextDNSCleanup(ctx)
@@ -291,7 +309,11 @@ func (m *Manager) issue(ctx context.Context, r contract.Resource) (bool, error) 
 		return true, err
 	}
 	if issueErr != nil {
+		m.failures.Add(1)
 		m.report(status.FailureCode)
+	} else {
+		m.successes.Add(1)
+		m.report("certificate_issued")
 	}
 	if err := m.Cache.Reload(ctx, m.options.Now()); err != nil {
 		m.report("certificate_cache_unavailable")

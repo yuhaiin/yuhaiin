@@ -2,10 +2,14 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 
+	dnswire "codeberg.org/miekg/dns"
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -69,6 +73,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -128,6 +133,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeListStore *plainstore.RouteListStore
 	var gatewayStore *plainstore.GatewayStore
+	var certificateStore *certificates.Store
 	if sqlStore := so.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
@@ -146,6 +152,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeListStore = plainstore.NewRouteListStore(db)
 			gatewayStore = plainstore.NewGatewayStore(db)
+			certificateStore = certificates.New(db)
 		}
 	}
 	settingsController := NewSettingsController(settingsStore, so.ConfigPath, logController)
@@ -234,6 +241,48 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// inbound server
 	var gatewayManager *gateway.Manager
+	var inbounds *inbound.Inbound
+	var certificateService *certificateRuntime
+	var certificateOptions []gateway.Option
+	if certificateStore != nil {
+		certificateService, err = newCertificateRuntime(ctx, certificateStore, func(ctx context.Context) (netapi.Proxy, error) {
+			if inbounds == nil || !inbounds.ProbePolicyReady() || !rules.HasActiveSnapshot() {
+				return nil, errors.New("certificate network policy is not ready")
+			}
+			return inbounds.ProbeProxy(ctx, fakedns, func(ctx context.Context, a netapi.Address) (netapi.Address, error) {
+				return router.PrepareProbe(ctx, hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, a)))
+			}), nil
+		}, func(ctx context.Context, name string) ([]string, error) {
+			state := netapi.WithContext(ctx)
+			target, err := netapi.ParseAddress("udp", net.JoinHostPort(name, "53"))
+			if err != nil {
+				return nil, err
+			}
+			if _, err := router.PrepareProbe(state, target); err != nil {
+				return nil, err
+			}
+			message, err := fakedns.Raw(state, netapi.DNSQuestion{Name: strings.TrimSuffix(name, ".") + ".", Qtype: dnswire.TypeTXT, Qclass: dnswire.ClassINET})
+			if err != nil {
+				return nil, err
+			}
+			if message == nil {
+				return nil, errors.New("empty DNS challenge response")
+			}
+			var values []string
+			for _, answer := range message.Answer {
+				if txt, ok := answer.(*dnswire.TXT); ok {
+					values = append(values, strings.Join(txt.Txt, ""))
+				}
+			}
+			return values, nil
+		}, func(id string) bool { return gatewayManager != nil && gatewayManager.HTTP01Available(id) })
+		if err != nil {
+			_ = closers.Close()
+			return nil, err
+		}
+		AddCloser(closers, "certificates", certificateService)
+		certificateOptions = append(certificateOptions, gateway.WithManagedCertificates(certificateService.TLSConfig), gateway.WithACMEHTTP01(certificateService.Challenges.Serve))
+	}
 	if gatewayStore != nil {
 		authority, err := gateway.NewAuthority(ctx, gatewayStore)
 		if err != nil {
@@ -251,7 +300,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				label = netapi.GetContext(ctx).ConnOptions().RouteMode()
 			}
 			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs, fakeDNS: fakedns}, Destination: destination}, nil
-		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit))
+		}, append(certificateOptions, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit))...)
 		if err != nil {
 			_ = closers.Close()
 			return nil, fmt.Errorf("initialize gateway: %w", err)
@@ -272,7 +321,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	if nodeRuntime != nil {
 		nodeRuntime.SetCredentialResolver(so.UpstreamCredentials)
 	}
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
+	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	if err := inbounds.RestoreStatistics(ctx); err != nil {
 		_ = closers.Close()
 		return nil, fmt.Errorf("restore inbound ingress statistics: %w", err)
@@ -286,6 +335,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	registry.MustRegister(nodeRuntime.Metrics())
 	if gatewayManager != nil {
 		registry.MustRegister(gatewayManager.Metrics())
+	}
+	if certificateService != nil {
+		registry.MustRegister(certificateService.Metrics())
 	}
 	metricsGatherer = prometheus.Gatherers{metricsGatherer, registry}
 
@@ -317,6 +369,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 
 	backup := backupapp.New(backupStore, so.ConfigPath, so.RecoveryMaintenance, fakedns)
+	if certificateService != nil {
+		app.Certificates = certificateService.Manager
+	}
 	app.Backup = AddCloser(closers, "backup", backup)
 	registry.MustRegister(backup.Metrics())
 
@@ -342,6 +397,12 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	})
 
 	tailscale.Mux.Store(app.Mux)
+	if certificateService != nil {
+		if err := certificateService.Start(ctx); err != nil {
+			_ = app.Close()
+			return nil, err
+		}
+	}
 
 	return app, nil
 }

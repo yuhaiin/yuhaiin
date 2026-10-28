@@ -26,6 +26,7 @@ import (
 	"time"
 
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	certmanager "github.com/Asutorufa/yuhaiin/pkg/cert/manager"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
@@ -43,6 +44,7 @@ import (
 )
 
 type AppInstance struct {
+	Certificates  *certmanager.Manager
 	Gateway       httpapi.GatewayController
 	Node          httpapi.NodeController
 	NodeRuntime   *node.NodeRuntime
@@ -192,6 +194,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		// registrations, and establishes a Principal before this handler runs.
 		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
 	}, httpapi.V2Services{
+		Certificates:     app.Certificates,
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,
 		Inbounds:         inboundStore,
@@ -223,13 +226,19 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 }
 
 func (a *AppInstance) Close() error {
+	// Stop certificate work while its governed network path and SQLite owner
+	// remain available for bounded challenge cleanup and durable retry receipts.
+	var certificateErr error
+	if a.Certificates != nil {
+		certificateErr = a.Certificates.Close()
+	}
 	if a.profiler != nil {
 		a.profiler.stop()
 		activeProfiler.CompareAndSwap(a.profiler, nil)
 	}
 	sysproxy.Unset()
 
-	err := a.closers.CloseExcept("state_store")
+	err := errors.Join(certificateErr, a.closers.CloseExcept("state_store"))
 	if er := compactStateStore(context.Background(), a.StateStore); er != nil {
 		err = errors.Join(err, fmt.Errorf("compact state store failed: %w", er))
 	}

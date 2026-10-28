@@ -91,30 +91,25 @@ metadata mismatches before bootstrap/journal-mode changes, sharing the archive
 verifier's migration-prefix check. It does not make older unguarded executables
 safe by themselves; protected update coordination also validates the target receipt capability.
 
-## Stage 3 — certificate lifecycle (in progress; not exposed yet)
+## Stage 3 — certificate lifecycle (in progress)
 
-The internal foundation now implements stable resource/private account storage
-in schema 24, revision/lease and deletion-reference protection, real HTTP-01
-issuance through x/crypto/acme, account reuse, exact SAN/chain validation and an
-atomic TLS cache. A local HTTPS CA verifies the actual JWS, HTTP proof and CSR;
-tests exercise renewal and continued traffic on an established TLS stream.
-See [implemented behavior and remaining integration](managed-certificates.md).
-The follow-up implements the real Cloudflare adapter and durable owned-record
-cleanup, TXT propagation checks, a single bounded persistent renewal/backoff
-worker, manual rate protection, cancellation and restart/lease recovery. Clone
-recovery disables certificate jobs and removes source private keys, DNS tokens
-and cleanup receipts. Local CA/provider, injected-clock, race and real encrypted
-restore tests cover these components. Production network/worker assembly,
-listener adapters, live ARI, permissions/RPC, frontend and complete application
-restart/failure qualification are still missing.
+Stable managed resources and private accounts/providers use schema 24. Real
+HTTP-01 and Cloudflare DNS-01, exact-record cleanup, persistent bounded renewal/
+backoff, revision leases, verified atomic cache and clone isolation are implemented.
+Production assembly supplies governed HTTP/DNS and starts the worker. Administrators
+can manage resources/providers through permission-gated RPC and the EN/JA/KO
+Certificates page, then bind resource IDs to Gateway TLS termination. HTTP-01
+requires explicit opt-in on an existing port-80 Gateway and preserves source ACLs.
+File/self-signed TLS and independent MITM/TLS Auto CA behavior stay compatible.
 
-Extend pkg/cert and existing management/gateway TLS with stable managed-resource
-IDs and hot-reloaded verified certificate snapshots. Keep site certificates,
-management HTTPS, Gateway termination, Gateway MITM CA and TLS Auto CA distinct.
-Use a mature ACME client, HTTP-01 and real DNS-01 (Cloudflare provider), safe
-account/provider-key persistence, bounded renewal/retry scheduling, restart
-recovery, deletion-reference checks and UI alerts. Test against local ACME CA
-and DNS provider servers without depending on public ACME services.
+Backend full tests, related race/lint, both SQLite drivers and frontend 363 tests
+plus all static/build checks pass. Actual Gateway tests cover hot replacement,
+existing-stream continuity, SNI and reference deletion guards. A paired real-backend
+Chrome check at 1440/360/320 verifies persistence and background failure alerts;
+local signing-CA/provider tests cover successful issuance independently.
+Management HTTPS managed binding, live ARI retrieval/refresh, final whole-application
+lifecycle qualification and exact-head CI remain. See the
+[operator guide and precise remaining work](managed-certificates.md).
 
 ## Validation notes for the first delivery
 

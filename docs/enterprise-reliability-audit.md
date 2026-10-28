@@ -69,14 +69,22 @@ unchanged. This observation is not a substitute for migration compatibility test
 
 ## Stage 3
 
-ACME is partially implemented internally and is not yet available to administrators.
-`managed-certificates.md` records the schema-24 private store, revision/lease and
-reference protection, real RFC 8555 HTTP-01 issuance and account reuse, verified
-atomic certificate cache, and local signing-CA/TLS integration tests. A real
-Cloudflare DNS-01 adapter, durable exact-record cleanup/retries, injected-DNS
-propagation evidence, a bounded persistent renewal/backoff worker, manual rate
-protection and clone certificate-identity isolation are also implemented and
-tested. Production worker/network assembly, the actual Gateway challenge mount,
-live ARI retrieval/refresh, Management/Gateway lifecycle wiring, permissions/RPC,
-EN/JA/KO UI and full application restart/failure qualification remain required. Existing
-management TLS, site termination, MITM CA and TLS Auto CA retain their ownership.
+ACME is available through permission-gated management RPC and the EN/JA/KO
+responsive Certificates page. `managed-certificates.md` records schema 24,
+private account/provider storage, leases, real HTTP-01 and Cloudflare DNS-01,
+owned cleanup, persistent renewal/backoff and atomic certificate replacement.
+Production assembly now supplies governed HTTP/DNS, starts the bounded worker,
+mounts HTTP-01 only on an explicitly enabled port-80 Gateway after its source ACL,
+and binds managed IDs to Gateway TLS with transactional deletion guards.
+Metrics/events and public API expose no private keys or provider tokens.
+
+Actual Gateway TLS tests cover new-certificate visibility, existing-stream
+continuity, SNI rejection and guard repair after config-only import. Backend
+full/focused/race/lint and both SQLite drivers pass. Frontend 363 tests, lint,
+types, translations, style/build and paired native-Chrome checks at 1440/360/320
+pass. Browser evidence uses a local CA failure; successful issuance uses the
+separate local signing-CA/provider integration tests.
+
+Still required: Management HTTPS resource binding, live ARI retrieval/refresh,
+complete application certificate restart/failure qualification and exact-head
+remote CI. Management TLS, MITM CA and TLS Auto CA retain their current ownership.

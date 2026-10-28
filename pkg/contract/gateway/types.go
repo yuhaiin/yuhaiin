@@ -24,14 +24,16 @@ type Gateway struct {
 	Debug    bool   `json:"debug"`
 	Revision uint64 `json:"revision"`
 	// Empty listen means interception only. Non-loopback listeners require an ACL.
-	Listen          string   `json:"listen"`
-	AllowedSources  []string `json:"allowedSources"`
-	TLSMode         string   `json:"tlsMode"`
-	CertificateFile string   `json:"certificateFile"`
-	KeyFile         string   `json:"keyFile"`
-	RuleIDs         []string `json:"ruleIds"`
-	Default         Action   `json:"default"`
-	MaxBodyBytes    int64    `json:"maxBodyBytes"`
+	Listen                string   `json:"listen"`
+	AllowedSources        []string `json:"allowedSources"`
+	TLSMode               string   `json:"tlsMode"`
+	CertificateFile       string   `json:"certificateFile"`
+	KeyFile               string   `json:"keyFile"`
+	ManagedCertificateIDs []string `json:"managedCertificateIds,omitempty"`
+	ACMEHTTP01            bool     `json:"acmeHttp01,omitzero"`
+	RuleIDs               []string `json:"ruleIds"`
+	Default               Action   `json:"default"`
+	MaxBodyBytes          int64    `json:"maxBodyBytes"`
 }
 
 type Rule struct {
