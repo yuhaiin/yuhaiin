@@ -34,8 +34,8 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 	if os.Getenv("YUHAIIN_RECOVERY_SYSTEMD_DRILL") != "1" {
 		t.Skip("use scripts/bench/recovery-maintenance/run.py")
 	}
-	if os.Geteuid() != 0 {
-		t.Fatal("container root required")
+	if (os.Geteuid() != 0) != drillUser() {
+		t.Fatal("fixture user does not match the selected service manager")
 	}
 	if _, err := os.Stat("/run/systemd/container"); err != nil {
 		t.Fatal("isolated systemd container required")
@@ -45,14 +45,14 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	command := func(args ...string) error {
-		out, err := exec.CommandContext(t.Context(), "systemctl", args...).CombinedOutput()
+		out, err := drillSystemctl(t.Context(), args...).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("systemctl %v: %w: %s", args, err, strings.TrimSpace(string(out)))
 		}
 		return nil
 	}
 	pid := func(unit string) int {
-		out, _ := exec.CommandContext(t.Context(), "systemctl", "show", unit, "--property=MainPID", "--value").Output()
+		out, _ := drillSystemctl(t.Context(), "show", unit, "--property=MainPID", "--value").Output()
 		v, _ := strconv.Atoi(strings.TrimSpace(string(out)))
 		return v
 	}
@@ -91,7 +91,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 	for _, scenario := range []string{"healthy_migration", "failed_readiness", "killed_startup"} {
 		t.Run(scenario, func(t *testing.T) {
 			_ = command("stop", "yuhaiin.service")
-			directory := "/data-update-" + scenario
+			directory := drillDataPath("data-update-" + scenario)
 			if err := os.MkdirAll(filepath.Join(directory, "web"), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -101,7 +101,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			executable := "/app/yuhaiin-update-" + scenario
 			copyFile("/app/yuhaiin", executable)
 			unit := fmt.Sprintf("[Unit]\nDescription=Isolated protected update fixture\n[Service]\nType=simple\nExecStart=%s run -path %s -https=true -host 127.0.0.1:50052 -eweb %s/web\nRestart=no\n", executable, directory, directory)
-			if err := os.WriteFile("/etc/systemd/system/yuhaiin.service", []byte(unit), 0600); err != nil {
+			if err := os.WriteFile(drillUnitPath(t), []byte(unit), 0600); err != nil {
 				t.Fatal(err)
 			}
 			if err := command("daemon-reload"); err != nil {
@@ -167,7 +167,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				// Fence the real target's ExecStartPre, after the helper persisted starting.
 				// This needs no production fault hook or timing-dependent process kill.
 				unit += "ExecStartPre=/bin/sh -c 'touch " + barrier + "; while test -f " + barrier + "; do sleep 0.1; done'\n"
-				if err := os.WriteFile("/etc/systemd/system/yuhaiin.service", []byte(unit), 0600); err != nil {
+				if err := os.WriteFile(drillUnitPath(t), []byte(unit), 0600); err != nil {
 					t.Fatal(err)
 				}
 				if err := command("daemon-reload"); err != nil {
@@ -176,8 +176,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			}
 			supervisor := "yuhaiin-protected-update-" + id + ".service"
 			restart := executable + " update-protected-recover " + directory + " " + id
-			launch := exec.CommandContext(t.Context(), "systemd-run", "--quiet", "--no-block", "--collect", "--unit="+strings.TrimSuffix(supervisor, ".service"), "--property=Type=exec", "--property=RuntimeMaxSec=180", "--property=ExecStopPost=:"+restart, executable, "update-protected-helper", directory, id)
-			if err := launch.Run(); err != nil {
+			if err := SystemdRun(t.Context(), "--quiet", "--no-block", "--collect", "--unit="+strings.TrimSuffix(supervisor, ".service"), "--property=Type=exec", "--property=RuntimeMaxSec=180", "--property=ExecStopPost=:"+restart, executable, "update-protected-helper", directory, id); err != nil {
 				t.Fatal(err)
 			}
 			if scenario == "killed_startup" {
@@ -247,7 +246,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if scenario == "killed_startup" {
 				// The startup fence belongs only to the injected target attempt.
 				unit = strings.Split(unit, "ExecStartPre=")[0]
-				if err := os.WriteFile("/etc/systemd/system/yuhaiin.service", []byte(unit), 0600); err != nil {
+				if err := os.WriteFile(drillUnitPath(t), []byte(unit), 0600); err != nil {
 					t.Fatal(err)
 				}
 				if err := command("daemon-reload"); err != nil {

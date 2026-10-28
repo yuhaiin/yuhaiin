@@ -9,6 +9,11 @@ The fixture requires a container runtime that can run systemd with private
 cgroups. Image package installation is the only network dependency; all scenario
 traffic uses local listeners inside the container.
 
+Pass `--user-session` to run the same installed recovery and protected-update
+drills as an unprivileged user with a lingering systemd user manager. The runner
+creates that user only inside its disposable container and verifies service PID,
+backup/restore and update fault behavior without changing the host manager.
+
 The drill seeds initialized management credentials, starts a real
 `yuhaiin.service`, and requests a full encrypted S3 backup through its actual
 HTTPS management API. It requires a changed service PID, verified S3 readback,

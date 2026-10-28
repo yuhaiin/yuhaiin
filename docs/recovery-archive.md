@@ -283,7 +283,7 @@ checks that those entry points leave the pending database byte-for-byte intact.
 The generic `app.Start` also rejects a pending restore without its controlled
 startup ID. Android/other embedded hosts still need a complete host-specific
 recovery/startup coordinator; these guards do not implement one. Root-owned Linux
-systemd now has confirmed Web activation through the same staging, startup and
+systemd and lingering user services have confirmed Web activation through the same staging, startup and
 rollback owners; the actual service drill verifies original and clone recovery.
 See the [Web workflow](managed-recovery-backups.md#confirmed-web-activation).
 
@@ -461,7 +461,7 @@ are retained. The real startup/crash drill above provides separate correctness
 evidence, not a resource benchmark.
 
 The [managed-backup page](managed-recovery-backups.md) now wraps this collector
-with explicit root-owned Linux systemd maintenance, history, local/S3 targets,
+with explicit Linux systemd system/user maintenance, history, local/S3 targets,
 verification/download and retention. It uses public recipients for scheduled
 creation and transient private identities for authenticated checks. Database
 schema is now 24 (history 21, imports 22, exclusive activation 23, managed

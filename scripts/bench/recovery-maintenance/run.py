@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import uuid
 
 
@@ -26,6 +27,8 @@ def main():
                         help='also measure real offline capture/restore and service restart with 1–1024 MiB')
     parser.add_argument('--recovery-only', action='store_true',
                         help='run capture/restore resources without repeating protected-update scenarios')
+    parser.add_argument('--user-session', action='store_true',
+                        help='exercise an unprivileged lingering systemd user service')
     args = parser.parse_args()
     if not 0 <= args.asset_mib <= 1024:
         parser.error('--asset-mib must be between 0 and 1024')
@@ -75,6 +78,7 @@ def main():
             run(['go', 'run', '-overlay', str(overlay), './cmd/update-metadata',
                  '-binary', str(binary), '-os', 'linux', '-arch', 'amd64'], env=environment)
             fixtures.extend([binary, Path(str(binary) + '.update.json')])
+        user_args = []
         try:
             # Private container networking/cgroups; no host data directory,
             # host service socket or host PID namespace is mounted.
@@ -85,8 +89,23 @@ def main():
             run([*runtime, 'cp', str(test), name + ':/app/drill.test'])
             for fixture in fixtures:
                 run([*runtime, 'cp', str(fixture), name + ':/app/' + fixture.name])
-            test_pattern = '^TestInstalledRecoveryMaintenance$' if args.recovery_only else '^TestInstalled(RecoveryMaintenance|ProtectedUpdate)$'
-            run([*runtime, 'exec', '-e', 'YUHAIIN_RECOVERY_SYSTEMD_DRILL=1',
+            if args.user_session:
+                run([*runtime, 'exec', name, 'useradd', '-m', '-u', '1500', 'recoverytest'])
+                run([*runtime, 'exec', name, 'chown', '-R', '1500:1500', '/app'])
+                run([*runtime, 'exec', name, 'loginctl', 'enable-linger', 'recoverytest'])
+                user_args = ['--user', '1500:1500', '-e', 'HOME=/home/recoverytest',
+                             '-e', 'XDG_RUNTIME_DIR=/run/user/1500',
+                             '-e', 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1500/bus']
+                deadline = time.monotonic() + 15
+                while subprocess.run([*runtime, 'exec', *user_args, name, 'systemctl', '--user', 'show-environment'],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError('lingering user manager did not become ready')
+                    time.sleep(0.1)
+                run([*runtime, 'exec', *user_args, name, 'systemctl', '--user', 'start', 'dbus.socket'])
+            test_pattern = '^TestInstalled(RecoveryMaintenance|UserRecoveryAdmission)$' if args.recovery_only else '^TestInstalled(RecoveryMaintenance|ProtectedUpdate|UserRecoveryAdmission)$'
+            run([*runtime, 'exec', *user_args, '-e', 'YUHAIIN_RECOVERY_SYSTEMD_DRILL=1',
+                 '-e', f'YUHAIIN_RECOVERY_SYSTEMD_USER={int(args.user_session)}',
                  '-e', f'YUHAIIN_RECOVERY_ASSET_MIB={args.asset_mib}', name,
                  '/app/drill.test', '-test.run=' + test_pattern,
                  '-test.v', '-test.timeout=8m'], timeout=540)
@@ -96,6 +115,9 @@ def main():
                             '-u', 'yuhaiin-restore-*', '-u', 'yuhaiin-protected-update-*', '-n', '180'], check=False,
                             capture_output=True, text=True)
             print(redact_journal(journal.stdout))
+            if args.user_session:
+                journal = subprocess.run([*runtime, 'exec', *user_args, name, 'journalctl', '--user', '--no-pager', '-n', '180'], check=False, capture_output=True, text=True)
+                print(redact_journal(journal.stdout))
             raise
         finally:
             subprocess.run([*runtime, 'rm', '-f', name], check=False,

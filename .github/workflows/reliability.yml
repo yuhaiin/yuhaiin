@@ -54,6 +54,10 @@ jobs:
   recovery-service:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [system, user]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
@@ -66,9 +70,15 @@ jobs:
             sudo apt-get install -y --no-install-recommends podman
           fi
       - name: Actual capture, missing-archive S3 retrieval, restore and crash restart
+        env:
+          SERVICE_SCOPE: ${{ matrix.scope }}
         run: |
           python3 -m unittest discover -s scripts/bench/recovery-maintenance -p 'test_*.py'
-          python3 scripts/bench/recovery-maintenance/run.py --rootful --asset-mib 256
+          if [ "$SERVICE_SCOPE" = user ]; then
+            python3 scripts/bench/recovery-maintenance/run.py --rootful --user-session --asset-mib 1
+          else
+            python3 scripts/bench/recovery-maintenance/run.py --rootful --asset-mib 256
+          fi
   monitoring:
     runs-on: ubuntu-latest
     timeout-minutes: 20

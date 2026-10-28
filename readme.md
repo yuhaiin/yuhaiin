@@ -265,7 +265,7 @@ Plaintext pre-restore copies have separate, default-off [startup/offline cleanup
 Missing or damaged local S3 copies can be explicitly retrieved and repaired with
 size/digest checks. Retain public recovery metadata separately for the offline
 `recovery fetch` command; [retrieval workflow](docs/managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
-Web restore activation is available on root-owned Linux systemd deployments;
+Web restore activation is available on root-owned Linux systemd and lingering user-service deployments;
 protected updates now capture an encrypted recovery point before replacement and
 verify real startup on that host. Migration failure requires the matching source
 binary/database backup, with an offline status/restore path. Other hosts retain the documented offline workflows and durability limits; [protected update procedure](docs/update-rollback.md#protected-update-and-offline-recovery).

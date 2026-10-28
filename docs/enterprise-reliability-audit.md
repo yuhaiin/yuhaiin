@@ -40,7 +40,7 @@ static-only controls in the features listed below.
 | Performance and real failure recovery | Streaming transfer/codec/full create/restore/import/retrieval benchmarks, fresh CLI RSS fixture and actual 1/64/256 MiB systemd stop→CLI→HTTPS/commit samples. | Recorded resource figures state their boundaries. Test fixtures include real config+management databases and payload content checks; they do not establish arbitrary large production/slow-storage downtime. |
 
 Automatic disruptive service maintenance is qualified for root-owned Linux
-systemd. Unprivileged/standalone, launchd, Windows and embedded automatic
+systemd and lingering systemd user services. Standalone, launchd, Windows and embedded automatic
 supervision are not claimed. Offline operations retain documented platform
 limits, including unqualified durable Windows activation. Optional periodic
 automated restoration drills are not implemented; the original request made

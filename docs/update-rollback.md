@@ -1,6 +1,6 @@
 # Software update history and rollback
 
-The built-in updater keeps **the two most recently replaced executable files**. Root-owned Linux systemd installations can pair an update with the existing encrypted full-backup owner and independently supervise real startup readiness. Other installed platforms retain schema-checked executable updates only after an administrator explicitly disables automatic recovery protection; use reviewed offline recovery for database changes on those hosts.
+The built-in updater keeps **the two most recently replaced executable files**. Root-owned Linux systemd and lingering systemd user services can pair an update with the existing encrypted full-backup owner and independently supervise real startup readiness. Other installed platforms retain schema-checked executable updates only after an administrator explicitly disables automatic recovery protection; use reviewed offline recovery for database changes on those hosts.
 
 ## Storage
 

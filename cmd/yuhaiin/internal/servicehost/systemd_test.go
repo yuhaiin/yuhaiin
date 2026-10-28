@@ -30,6 +30,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -43,6 +44,64 @@ type recoveryDrillHTTPError struct {
 	code      string
 }
 
+func drillUser() bool { return os.Getenv("YUHAIIN_RECOVERY_SYSTEMD_USER") == "1" }
+
+func drillSystemctl(ctx context.Context, args ...string) *exec.Cmd {
+	if drillUser() {
+		args = append([]string{"--user"}, args...)
+	}
+	return exec.CommandContext(ctx, "systemctl", args...)
+}
+
+func drillUnitPath(t *testing.T) string {
+	t.Helper()
+	if !drillUser() {
+		return "/etc/systemd/system/yuhaiin.service"
+	}
+	directory := filepath.Join(os.Getenv("HOME"), ".config/systemd/user")
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(directory, "yuhaiin.service")
+}
+
+func drillDataPath(name string) string {
+	if drillUser() {
+		return filepath.Join(os.Getenv("HOME"), name)
+	}
+	return filepath.Join("/", name)
+}
+
+func TestInstalledUserRecoveryAdmission(t *testing.T) {
+	if os.Getenv("YUHAIIN_RECOVERY_SYSTEMD_DRILL") != "1" || !drillUser() {
+		t.Skip("requires the isolated unprivileged systemd drill")
+	}
+	directory := t.TempDir()
+	t.Setenv("PATH", directory)
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(directory, name), []byte("#!/bin/sh\n"+body+"\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("systemctl", "[ \"$1\" = --user ] || exit 1\nprintf '%s\\n' "+strconv.Itoa(os.Getpid()))
+	write("systemd-run", "exit 0")
+	maintainer := NewRecoveryMaintainer(directory)
+	write("loginctl", "printf 'no\\n'")
+	if ok, reason := maintainer.Supported(); ok || !strings.Contains(reason, "lingering") {
+		t.Fatalf("non-lingering manager admitted: %v %q", ok, reason)
+	}
+	write("loginctl", "printf 'yes\\n'")
+	write("systemctl", "printf '1\\n'")
+	if ok, _ := maintainer.Supported(); ok {
+		t.Fatal("another service PID was admitted")
+	}
+	write("systemctl", "[ \"$1\" = --user ] || exit 1\nprintf '%s\\n' "+strconv.Itoa(os.Getpid()))
+	if ok, reason := maintainer.Supported(); !ok {
+		t.Fatalf("own lingering user service rejected: %s", reason)
+	}
+}
+
 func (e *recoveryDrillHTTPError) Error() string {
 	return fmt.Sprintf("RPC %s returned HTTP %d (%s)", e.operation, e.status, e.code)
 }
@@ -53,9 +112,9 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if os.Getenv("YUHAIIN_RECOVERY_SYSTEMD_DRILL") != "1" {
 		t.Skip("use scripts/bench/recovery-maintenance/run.py for the isolated real-service drill")
 	}
-	const directory = "/data"
-	if os.Geteuid() != 0 {
-		t.Fatal("fixture must run as its container root, not on the host")
+	directory := drillDataPath("data")
+	if (os.Geteuid() != 0) != drillUser() {
+		t.Fatal("fixture user does not match the selected service manager")
 	}
 	if _, err := os.Stat("/run/systemd/container"); err != nil {
 		t.Fatal("fixture is not inside a systemd container")
@@ -182,12 +241,12 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(web, "index.html"), []byte("isolated recovery fixture"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	unit := "[Unit]\nDescription=Isolated Yuhaiin recovery fixture\n[Service]\nType=simple\nExecStart=/app/yuhaiin run -path /data -host 127.0.0.1:50051 -eweb /data/web\nRestart=no\n"
-	if err := os.WriteFile("/etc/systemd/system/yuhaiin.service", []byte(unit), 0600); err != nil {
+	unit := fmt.Sprintf("[Unit]\nDescription=Isolated Yuhaiin recovery fixture\n[Service]\nType=simple\nExecStart=/app/yuhaiin run -path %s -host 127.0.0.1:50051 -eweb %s/web\nRestart=no\n", directory, directory)
+	if err := os.WriteFile(drillUnitPath(t), []byte(unit), 0600); err != nil {
 		t.Fatal(err)
 	}
 	run := func(args ...string) error {
-		output, err := exec.CommandContext(t.Context(), "systemctl", args...).CombinedOutput()
+		output, err := drillSystemctl(t.Context(), args...).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("systemctl %v: %w: %s", args, err, strings.TrimSpace(string(output)))
 		}
@@ -267,6 +326,10 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	if !status.Supported {
 		t.Fatal("real service does not recognize its own systemd owner")
 	}
+	var updateHistory contractupdate.HistoryResult
+	if err := rpc(t.Context(), "update.history", struct{}{}, &updateHistory); err != nil || updateHistory.Recovery == nil || !updateHistory.Recovery.Supported {
+		t.Fatalf("real service does not recognize protected updates: %v", err)
+	}
 	for _, secret := range []string{"", readerSession.Secret} {
 		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://localhost:50051/api/v2/rpc/backup.recovery.status", strings.NewReader("{}"))
 		if err != nil {
@@ -291,7 +354,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	}
 
 	pid := func(unit string) int {
-		out, err := exec.Command("systemctl", "show", unit, "--property=MainPID", "--value").Output()
+		out, err := drillSystemctl(t.Context(), "show", unit, "--property=MainPID", "--value").Output()
 		if err != nil {
 			return 0
 		}
@@ -468,7 +531,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	second := requestCapture()
 	pendingID := second.ID
 	wait("interruptible real helper", func() bool {
-		raw, err := sql.Open(sqlite.DriverName(), "file:/data/state.db?mode=ro")
+		raw, err := sql.Open(sqlite.DriverName(), "file:"+filepath.Join(directory, "state.db")+"?mode=ro")
 		if err != nil {
 			return false
 		}
@@ -584,7 +647,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		// ExecStopPost. Wait for that exact owner before beginning a separate
 		// operator-controlled stop; otherwise its final Start cancels the Stop.
 		wait("preceding restore helper completion", func() bool {
-			output, _ := exec.CommandContext(t.Context(), "systemctl", "show", "yuhaiin-restore-"+imported.ID+".service", "--property=ActiveState", "--value").Output()
+			output, _ := drillSystemctl(t.Context(), "show", "yuhaiin-restore-"+imported.ID+".service", "--property=ActiveState", "--value").Output()
 			state := strings.TrimSpace(string(output))
 			return state == "inactive" || state == "failed"
 		})

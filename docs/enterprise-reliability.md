@@ -81,8 +81,8 @@ and pinned HTTPS readiness. Failed migrated targets stay stopped for reviewed
 paired binary/database restoration; old executables never silently open newer
 schemas. Irreversible migrations do not promise automatic database rollback.
 
-Automatic disruptive maintenance is qualified on root-owned Linux systemd.
-Unprivileged/standalone, launchd, Windows and embedded automatic supervision is
+Automatic disruptive maintenance is qualified on root-owned Linux systemd and
+lingering systemd user services. Standalone, launchd, Windows and embedded automatic supervision is
 not claimed. Offline tools and their platform-specific durability limitations
 are explicit in the guides. Optional periodic automated restoration drills are
 not implemented. These must not be confused with the real hermetic/service crash

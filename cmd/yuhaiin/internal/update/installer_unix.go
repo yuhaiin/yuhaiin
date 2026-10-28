@@ -70,6 +70,9 @@ func (u *serviceUpdateInstaller) Supported() (bool, string) {
 	args := []string{"print", "system/" + u.service}
 	if runtime.GOOS == "linux" {
 		manager, args = "systemctl", []string{"is-active", "--quiet", u.service}
+		if os.Geteuid() != 0 {
+			args = append([]string{"--user"}, args...)
+		}
 	}
 	if err := exec.Command(manager, args...).Run(); err != nil {
 		return false, "automatic updates require the installed yuhaiin service"
@@ -91,7 +94,11 @@ func (u *serviceUpdateInstaller) Start(ctx context.Context, staged string) error
 	args := []string{"update-helper", u.target, staged, u.dataDir}
 	var cmd *exec.Cmd
 	if runtime.GOOS == "linux" {
-		cmd = exec.Command("systemd-run", "--quiet", "--no-block", "--collect", "--unit=yuhaiin-update", exe)
+		runArgs := []string{"--quiet", "--no-block", "--collect", "--unit=yuhaiin-update", exe}
+		if os.Geteuid() != 0 {
+			runArgs = append([]string{"--user"}, runArgs...)
+		}
+		cmd = exec.Command("systemd-run", runArgs...)
 		cmd.Args = append(cmd.Args, args...)
 	} else {
 		cmd = exec.Command(exe, args...)
@@ -135,6 +142,10 @@ func Install(args []string) error {
 	if runtime.GOOS == "linux" {
 		service, manager = "yuhaiin.service", "systemctl"
 		stopArgs, startArgs = []string{"stop", service}, []string{"start", service}
+		if os.Geteuid() != 0 {
+			stopArgs = append([]string{"--user"}, stopArgs...)
+			startArgs = append([]string{"--user"}, startArgs...)
+		}
 	}
 	log.Info("update helper stopping service", "service", service)
 	restoreService := func() {

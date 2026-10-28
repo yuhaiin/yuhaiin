@@ -22,10 +22,12 @@ introduce another scheduling service or copy the entire data directory.
    interruption. Or explicitly enable the periodic schedule, accepting those
    interruptions. The browser does not need to remain online.
 
-Automatic maintenance currently supports a root-owned Linux systemd installation
-where the current process is the actual MainPID of `yuhaiin.service`. The helper
-retains that account's UID/GID rather than acquiring a different file identity.
-Standalone, unprivileged, macOS, Windows and embedded hosts need further host
+Automatic maintenance supports a root-owned Linux systemd system service or a
+systemd user service with lingering enabled, where the current process is the
+actual MainPID of `yuhaiin.service`. The helper retains that account's UID/GID
+rather than acquiring a different file identity. Enable lingering for the user
+with `loginctl enable-linger` so its manager survives logout; the server refuses
+automatic maintenance if it cannot verify this prerequisite. Standalone, macOS,+Windows and embedded hosts need further host
 integration; the offline CLI remains separate. Windows restore activation also
 retains its documented directory-sync limitation. These are current support
 boundaries, not completion of the full cross-platform recovery objective.
@@ -245,7 +247,7 @@ Admission and backup-capture requests check each other's pending states in SQLit
 transactions. The existing scheduler pauses during a restore handoff; after an
 uncertain helper failure, its bounded recheck resumes work without a browser.
 
-On a root-owned Linux `yuhaiin.service`, **Review and restore** requires typing
+On a supported system or lingering user `yuhaiin.service`, **Review and restore** requires typing
 the target instance ID and acknowledging service interruption/data replacement,
 restored TLS/authentication/listener inputs, and the selected identity semantics.
 Original recovery additionally requires stopped-source and revoked-credential/

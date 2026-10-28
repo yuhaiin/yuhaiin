@@ -5,7 +5,8 @@ and [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
 Configuration export remains distinct from encrypted full deployment recovery.
 Managed local/S3 jobs, history, verified downloads/retrieval, confirmed Web restore,
 offline CLI and protected updates extend the existing owners. Automatic disruptive
-service maintenance is qualified for root-owned Linux systemd; other host and
+service maintenance is qualified for root-owned Linux systemd and lingering
+systemd user services; other host and
 durability limitations are stated in the operator guides. See the
 [requirement evidence](enterprise-reliability-audit.md),
 [managed workflow](managed-recovery-backups.md) and [safe updates](update-rollback.md).
@@ -129,12 +130,12 @@ SQLite drivers must be tested with their required build tags (`fts5` for mattn).
 
 The [encrypted archive and offline recovery commands](recovery-archive.md)
 collect, validate, preview and activate deployment snapshots with crash rollback
-and actual startup checks. Managed full-archive Web/S3 scheduling and retention
-are implemented; paired update recovery points still need implementation. Successful file activation alone
+and actual startup checks. Managed full-archive Web/S3 scheduling, retention and
+paired update recovery points are implemented. Successful file activation alone
 is not a successful service recovery.
 
 The [managed full-backup workflow](managed-recovery-backups.md) extends this same
 Backup/BackupStore/S3 owner with migration 21, bounded history, one scheduled
 maintenance capture, post-restart verified upload and leased archive downloads.
-Its root-owned Linux systemd scope and remaining host/update work
+Its Linux systemd system/user scope and remaining host limitations
 are explicit; it does not make legacy executable rollback database-safe.
