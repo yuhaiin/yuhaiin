@@ -164,7 +164,7 @@ func (t recoveryTransaction) validate() error {
 		}
 		owned := false
 		for name := range names {
-			owned = owned || strings.HasPrefix(name, strings.ToLower(filepath.ToSlash(directory))+"/")
+			owned = owned || strings.HasPrefix(filepath.ToSlash(name), strings.ToLower(filepath.ToSlash(directory))+"/")
 		}
 		if !owned {
 			return errors.New("unowned directory in recovery transaction")
