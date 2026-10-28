@@ -13,14 +13,59 @@ import (
 	"github.com/apernet/quic-go"
 )
 
-func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
+// selectionHealthSnapshot retains one immutable copy of each existing health
+// history. It is a read cache under nodeCounters.mu, not another observation
+// owner. Normal traffic still updates only the original bounded histories.
+type selectionHealthSnapshot struct {
+	generation, tcpSequence, udpSequence uint64
+	tcp, udp                             contract.ChannelHealth
+}
+
+type selectorObservations struct {
+	TCPHealth, UDPHealth         contract.ChannelHealth
+	Throughput, UploadThroughput contract.ThroughputMeasurement
+}
+
+// selectionSnapshot is internal to snapshot compilation. Its history slices
+// are immutable and must not escape through mutable management API responses.
+// Unchanged histories need no copy, even when many Selectors share the Node.
+func (n *nodeCounters) selectionSnapshot() selectorObservations {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	generation := n.generation.Load()
+	if n.selectionHealth == nil || n.selectionHealth.generation != generation {
+		n.selectionHealth = &selectionHealthSnapshot{generation: generation,
+			tcpSequence: n.tcpHealth.Sequence, udpSequence: n.udpHealth.Sequence,
+			tcp: copyHealth(n.tcpHealth), udp: copyHealth(n.udpHealth)}
+	} else {
+		if n.selectionHealth.tcpSequence != n.tcpHealth.Sequence {
+			n.selectionHealth.tcp = copyHealth(n.tcpHealth)
+			n.selectionHealth.tcpSequence = n.tcpHealth.Sequence
+		}
+		if n.selectionHealth.udpSequence != n.udpHealth.Sequence {
+			n.selectionHealth.udp = copyHealth(n.udpHealth)
+			n.selectionHealth.udpSequence = n.udpHealth.Sequence
+		}
+	}
+	now := time.Now()
+	return selectorObservations{TCPHealth: currentHealth(n.selectionHealth.tcp, now), UDPHealth: currentHealth(n.selectionHealth.udp, now),
+		Throughput: n.throughput, UploadThroughput: n.uploadThroughput}
+}
+
+func copyHealth(h contract.ChannelHealth) contract.ChannelHealth {
 	h.Samples = slices.Clone(h.Samples)
 	normalizeHealthSequence(&h)
 	h.LatencySamples = slices.Clone(h.LatencySamples)
-	if len(h.Samples) == 0 || time.Now().UnixMilli()-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
+	return h
+}
+func currentHealth(h contract.ChannelHealth, now time.Time) contract.ChannelHealth {
+	if len(h.Samples) == 0 || now.UnixMilli()-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
 		h.State = "unknown"
 	}
 	return h
+}
+func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
+	return currentHealth(copyHealth(h), time.Now())
 }
 
 // neutralHealthError applies equally to generic counters, circuit evidence and

@@ -657,3 +657,74 @@ from these connection/packet paths. These measurements compare configurations
 of this implementation, not before/after commits, maximum-history workloads,
 peak process resources, physical VPN speed or remote latency. Commands and
 [raw output](benchmarks/data/preferred-recovery-2026-10-28/local.txt) are retained.
+
+
+## Runtime heap and lifecycle qualification
+
+Snapshot compilation now reuses an immutable copy of each Node's existing
+TCP/UDP histories until its observation sequence or transport generation changes.
+All Selectors share that read cache in the original node counter. It introduces
+no new statistics owner, database state, timers or connection/packet work.
+The general status/export path still returns independent copies; a management
+caller cannot modify cached selection evidence. Capacity updates remain visible
+without a health update, and freshness is re-evaluated on every snapshot read.
+Restore/reconfiguration invalidates the cache even when sequence values repeat.
+
+Reproduce the resource fixture with:
+
+```sh
+go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorRuntimeResources$' \
+  -benchmem -benchtime=1x -count=3
+```
+
+Each operation creates a real SQLite deployment, opens the actual NodeRuntime,
+loads 100 or 1,000 Nodes and 1 or 10 shared balanced Selectors, fills 64 TCP and
+64 UDP observations per Node, and publishes 100 full runtime snapshots during 50 actual
+unhealthy/healthy channel-state cycles (three network failures followed by three
+successes per cycle). The fixture disables circuit admission to isolate the
+channel FSM; separate circuit tests cover Open/Half-open/Closed transitions. It then retains 1,024 fake TCP streams and 1,024 fake
+UDP sessions together, measures, closes every flow/runtime owner and measures
+again after GC. The separate race test exercises 1,024 concurrent creators
+through configuration/health churn. Neither fixture initializes a real VPN or
+contacts the public network. The existing scheduler tests separately establish
+the enabled-job worker/concurrency/cancellation bounds; this resource fixture
+keeps periodic network tests off.
+
+Three-run Linux/amd64 Go 1.27.3 medians below use decimal MB/GB. Retained Go heap
+is the post-GC change relative to the seeded-and-closed SQLite fixture. Allocated
+bytes include the complete lifecycle, fixture creation and 100 publications.
+
+| Nodes / shared Selectors | Retained live heap | Cumulative allocated | Extra runtime goroutines | Extra goroutines after Close |
+| --- | ---: | ---: | ---: | ---: |
+| 100 / 1, previous implementation | 2.28 MB | 244.21 MB | 4 | 0 |
+| 100 / 1, read cache | 4.25 MB | 52.36 MB | 4 | 0 |
+| 1,000 / 1, previous implementation | 22.88 MB | 2.473 GB | 4 | 0 |
+| 1,000 / 1, read cache | 42.55 MB | 548.21 MB | 4 | 0 |
+| 1,000 / 10, read cache | 50.61 MB | 4.142 GB | 4 | 0 |
+
+The single-Selector 1,000-Node lifecycle allocates about 78% fewer bytes by
+avoiding repeated unchanged-history copies. The explicit tradeoff is a retained
+immutable history copy, about 19.7 MB more for this worst-history fixture.
+Additional Selectors share those histories but still allocate their own ranking,
+score explanation, configuration and publication structures. Ten shared
+Selectors therefore do not make repeated compilation allocation-free; their
+4.142 GB cumulative figure over 100 full publications must not be presented as
+low ongoing allocation at arbitrary refresh rates. The backend coalesces normal
+health-driven publication on its existing runtime worker.
+
+The 2,048 retained fake flows add approximately 181 KB of Go heap and no
+additional goroutines in these cases. Post-Close Go heap differences fluctuate
+by tens of KB because process caches/GC remain; zero owned goroutine growth does
+not prove zero process memory retention. Forwarding allocation counts remain
+80 B/1 allocation for fake TCP manual admission, 96 B/2 for fake UDP manual
+admission, 272 B/5 and 288 B/6 for automatic failover/weighted admission, and zero
+for observed UDP sends. Timing and full logs are retained.
+
+[Before](benchmarks/data/selector-resources-2026-10-28/before.txt),
+[after and shared Selectors](benchmarks/data/selector-resources-2026-10-28/after.txt)
+and [forwarding](benchmarks/data/selector-resources-2026-10-28/forwarding.txt)
+outputs retain fixture provenance. The before/after single-Selector comparison
+uses the same fixture; the 10-Selector cases have no measured pre-change baseline.
+These are Go heap/goroutine and cumulative-allocation measurements of an
+in-memory transport fixture, not peak RSS, kernel socket memory, native VPN
+resource cost, actual throughput or a production node-count guarantee.

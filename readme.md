@@ -296,3 +296,9 @@ Node details distinguish observed current/window-average transfer rates from
 active target/time-specific measurements and recent retained TCP dial failures.
 The window uses the existing observer, resets after restart/suspend and adds no
 forwarding work or database migration. See the [observation guide](docs/intelligent-selectors.md#observed-traffic-window-and-recent-tcp-dial-outcomes).
+
+
+Runtime selection reuses immutable Node health histories across Selectors,
+without adding observation owners or per-packet work. Full-history before/after
+heap, allocations, shared-Selector and shutdown measurements document the cache
+memory tradeoff in the [resource qualification](docs/intelligent-selectors.md#runtime-heap-and-lifecycle-qualification).

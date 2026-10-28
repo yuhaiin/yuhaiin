@@ -63,6 +63,7 @@ type nodeCounters struct {
 	probes                                               map[string]contract.ProbeStatus
 	trafficWindow                                        nodeTrafficWindow
 	window                                               atomic.Pointer[contract.TrafficWindow]
+	selectionHealth                                      *selectionHealthSnapshot
 }
 
 func (n *nodeCounters) snapshot() nodeTotals {
@@ -104,6 +105,7 @@ func (n *nodeCounters) restore(v nodeTotals) {
 	n.lastFailure.Store(v.LastFailureAt)
 	n.lastUsed.Store(v.LastUsedAt)
 	n.mu.Lock()
+	n.selectionHealth = nil
 	n.lastError = v.LastError
 	n.probes = maps.Clone(v.Probes)
 	n.tcpHealth, n.udpHealth = cloneHealth(v.TCPHealth), cloneHealth(v.UDPHealth)

@@ -187,7 +187,7 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 				if counter == nil {
 					continue
 				}
-				stats := counter.snapshot()
+				stats := counter.selectionSnapshot()
 				input := selectionInput{unavailableReason: unavailable[c.NodeID], config: c, enabled: exists && n.Enabled, health: stats.TCPHealth, speed: stats.Throughput, uploadSpeed: stats.UploadThroughput, active: counter.activeTCP.Load() + counter.activeUDP.Load()}
 				if b := p.circuits[c.NodeID].tcp; b != nil {
 					b.observe(stats.TCPHealth, now)
