@@ -99,8 +99,14 @@ issuance through x/crypto/acme, account reuse, exact SAN/chain validation and an
 atomic TLS cache. A local HTTPS CA verifies the actual JWS, HTTP proof and CSR;
 tests exercise renewal and continued traffic on an established TLS stream.
 See [implemented behavior and remaining integration](managed-certificates.md).
-The production listener adapters, DNS provider, automatic scheduler, permissions,
-RPC, frontend and complete restart/failure qualification are still missing.
+The follow-up implements the real Cloudflare adapter and durable owned-record
+cleanup, TXT propagation checks, a single bounded persistent renewal/backoff
+worker, manual rate protection, cancellation and restart/lease recovery. Clone
+recovery disables certificate jobs and removes source private keys, DNS tokens
+and cleanup receipts. Local CA/provider, injected-clock, race and real encrypted
+restore tests cover these components. Production network/worker assembly,
+listener adapters, live ARI, permissions/RPC, frontend and complete application
+restart/failure qualification are still missing.
 
 Extend pkg/cert and existing management/gateway TLS with stable managed-resource
 IDs and hot-reloaded verified certificate snapshots. Keep site certificates,

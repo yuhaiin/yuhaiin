@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/certificate"
@@ -87,6 +88,22 @@ func (s *Store) Save(ctx context.Context, c contract.Config, revision uint64) (c
 		return contract.Resource{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if c.Challenge.Type == "dns-01" {
+		var provider []byte
+		if err = tx.QueryRowContext(ctx, `SELECT config_json FROM certificate_dns_providers WHERE id=?`, c.Challenge.DNSProviderID).Scan(&provider); err != nil {
+			return contract.Resource{}, errors.New("DNS provider is unavailable")
+		}
+		var p contract.DNSProvider
+		if err = json.Unmarshal(provider, &p); err != nil {
+			return contract.Resource{}, err
+		}
+		for _, domain := range c.Domains {
+			domain = strings.TrimPrefix(domain, "*.")
+			if domain != p.ZoneName && !strings.HasSuffix(domain, "."+p.ZoneName) {
+				return contract.Resource{}, errors.New("certificate DNS name is outside provider zone")
+			}
+		}
+	}
 	if revision == 0 {
 		var count int
 		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM managed_certificates`).Scan(&count); err != nil {
@@ -100,9 +117,9 @@ func (s *Store) Save(ctx context.Context, c contract.Config, revision uint64) (c
 			return contract.Resource{}, err
 		}
 	} else {
-		var previous []byte
+		var previous, statusData []byte
 		var count int
-		if err = tx.QueryRowContext(ctx, `SELECT config_json FROM managed_certificates WHERE id=? AND revision=?`, c.ID, revision).Scan(&previous); err != nil {
+		if err = tx.QueryRowContext(ctx, `SELECT config_json,status_json FROM managed_certificates WHERE id=? AND revision=?`, c.ID, revision).Scan(&previous, &statusData); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				err = ErrConflict
 			}
@@ -120,7 +137,26 @@ func (s *Store) Save(ctx context.Context, c contract.Config, revision uint64) (c
 				return contract.Resource{}, ErrInUse
 			}
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE managed_certificates SET revision=revision+1,config_json=?,lease_owner='',lease_until=0 WHERE id=? AND revision=?`, string(data), c.ID, revision)
+		var status contract.Status
+		if err = json.Unmarshal(statusData, &status); err != nil {
+			return contract.Resource{}, err
+		}
+		if status.State == "issuing" || !slices.Equal(old.Domains, c.Domains) || old.DirectoryURL != c.DirectoryURL || old.TrustPEM != c.TrustPEM {
+			status.State = "queued"
+			due := time.Now()
+			if minimum := status.LastAttempt.Add(ManualAttemptInterval); minimum.After(due) {
+				due = minimum
+			}
+			if status.Failures > 0 && status.NextAttempt.After(due) {
+				due = status.NextAttempt
+			}
+			status.NextAttempt = due
+			statusData, err = json.Marshal(status)
+			if err != nil {
+				return contract.Resource{}, err
+			}
+		}
+		result, err := tx.ExecContext(ctx, `UPDATE managed_certificates SET revision=revision+1,config_json=?,status_json=?,lease_owner='',lease_until=0 WHERE id=? AND revision=?`, string(data), string(statusData), c.ID, revision)
 		if err = changed(result, err); err != nil {
 			return contract.Resource{}, err
 		}
@@ -213,7 +249,7 @@ func (s *Store) Acquire(ctx context.Context, id string, revision uint64, owner s
 	if !contract.ValidID(owner) || ttl <= 0 || ttl > 15*time.Minute {
 		return false, errors.New("invalid certificate issuance lease")
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE managed_certificates SET lease_owner=?,lease_until=? WHERE id=? AND revision=? AND lease_until<=?`, owner, now.Add(ttl).UnixMilli(), id, revision, now.UnixMilli())
+	result, err := s.db.ExecContext(ctx, `UPDATE managed_certificates SET lease_owner=?,lease_until=?,status_json=json_set(status_json,'$.state','issuing','$.lastAttempt',?,'$.nextAttempt',?) WHERE id=? AND revision=? AND lease_until<=?`, owner, now.Add(ttl).UnixMilli(), now.UTC().Format(time.RFC3339Nano), now.Add(ttl).UTC().Format(time.RFC3339Nano), id, revision, now.UnixMilli())
 	if err != nil {
 		return false, err
 	}

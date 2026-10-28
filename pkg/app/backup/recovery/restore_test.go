@@ -9,10 +9,13 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+	"uuid"
 
 	"filippo.io/age"
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	contractcertificate "github.com/Asutorufa/yuhaiin/pkg/contract/certificate"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
@@ -20,6 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
@@ -261,6 +265,31 @@ func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
+	certificateStore := certificates.New(db.DB())
+	provider, err := certificateStore.SaveProvider(t.Context(), contractcertificate.DNSProvider{ID: uuid.New().String(), Name: "Source zone", Type: "cloudflare", ZoneID: strings.Repeat("a", 32), ZoneName: "example.com"}, certificates.NewSecret([]byte("source-provider-token")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	managed, err := certificateStore.Save(t.Context(), contractcertificate.Config{ID: uuid.New().String(), Name: "Source site", Domains: []string{"site.example.com"}, DirectoryURL: contractcertificate.LetsEncryptStaging, Email: "ops@example.com", TermsAccepted: true, AutoRenew: true, Challenge: contractcertificate.Challenge{Type: "dns-01", DNSProviderID: provider.ID}}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := certificateStore.AccountKey(t.Context(), managed.Config.DirectoryURL, managed.Config.Email, certificates.NewSecret([]byte("source-account-key"))); err != nil {
+		t.Fatal(err)
+	}
+	// Opaque private-material markers exercise ownership, separately from the
+	// manager's real signed-certificate and TLS tests.
+	owner := uuid.New().String()
+	now := time.Now()
+	if ok, err := certificateStore.Acquire(t.Context(), managed.Config.ID, managed.Revision, owner, now, time.Minute); err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	if err := certificateStore.Complete(t.Context(), managed.Config.ID, managed.Revision, owner, now, contractcertificate.Status{State: "ready"}, &certificates.Material{CertificatePEM: []byte("site certificate marker"), PrivateKey: certificates.NewSecret([]byte("site key marker"))}); err != nil {
+		t.Fatal(err)
+	}
+	if err := certificateStore.AddDNSCleanup(t.Context(), certificates.DNSCleanup{ID: uuid.New().String(), ProviderID: provider.ID, Name: "_acme-challenge.site.example.com", Value: strings.Repeat("a", 43), NotBefore: time.Now().Add(time.Hour).UnixMilli()}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -286,6 +315,31 @@ func TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone(t *t
 				t.Fatal(err)
 			}
 			defer restored.Close()
+			certificatesStore := certificates.New(restored)
+			certificate, err := certificatesStore.Get(t.Context(), managed.Config.ID)
+			if err != nil || certificate.Config.AutoRenew != (mode == "original") {
+				t.Fatal("wrong certificate renewal ownership", certificate, err)
+			}
+			if mode == "clone" && certificate.Status.State != "disabled" {
+				t.Fatal("cloned certificate job remains runnable", certificate.Status)
+			}
+			dnsProvider, token, err := certificatesStore.Provider(t.Context(), provider.ID)
+			if err != nil || dnsProvider.HasCredential != (mode == "original") || token.Empty() != (mode == "clone") {
+				t.Fatal("wrong provider identity ownership", dnsProvider, err)
+			}
+			for _, table := range []string{"managed_certificate_material", "certificate_acme_accounts", "certificate_dns_cleanup"} {
+				var count int
+				if err := restored.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				want := 1
+				if mode == "clone" {
+					want = 0
+				}
+				if count != want {
+					t.Fatal("source certificate identity/cleanup copied to clone", table, count)
+				}
+			}
 			configuration, err := store.NewMonitoringStore(restored).Get(t.Context())
 			enabled := mode == "original"
 			if err != nil || configuration.Probe.Enabled != enabled || configuration.Speed.Enabled != enabled || configuration.UploadSpeed == nil || configuration.UploadSpeed.Enabled != enabled {

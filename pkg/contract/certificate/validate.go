@@ -32,6 +32,9 @@ func (c Config) Validate() error {
 			return errors.New("invalid, duplicate or unsupported wildcard DNS name")
 		}
 		seen[name] = true
+		if c.Challenge.Type == "dns-01" && len(strings.TrimPrefix(name, "*."))+len("_acme-challenge.") > 253 {
+			return errors.New("DNS-01 challenge record name exceeds the DNS length limit")
+		}
 	}
 	u, err := url.Parse(c.DirectoryURL)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" || u.Opaque != "" || len(c.DirectoryURL) > 2048 {

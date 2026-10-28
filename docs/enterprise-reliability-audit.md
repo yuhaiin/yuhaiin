@@ -72,8 +72,11 @@ unchanged. This observation is not a substitute for migration compatibility test
 ACME is partially implemented internally and is not yet available to administrators.
 `managed-certificates.md` records the schema-24 private store, revision/lease and
 reference protection, real RFC 8555 HTTP-01 issuance and account reuse, verified
-atomic certificate cache, and local signing-CA/TLS integration tests. The actual
-Gateway challenge mount, real DNS-01 provider, automatic renewal/backoff/ARI,
-Management/Gateway lifecycle wiring, permissions/RPC, EN/JA/KO UI, clone renewal
-ownership and restart/provider/failure qualification remain required. Existing
+atomic certificate cache, and local signing-CA/TLS integration tests. A real
+Cloudflare DNS-01 adapter, durable exact-record cleanup/retries, injected-DNS
+propagation evidence, a bounded persistent renewal/backoff worker, manual rate
+protection and clone certificate-identity isolation are also implemented and
+tested. Production worker/network assembly, the actual Gateway challenge mount,
+live ARI retrieval/refresh, Management/Gateway lifecycle wiring, permissions/RPC,
+EN/JA/KO UI and full application restart/failure qualification remain required. Existing
 management TLS, site termination, MITM CA and TLS Auto CA retain their ownership.

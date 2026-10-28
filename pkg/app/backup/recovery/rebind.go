@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
 )
 
 func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string, inputs *contractrecovery.Runtime, resolve func(string) (string, error), mode string) error {
@@ -40,6 +41,9 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 		}
 	}
 	if mode == "clone" {
+		if err := certificates.New(db.DB()).PrepareClone(ctx); err != nil {
+			return err
+		}
 		if _, err := db.DB().ExecContext(ctx, "DELETE FROM gateway_ca"); err != nil {
 			return err
 		}

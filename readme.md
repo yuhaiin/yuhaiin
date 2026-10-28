@@ -249,7 +249,8 @@ Enterprise reliability is being developed in one [backend PR](https://github.com
 
 The internal [managed-certificate foundation](docs/managed-certificates.md) now
 includes private schema-24 storage, local-CA-tested HTTP-01 issuance and a verified
-hot certificate cache. Production listener/RPC/UI and automatic renewal wiring
+hot certificate cache, Cloudflare DNS-01 and a persistent renewal worker.
+Production listener/RPC/UI and automatic renewal wiring
 remain in progress; existing TLS configuration keeps its current behavior.
 
 Backup transfer bounds and the disaster-recovery implementation status:

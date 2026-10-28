@@ -48,6 +48,7 @@ type testCA struct {
 	badSAN     bool
 	challenges *HTTPChallenges
 	gateway    string
+	dnsProof   func(string, string) bool
 }
 
 func newTestCA(t *testing.T) *testCA {
@@ -124,12 +125,23 @@ func (ca *testCA) serve(w http.ResponseWriter, r *http.Request) {
 		if ca.valid {
 			status = "valid"
 		}
-		ca.respond(w, map[string]any{"status": status, "identifier": map[string]string{"type": "dns", "value": "site.example"}, "challenges": []map[string]string{{"type": "http-01", "url": ca.server.URL + "/challenge", "token": strings.Repeat("t", 32), "status": status}}})
+		kind := "http-01"
+		if ca.dnsProof != nil {
+			kind = "dns-01"
+		}
+		ca.respond(w, map[string]any{"status": status, "identifier": map[string]string{"type": "dns", "value": "site.example"}, "challenges": []map[string]string{{"type": kind, "url": ca.server.URL + "/challenge", "token": strings.Repeat("t", 32), "status": status}}})
 	case "/challenge":
 		request := httptest.NewRequest(http.MethodGet, "http://site.example/.well-known/acme-challenge/"+strings.Repeat("t", 32), nil)
 		recorder := httptest.NewRecorder()
 		thumbprint, err := acme.JWKThumbprint(ca.account)
-		if err != nil || !ca.challenges.Serve(ca.gateway, recorder, request) || recorder.Code != 200 || recorder.Body.String() != strings.Repeat("t", 32)+"."+thumbprint {
+		verified := false
+		if ca.dnsProof != nil {
+			digest := sha256.Sum256([]byte(strings.Repeat("t", 32) + "." + thumbprint))
+			verified = ca.dnsProof("_acme-challenge.site.example", base64.RawURLEncoding.EncodeToString(digest[:]))
+		} else {
+			verified = ca.challenges.Serve(ca.gateway, recorder, request) && recorder.Code == 200 && recorder.Body.String() == strings.Repeat("t", 32)+"."+thumbprint
+		}
+		if err != nil || !verified {
 			ca.t.Error("HTTP-01 ownership proof failed")
 			http.Error(w, "challenge", 400)
 			return
