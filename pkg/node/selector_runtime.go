@@ -170,19 +170,24 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 	next := &selectorSnapshot{nodes: s.nodes, generations: s.nodeGenerations, tcpID: s.tcpID, udpID: s.udpID, items: make(map[string]*preparedSelector, len(s.configs))}
 	for _, config := range s.configs {
 		config = s.effectivePolicy(config)
-		p := &preparedSelector{generations: s.nodeGenerations, circuits: s.circuitBindings[config.ID], config: config, nodes: make(map[string]contract.Node), status: contract.SelectorRuntimeStatus{ID: config.ID, Revision: config.Revision, Events: []contract.SelectorEvent{}}}
+		candidateCount := 0
+		if config.Policy != nil {
+			candidateCount = len(config.Policy.Candidates)
+		}
+		// reload replaces the node map instead of modifying it, so every Selector
+		// in this generation can safely share it with existing snapshots.
+		p := &preparedSelector{generations: s.nodeGenerations, circuits: s.circuitBindings[config.ID], config: config, nodes: s.nodes, status: contract.SelectorRuntimeStatus{ID: config.ID, Revision: config.Revision, Events: []contract.SelectorEvent{}}}
 		if previous != nil {
 			if old := previous.items[config.ID]; old != nil {
 				p.status = old.status
 				p.status.Revision = config.Revision
 			}
 		}
-		p.nodes[config.NodeID] = s.nodes[config.NodeID]
-		var tcp, udp []selectionInput
+		tcp := make([]selectionInput, 0, candidateCount)
+		udp := make([]selectionInput, 0, candidateCount)
 		if config.Policy != nil {
 			for _, c := range config.Policy.Candidates {
 				n, exists := s.nodes[c.NodeID]
-				p.nodes[c.NodeID] = n
 				counter := s.counters[c.NodeID]
 				if counter == nil {
 					continue

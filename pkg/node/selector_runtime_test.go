@@ -148,6 +148,40 @@ func TestSelectorRuntimeNoDatabaseOnConnectionPathAndLiveReload(t *testing.T) {
 	}
 }
 
+func TestSelectorSnapshotsKeepNodeGenerationAcrossReload(t *testing.T) {
+	r := newTestRuntime(t)
+	node := testNode(t, "a", "before")
+	if _, err := r.Save(t.Context(), node); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewSelectorService(r)
+	first, err := svc.Save(t.Context(), contract.Selector{Name: "First", NodeID: node.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.Save(t.Context(), contract.Selector{Name: "Second", NodeID: node.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := r.selectors.snapshot.Load()
+	node.Name = "after"
+	if _, err := r.Save(t.Context(), node); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Save(t.Context(), testNode(t, "b", "added")); err != nil {
+		t.Fatal(err)
+	}
+	current := r.selectors.snapshot.Load()
+	for _, id := range []string{first.ID, second.ID} {
+		if got := old.items[id].nodes[node.ID].Name; got != "before" {
+			t.Fatalf("old selector %s node changed to %q", id, got)
+		}
+		if got := current.items[id].nodes[node.ID].Name; got != "after" {
+			t.Fatalf("current selector %s node name = %q", id, got)
+		}
+	}
+}
+
 func TestSelectorConcurrentSnapshotChanges(t *testing.T) {
 	r := newTestRuntime(t)
 	for _, id := range []string{"a", "b"} {

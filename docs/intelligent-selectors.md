@@ -706,11 +706,10 @@ The single-Selector 1,000-Node lifecycle allocates about 78% fewer bytes by
 avoiding repeated unchanged-history copies. The explicit tradeoff is a retained
 immutable history copy, about 19.7 MB more for this worst-history fixture.
 Additional Selectors share those histories but still allocate their own ranking,
-score explanation, configuration and publication structures. Ten shared
-Selectors therefore do not make repeated compilation allocation-free; their
-4.142 GB cumulative figure over 100 full publications must not be presented as
-low ongoing allocation at arbitrary refresh rates. The backend coalesces normal
-health-driven publication on its existing runtime worker.
+score explanation, configuration and publication structures. The historical
+4.142 GB cumulative result over 100 full publications preceded the preallocation
+and node-map sharing measured below. The backend coalesces normal health-driven
+publication on its existing runtime worker.
 
 The 2,048 retained fake flows add approximately 181 KB of Go heap and no
 additional goroutines in these cases. Post-Close Go heap differences fluctuate
@@ -800,3 +799,36 @@ go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorRuntimeResources$' -bench
 [Ranking/packet](benchmarks/data/selector-qualification-2026-10-28/ranking.txt),
 [admission](benchmarks/data/selector-qualification-2026-10-28/admission.txt),
 [resource recheck](benchmarks/data/selector-qualification-2026-10-28/resources.txt).
+
+### Snapshot allocation after preallocation and node-map sharing
+
+Each configuration reload builds a fresh immutable Node map. Selectors compiled
+in the same generation share that map, while a retained older snapshot continues
+to reference its original generation. Candidate input slices are sized once per
+Selector and network. This changes snapshot compilation, not per-packet or
+per-connection selection; the concurrent reload and retained-snapshot tests cover
+the generation boundary.
+
+On the same Linux/amd64, Go 1.27.3, Ryzen 5 5600G host, three independent
+one-iteration runs of the full-history lifecycle fixture above give these medians
+(decimal units):
+
+| Nodes / Selectors | Before: cumulative allocated | After: cumulative allocated | Before / after retained Go heap |
+| --- | ---: | ---: | ---: |
+| 100 / 1 | 52.76 MB | 35.09 MB | 4.25 / 4.23 MB |
+| 1,000 / 1 | 551.50 MB | 303.80 MB | 42.58 / 42.28 MB |
+| 1,000 / 10 | 4.176 GB | 1.624 GB | 50.94 / 47.98 MB |
+
+The ten-Selector case allocates about 61% fewer bytes across fixture setup,
+100 full publications and shutdown; it still allocates substantially during
+frequent full rebuilds. Median elapsed time for this fixture was 4.31 seconds
+before and 3.82 seconds after. These local fake-flow numbers are not network
+throughput or a production capacity guarantee. All cases still used four extra
+runtime goroutines and returned to baseline after Close. Separate three-run
+new-flow checks measured manual/failover TCP medians of 692/864 ns and UDP of
+448/558 ns, with the same allocation counts as the preceding qualification.
+[Before](benchmarks/data/selector-preallocation-2026-10-28/before.txt),
+[after](benchmarks/data/selector-preallocation-2026-10-28/resources.txt), and
+[new-flow results](benchmarks/data/selector-preallocation-2026-10-28/admission.txt)
+contain the complete output and are reproducible using the commands above and
+`go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorNewFlow$' -benchmem -benchtime=300ms -count=3`.
