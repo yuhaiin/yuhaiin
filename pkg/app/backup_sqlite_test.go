@@ -225,3 +225,62 @@ func TestBackupSQLiteRejectsUnclassifiedTable(t *testing.T) {
 		t.Fatalf("expected unclassified table error, got %v", err)
 	}
 }
+
+func TestBackupTickerStopsWhenReconfigured(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	sqliteStore, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqliteStore.Close()
+
+	store := plainstore.NewBackupStore(sqliteStore.DB())
+	backup := &Backup{store: store}
+	save := func(enabled bool, interval uint64) {
+		t.Helper()
+		if err := store.Save(t.Context(), contractbackup.Option{
+			InstanceName: "instance",
+			Interval:     interval,
+			S3:           contractbackup.S3{Enabled: enabled},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		backup.resetTicker()
+	}
+	assertStopped := func(stop <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-stop:
+		default:
+			t.Fatal("retired backup worker was not stopped")
+		}
+	}
+
+	save(true, 60)
+	first := backup.tickerStop
+	if first == nil {
+		t.Fatal("enabled backup should have a ticker")
+	}
+	save(true, 30)
+	assertStopped(first)
+	second := backup.tickerStop
+	if second == nil || second == first {
+		t.Fatal("backup interval update did not replace the ticker")
+	}
+	save(false, 30)
+	assertStopped(second)
+	if backup.ticker != nil {
+		t.Fatal("disabled S3 still has an active backup ticker")
+	}
+	save(true, 60)
+	third := backup.tickerStop
+	if third == nil {
+		t.Fatal("re-enabled backup should have a ticker")
+	}
+	if err := backup.Close(); err != nil {
+		t.Fatal(err)
+	}
+	assertStopped(third)
+}
