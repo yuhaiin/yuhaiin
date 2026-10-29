@@ -69,6 +69,10 @@ of falling through to ordinary forwarding. An explicit re-enable clears this
 import protection; unrelated, manually disabled Gateways retain their existing
 behavior. Import these snapshots only into a version that understands the
 `rejectWhenDisabled` Gateway property: older versions cannot enforce this guard.
+JSON exports containing this guard use configuration format version 2, which
+older JSON importers reject; other exports retain version 1. New importers
+continue to accept version 1. The legacy S3 SQLite format has no equivalent
+version gate, so do not restore it with an older server.
 Other Gateways retain their enabled state. Import replaces existing subscription
 links with the exported set, which is empty for new exports.
 Previously uploaded snapshots are not rewritten or deleted by this change and

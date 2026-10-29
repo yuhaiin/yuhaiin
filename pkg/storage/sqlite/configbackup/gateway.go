@@ -11,16 +11,16 @@ import (
 // Gateway removes header and query values that may carry credentials. A
 // changed gateway and affected rules stay disabled until an administrator
 // restores their policy, avoiding activation with an altered access condition.
-func Gateway(data string) (string, bool, error) {
+func Gateway(data string) (string, bool, bool, error) {
 	value := jsontext.Value(data)
 	if value.Kind() != '{' || !value.IsValid() {
-		return "", false, errors.New("invalid gateway configuration in export")
+		return "", false, false, errors.New("invalid gateway configuration in export")
 	}
 	var workspace contract.Workspace
 	if err := json.Unmarshal(value, &workspace, json.RejectUnknownMembers(true)); err != nil || workspace.Version != 2 {
-		return "", false, errors.New("unsupported gateway configuration in export")
+		return "", false, false, errors.New("unsupported gateway configuration in export")
 	}
-	changed := false
+	changed, guarded := false, false
 	for i := range workspace.Gateways {
 		g := &workspace.Gateways[i]
 		modified := redactGatewayAction(&g.Fallback)
@@ -28,7 +28,7 @@ func Gateway(data string) (string, bool, error) {
 			rule := &g.Policies[j]
 			matchChanged, err := redactGatewayCondition(&rule.Match, 0)
 			if err != nil {
-				return "", false, err
+				return "", false, false, err
 			}
 			if redactGatewayAction(&rule.Action) || matchChanged {
 				rule.Enabled = false
@@ -40,15 +40,16 @@ func Gateway(data string) (string, bool, error) {
 			g.RejectWhenDisabled = true
 			changed = true
 		}
+		guarded = guarded || g.RejectWhenDisabled
 	}
 	if !changed {
-		return data, false, nil
+		return data, false, guarded, nil
 	}
 	result, err := json.Marshal(workspace)
 	if err != nil {
-		return "", false, errors.New("cannot encode redacted gateway configuration")
+		return "", false, false, errors.New("cannot encode redacted gateway configuration")
 	}
-	return string(result), true, nil
+	return string(result), true, guarded, nil
 }
 
 func redactGatewayAction(action *contract.Action) bool {

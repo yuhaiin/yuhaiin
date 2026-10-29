@@ -30,8 +30,9 @@ type ConfigBackup struct {
 }
 
 type ConfigBackupTable struct {
-	Columns []string           `json:"columns"`
-	Rows    [][]jsontext.Value `json:"rows"`
+	Columns              []string           `json:"columns"`
+	Rows                 [][]jsontext.Value `json:"rows"`
+	requiresGatewayGuard bool
 }
 
 // Parent tables precede children. Restore deletes them in reverse order.
@@ -115,7 +116,7 @@ func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disa
 			case "publishes":
 				redacted, changed, err = configbackup.Publish(raw)
 			case "gateway_configuration":
-				redacted, changed, err = configbackup.Gateway(raw)
+				redacted, changed, _, err = configbackup.Gateway(raw)
 			default:
 				redacted, changed, err = configbackup.Endpoint(raw)
 			}
@@ -195,6 +196,9 @@ func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
 			return nil, fmt.Errorf("export %s: %w", table, err)
 		}
 		backup.Tables[table] = data
+		if data.requiresGatewayGuard {
+			backup.Version = 2
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -292,7 +296,9 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 			if table == "publishes" {
 				values[index], _, err = configbackup.Publish(raw)
 			} else {
-				values[index], _, err = configbackup.Gateway(raw)
+				var guarded bool
+				values[index], _, guarded, err = configbackup.Gateway(raw)
+				out.requiresGatewayGuard = out.requiresGatewayGuard || guarded
 			}
 			if err != nil {
 				return out, err
@@ -338,7 +344,7 @@ func decodeConfigBackup(data []byte) (ConfigBackup, error) {
 	if err := json.Unmarshal(data, &backup, json.RejectUnknownMembers(true)); err != nil {
 		return backup, fmt.Errorf("invalid backup: %w", err)
 	}
-	if backup.Format != "yuhaiin-config" || backup.Version != 1 {
+	if backup.Format != "yuhaiin-config" || (backup.Version != 1 && backup.Version != 2) {
 		return backup, errors.New("unsupported configuration backup format or version")
 	}
 	backup.missingLegacyTables = make(map[string]bool)

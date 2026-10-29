@@ -25,6 +25,10 @@ func TestConfigurationExportOmitsS3SecretsAndDisablesAutomaticBackup(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	var envelope ConfigBackup
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Version != 1 {
+		t.Fatal("configuration without guarded Gateways should retain the legacy format", envelope.Version, err)
+	}
 	for _, marker := range []string{"config-access-marker", "config-secret-marker", "digest-marker"} {
 		if bytes.Contains(data, []byte(marker)) {
 			t.Errorf("configuration export includes %s", marker)
@@ -458,6 +462,10 @@ func TestConfigurationExportDisablesGatewayWithRedactedFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var envelope ConfigBackup
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Version != 2 {
+		t.Fatal("guarded configuration must use a format version rejected by older servers", envelope.Version, err)
+	}
 	if bytes.Contains(data, []byte("query-marker")) || bytes.Contains(data, []byte("header-marker")) {
 		t.Fatal("configuration export contains fallback credentials")
 	}
@@ -472,6 +480,13 @@ func TestConfigurationExportDisablesGatewayWithRedactedFallback(t *testing.T) {
 	var enabled int
 	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].enabled') FROM gateway_configuration WHERE id=1`).Scan(&enabled); err != nil || enabled != 0 {
 		t.Fatal("redacted gateway fallback remained enabled", enabled, err)
+	}
+	reexport, err := ExportConfig(t.Context(), target.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(reexport, &envelope); err != nil || envelope.Version != 2 {
+		t.Fatal("re-export of guarded Gateway lost the newer format", envelope.Version, err)
 	}
 }
 
@@ -629,7 +644,7 @@ func TestConfigBackupRejectsIncompleteOrUnknownFormat(t *testing.T) {
 	if err := json.Unmarshal(data, &backup); err != nil {
 		t.Fatal(err)
 	}
-	backup.Version = 2
+	backup.Version = 3
 	future, err := json.Marshal(backup)
 	if err != nil {
 		t.Fatal(err)

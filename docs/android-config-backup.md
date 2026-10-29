@@ -38,7 +38,9 @@ Gateway request/response headers, rewritten queries and header/query condition
 values are removed; affected policies and Gateways must be reviewed and enabled
 again. Routes selecting an affected disabled Gateway reject connections until
 it is enabled. Older versions do not understand this guard and must not import
-these snapshots. Import replaces existing subscription links with the exported empty set.
+these snapshots. Guarded JSON exports use format version 2 so older JSON
+importers reject them; the legacy S3 SQLite format lacks that version gate.
+Import replaces existing subscription links with the exported empty set.
 Exports remain plaintext and opaque URL paths, custom data or unknown fields may
 contain secrets; Android explains this before export or sharing.
 
