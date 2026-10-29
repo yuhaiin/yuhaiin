@@ -18,11 +18,13 @@ type Config struct {
 }
 
 type Gateway struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Enabled  bool   `json:"enabled"`
-	Debug    bool   `json:"debug"`
-	Revision uint64 `json:"revision"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+	// RejectWhenDisabled protects routes targeting a redacted imported Gateway.
+	RejectWhenDisabled bool   `json:"rejectWhenDisabled,omitzero"`
+	Debug              bool   `json:"debug"`
+	Revision           uint64 `json:"revision"`
 	// Empty listen means interception only. Non-loopback listeners require an ACL.
 	Listen                string   `json:"listen"`
 	AllowedSources        []string `json:"allowedSources"`

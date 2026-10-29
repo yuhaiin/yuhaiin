@@ -64,7 +64,12 @@ reconfigure publish targets and credentials after importing either format.
 Gateway request/response header values, rewritten queries and header/query
 condition values are also removed. Affected policies and their Gateways are
 disabled until an administrator restores the values and reviews the policy;
-other Gateways retain their enabled state. Import replaces existing subscription
+routes selecting such a Gateway reject connections while it is disabled, instead
+of falling through to ordinary forwarding. An explicit re-enable clears this
+import protection; unrelated, manually disabled Gateways retain their existing
+behavior. Import these snapshots only into a version that understands the
+`rejectWhenDisabled` Gateway property: older versions cannot enforce this guard.
+Other Gateways retain their enabled state. Import replaces existing subscription
 links with the exported set, which is empty for new exports.
 Previously uploaded snapshots are not rewritten or deleted by this change and
 may contain the excluded secrets; review their storage and rotate exposed keys.

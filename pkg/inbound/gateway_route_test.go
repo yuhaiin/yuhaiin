@@ -56,7 +56,11 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	old := configuration.DataDir.Load()
 	configuration.DataDir.Store(t.TempDir())
 	t.Cleanup(func() { configuration.DataDir.Store(old) })
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "backend:"+r.URL.Path) }))
+	var backendRequests atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendRequests.Add(1)
+		_, _ = io.WriteString(w, "backend:"+r.URL.Path)
+	}))
 	defer backend.Close()
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
@@ -186,6 +190,27 @@ func TestExistingRouteGatesHTTPAndMITMStreams(t *testing.T) {
 	}
 	if requests := manager.Status().Gateways[0].Requests; requests != 2 {
 		t.Fatalf("unrelated traffic reached Gateway: %d", requests)
+	}
+	// A redacted Gateway cannot fall through the real inbound/routing pipeline
+	// to its former backend while its imported security policy is incomplete.
+	guarded := manager.Config()
+	guarded.Gateways[0].Enabled = false
+	guarded.Gateways[0].RejectWhenDisabled = true
+	if _, err := manager.Save(t.Context(), guarded); err != nil {
+		t.Fatal(err)
+	}
+	previousBackendCount := backendRequests.Load()
+	if response, err := client.Get("http://app.example/guarded"); err == nil {
+		_ = response.Body.Close()
+		t.Fatal("traffic fell through the disabled imported Gateway")
+	}
+	if backendRequests.Load() != previousBackendCount {
+		t.Fatal("guarded traffic reached the ordinary outbound backend")
+	}
+	guarded = manager.Config()
+	guarded.Gateways[0].Enabled = true
+	if _, err := manager.Save(t.Context(), guarded); err != nil {
+		t.Fatal(err)
 	}
 	// Inbound admission belongs to Routing. The same Gateway setting needs no edit.
 	// Only a Route Inbound condition needs a persisted reference.

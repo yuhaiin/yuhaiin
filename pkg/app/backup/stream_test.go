@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,7 @@ import (
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -94,6 +96,43 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	}
 	if _, err := gateway.CompilePolicy(jsonGateway.Rules, jsonGateway.Gateways[0].Default); err != nil {
 		t.Fatal("redacted JSON gateway policy cannot be compiled", err)
+	}
+	manager, err := gateway.NewManager(t.Context(), plainstore.NewGatewayStore(importTarget.DB()), nil, nil)
+	if err != nil {
+		t.Fatal("cannot start imported Gateway configuration", err)
+	}
+	defer manager.Close()
+	if status := manager.Status(); status.StartupError != "" {
+		t.Fatal("cannot activate imported Gateway configuration", status.StartupError)
+	}
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+	if err := client.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.InterceptGateway(netapi.WithContext(t.Context()), &netapi.StreamMeta{Src: server}, "g1") {
+		t.Fatal("routing through a redacted Gateway fell back to ordinary forwarding")
+	}
+	if _, err := client.Read(make([]byte, 1)); err != io.EOF {
+		t.Fatalf("redacted Gateway did not reject selected traffic: %v", err)
+	}
+	// A client predating the safety marker can save other settings while the
+	// Gateway is disabled; it must not accidentally remove the rejection guard.
+	draft := manager.Config()
+	draft.Gateways[0].RejectWhenDisabled = false
+	saved, err := manager.Save(t.Context(), draft)
+	if err != nil || !saved.Gateways[0].RejectWhenDisabled {
+		t.Fatal("saving a disabled imported Gateway lost its safety guard", saved, err)
+	}
+	reloaded, err := plainstore.NewGatewayStore(importTarget.DB()).Load(t.Context())
+	if err != nil || !reloaded.Gateways[0].RejectWhenDisabled {
+		t.Fatal("disabled Gateway safety guard was not persisted", reloaded, err)
+	}
+	saved.Gateways[0].Enabled = true
+	saved, err = manager.Save(t.Context(), saved)
+	if err != nil || !saved.Gateways[0].Enabled || saved.Gateways[0].RejectWhenDisabled {
+		t.Fatal("explicitly enabling the reviewed Gateway did not release its guard", saved, err)
 	}
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)

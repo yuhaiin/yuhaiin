@@ -45,7 +45,9 @@ recognized node/inbound credentials. Affected nodes/listeners are disabled and
 affected legacy nodes deselected. Automatic backup/maintenance consent is
 disabled; subscription URLs are omitted and publish targets and credentials are
 cleared. Gateway header and query values are redacted, and affected policies
-and Gateways disabled. Legacy S3 restore keeps the target's local backup settings. Opaque
+and Gateways disabled; selected routes reject connections until the Gateway is
+explicitly re-enabled. This guard requires a version that understands the
+`rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings. Opaque
 URL paths, custom data and unknown fields may still contain secrets. Therefore
 the requirement to exclude sensitive identity material from configuration export
 by default is not yet fully verified, and these unencrypted exports must still

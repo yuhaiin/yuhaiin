@@ -73,6 +73,9 @@ func advanceRevisions[T any](old, next []T) ([]T, error) {
 
 func reviseConfig(old, next contract.Config) (contract.Config, error) {
 	var err error
+	// Old clients do not know the import safety marker. Preserve it on disabled
+	// Gateways until an administrator explicitly enables the repaired Gateway.
+	next.Gateways = contract.PreserveDisabledGuards(old.Gateways, next.Gateways)
 	if next.Gateways, err = advanceRevisions(old.Gateways, next.Gateways); err != nil {
 		return next, err
 	}

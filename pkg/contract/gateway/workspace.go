@@ -3,6 +3,7 @@ package gateway
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // Workspace is the Gateway-first editable view of Config. A policy, backend pool
@@ -15,18 +16,19 @@ type Workspace struct {
 }
 
 type WorkspaceGateway struct {
-	ID           string                `json:"id"`
-	Name         string                `json:"name"`
-	Enabled      bool                  `json:"enabled"`
-	Debug        bool                  `json:"debug"`
-	Revision     uint64                `json:"revision"`
-	Listener     *ListenerSource       `json:"listener,omitempty"`
-	Policies     []Rule                `json:"policies"`
-	BackendPools []Upstream            `json:"backendPools"`
-	Interception *InterceptionSettings `json:"interception,omitempty"`
-	Filters      []FilterList          `json:"filters"`
-	Fallback     Action                `json:"fallback"`
-	MaxBodyBytes int64                 `json:"maxBodyBytes"`
+	ID                 string                `json:"id"`
+	Name               string                `json:"name"`
+	Enabled            bool                  `json:"enabled"`
+	RejectWhenDisabled bool                  `json:"rejectWhenDisabled,omitzero"`
+	Debug              bool                  `json:"debug"`
+	Revision           uint64                `json:"revision"`
+	Listener           *ListenerSource       `json:"listener,omitempty"`
+	Policies           []Rule                `json:"policies"`
+	BackendPools       []Upstream            `json:"backendPools"`
+	Interception       *InterceptionSettings `json:"interception,omitempty"`
+	Filters            []FilterList          `json:"filters"`
+	Fallback           Action                `json:"fallback"`
+	MaxBodyBytes       int64                 `json:"maxBodyBytes"`
 }
 
 type ListenerSource struct {
@@ -37,6 +39,25 @@ type ListenerSource struct {
 	KeyFile               string   `json:"keyFile,omitempty"`
 	ManagedCertificateIDs []string `json:"managedCertificateIds,omitempty"`
 	ACMEHTTP01            bool     `json:"acmeHttp01,omitzero"`
+}
+
+// PreserveDisabledGuards prevents an older editor from removing an import
+// safety guard. Explicitly enabling the Gateway releases the guard.
+func PreserveDisabledGuards(old, next []Gateway) []Gateway {
+	guarded := make(map[string]bool, len(old))
+	for _, g := range old {
+		guarded[g.ID] = g.RejectWhenDisabled
+	}
+	result := slices.Clone(next)
+	for i := range result {
+		g := &result[i]
+		if g.Enabled {
+			g.RejectWhenDisabled = false
+		} else if guarded[g.ID] {
+			g.RejectWhenDisabled = true
+		}
+	}
+	return result
 }
 
 // InterceptionSettings controls HTTP/TLS handling after Routing selects the
@@ -136,7 +157,7 @@ func WorkspaceFromConfig(cfg Config) (Workspace, error) {
 
 	for _, g := range cfg.Gateways {
 		entry := WorkspaceGateway{
-			ID: g.ID, Name: g.Name, Enabled: g.Enabled, Revision: g.Revision,
+			ID: g.ID, Name: g.Name, Enabled: g.Enabled, RejectWhenDisabled: g.RejectWhenDisabled, Revision: g.Revision,
 			Debug: g.Debug, MaxBodyBytes: g.MaxBodyBytes, Fallback: g.Default,
 			Policies: []Rule{}, BackendPools: []Upstream{},
 			Filters: []FilterList{},
@@ -246,7 +267,7 @@ func ConfigFromWorkspace(doc Workspace) (Config, error) {
 			return Config{}, fmt.Errorf("duplicate or empty Gateway ID %q", g.ID)
 		}
 		seenGateway[g.ID] = true
-		entry := Gateway{ID: g.ID, Name: g.Name, Enabled: g.Enabled, Revision: g.Revision,
+		entry := Gateway{ID: g.ID, Name: g.Name, Enabled: g.Enabled, RejectWhenDisabled: g.RejectWhenDisabled, Revision: g.Revision,
 			Debug: g.Debug, MaxBodyBytes: g.MaxBodyBytes, Default: g.Fallback, RuleIDs: []string{}}
 		if g.Listener != nil {
 			entry.Listen, entry.AllowedSources = g.Listener.Listen, g.Listener.AllowedSources

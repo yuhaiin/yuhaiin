@@ -37,6 +37,7 @@ func Gateway(data string) (string, bool, error) {
 		}
 		if modified {
 			g.Enabled = false
+			g.RejectWhenDisabled = true
 			changed = true
 		}
 	}

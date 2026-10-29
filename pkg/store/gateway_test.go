@@ -73,6 +73,25 @@ func TestGatewaySQLiteRevisionAndTargetReferences(t *testing.T) {
 	}
 }
 
+func TestGatewayStorePreservesDisabledImportGuardUntilEnabled(t *testing.T) {
+	editor, _, _ := editorStore(t)
+	s := NewGatewayStore(editor.db)
+	stored, err := s.Save(t.Context(), contract.Config{Gateways: []contract.Gateway{{ID: "g", Name: "Gateway", RejectWhenDisabled: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored.Gateways[0].RejectWhenDisabled = false // An older client does not send this field.
+	stored, err = s.Save(t.Context(), stored)
+	if err != nil || !stored.Gateways[0].RejectWhenDisabled {
+		t.Fatal("store lost disabled import guard", stored, err)
+	}
+	stored.Gateways[0].Enabled = true
+	stored, err = s.Save(t.Context(), stored)
+	if err != nil || stored.Gateways[0].RejectWhenDisabled || !stored.Gateways[0].Enabled {
+		t.Fatal("explicit enable did not release import guard", stored, err)
+	}
+}
+
 func TestGatewayCAStoreCASAndConfigSeparation(t *testing.T) {
 	editor, _, _ := editorStore(t)
 	s := NewGatewayStore(editor.db)

@@ -91,17 +91,20 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 	for _, g := range cfg.Gateways {
 		retained[g.ID] = true
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT json_extract(g.value, '$.id') FROM gateway_configuration, json_each(data_json, '$.gateways') g`)
+	rows, err := tx.QueryContext(ctx, `SELECT json_extract(g.value, '$.id'), COALESCE(json_extract(g.value, '$.rejectWhenDisabled'), 0) FROM gateway_configuration, json_each(data_json, '$.gateways') g`)
 	if err != nil {
 		return cfg, err
 	}
 	var removed []string
+	var prior []contract.Gateway
 	for rows.Next() {
 		var id string
-		if err := rows.Scan(&id); err != nil {
+		var guarded bool
+		if err := rows.Scan(&id, &guarded); err != nil {
 			_ = rows.Close()
 			return cfg, err
 		}
+		prior = append(prior, contract.Gateway{ID: id, RejectWhenDisabled: guarded})
 		if !retained[id] {
 			removed = append(removed, id)
 		}
@@ -110,6 +113,7 @@ func (s *GatewayStore) Save(ctx context.Context, cfg contract.Config) (contract.
 	if err != nil {
 		return cfg, err
 	}
+	cfg.Gateways = contract.PreserveDisabledGuards(prior, cfg.Gateways)
 	for _, id := range removed {
 		refs, err := targetReferences(ctx, tx, "gateway", id)
 		if err != nil {
