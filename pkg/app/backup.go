@@ -112,15 +112,17 @@ func (b *Backup) resetTicker() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	opt, err := b.getConfig()
-	if err != nil {
-		log.Error("get config failed", "err", err)
-		return
-	}
-
 	b.stopTicker()
 
-	if opt.Interval == 0 {
+	if b.store == nil {
+		return
+	}
+	opt, err := b.store.Get(context.Background())
+	if err != nil {
+		log.Error("get backup config failed", "err", err)
+		return
+	}
+	if opt.Interval == 0 || !opt.S3.Enabled {
 		return
 	}
 
