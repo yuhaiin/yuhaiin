@@ -117,6 +117,9 @@ fresh, successful upload measurements for `uploadTarget`. A new upload never
 refreshes download validity or its EWMA; legacy measurements with no direction
 are download-only. Upload-only balanced profiles do not require a download sample.
 Jitter is a timing estimate, not packet-loss measurement.
+When jitter has a nonzero weight, at least two fresh RTT samples for the same
+target and network are required, even if the configured minimum is one. A
+single sample cannot establish jitter and therefore is not scored as zero.
 
 Balanced components are bounded in `[0,1]`:
 

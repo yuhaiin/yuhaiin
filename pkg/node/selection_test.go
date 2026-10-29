@@ -121,6 +121,43 @@ func TestSelectionExpiresAndNeverInventsCapacity(t *testing.T) {
 	}
 }
 
+func TestBalancedJitterRequiresTwoComparableSamples(t *testing.T) {
+	now := time.Unix(10000, 0)
+	selector, inputs := selectionFixture(now)
+	selector.Policy.Mode = "balanced"
+	selector.Policy.MinSamples = 1
+	selector.Policy.Weights = contract.SelectorWeights{Jitter: 1}
+	inputs[0].health.Samples = inputs[0].health.Samples[:1]
+	inputs[1].health.Samples = inputs[1].health.Samples[:2]
+	decision := evaluateSelector(selector, inputs, contract.SelectorDecision{}, now)
+	if decision.NodeID != "b" || decision.Candidates[0].Eligible || decision.Candidates[0].Reason != "insufficient_comparable_jitter" {
+		t.Fatal("one RTT must not become a perfect jitter score", decision)
+	}
+	// A sample from another target cannot establish a comparable jitter estimate.
+	inputs[0].health.Samples = append(inputs[0].health.Samples, contract.HealthSample{At: now.UnixMilli(), OK: true, Kind: "https", Target: "https://other.example", RTTMS: 20})
+	decision = evaluateSelector(selector, inputs, contract.SelectorDecision{}, now)
+	if decision.Candidates[0].Eligible {
+		t.Fatal("incomparable RTT counted toward jitter", decision)
+	}
+	inputs[0].health.Samples[1].Target = selector.Policy.LatencyTarget
+	inputs[0].health.Samples[1].At = now.Add(-time.Hour).UnixMilli()
+	decision = evaluateSelector(selector, inputs, contract.SelectorDecision{}, now)
+	if decision.Candidates[0].Eligible {
+		t.Fatal("expired RTT counted toward jitter", decision)
+	}
+	inputs[0].health.Samples[1].At = now.UnixMilli()
+	decision = evaluateSelector(selector, inputs, contract.SelectorDecision{}, now)
+	if !decision.Candidates[0].Eligible || decision.Candidates[0].Components == nil || decision.Candidates[0].JitterMS <= 0 {
+		t.Fatal("two comparable RTT observations should establish jitter", decision)
+	}
+	selector.Policy.Weights = contract.SelectorWeights{RTT: 1}
+	inputs[0].health.Samples = inputs[0].health.Samples[:1]
+	decision = evaluateSelector(selector, inputs, contract.SelectorDecision{}, now)
+	if !decision.Candidates[0].Eligible {
+		t.Fatal("jitter sample requirement applied when its weight is zero", decision)
+	}
+}
+
 func TestLatencyHysteresisHoldAndImmediateFailure(t *testing.T) {
 	now := time.Unix(10000, 0)
 	s, in := selectionFixture(now)

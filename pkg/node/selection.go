@@ -256,6 +256,10 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 			return c
 		}
 	}
+	if p.Mode == "balanced" && p.Weights.Jitter > 0 && c.Samples < 2 {
+		c.Reason = "insufficient_comparable_jitter"
+		return c
+	}
 	if c.RTTMS > p.MaxRTTMS {
 		c.Reason = "rtt_limit"
 		return c
