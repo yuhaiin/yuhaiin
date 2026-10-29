@@ -135,6 +135,9 @@ func TestRecoverySSTPCredentialsPreservedForOriginalAndResetForClone(t *testing.
 		return result
 	}
 	active, revoked := issue("active"), issue("revoked")
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO management_passkeys(credential_id,user_id,rp_id,data,name,created_at) VALUES(x'1234','owner','example.org',x'010203','key',1)`); err != nil {
+		t.Fatal(err)
+	}
 	if err := credentials.Revoke(t.Context(), actor, revoked.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -166,6 +169,10 @@ func TestRecoverySSTPCredentialsPreservedForOriginalAndResetForClone(t *testing.
 				t.Fatal(err)
 			}
 			defer restored.Close()
+			var passkeys int
+			if err := restored.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM management_passkeys WHERE credential_id=x'1234'`).Scan(&passkeys); err != nil || (mode == "original" && passkeys != 1) || (mode == "clone" && passkeys != 0) {
+				t.Fatal("passkey restoration does not match instance identity", mode, passkeys, err)
+			}
 			proxy, err := managementauth.NewProxyCredentials(t.Context(), managementauth.NewStore(restored.DB()))
 			if err != nil {
 				t.Fatal(err)

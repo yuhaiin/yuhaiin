@@ -28,7 +28,9 @@ file set under a confirmed maintenance window, including protocol identity
 owners. It must not be described as an atomic online cross-database snapshot
 merely because individual SQLite snapshots pass.
 
-The management database catalog includes main's version 6 SSTP verifier migration.
+The management database catalog includes main's version 6 SSTP verifier and
+version 7 Passkey migrations. Original-instance recovery preserves Passkeys;
+a clone resets management identities and requires Passkey enrollment again.
 Original-instance recovery retains active and revoked verifier state from the
 snapshot; a clone creates a separate management identity database and does not
 reuse those credentials. A version 5 database upgrades without fabricating an

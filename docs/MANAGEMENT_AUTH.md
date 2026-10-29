@@ -193,6 +193,33 @@ requirement with forwarded headers. Native local-only management still does not
 provide remote anonymous access. Separate frontend origins keep their existing
 trusted-Origin configuration. Proxy headers do not change recorded peer IPs.
 
+## Passkey sign-in (WebAuthn)
+
+Passkeys are an optional additional sign-in method for already-enrolled users.
+Sign in by password or OAuth, then choose **Add Passkey** under Account & security.
+Each user may have up to 20 named Passkeys. Registration requires a live browser
+session, user verification and a discoverable credential. The login screen offers
+a username-free Passkey button. Successful authentication issues the same
+eight-hour, revocable HttpOnly session cookie as password and OAuth.
+
+The RP ID is the hostname of the *Web UI origin*, not the controller API host.
+Only exact trusted browser origins are accepted. Stable HTTPS DNS hostnames and
+`http://localhost` (any port) are supported. IP literal origins such as
+`127.0.0.1`, remote plaintext HTTP, and non-DNS hosts are not eligible.
+Use `http://localhost:50051` instead of `http://127.0.0.1:50051` for local
+Passkeys. A separately deployed UI must be configured as a trusted controller
+Origin. Because credentials are scoped by RP ID, using the UI at
+`https://vpn.example.com` and `http://localhost` generally requires registering
+a separate Passkey at each. Ports do not affect the RP ID, but protocol and
+port remain bound to the ceremony Origin.
+
+Challenges are stored only in bounded, short-lived (five-minute), single-use
+server memory. Registration binds to the original authenticated session.
+Completion checks the current user, generation and session; login revalidates
+credential existence and current account status transactionally. Password reset
+and local recovery remove all registered Passkeys. Deletion of a Passkey does
+not invalidate unrelated sessions, but new logins with that credential fail.
+
 ## Sessions, tokens and browser behavior
 
 Login returns an opaque, random, revocable session secret with an eight-hour

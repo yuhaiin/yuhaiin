@@ -139,3 +139,17 @@ var managementOAuthMigration = Migration{
         )`,
 	},
 }
+
+// Passkeys belong to management identities, never configuration exports.
+var managementPasskeyMigration = Migration{Version: 7, Name: "management_passkeys", Statements: []string{
+	`CREATE TABLE management_passkeys (
+        credential_id BLOB PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES management_users(id) ON DELETE CASCADE,
+        rp_id TEXT NOT NULL,
+        data BLOB NOT NULL,
+        name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL DEFAULT 0
+    )`,
+	`CREATE INDEX management_passkeys_owner ON management_passkeys(user_id,rp_id)`,
+}}

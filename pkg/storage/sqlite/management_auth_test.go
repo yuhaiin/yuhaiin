@@ -32,7 +32,7 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if queryInt(t, db.DB(), `SELECT count(*) FROM management_users`) != 1 {
 		t.Fatal("migration replaced identities")
 	}
-	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 6 {
+	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 7 {
 		t.Fatal("migration applied more than once")
 	}
 	info, err := os.Stat(path)
@@ -99,12 +99,12 @@ func TestManagementSSTPMigrationPreservesExistingCredentialsAndSnapshots(t *test
 	if err := upgraded.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != 6 || catalog[5].Name != "sstp_proxy_verifiers" {
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != 7 || catalog[5].Name != "sstp_proxy_verifiers" || catalog[6].Name != "management_passkeys" {
 		t.Fatalf("upgraded management catalog = %v: %v", catalog, err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
 	version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30)
-	if err != nil || version != 6 {
+	if err != nil || version != 7 {
 		t.Fatalf("snapshot of upgraded management store: version=%d err=%v", version, err)
 	}
 	reopened, err := OpenManagement(t.Context(), path)
@@ -113,6 +113,55 @@ func TestManagementSSTPMigrationPreservesExistingCredentialsAndSnapshots(t *test
 	}
 	if err := reopened.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestManagementPasskeyMigrationUpgradesVersionSix(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "management.db")
+	old, err := open(t.Context(), path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := bootstrapBase(ctx, db); err != nil {
+			return err
+		}
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration} {
+			if err := applyMigration(ctx, db, migration); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),x'0102',1,1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := OpenManagement(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := upgraded.DB().ExecContext(t.Context(), `INSERT INTO management_passkeys(credential_id,user_id,rp_id,data,name,created_at) VALUES(x'1234','owner','example.org',x'010203','key',1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := upgraded.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != 7 || catalog[6].Name != "management_passkeys" {
+		t.Fatalf("catalog = %v: %v", catalog, err)
+	}
+	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
+	if version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30); err != nil || version != 7 {
+		t.Fatalf("snapshot version=%d err=%v", version, err)
+	}
+	reader, err := OpenSnapshotReader(t.Context(), snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	if queryInt(t, reader, `SELECT count(*) FROM management_passkeys WHERE user_id='owner' AND credential_id=x'1234'`) != 1 {
+		t.Fatal("snapshot lost passkey")
 	}
 }
 
