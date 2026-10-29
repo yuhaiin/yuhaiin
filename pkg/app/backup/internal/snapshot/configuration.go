@@ -11,6 +11,19 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
+// These tables are owned runtime state or private deployment identity, not
+// configuration exports. New tables must be classified before uploading.
+var excludedTables = []string{
+	"backup_recovery_history", "backup_recovery_imports", "certificate_acme_accounts",
+	"certificate_dns_cleanup", "certificate_dns_providers", "certificate_references",
+	"connection_history", "connection_sessions", "failed_connection_history",
+	"failure_dimension_daily", "failure_dimension_hourly", "fakeip_cursors", "fakeip_entries", "fakeip_pool_counts",
+	"gateway_ca", "gateway_statistics", "inbound_statistics", "managed_certificate_material", "managed_certificates",
+	"node_runtime_stats", "node_speed_budget", "statistics_kv", "telemetry_dimension_values",
+	"traffic_dimension_daily", "traffic_dimension_hourly", "traffic_hourly",
+	"user_usage_activity", "user_usage_audit", "user_usage_buckets", "user_usage_flush", "user_usage_totals", "user_usage_users",
+}
+
 func SanitizeConfiguration(ctx context.Context, path string) error {
 	store, err := storagesqlite.Open(ctx, path)
 	if err != nil {
@@ -60,6 +73,9 @@ func SanitizeConfiguration(ctx context.Context, path string) error {
 		}
 		if table.name == "migrate" || slices.Contains(allowed, table.name) {
 			continue
+		}
+		if !slices.Contains(excludedTables, table.name) {
+			return fmt.Errorf("unclassified backup table %q: classify it as configuration or runtime data", table.name)
 		}
 		quoted := `"` + strings.ReplaceAll(table.name, `"`, `""`) + `"`
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+quoted); err != nil {

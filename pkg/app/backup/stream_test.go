@@ -63,8 +63,6 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/subscription-path-marker","type":"reserve"}')`,
 		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
 		`INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[{"id":"g1","name":"Protected","enabled":true,"revision":1,"policies":[{"id":"policy","name":"auth","enabled":true,"match":{"all":[{"field":"header","operator":"exact","key":"Authorization","values":["Bearer condition-secret-marker"]},{"not":{"field":"query","operator":"exact","key":"token","values":["query-secret-marker"]}}]},"action":{"type":"forward","rewrite":{"query":"token=rewrite-query-secret-marker","headers":{"Authorization":["Bearer rewrite-secret-marker"]}},"responseHeaders":{"Set-Cookie":["session=response-secret-marker"]}}}],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}},{"id":"g2","name":"Unchanged","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}}]}')`,
-		`CREATE TABLE future_private_state (value TEXT NOT NULL)`,
-		`INSERT INTO future_private_state VALUES('future-private-table-marker')`,
 	} {
 		if _, err := db.DB().ExecContext(t.Context(), statement); err != nil {
 			t.Fatal(err)
@@ -137,7 +135,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "future-private-table-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
+	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
 		if bytes.Contains(object, []byte(marker)) {
 			t.Errorf("configuration S3 object contains %s", marker)
 		}
@@ -226,6 +224,25 @@ func TestConfigurationS3SnapshotRejectsUnknownVirtualTables(t *testing.T) {
 	}
 	if calls.Load() != 0 {
 		t.Fatal("unsafe configuration snapshot reached S3")
+	}
+}
+
+func TestConfigurationS3SnapshotRejectsUnknownTables(t *testing.T) {
+	var calls atomic.Int32
+	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB().ExecContext(t.Context(), `CREATE TABLE future_private_state (value TEXT NOT NULL); INSERT INTO future_private_state VALUES('future-private-table-marker')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Run(t.Context()); err == nil {
+		t.Fatal("unclassified table was accepted")
+	}
+	if calls.Load() != 0 {
+		t.Fatal("unclassified configuration snapshot reached S3")
 	}
 }
 

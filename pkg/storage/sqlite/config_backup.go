@@ -22,10 +22,11 @@ const MaxConfigBackupBytes = 32 << 20
 // column names are checked against the local schema before any data is changed.
 // Runtime counters, history, fake IPs and migration markers stay on the device.
 type ConfigBackup struct {
-	Format    string                       `json:"format"`
-	Version   int                          `json:"version"`
-	CreatedAt time.Time                    `json:"createdAt"`
-	Tables    map[string]ConfigBackupTable `json:"tables"`
+	Format              string                       `json:"format"`
+	Version             int                          `json:"version"`
+	CreatedAt           time.Time                    `json:"createdAt"`
+	Tables              map[string]ConfigBackupTable `json:"tables"`
+	missingLegacyTables map[string]bool
 }
 
 type ConfigBackupTable struct {
@@ -41,6 +42,7 @@ var configBackupTables = []string{
 	"subscriptions", "publishes", "route_settings", "route_rules", "route_rules_v2",
 	"route_lists", "route_list_refresh", "route_lists_v2", "route_registries", "backup_settings", "metadata",
 	"gateway_configuration", "gateway_references", "node_monitoring_settings",
+	"user_usage_settings", "inbound_traffic_control", "route_configuration_state",
 }
 
 // ConfigurationBackupTables returns the tables used by configuration export.
@@ -50,6 +52,13 @@ func ConfigurationBackupTables() []string { return slices.Clone(configBackupTabl
 // SanitizeConfigurationSnapshotContent applies the configuration export
 // projections to a private snapshot without accumulating documents in memory.
 func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error {
+	var routeState int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM route_configuration_state WHERE id=1`).Scan(&routeState); err != nil {
+		return fmt.Errorf("read route activation state: %w", err)
+	}
+	if routeState != 1 {
+		return errors.New("configuration backup requires route activation state")
+	}
 	// Subscription URLs can carry bearer credentials in an arbitrary path.
 	// They must be re-entered explicitly rather than guessed from URL syntax.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM subscriptions`); err != nil {
@@ -198,6 +207,15 @@ func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
 }
 
 func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBackupTable, error) {
+	if table == "inbound_traffic_control" {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='inbound_traffic_control')`).Scan(&exists); err != nil {
+			return ConfigBackupTable{}, err
+		}
+		if !exists {
+			return ConfigBackupTable{Columns: []string{"id", "config_json"}, Rows: [][]jsontext.Value{}}, nil
+		}
+	}
 	filter := configBackupFilter(table)
 	if table == "subscriptions" {
 		filter = " WHERE 0"
@@ -303,7 +321,13 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 		}
 		out.Rows = append(out.Rows, row)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+	if table == "route_configuration_state" && len(out.Rows) != 1 {
+		return out, errors.New("configuration backup requires route activation state")
+	}
+	return out, nil
 }
 
 func decodeConfigBackup(data []byte) (ConfigBackup, error) {
@@ -317,8 +341,17 @@ func decodeConfigBackup(data []byte) (ConfigBackup, error) {
 	if backup.Format != "yuhaiin-config" || backup.Version != 1 {
 		return backup, errors.New("unsupported configuration backup format or version")
 	}
-	if _, ok := backup.Tables["node_monitoring_settings"]; !ok && len(backup.Tables) == len(configBackupTables)-1 {
-		backup.Tables["node_monitoring_settings"] = ConfigBackupTable{Columns: []string{"id", "data_json"}, Rows: [][]jsontext.Value{}}
+	backup.missingLegacyTables = make(map[string]bool)
+	for name, columns := range map[string][]string{
+		"node_monitoring_settings":  {"id", "data_json"},
+		"user_usage_settings":       {"id", "options_json"},
+		"inbound_traffic_control":   {"id", "config_json"},
+		"route_configuration_state": {"id", "saved_revision", "applied_revision", "applied_rules_json", "applied_config_json"},
+	} {
+		if _, ok := backup.Tables[name]; !ok {
+			backup.Tables[name] = ConfigBackupTable{Columns: columns, Rows: [][]jsontext.Value{}}
+			backup.missingLegacyTables[name] = true
+		}
 	}
 	if len(backup.Tables) != len(configBackupTables) {
 		return backup, errors.New("incomplete configuration backup")
@@ -351,6 +384,11 @@ func ValidateConfig(ctx context.Context, db *sql.DB, data []byte) error {
 }
 
 func validateConfigTables(ctx context.Context, tx *sql.Tx, backup ConfigBackup) error {
+	// This table is lazily created by the existing inbound store. Restore must
+	// work even on an instance that has never used traffic control.
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS inbound_traffic_control (id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL)`); err != nil {
+		return err
+	}
 	for _, name := range configBackupTables {
 		rows, err := tx.QueryContext(ctx, "SELECT * FROM "+name+" LIMIT 0")
 		if err != nil {
@@ -362,6 +400,9 @@ func validateConfigTables(ctx context.Context, tx *sql.Tx, backup ConfigBackup) 
 			return err
 		}
 		table := backup.Tables[name]
+		if name == "route_configuration_state" && !backup.missingLegacyTables[name] && len(table.Rows) != 1 {
+			return errors.New("configuration backup requires route activation state")
+		}
 		if !slices.Equal(columns, table.Columns) {
 			return fmt.Errorf("incompatible backup schema for %s", name)
 		}
@@ -422,11 +463,17 @@ func restoreConfig(ctx context.Context, db *sql.DB, data []byte, commit bool) er
 		return err
 	}
 	for _, name := range slices.Backward(configBackupTables) {
+		if backup.missingLegacyTables[name] {
+			continue
+		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+name+configBackupFilter(name)); err != nil {
 			return fmt.Errorf("clear %s: %w", name, err)
 		}
 	}
 	for _, name := range configBackupTables {
+		if backup.missingLegacyTables[name] {
+			continue
+		}
 		table := backup.Tables[name]
 		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(table.Columns)), ",")
 		// Columns came from the local schema, never directly from an untrusted file.
@@ -442,6 +489,15 @@ func restoreConfig(ctx context.Context, db *sql.DB, data []byte, commit bool) er
 			if _, err := tx.ExecContext(ctx, statement, values...); err != nil {
 				return fmt.Errorf("restore %s: %w", name, err)
 			}
+		}
+	}
+	if backup.missingLegacyTables["route_configuration_state"] {
+		result, err := tx.ExecContext(ctx, `UPDATE route_configuration_state SET applied_revision=0, applied_rules_json='[]', applied_config_json='{}' WHERE id=1`)
+		if err != nil {
+			return fmt.Errorf("reset legacy route activation: %w", err)
+		}
+		if n, err := result.RowsAffected(); err != nil || n != 1 {
+			return errors.New("target is missing route activation state")
 		}
 	}
 	if !commit {

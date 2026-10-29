@@ -14,6 +14,7 @@ import (
 	"uuid"
 
 	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -57,6 +58,60 @@ func TestRecoveryPendingWorkRechecksAfterBusyWithoutAnotherConfigEvent(t *testin
 		case <-called:
 		default:
 			t.Fatal("pending upload lost its only wakeup after a busy manual operation")
+		}
+	})
+}
+
+func TestConfigurationScheduleStopsAndResetsWhenChanged(t *testing.T) {
+	directory := t.TempDir()
+	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	owner := backupstore.New(db.DB())
+	synctest.Test(t, func(t *testing.T) {
+		calls := make(chan struct{}, 4)
+		ctx, cancel := context.WithCancel(context.Background())
+		b := &Backup{store: owner, dir: directory, proxy: recoveryRetryDialer{called: calls}, ctx: ctx, cancel: cancel, done: make(chan struct{}), changed: make(chan struct{}, 1)}
+		go b.schedule()
+		defer b.Close()
+		option := contractbackup.Option{InstanceName: "fixture", Interval: 1, S3: contractbackup.S3{Enabled: true, EndpointURL: "https://s3.invalid", Bucket: "bucket", AccessKey: "access", SecretKey: "secret"}}
+		if _, err := b.Save(t.Context(), option); err != nil {
+			t.Fatal(err)
+		}
+		synctest.Wait()
+		time.Sleep(30 * time.Second)
+		option.Interval = 2
+		if _, err := b.Save(t.Context(), option); err != nil {
+			t.Fatal(err)
+		}
+		synctest.Wait()
+		time.Sleep(31 * time.Second)
+		synctest.Wait()
+		select {
+		case <-calls:
+			t.Fatal("replaced schedule still ran")
+		default:
+		}
+		time.Sleep(89 * time.Second)
+		synctest.Wait()
+		select {
+		case <-calls:
+		default:
+			t.Fatal("updated schedule did not run")
+		}
+		option.S3.Enabled = false
+		if _, err := b.Save(t.Context(), option); err != nil {
+			t.Fatal(err)
+		}
+		synctest.Wait()
+		time.Sleep(3 * time.Minute)
+		synctest.Wait()
+		select {
+		case <-calls:
+			t.Fatal("disabled S3 retained a schedule")
+		default:
 		}
 	})
 }

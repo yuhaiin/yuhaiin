@@ -149,6 +149,110 @@ func TestConfigurationRestoreReplacesSubscriptionsFromLegacyBackup(t *testing.T)
 	}
 }
 
+func TestLegacyConfigurationRestorePreservesNewSettingsAndResetsActivation(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy ConfigBackup
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"user_usage_settings", "inbound_traffic_control", "route_configuration_state"} {
+		delete(legacy.Tables, name)
+	}
+	data, err = json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `CREATE TABLE inbound_traffic_control(id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);
+		INSERT INTO inbound_traffic_control VALUES(1,'{"enabled":true}');
+		INSERT INTO user_usage_settings VALUES(1,'{"auditDays":42}');
+		UPDATE route_configuration_state SET applied_revision=123,applied_rules_json='[{"id":"stale"}]',applied_config_json='{"defaultMode":"direct"}' WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var traffic, usage, rules, settings string
+	var applied int
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT config_json FROM inbound_traffic_control WHERE id=1`).Scan(&traffic); err != nil || traffic != `{"enabled":true}` {
+		t.Fatal("legacy import changed target traffic control", traffic, err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT options_json FROM user_usage_settings WHERE id=1`).Scan(&usage); err != nil || usage != `{"auditDays":42}` {
+		t.Fatal("legacy import changed target usage settings", usage, err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT applied_revision,applied_rules_json,applied_config_json FROM route_configuration_state WHERE id=1`).Scan(&applied, &rules, &settings); err != nil || applied != 0 || rules != "[]" || settings != "{}" {
+		t.Fatal("legacy import retained stale applied routes", applied, rules, settings, err)
+	}
+}
+
+func TestConfigurationPreviewDoesNotCreateLazyTrafficControlTable(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := ValidateConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var exists bool
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='inbound_traffic_control')`).Scan(&exists); err != nil || exists {
+		t.Fatal("preview changed target database schema", exists, err)
+	}
+}
+
+func TestConfigurationBackupRejectsMissingRouteActivationRecord(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup ConfigBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	table := backup.Tables["route_configuration_state"]
+	table.Rows = [][]jsontext.Value{}
+	backup.Tables["route_configuration_state"] = table
+	broken, err := json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateConfig(t.Context(), source.DB(), broken); err == nil {
+		t.Fatal("accepted backup missing its route activation record")
+	}
+	if _, err := source.DB().ExecContext(t.Context(), `DELETE FROM route_configuration_state`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ExportConfig(t.Context(), source.DB()); err == nil {
+		t.Fatal("exported an inconsistent route activation state")
+	}
+}
+
 func TestConfigurationExportRedactsWireGuardIdentityAndDisablesNode(t *testing.T) {
 	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
