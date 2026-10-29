@@ -19,6 +19,7 @@ import (
 // by registering outside the v2 RPC adapter.
 type Server struct {
 	OAuth        *OAuthService
+	Passkeys     *PasskeyService
 	Proxy        *ProxyCredentials
 	Usage        httpapi.UserUsage
 	Upstream     *UpstreamCredentials
@@ -201,6 +202,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	s.registerSessions(register)
 	s.registerSessionRestore(register)
 	s.registerOAuth(mux, register)
+	s.registerPasskeys(mux, register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)
