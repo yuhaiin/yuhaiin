@@ -70,13 +70,20 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 	if encoding := response.Header.Get("Content-Encoding"); encoding != "" && encoding != "identity" {
 		return result, errors.New("speed endpoint returned compressed content")
 	}
+	readLimit, rangeLength := r.MaxBytes, int64(0)
 	if response.StatusCode == http.StatusPartialContent {
-		value := response.Header.Get("Content-Range")
-		span, _, ok := strings.Cut(strings.TrimPrefix(value, "bytes 0-"), "/")
-		end, parseErr := strconv.ParseInt(span, 10, 64)
-		if !strings.HasPrefix(value, "bytes 0-") || !ok || parseErr != nil || end < 0 || end >= r.MaxBytes || response.ContentLength > 0 && response.ContentLength != end+1 {
+		values := response.Header.Values("Content-Range")
+		if len(values) != 1 {
 			return result, errors.New("invalid speed test Content-Range")
 		}
+		end, ok := speedRangeEnd(values[0])
+		if !ok || end >= r.MaxBytes || response.ContentLength >= 0 && response.ContentLength != end+1 {
+			return result, errors.New("invalid speed test Content-Range")
+		}
+		rangeLength = end + 1
+		// Read one extra byte when possible to detect a chunked response that
+		// exceeds its declared range, without exceeding the measurement budget.
+		readLimit = min(r.MaxBytes, rangeLength+1)
 	}
 	start := time.Now()
 	// Cancel the I/O lifetime, not Body.Close (which can wait for a pending
@@ -84,7 +91,8 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 	budget := time.AfterFunc(time.Duration(r.DurationMS)*time.Millisecond, func() { finish(errDownloadDuration) })
 	defer budget.Stop()
 	buffer := make([]byte, 32<<10)
-	n, copyErr := io.CopyBuffer(io.Discard, io.LimitReader(response.Body, r.MaxBytes), buffer)
+	n, copyErr := io.CopyBuffer(io.Discard, io.LimitReader(response.Body, readLimit), buffer)
+	budget.Stop()
 	elapsed := time.Since(start)
 	result.Bytes, result.DurationMS = n, elapsed.Milliseconds()
 	if timeoutCtx.Err() != nil {
@@ -93,12 +101,56 @@ func measureDownload(ctx context.Context, p netapi.Proxy, request contract.Speed
 	if copyErr != nil && !errors.Is(context.Cause(ctx), errDownloadDuration) {
 		return result, copyErr
 	}
+	if rangeLength > 0 && (n > rangeLength || n < rangeLength && !errors.Is(context.Cause(ctx), errDownloadDuration)) {
+		return result, errors.New("speed test response does not match Content-Range")
+	}
 	if n < 1024 || elapsed <= 0 {
 		return result, errors.New("speed response too small for measurement")
 	}
 	result.OK, result.Samples = true, 1
 	result.DownloadMbps = float64(n) * 8 / elapsed.Seconds() / 1e6
 	return result, nil
+}
+
+// speedRangeEnd accepts only a single byte range starting at zero, with an
+// unknown total or a decimal total strictly greater than the range end.
+func speedRangeEnd(value string) (int64, bool) {
+	value, ok := strings.CutPrefix(value, "bytes 0-")
+	if !ok {
+		return 0, false
+	}
+	span, total, ok := strings.Cut(value, "/")
+	if !ok || !decimalDigits(span) {
+		return 0, false
+	}
+	end, err := strconv.ParseInt(span, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	if total != "*" {
+		if !decimalDigits(total) {
+			return 0, false
+		}
+		// Compare canonical decimal strings so large valid totals cannot overflow.
+		total = strings.TrimLeft(total, "0")
+		endDecimal := strconv.FormatInt(end, 10)
+		if len(total) < len(endDecimal) || len(total) == len(endDecimal) && total <= endDecimal {
+			return 0, false
+		}
+	}
+	return end, true
+}
+
+func decimalDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // Both directions bind every HTTP connection to the specified candidate and

@@ -156,6 +156,10 @@ explicit HTTPS URL. It traverses the selected candidate's actual proxy. TLS is
 verified; there is no insecure switch. Redirects are rejected. Compression is
 rejected and the client requests identity encoding. `Range: bytes=0-N` is used;
 HTTP 200 servers without Range and valid HTTP 206 responses are supported.
+For 206 responses, the declared range and total must be consistent. An incomplete
+response is rejected unless the duration budget ended the measurement; excess
+payload is rejected when detectable without exceeding the byte budget. An unknown
+total (`*`) is supported.
 The response streams to a discard sink with a bounded buffer. Connection/headers
 are outside the payload timing window; byte count includes only consumed payload.
 
