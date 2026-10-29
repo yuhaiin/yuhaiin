@@ -100,6 +100,8 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 		VALUES (1, 1, 2);
 		INSERT INTO failure_dimension_daily(bucket_start_utc, value_id, failed_count)
 		VALUES (1, 1, 2);
+		CREATE TABLE IF NOT EXISTS inbound_traffic_control (id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);
+		INSERT INTO inbound_traffic_control(id,config_json) VALUES(1,'{}');
 		INSERT INTO user_usage_settings(id,options_json)
 		VALUES (1, '{"auditDays":30,"maxAuditRows":100000,"hourlyDays":30,"dailyDays":365}');
 		INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
@@ -195,6 +197,13 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 	if !strings.Contains(savedUsageOptions, `"maxAuditRows":100000`) {
 		t.Fatalf("usage settings were not preserved: %s", savedUsageOptions)
+	}
+	var savedTrafficControl string
+	if err := snapshotStore.DB().QueryRow(`SELECT config_json FROM inbound_traffic_control WHERE id=1`).Scan(&savedTrafficControl); err != nil {
+		t.Fatalf("read preserved inbound traffic control failed: %v", err)
+	}
+	if savedTrafficControl != "{}" {
+		t.Fatalf("inbound traffic control was not preserved: %s", savedTrafficControl)
 	}
 	var localAuditCount int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM user_usage_audit`).Scan(&localAuditCount); err != nil {
