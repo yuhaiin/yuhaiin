@@ -148,7 +148,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // isExpectedRequestRelayError reports normal request-stream termination.
 // net/http can close r.Body when ServeHTTP returns, while the copy goroutine
- // is still reading it. The internal HTTP/2 error has no exported sentinel.
+// is still reading it. The internal HTTP/2 error has no exported sentinel.
 func isExpectedRequestRelayError(err error) bool {
 	if err == nil ||
 		errors.Is(err, io.EOF) ||
