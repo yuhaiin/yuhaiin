@@ -24,18 +24,40 @@ import (
 )
 
 type Backup struct {
-	store    *plainstore.BackupStore
-	dir      string
-	proxy    netapi.Proxy
-	instance *AppInstance
-	ticker   *time.Ticker
-	mu       sync.Mutex
+	store      *plainstore.BackupStore
+	dir        string
+	proxy      netapi.Proxy
+	instance   *AppInstance
+	ticker     *time.Ticker
+	tickerStop chan struct{}
+	mu         sync.Mutex
 }
 
-// These tables contain runtime data which changes frequently but is not needed
-// to restore the user's proxy configuration. Keeping their schemas in the
-// backup preserves direct state.db restore compatibility while avoiding the
-// repeated upload of traffic and connection history.
+// Only these tables contain configuration that must survive a config restore.
+// Keep this list explicit so new SQLite tables cannot silently add high-churn,
+// potentially sensitive runtime data to S3 backups. SQLite internal tables are
+// managed by SQLite itself; the FTS5 shadow tables belong to the retained nodes
+// search index.
+var backupConfigTables = map[string]struct{}{
+	"metadata": {}, "migrate": {},
+	"android_extra_preferences": {}, "settings_kv": {},
+	"dns_settings": {}, "dns_resolvers": {}, "dns_hosts": {}, "dns_fakedns_lists": {},
+	"inbound_settings": {}, "inbounds": {}, "nodes": {}, "node_tags": {},
+	"nodes_fts": {}, "nodes_fts_config": {}, "nodes_fts_data": {},
+	"nodes_fts_docsize": {}, "nodes_fts_idx": {},
+	"subscriptions": {}, "publishes": {}, "route_settings": {}, "route_rules": {},
+	"route_lists": {}, "route_list_refresh": {}, "backup_settings": {},
+	"settings_json": {}, "inbounds_v2": {}, "nodes_v2": {},
+	"node_tags_v2": {}, "resolvers_v2": {}, "route_rules_v2": {},
+	"route_lists_v2": {}, "route_registries": {}, "outbound_selectors": {},
+	"route_configuration_state": {}, "inbound_traffic_control": {},
+	"gateway_configuration": {}, "gateway_references": {}, "gateway_ca": {},
+	"user_usage_settings": {},
+}
+
+// These tables contain runtime observations, not restorable configuration.
+// Clear their rows from the snapshot but retain their schemas for direct
+// state.db restore compatibility. The original local database is untouched.
 var backupRuntimeTables = []string{
 	"statistics_kv",
 	"traffic_hourly",
@@ -44,11 +66,21 @@ var backupRuntimeTables = []string{
 	"failed_connection_history",
 	"fakeip_entries",
 	"fakeip_cursors",
+	"fakeip_pool_counts",
 	"traffic_dimension_hourly",
 	"traffic_dimension_daily",
 	"failure_dimension_hourly",
 	"failure_dimension_daily",
 	"telemetry_dimension_values",
+	"gateway_statistics",
+	"inbound_statistics",
+	"node_runtime_stats",
+	"user_usage_totals",
+	"user_usage_buckets",
+	"user_usage_activity",
+	"user_usage_users",
+	"user_usage_audit",
+	"user_usage_flush",
 }
 
 func NewBackup(store *plainstore.BackupStore, dir string, instance *AppInstance, proxy netapi.Proxy) *Backup {
@@ -81,32 +113,50 @@ func (b *Backup) resetTicker() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	opt, err := b.getConfig()
+	b.stopTicker()
+
+	if b.store == nil {
+		return
+	}
+	opt, err := b.store.Get(context.Background())
 	if err != nil {
-		log.Error("get config failed", "err", err)
+		log.Error("get backup config failed", "err", err)
+		return
+	}
+	if opt.Interval == 0 || !opt.S3.Enabled {
 		return
 	}
 
-	if b.ticker != nil {
-		b.ticker.Stop()
-		b.ticker = nil
-	}
-
-	if opt.Interval == 0 {
-		return
-	}
-
-	b.ticker = time.NewTicker(time.Duration(opt.Interval) * time.Minute)
+	ticker := time.NewTicker(time.Duration(opt.Interval) * time.Minute)
+	stop := make(chan struct{})
+	b.ticker = ticker
+	b.tickerStop = stop
 
 	log.Info("start new backup ticker", "interval", time.Duration(opt.Interval)*time.Minute)
 
 	go func() {
-		for range b.ticker.C {
-			if err := b.Run(context.Background()); err != nil {
-				log.Error("backup failed", "err", err)
+		for {
+			select {
+			case <-ticker.C:
+				if err := b.Run(context.Background()); err != nil {
+					log.Error("backup failed", "err", err)
+				}
+			case <-stop:
+				return
 			}
 		}
 	}()
+}
+
+// stopTicker is called with b.mu held. Stop does not close a ticker channel,
+// so also signal its worker to exit when the backup interval changes.
+func (b *Backup) stopTicker() {
+	if b.ticker != nil {
+		b.ticker.Stop()
+		close(b.tickerStop)
+		b.ticker = nil
+		b.tickerStop = nil
+	}
 }
 
 func (b *Backup) Get(context.Context) (contractbackup.Option, error) {
@@ -217,6 +267,9 @@ func sanitizeBackupSnapshot(ctx context.Context, path string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := validateBackupSnapshotTables(ctx, tx); err != nil {
+		return err
+	}
 	for _, table := range backupRuntimeTables {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil {
 			return fmt.Errorf("clear runtime table %s from backup snapshot failed: %w", table, err)
@@ -273,6 +326,37 @@ func sanitizeBackupSnapshot(ctx context.Context, path string) error {
 	return nil
 }
 
+// validateBackupSnapshotTables fails closed when a migration introduces an
+// unclassified table. A backup must never upload newly added runtime/audit
+// data merely because someone forgot to update the exclusion list.
+func validateBackupSnapshotTables(ctx context.Context, tx *sql.Tx) error {
+	runtimeTables := make(map[string]struct{}, len(backupRuntimeTables))
+	for _, table := range backupRuntimeTables {
+		runtimeTables[table] = struct{}{}
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type='table'")
+	if err != nil {
+		return fmt.Errorf("list backup tables failed: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("scan backup table failed: %w", err)
+		}
+		if strings.HasPrefix(name, "sqlite_") {
+			continue
+		}
+		if _, ok := backupConfigTables[name]; ok {
+			continue
+		}
+		if _, ok := runtimeTables[name]; !ok {
+			return fmt.Errorf("unclassified backup table %q: classify it as configuration or runtime data", name)
+		}
+	}
+	return rows.Err()
+}
+
 func (b *Backup) restoreStateDB(data []byte) error {
 	statePath := paths.PathGenerator.State(b.dir)
 	dir := filepath.Dir(statePath)
@@ -327,10 +411,7 @@ func (b *Backup) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if b.ticker != nil {
-		b.ticker.Stop()
-		b.ticker = nil
-	}
+	b.stopTicker()
 
 	return nil
 }
