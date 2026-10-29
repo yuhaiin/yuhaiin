@@ -40,11 +40,13 @@ func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta,
 		}
 		return true
 	}
-	if entry := snapshot.gateways[id]; entry != nil && !entry.engine.config.Enabled && entry.engine.config.RejectWhenDisabled {
-		if meta.Src != nil {
-			_ = meta.Src.Close()
+	if len(snapshot.rejectDisabled) != 0 {
+		if _, guarded := snapshot.rejectDisabled[id]; guarded {
+			if meta.Src != nil {
+				_ = meta.Src.Close()
+			}
+			return true
 		}
-		return true
 	}
 	return m.intercept(ctx, meta, id, snapshot)
 }

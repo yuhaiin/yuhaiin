@@ -36,6 +36,7 @@ type snapshot struct {
 	config                contract.Config
 	startupError          string
 	gateways              map[string]*gatewayRuntime
+	rejectDisabled        map[string]struct{}
 	listeners             map[string]*gatewayRuntime
 	interceptionByGateway map[string]*interceptRule
 }
@@ -244,6 +245,12 @@ func (m *Manager) prepare(ctx context.Context, config contract.Config) (*snapsho
 	for _, g := range config.Gateways {
 		if g.ID == "" || g.Name == "" || s.gateways[g.ID] != nil || g.MaxBodyBytes < 0 {
 			return nil, errors.New("gateway requires unique ID, name and valid body limit")
+		}
+		if !g.Enabled && g.RejectWhenDisabled {
+			if s.rejectDisabled == nil {
+				s.rejectDisabled = make(map[string]struct{})
+			}
+			s.rejectDisabled[g.ID] = struct{}{}
 		}
 		if !slices.Contains([]string{"", "off", "termination"}, g.TLSMode) {
 			return nil, errors.New("listener TLS mode must be off or termination")
