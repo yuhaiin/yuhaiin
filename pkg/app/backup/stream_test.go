@@ -18,6 +18,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"go.uber.org/goleak"
 )
@@ -51,6 +52,13 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		`INSERT INTO certificate_dns_providers VALUES('provider',1,'{}','dns-provider-token-marker')`,
 		`INSERT INTO gateway_ca VALUES(1,1,'certificate','gateway-ca-private-key-marker')`,
 		`INSERT INTO metadata(key,value) VALUES('private_runtime_marker','private-runtime-marker')`,
+		`INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('wg','WireGuard','','manual',1,'["wireguard"]',0,'{"id":"wg","name":"WireGuard","origin":"manual","enabled":true,"chain":[{"type":"wireguard","wireguard":{"secretKey":"wire-private-marker","peers":[{"preSharedKey":"wire-preshared-marker"}]}}]}')`,
+		`INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('inbound','Inbound',1,'tcp_udp','http','[]',0,'{"id":"inbound","name":"Inbound","enabled":true,"network":{"type":"tcp_udp","tcp_udp":{"host":"127.0.0.1:1080"}},"transports":[],"protocol":{"type":"http","http":{"username":"alice","password":"inbound-password-marker"}}}')`,
+		`INSERT INTO nodes(hash,group_name,name,origin,selected_tcp,search_text,updated_at,data_json) VALUES('legacy','fixture','Legacy',1,1,'legacy-search-secret-marker',1,'{"name":"Legacy","wireguard":{"secretKey":"legacy-wire-key-marker"}}')`,
+		`INSERT INTO nodes_fts(rowid,name,group_name,search_text) SELECT id,name,group_name,search_text FROM nodes WHERE hash='legacy'`,
+		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","http":{"password":"legacy-password-marker"}}')`,
+		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/subscription-path-marker","type":"reserve"}')`,
+		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
 		`CREATE TABLE future_private_state (value TEXT NOT NULL)`,
 		`INSERT INTO future_private_state VALUES('future-private-table-marker')`,
 	} {
@@ -61,7 +69,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "future-private-table-marker", "s3-access-key-marker", "s3-secret-key-marker"} {
+	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "future-private-table-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker"} {
 		if bytes.Contains(object, []byte(marker)) {
 			t.Errorf("configuration S3 object contains %s", marker)
 		}
@@ -69,6 +77,52 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	var count int
 	if err := db.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM managed_certificate_material`).Scan(&count); err != nil || count != 1 {
 		t.Fatal("sanitizing the export modified the live certificate", count, err)
+	}
+	var liveEnabled int
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT enabled FROM nodes_v2 WHERE id='wg'`).Scan(&liveEnabled); err != nil || liveEnabled != 1 {
+		t.Fatal("sanitizing the export modified the live node", liveEnabled, err)
+	}
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT enabled FROM inbounds_v2 WHERE id='inbound'`).Scan(&liveEnabled); err != nil || liveEnabled != 1 {
+		t.Fatal("sanitizing the export modified the live inbound", liveEnabled, err)
+	}
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT selected_tcp FROM nodes WHERE hash='legacy'`).Scan(&liveEnabled); err != nil || liveEnabled != 1 {
+		t.Fatal("sanitizing the export changed the live legacy selection", liveEnabled, err)
+	}
+	path := filepath.Join(t.TempDir(), "snapshot.db")
+	if err := os.WriteFile(path, object, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := storagesqlite.InspectBackupSnapshot(t.Context(), path, "configuration"); err != nil {
+		t.Fatal("sanitized snapshot cannot be inspected", err)
+	}
+	snapshot, err := storagesqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("S3 snapshot retained subscription URL", count, err)
+	}
+	var publication string
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT data_json FROM publishes WHERE name='publication'`).Scan(&publication); err != nil || bytes.Contains([]byte(publication), []byte(`"wg"`)) {
+		t.Fatal("S3 snapshot retained publish targets", publication, err)
+	}
+	resolved, err := plainstore.NewSubscriptionStore(snapshot.DB()).ResolvePublish(t.Context(), "publication", "", "")
+	if err != nil || len(resolved.Points) != 0 {
+		t.Fatal("redacted publication exposes nodes with an empty password", resolved, err)
+	}
+	var exportedEnabled int
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM nodes_v2 WHERE id='wg'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
+		t.Fatal("redacted node remained enabled in S3 snapshot", exportedEnabled, err)
+	}
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM inbounds_v2 WHERE id='inbound'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
+		t.Fatal("redacted inbound remained enabled in S3 snapshot", exportedEnabled, err)
+	}
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT selected_tcp FROM nodes WHERE hash='legacy'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
+		t.Fatal("redacted legacy node remained selected", exportedEnabled, err)
+	}
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM inbounds WHERE name='legacy-inbound'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
+		t.Fatal("redacted legacy inbound remained enabled", exportedEnabled, err)
 	}
 }
 

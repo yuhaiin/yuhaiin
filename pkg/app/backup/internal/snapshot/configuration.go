@@ -69,6 +69,9 @@ func SanitizeConfiguration(ctx context.Context, path string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM metadata WHERE key NOT IN ('schema_version', 'selected_tcp_node_v2', 'selected_udp_node_v2')`); err != nil {
 		return fmt.Errorf("clear non-configuration metadata from backup snapshot: %w", err)
 	}
+	if err := storagesqlite.SanitizeConfigurationSnapshotContent(ctx, tx); err != nil {
+		return fmt.Errorf("sanitize configuration in backup snapshot: %w", err)
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild')`); err != nil {
 		return fmt.Errorf("rebuild configuration search index: %w", err)
 	}

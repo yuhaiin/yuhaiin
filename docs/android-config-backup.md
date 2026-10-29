@@ -22,15 +22,20 @@ schema. A future or incompatible version is rejected rather than partially
 restored. The reader and writer limit files to 32 MiB.
 
 The table allowlist in `pkg/storage/sqlite/config_backup.go` includes native and
-legacy configuration, Android preferences, nodes, subscriptions, DNS, inbounds,
+legacy configuration, Android preferences, nodes, publish settings, DNS, inbounds,
 routing rules/lists/registries and backup settings. Only the selected TCP/UDP node
 IDs are exported from metadata. Runtime counters, traffic/history, fake IP data,
 migration markers and schemas are excluded. Android installer/document IDs and
-session summaries live outside these tables. Backups are plaintext and include
-node/inbound credentials and private keys; Android explains this before export or sharing. S3
-access and secret keys are omitted, and S3 backup, automatic recovery and
-local-point cleanup consent are disabled in the exported settings. Configure
-them again after importing the file.
+session summaries live outside these tables. Recognized node/inbound credentials
+are removed; affected nodes/listeners are disabled and affected legacy nodes are
+deselected. S3 access and secret keys are omitted, and S3 backup, automatic
+recovery and local-point cleanup consent are disabled in the exported settings.
+Configure credentials and explicitly enable affected entries after importing.
+Subscription links must be recreated, and publish paths, passwords and node
+lists reconfigured; they are omitted to avoid exposing access credentials or
+making a previously protected publication accessible without a password.
+Exports remain plaintext and opaque URL paths, custom data or unknown fields may
+contain secrets; Android explains this before export or sharing.
 
 Exports read one transactionally consistent snapshot. Validation performs a
 restore transaction and rolls it back, checking SQL constraints before Android

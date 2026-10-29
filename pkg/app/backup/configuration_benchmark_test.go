@@ -25,6 +25,11 @@ func BenchmarkConfigurationSnapshot(b *testing.B) {
 		if _, err := tx.ExecContext(b.Context(), `INSERT INTO nodes(hash,group_name,name,origin,search_text,updated_at,data_json) VALUES(?,?,?,1,?,1,'{}')`, fmt.Sprint(i), "fixture", fmt.Sprintf("node-%d", i), "fixture search"); err != nil {
 			b.Fatal(err)
 		}
+		id := fmt.Sprintf("node-%d", i)
+		data := fmt.Sprintf(`{"id":%q,"name":%q,"origin":"manual","enabled":true,"chain":[{"type":"direct","direct":{}}]}`, id, id)
+		if _, err := tx.ExecContext(b.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES(?,?,?,'manual',1,'["direct"]',1,?)`, id, id, "fixture", data); err != nil {
+			b.Fatal(err)
+		}
 	}
 	for i := range 10000 {
 		if _, err := tx.ExecContext(b.Context(), `INSERT INTO gateway_statistics(gateway_id,requests,updated_at) VALUES(?,1,1)`, fmt.Sprint(i)); err != nil {

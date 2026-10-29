@@ -2,9 +2,11 @@ package backup
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
@@ -15,6 +17,53 @@ import (
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
+
+func TestConfigurationSnapshotRedactsEndpointsAcrossBoundedBatches(t *testing.T) {
+	dir := t.TempDir()
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	tx, err := db.DB().BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 130 {
+		id := fmt.Sprintf("node-%03d", i)
+		padding := ""
+		if i == 64 {
+			padding = strings.Repeat("x", 1<<20)
+		}
+		doc := fmt.Sprintf(`{"id":%q,"name":%q,"origin":"manual","enabled":true,"chain":[{"type":"ssh","ssh":{"password":"batch-secret-marker","host_key":%q}}]}`, id, id, padding)
+		if _, err := tx.ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES(?,?,?,'manual',1,'["ssh"]',1,?)`, id, id, "fixture", doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := readBackupSnapshot(t, &Backup{dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("batch-secret-marker")) {
+		t.Fatal("a batch retained a node credential")
+	}
+	path := filepath.Join(t.TempDir(), "snapshot.db")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	copy, err := storagesqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer copy.Close()
+	var count, enabled int
+	if err := copy.DB().QueryRowContext(t.Context(), `SELECT count(*),sum(enabled) FROM nodes_v2`).Scan(&count, &enabled); err != nil || count != 130 || enabled != 0 {
+		t.Fatal("some endpoints were skipped or enabled", count, enabled, err)
+	}
+}
 
 func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	t.Parallel()

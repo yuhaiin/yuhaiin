@@ -49,9 +49,16 @@ snapshot's S3 and automatic recovery/cleanup settings are disabled. Offline
 legacy S3 restore imports configuration into the target's private copy and
 retains that target's existing backup settings and credentials. A standalone
 JSON configuration export also omits S3 credentials and disables backup and
-maintenance consent; configure them again after importing it. Node and inbound
-configuration can still contain passwords and private keys, so both formats
+maintenance consent; configure them again after importing it. Recognized inline
+node/inbound credentials are removed, and affected nodes and listeners are
+disabled; affected legacy nodes are deselected. Administrators must re-enter
+credentials and explicitly enable the affected entries after import. Opaque URL
+paths, custom data and unknown fields may still contain secrets, so both formats
 require protection.
+Subscription URLs are omitted because tokens may occur anywhere in their paths.
+Publish passwords, paths and node lists are cleared so an imported publish
+cannot expose nodes with an empty password. Recreate subscription links and
+reconfigure publish targets and credentials after importing either format.
 Previously uploaded snapshots are not rewritten or deleted by this change and
 may contain the excluded secrets; review their storage and rotate exposed keys.
 
@@ -64,12 +71,14 @@ success/error/cancellation path. Uploads no longer allocate a byte slice the siz
 of the database. The source is not a raw copy of the live WAL database.
 
 `go test ./pkg/app/backup -run '^$' -bench '^BenchmarkConfigurationSnapshot$'
--benchmem -benchtime=1s -count=2` compares the sanitizer with 1,000 legacy node
-rows and 10,000 Gateway statistics rows on a warm local filesystem. On a Ryzen
-5 5600G, two runs before this change took 22.3–22.6 ms and about 32 KB/797 Go
-allocations per snapshot; after, they took 22.7 ms and about 52 KB/1,398 Go
-allocations. The fixture excludes S3 transfer and does not establish resource
-usage for a large production database.
+-benchmem -benchtime=1s -count=2` compares 1,000 legacy and 1,000 current node
+rows plus 10,000 Gateway statistics rows on a warm local filesystem. On a Ryzen
+5 5600G, two runs before endpoint redaction took 24.2–24.4 ms and about
+52–53 KB/1,400 Go allocations per snapshot; after, they took 32.3 ms and
+about 1.92 MB/52,300 allocations. Allocated bytes are cumulative, not peak RSS.
+The sanitizer processes at most 128 rows and roughly 1 MiB of replacements per
+batch, plus one potentially larger configuration document. The fixture excludes
+S3 transfer and does not establish performance for a large production database.
 
 `pkg/s3` keeps its API and uses the AWS SDK v2 client instead of `simples3.FilePut`:
 the latter allocates the complete object both before signing and during signing.

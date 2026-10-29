@@ -13,6 +13,7 @@ import (
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite/configbackup"
 )
 
 const MaxConfigBackupBytes = 32 << 20
@@ -46,6 +47,98 @@ var configBackupTables = []string{
 // Callers sanitizing a private SQLite snapshot must separately filter metadata.
 func ConfigurationBackupTables() []string { return slices.Clone(configBackupTables) }
 
+// SanitizeConfigurationSnapshotContent applies the configuration export
+// projections to a private snapshot without accumulating documents in memory.
+func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error {
+	// Subscription URLs can carry bearer credentials in an arbitrary path.
+	// They must be re-entered explicitly rather than guessed from URL syntax.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM subscriptions`); err != nil {
+		return err
+	}
+	// The old node search column may contain copies of credentials independently
+	// of data_json. Rebuild the snapshot's FTS index after clearing it.
+	if _, err := tx.ExecContext(ctx, `UPDATE nodes SET search_text=''`); err != nil {
+		return err
+	}
+	for _, spec := range []struct{ table, key, disable string }{
+		{"nodes_v2", "id", "enabled=0"},
+		{"inbounds_v2", "id", "enabled=0"},
+		{"nodes", "id", "selected_tcp=0,selected_udp=0"},
+		{"inbounds", "name", "enabled=0"},
+	} {
+		if err := sanitizeSnapshotEndpoints(ctx, tx, spec.table, spec.key, spec.disable); err != nil {
+			return err
+		}
+	}
+	if err := sanitizeSnapshotEndpoints(ctx, tx, "publishes", "name", ""); err != nil {
+		return err
+	}
+	return nil
+}
+
+func sanitizeSnapshotEndpoints(ctx context.Context, tx *sql.Tx, table, key, disable string) error {
+	last, first := "", true
+	for {
+		query := `SELECT ` + key + `,data_json FROM ` + table
+		var args []any
+		if !first {
+			query += ` WHERE ` + key + `>?`
+			args = []any{last}
+		}
+		rows, err := tx.QueryContext(ctx, query+` ORDER BY `+key+` LIMIT 128`, args...)
+		if err != nil {
+			return err
+		}
+		type replacement struct{ id, data string }
+		var replacements []replacement
+		count, bytes := 0, 0
+		for rows.Next() {
+			var id, raw string
+			if err := rows.Scan(&id, &raw); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			var redacted string
+			var changed bool
+			if table == "publishes" {
+				redacted, changed, err = configbackup.Publish(raw)
+			} else {
+				redacted, changed, err = configbackup.Endpoint(raw)
+			}
+			if err != nil {
+				_ = rows.Close()
+				return err
+			}
+			count++
+			last, first = id, false
+			if changed {
+				replacements = append(replacements, replacement{id, redacted})
+				bytes += len(id) + len(redacted)
+			}
+			// One exceptionally large document can exceed this cap, but the
+			// pending set never retains more than one beyond the 1 MiB budget.
+			if bytes >= 1<<20 {
+				break
+			}
+		}
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+			return err
+		}
+		for _, item := range replacements {
+			prefix := ""
+			if disable != "" {
+				prefix = disable + ","
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE `+table+` SET `+prefix+`data_json=? WHERE `+key+`=?`, item.data, item.id); err != nil {
+				return err
+			}
+		}
+		if count == 0 {
+			return nil
+		}
+	}
+}
+
 // ConfigurationBackupSettings removes transport credentials and destructive
 // automation consent while preserving the remaining configuration fields.
 func ConfigurationBackupSettings(data string) (string, error) {
@@ -69,6 +162,9 @@ func ConfigurationBackupSettings(data string) (string, error) {
 }
 
 func configBackupFilter(table string) string {
+	if table == "subscriptions" {
+		return " WHERE 0"
+	}
 	if table == "metadata" {
 		return " WHERE key IN ('selected_tcp_node_v2', 'selected_udp_node_v2')"
 	}
@@ -118,6 +214,61 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 		}
 		if err := rows.Scan(pointers...); err != nil {
 			return out, err
+		}
+		if slices.Contains([]string{"nodes", "nodes_v2", "inbounds", "inbounds_v2"}, table) {
+			dataIndex := slices.Index(columns, "data_json")
+			if dataIndex < 0 {
+				return out, errors.New("invalid endpoint configuration schema")
+			}
+			if table == "nodes" {
+				searchIndex := slices.Index(columns, "search_text")
+				if searchIndex < 0 {
+					return out, errors.New("invalid legacy node configuration schema")
+				}
+				values[searchIndex] = ""
+			}
+			raw, ok := values[dataIndex].(string)
+			if data, isBytes := values[dataIndex].([]byte); isBytes {
+				raw, ok = string(data), true
+			}
+			if !ok {
+				return out, errors.New("invalid endpoint configuration in export")
+			}
+			redacted, changed, err := configbackup.Endpoint(raw)
+			if err != nil {
+				return out, err
+			}
+			if changed {
+				values[dataIndex] = redacted
+				fields := []string{"enabled"}
+				if table == "nodes" {
+					fields = []string{"selected_tcp", "selected_udp"}
+				}
+				for _, field := range fields {
+					index := slices.Index(columns, field)
+					if index < 0 {
+						return out, errors.New("invalid endpoint configuration schema")
+					}
+					values[index] = int64(0)
+				}
+			}
+		}
+		if table == "publishes" {
+			index := slices.Index(columns, "data_json")
+			if index < 0 {
+				return out, errors.New("invalid publish configuration schema")
+			}
+			raw, ok := values[index].(string)
+			if data, isBytes := values[index].([]byte); isBytes {
+				raw, ok = string(data), true
+			}
+			if !ok {
+				return out, errors.New("invalid publish configuration in export")
+			}
+			values[index], _, err = configbackup.Publish(raw)
+			if err != nil {
+				return out, err
+			}
 		}
 		row := make([]jsontext.Value, len(columns))
 		for i, value := range values {
