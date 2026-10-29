@@ -50,6 +50,7 @@ var backupConfigTables = map[string]struct{}{
 	"settings_json": {}, "inbounds_v2": {}, "nodes_v2": {},
 	"node_tags_v2": {}, "resolvers_v2": {}, "route_rules_v2": {},
 	"route_lists_v2": {}, "route_registries": {}, "outbound_selectors": {},
+	"route_configuration_state": {}, "inbound_traffic_control": {},
 	"gateway_configuration": {}, "gateway_references": {}, "gateway_ca": {},
 	"user_usage_settings": {},
 }
