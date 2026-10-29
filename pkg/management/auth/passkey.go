@@ -69,7 +69,7 @@ func passkeyRP(origin string) (string, error) {
 	if host == "" || net.ParseIP(host) != nil || strings.Contains(host, "_") {
 		return "", ErrForbidden
 	}
-	if u.Scheme != "https" && !(u.Scheme == "http" && host == "localhost") {
+	if u.Scheme != "https" && (u.Scheme != "http" || host != "localhost") {
 		return "", ErrForbidden
 	}
 	if u.Port() != "" && (len(u.Port()) > 5 || u.Port()[0] == '0') {
