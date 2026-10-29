@@ -24,13 +24,13 @@ import (
 )
 
 type Backup struct {
-	store    *plainstore.BackupStore
-	dir      string
-	proxy    netapi.Proxy
-	instance *AppInstance
-	ticker   *time.Ticker
+	store      *plainstore.BackupStore
+	dir        string
+	proxy      netapi.Proxy
+	instance   *AppInstance
+	ticker     *time.Ticker
 	tickerStop chan struct{}
-	mu       sync.Mutex
+	mu         sync.Mutex
 }
 
 // Only these tables contain configuration that must survive a config restore.
