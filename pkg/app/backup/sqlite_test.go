@@ -81,6 +81,9 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "before"}); err != nil {
 		t.Fatalf("write initial sqlite config failed: %v", err)
 	}
+	if _, err := sqliteStore.DB().ExecContext(t.Context(), `INSERT INTO subscriptions(name,updated_at,data_json) VALUES('source',1,'{"name":"source","url":"https://example.org/source-secret","type":"reserve"}')`); err != nil {
+		t.Fatal(err)
+	}
 
 	backup := &Backup{dir: dir}
 	snapshot, err := readBackupSnapshot(t, backup)
@@ -96,6 +99,9 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := sqliteStore.DB().ExecContext(t.Context(), `INSERT INTO gateway_ca VALUES(1,1,'target-cert','target-private-key')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(t.Context(), `INSERT INTO subscriptions(name,updated_at,data_json) VALUES('target',1,'{"name":"target","url":"https://example.org/target-secret","type":"reserve"}')`); err != nil {
 		t.Fatal(err)
 	}
 	if err := sqliteStore.Close(); err != nil {
@@ -126,6 +132,10 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	var caKey string
 	if err := reopened.DB().QueryRowContext(t.Context(), `SELECT private_key_pem FROM gateway_ca`).Scan(&caKey); err != nil || caKey != "target-private-key" {
 		t.Fatal("legacy configuration restore changed local CA identity", err)
+	}
+	var subscriptions int
+	if err := reopened.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&subscriptions); err != nil || subscriptions != 0 {
+		t.Fatal("legacy configuration restore retained old subscriptions", subscriptions, err)
 	}
 }
 

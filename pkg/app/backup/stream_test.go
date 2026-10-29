@@ -15,6 +15,7 @@ import (
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -59,6 +60,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","http":{"password":"legacy-password-marker"}}')`,
 		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/subscription-path-marker","type":"reserve"}')`,
 		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
+		`INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[{"id":"g1","name":"Protected","enabled":true,"revision":1,"policies":[{"id":"policy","name":"auth","enabled":true,"match":{"all":[{"field":"header","operator":"exact","key":"Authorization","values":["Bearer condition-secret-marker"]},{"not":{"field":"query","operator":"exact","key":"token","values":["query-secret-marker"]}}]},"action":{"type":"forward","rewrite":{"query":"token=rewrite-query-secret-marker","headers":{"Authorization":["Bearer rewrite-secret-marker"]}},"responseHeaders":{"Set-Cookie":["session=response-secret-marker"]}}}],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}},{"id":"g2","name":"Unchanged","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}}]}')`,
 		`CREATE TABLE future_private_state (value TEXT NOT NULL)`,
 		`INSERT INTO future_private_state VALUES('future-private-table-marker')`,
 	} {
@@ -66,10 +68,37 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 			t.Fatal(err)
 		}
 	}
+	jsonExport, err := storagesqlite.ExportConfig(t.Context(), db.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
+		if bytes.Contains(jsonExport, []byte(marker)) {
+			t.Fatalf("JSON configuration export contains %s", marker)
+		}
+	}
+	importTarget, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "import.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer importTarget.Close()
+	if err := storagesqlite.RestoreConfig(t.Context(), importTarget.DB(), jsonExport); err != nil {
+		t.Fatal("cannot import redacted JSON configuration", err)
+	}
+	jsonGateway, err := plainstore.NewGatewayStore(importTarget.DB()).Load(t.Context())
+	if err != nil || len(jsonGateway.Gateways) != 2 || jsonGateway.Gateways[0].Enabled || !jsonGateway.Gateways[1].Enabled {
+		t.Fatal("unsafe gateway state after JSON import", jsonGateway, err)
+	}
+	if len(jsonGateway.Rules) != 1 || jsonGateway.Rules[0].Enabled {
+		t.Fatal("redacted JSON gateway rule remained enabled", jsonGateway.Rules)
+	}
+	if _, err := gateway.CompilePolicy(jsonGateway.Rules, jsonGateway.Gateways[0].Default); err != nil {
+		t.Fatal("redacted JSON gateway policy cannot be compiled", err)
+	}
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "future-private-table-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker"} {
+	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "future-private-table-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
 		if bytes.Contains(object, []byte(marker)) {
 			t.Errorf("configuration S3 object contains %s", marker)
 		}
@@ -88,6 +117,9 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := db.DB().QueryRowContext(t.Context(), `SELECT selected_tcp FROM nodes WHERE hash='legacy'`).Scan(&liveEnabled); err != nil || liveEnabled != 1 {
 		t.Fatal("sanitizing the export changed the live legacy selection", liveEnabled, err)
 	}
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].enabled') FROM gateway_configuration WHERE id=1`).Scan(&liveEnabled); err != nil || liveEnabled != 1 {
+		t.Fatal("sanitizing the export changed the live gateway", liveEnabled, err)
+	}
 	path := filepath.Join(t.TempDir(), "snapshot.db")
 	if err := os.WriteFile(path, object, 0o600); err != nil {
 		t.Fatal(err)
@@ -100,6 +132,16 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		t.Fatal(err)
 	}
 	defer snapshot.Close()
+	configuration, err := plainstore.NewGatewayStore(snapshot.DB()).Load(t.Context())
+	if err != nil {
+		t.Fatal("redacted gateway configuration is unreadable", err)
+	}
+	if len(configuration.Gateways) != 2 || configuration.Gateways[0].Enabled || !configuration.Gateways[1].Enabled || len(configuration.Rules) != 1 || configuration.Rules[0].Enabled {
+		t.Fatalf("unsafe or unrelated gateway activation changed: %+v", configuration)
+	}
+	if _, err := gateway.CompilePolicy(configuration.Rules, configuration.Gateways[0].Default); err != nil {
+		t.Fatal("redacted gateway policy cannot be compiled", err)
+	}
 	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&count); err != nil || count != 0 {
 		t.Fatal("S3 snapshot retained subscription URL", count, err)
 	}
@@ -148,6 +190,25 @@ func TestConfigurationS3SnapshotRejectsUnknownVirtualTables(t *testing.T) {
 	}
 }
 
+func TestConfigurationS3SnapshotRejectsUnknownGatewayFields(t *testing.T) {
+	var calls atomic.Int32
+	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[],"futureCredentials":"sensitive-value"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Run(t.Context()); err == nil {
+		t.Fatal("snapshot accepted unknown gateway data that may contain credentials")
+	}
+	if calls.Load() != 0 {
+		t.Fatal("unsafe gateway snapshot reached S3")
+	}
+}
+
 func streamingBackup(t *testing.T, handler http.HandlerFunc) (*Backup, *backupstore.Store) {
 	t.Helper()
 	directory := t.TempDir()
@@ -186,6 +247,17 @@ func TestBackupDownloadVerificationAndSkipUnchanged(t *testing.T) {
 		}
 		_, _ = w.Write(data)
 	})
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('node','Node','','manual',1,'["ssh"]',1,'{"id":"node","name":"Node","enabled":true,"origin":"manual","chain":[{"type":"ssh","ssh":{"host":"host.example","user":"admin","password":"private","hostKey":"public"}}]}')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"private","path":"private-path","points":["node"],"address":"example.org","insecure":false}')`); err != nil {
+		t.Fatal(err)
+	}
 	corrupt.Store(true)
 	if err := b.Run(t.Context()); err == nil {
 		t.Fatal("corrupt downloaded verification was accepted")
@@ -195,8 +267,10 @@ func TestBackupDownloadVerificationAndSkipUnchanged(t *testing.T) {
 		t.Fatal("unverified upload marked successful")
 	}
 	corrupt.Store(false)
-	if err := b.Run(t.Context()); err != nil {
-		t.Fatal(err)
+	for range 4 {
+		if err := b.Run(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	opt, err = store.Get(t.Context())
 	if err != nil || opt.LastBackupHash == "" {

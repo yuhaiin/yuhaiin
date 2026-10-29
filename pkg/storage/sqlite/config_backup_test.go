@@ -79,6 +79,9 @@ func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *tes
 		t.Fatal(err)
 	}
 	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `INSERT INTO subscriptions(name,updated_at,data_json) VALUES('previous',1,'{"name":"previous","url":"https://previous.example/old-secret","type":"reserve"}')`); err != nil {
+		t.Fatal(err)
+	}
 	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
 		t.Fatal(err)
 	}
@@ -103,6 +106,46 @@ func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *tes
 	}
 	if err := source.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&count); err != nil || count != 1 {
 		t.Fatal("live subscriptions were changed", count, err)
+	}
+}
+
+func TestConfigurationRestoreReplacesSubscriptionsFromLegacyBackup(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy ConfigBackup
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	table := legacy.Tables["subscriptions"]
+	name, _ := json.Marshal("upstream")
+	document, _ := json.Marshal(`{"name":"upstream","url":"https://example.org/legacy-token","type":"reserve"}`)
+	table.Rows = [][]jsontext.Value{{name, jsontext.Value("1"), document}}
+	legacy.Tables["subscriptions"] = table
+	data, err = json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://old.example","type":"reserve"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatalf("legacy backup import: %v", err)
+	}
+	var restored string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM subscriptions WHERE name='upstream'`).Scan(&restored); err != nil || !strings.Contains(restored, "legacy-token") {
+		t.Fatal("legacy subscription not restored", restored, err)
 	}
 }
 
@@ -280,6 +323,51 @@ func TestConfigurationExportRejectsAmbiguousCredentialFields(t *testing.T) {
 	}
 	if data, err := ExportConfig(t.Context(), db.DB()); err == nil || len(data) != 0 {
 		t.Fatal("ambiguous duplicate credential fields were exported")
+	}
+}
+
+func TestConfigurationExportRejectsUnknownGatewayFields(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[],"futureCredentials":"sensitive-value"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := ExportConfig(t.Context(), source.DB()); err == nil || len(data) != 0 {
+		t.Fatal("export accepted unknown gateway data that may contain credentials")
+	}
+}
+
+func TestConfigurationExportDisablesGatewayWithRedactedFallback(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"forward","rewrite":{"query":"token=query-marker","headers":{"X-Api-Key":["header-marker"]}}}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("query-marker")) || bytes.Contains(data, []byte("header-marker")) {
+		t.Fatal("configuration export contains fallback credentials")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled int
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].enabled') FROM gateway_configuration WHERE id=1`).Scan(&enabled); err != nil || enabled != 0 {
+		t.Fatal("redacted gateway fallback remained enabled", enabled, err)
 	}
 }
 

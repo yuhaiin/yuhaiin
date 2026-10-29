@@ -61,6 +61,11 @@ Subscription URLs are omitted because tokens may occur anywhere in their paths.
 Publish passwords, paths and node lists are cleared so an imported publish
 cannot expose nodes with an empty password. Recreate subscription links and
 reconfigure publish targets and credentials after importing either format.
+Gateway request/response header values, rewritten queries and header/query
+condition values are also removed. Affected policies and their Gateways are
+disabled until an administrator restores the values and reviews the policy;
+other Gateways retain their enabled state. Import replaces existing subscription
+links with the exported set, which is empty for new exports.
 Previously uploaded snapshots are not rewritten or deleted by this change and
 may contain the excluded secrets; review their storage and rotate exposed keys.
 

@@ -35,7 +35,7 @@ func Endpoint(data string) (string, bool, error) {
 	if _, present := document["enabled"]; present {
 		document["enabled"] = jsontext.Value("false")
 	}
-	result, err := json.Marshal(document)
+	result, err := json.Marshal(document, json.Deterministic(true))
 	if err != nil {
 		return "", false, errors.New("cannot encode redacted endpoint configuration")
 	}
@@ -109,7 +109,7 @@ func redactEndpointValue(value jsontext.Value, parent string, depth int) (jsonte
 		if err != nil || !changed {
 			return value, changed, err
 		}
-		encoded, err := json.Marshal(child)
+		encoded, err := json.Marshal(child, json.Deterministic(true))
 		return encoded, true, err
 	case '[':
 		var items []jsontext.Value

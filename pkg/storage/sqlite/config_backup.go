@@ -66,17 +66,19 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 		{"nodes", "id", "selected_tcp=0,selected_udp=0"},
 		{"inbounds", "name", "enabled=0"},
 	} {
-		if err := sanitizeSnapshotEndpoints(ctx, tx, spec.table, spec.key, spec.disable); err != nil {
+		if err := sanitizeSnapshotDocuments(ctx, tx, spec.table, spec.key, spec.disable); err != nil {
 			return err
 		}
 	}
-	if err := sanitizeSnapshotEndpoints(ctx, tx, "publishes", "name", ""); err != nil {
-		return err
+	for _, spec := range []struct{ table, key string }{{"publishes", "name"}, {"gateway_configuration", "id"}} {
+		if err := sanitizeSnapshotDocuments(ctx, tx, spec.table, spec.key, ""); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func sanitizeSnapshotEndpoints(ctx context.Context, tx *sql.Tx, table, key, disable string) error {
+func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disable string) error {
 	last, first := "", true
 	for {
 		query := `SELECT ` + key + `,data_json FROM ` + table
@@ -100,9 +102,12 @@ func sanitizeSnapshotEndpoints(ctx context.Context, tx *sql.Tx, table, key, disa
 			}
 			var redacted string
 			var changed bool
-			if table == "publishes" {
+			switch table {
+			case "publishes":
 				redacted, changed, err = configbackup.Publish(raw)
-			} else {
+			case "gateway_configuration":
+				redacted, changed, err = configbackup.Gateway(raw)
+			default:
 				redacted, changed, err = configbackup.Endpoint(raw)
 			}
 			if err != nil {
@@ -162,9 +167,6 @@ func ConfigurationBackupSettings(data string) (string, error) {
 }
 
 func configBackupFilter(table string) string {
-	if table == "subscriptions" {
-		return " WHERE 0"
-	}
 	if table == "metadata" {
 		return " WHERE key IN ('selected_tcp_node_v2', 'selected_udp_node_v2')"
 	}
@@ -196,7 +198,11 @@ func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
 }
 
 func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBackupTable, error) {
-	rows, err := tx.QueryContext(ctx, "SELECT * FROM "+table+configBackupFilter(table))
+	filter := configBackupFilter(table)
+	if table == "subscriptions" {
+		filter = " WHERE 0"
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT * FROM "+table+filter)
 	if err != nil {
 		return ConfigBackupTable{}, err
 	}
@@ -253,19 +259,23 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 				}
 			}
 		}
-		if table == "publishes" {
+		if table == "publishes" || table == "gateway_configuration" {
 			index := slices.Index(columns, "data_json")
 			if index < 0 {
-				return out, errors.New("invalid publish configuration schema")
+				return out, errors.New("invalid configuration document schema")
 			}
 			raw, ok := values[index].(string)
 			if data, isBytes := values[index].([]byte); isBytes {
 				raw, ok = string(data), true
 			}
 			if !ok {
-				return out, errors.New("invalid publish configuration in export")
+				return out, errors.New("invalid configuration document in export")
 			}
-			values[index], _, err = configbackup.Publish(raw)
+			if table == "publishes" {
+				values[index], _, err = configbackup.Publish(raw)
+			} else {
+				values[index], _, err = configbackup.Gateway(raw)
+			}
 			if err != nil {
 				return out, err
 			}

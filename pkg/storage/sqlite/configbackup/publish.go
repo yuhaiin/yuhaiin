@@ -25,7 +25,7 @@ func Publish(data string) (string, bool, error) {
 			document[key] = jsontext.Value(`[]`)
 		}
 	}
-	result, err := json.Marshal(document)
+	result, err := json.Marshal(document, json.Deterministic(true))
 	if err != nil {
 		return "", false, errors.New("cannot encode redacted publish configuration")
 	}

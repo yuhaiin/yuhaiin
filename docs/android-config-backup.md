@@ -34,6 +34,9 @@ Configure credentials and explicitly enable affected entries after importing.
 Subscription links must be recreated, and publish paths, passwords and node
 lists reconfigured; they are omitted to avoid exposing access credentials or
 making a previously protected publication accessible without a password.
+Gateway request/response headers, rewritten queries and header/query condition
+values are removed; affected policies and Gateways must be reviewed and enabled
+again. Import replaces existing subscription links with the exported empty set.
 Exports remain plaintext and opaque URL paths, custom data or unknown fields may
 contain secrets; Android explains this before export or sharing.
 
