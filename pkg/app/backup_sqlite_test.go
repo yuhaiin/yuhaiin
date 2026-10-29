@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
@@ -99,6 +100,21 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 		VALUES (1, 1, 2);
 		INSERT INTO failure_dimension_daily(bucket_start_utc, value_id, failed_count)
 		VALUES (1, 1, 2);
+		INSERT INTO user_usage_settings(id,options_json)
+		VALUES (1, '{"auditDays":30,"maxAuditRows":100000,"hourlyDays":30,"dailyDays":365}');
+		INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
+		VALUES ('audit-1','user','','','','tcp','client','example.com:443','closed',1,2,'{"result":"closed"}');
+		INSERT INTO user_usage_totals(user_id,credential_id,inbound_id,node_id,protocol,inbound_name,node_name,first_seen,last_seen)
+		VALUES ('user','','','','tcp','','',1,2);
+		INSERT INTO user_usage_buckets(period,bucket,user_id,credential_id,inbound_id,node_id,protocol,inbound_name,node_name,first_seen,last_seen)
+		VALUES ('hour',3600,'user','','','','tcp','','',1,2);
+		INSERT INTO user_usage_activity(user_id,minute) VALUES ('user',1);
+		INSERT INTO user_usage_users(user_id,active_minutes) VALUES ('user',1);
+		INSERT INTO user_usage_flush(id,batch_id) VALUES (1,'batch-1');
+		INSERT INTO gateway_statistics(gateway_id,requests,blocked,forwarded,errors,tls_failures,protocol_failures,duration_ns,updated_at)
+		VALUES ('gateway',1,0,1,0,0,0,10,1);
+		INSERT INTO inbound_statistics(inbound_id,accepted_streams,received_packets,received_pings,updated_at)
+		VALUES ('inbound',1,0,0,1);
 	`); err != nil {
 		t.Fatalf("write runtime state failed: %v", err)
 	}
@@ -121,6 +137,24 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 		t.Fatalf("identical configuration snapshot hashes differ: %s != %s", firstHash, secondHash)
 	}
 
+	// Runtime-only updates must not invalidate the S3 snapshot hash.
+	if _, err := db.Exec(`
+		UPDATE user_usage_audit SET checkpoint_at = 3, data_json = '{"result":"closed","upload":"100"}' WHERE id = 'audit-1';
+		INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
+		VALUES ('audit-2','user','','','','tcp','client','example.net:443','closed',3,4,'{"result":"closed"}');
+		UPDATE gateway_statistics SET requests = 2, updated_at = 3 WHERE gateway_id = 'gateway';
+		UPDATE inbound_statistics SET accepted_streams = 2, updated_at = 3 WHERE inbound_id = 'inbound';
+	`); err != nil {
+		t.Fatalf("update runtime-only state failed: %v", err)
+	}
+	third, err := backup.snapshotStateDB(t.Context())
+	if err != nil {
+		t.Fatalf("snapshot after runtime-only updates failed: %v", err)
+	}
+	if !bytes.Equal(first, third) {
+		t.Fatal("runtime-only updates changed the configuration snapshot")
+	}
+
 	snapshotPath := filepath.Join(t.TempDir(), "state.db")
 	if err := os.WriteFile(snapshotPath, first, 0o600); err != nil {
 		t.Fatalf("write sanitized snapshot failed: %v", err)
@@ -131,17 +165,7 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 	defer snapshotStore.Close()
 
-	for _, table := range []string{
-		"statistics_kv",
-		"traffic_hourly",
-		"connection_history",
-		"fakeip_entries",
-		"telemetry_dimension_values",
-		"traffic_dimension_hourly",
-		"traffic_dimension_daily",
-		"failure_dimension_hourly",
-		"failure_dimension_daily",
-	} {
+	for _, table := range backupRuntimeTables {
 		var count int
 		if err := snapshotStore.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil {
 			t.Fatalf("count sanitized table %s failed: %v", table, err)
@@ -164,5 +188,40 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 	if gotBackup.Interval != 30 {
 		t.Fatalf("sanitized backup interval = %d, want 30", gotBackup.Interval)
+	}
+	var savedUsageOptions string
+	if err := snapshotStore.DB().QueryRow(`SELECT options_json FROM user_usage_settings WHERE id=1`).Scan(&savedUsageOptions); err != nil {
+		t.Fatalf("read preserved usage settings failed: %v", err)
+	}
+	if !strings.Contains(savedUsageOptions, `"maxAuditRows":100000`) {
+		t.Fatalf("usage settings were not preserved: %s", savedUsageOptions)
+	}
+	var localAuditCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM user_usage_audit`).Scan(&localAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if localAuditCount != 2 {
+		t.Fatalf("backup altered local audit history: got %d rows", localAuditCount)
+	}
+}
+
+// New schema migrations must be explicitly classified as configuration or
+// runtime data, instead of automatically leaking unknown tables to S3.
+func TestBackupSQLiteRejectsUnclassifiedTable(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	store, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.DB().Exec(`CREATE TABLE unexpected_events (event TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = (&Backup{dir: dir}).snapshotStateDB(t.Context())
+	if err == nil || !strings.Contains(err.Error(), `unclassified backup table "unexpected_events"`) {
+		t.Fatalf("expected unclassified table error, got %v", err)
 	}
 }
