@@ -130,8 +130,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		_, err := relay.Copy(c1, r.Body)
-		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, net.ErrClosed) && err.Error() != "client disconnected" && !strings.Contains(err.Error(), "stream error:") {
-			log.Error("http2.v2 relay request failed", "err", err)
+		if err != nil {
+			if isExpectedRequestRelayError(err) {
+				log.Debug("http2.v2 relay request ended", "err", err)
+			} else {
+				log.Error("http2.v2 relay request failed", "err", err)
+			}
 		}
 		_ = c1.Close()
 	}()
@@ -140,6 +144,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, net.ErrClosed) {
 		log.Error("http2.v2 flush response failed", "err", err)
 	}
+}
+
+// isExpectedRequestRelayError reports normal request-stream termination.
+// net/http can close r.Body when ServeHTTP returns, while the copy goroutine
+ // is still reading it. The internal HTTP/2 error has no exported sentinel.
+func isExpectedRequestRelayError(err error) bool {
+	if err == nil ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrClosedPipe) ||
+		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	switch err.Error() {
+	case "client disconnected", "body closed by handler":
+		return true
+	}
+	return strings.Contains(err.Error(), "stream error:")
 }
 
 type flusher struct {
