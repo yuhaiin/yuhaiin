@@ -42,6 +42,13 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "after"}); err != nil {
 		t.Fatalf("write modified sqlite config failed: %v", err)
 	}
+	backupOptions := contractbackup.Option{InstanceName: "target", Interval: 30, S3: contractbackup.S3{Enabled: true, EndpointURL: "https://target.example", AccessKey: "target-access", SecretKey: "target-secret"}}
+	if err := backupstore.New(sqliteStore.DB()).Save(t.Context(), backupOptions); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqliteStore.DB().ExecContext(t.Context(), `INSERT INTO gateway_ca VALUES(1,1,'target-cert','target-private-key')`); err != nil {
+		t.Fatal(err)
+	}
 	if err := sqliteStore.Close(); err != nil {
 		t.Fatalf("close sqlite before restore failed: %v", err)
 	}
@@ -62,6 +69,14 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	}
 	if got.NetInterface != "before" {
 		t.Fatalf("expected restored net interface before, got %q", got.NetInterface)
+	}
+	restoredBackup, err := backupstore.New(reopened.DB()).Get(t.Context())
+	if err != nil || restoredBackup != backupOptions {
+		t.Fatal("legacy configuration restore did not preserve local backup settings", restoredBackup, err)
+	}
+	var caKey string
+	if err := reopened.DB().QueryRowContext(t.Context(), `SELECT private_key_pem FROM gateway_ca`).Scan(&caKey); err != nil || caKey != "target-private-key" {
+		t.Fatal("legacy configuration restore changed local CA identity", err)
 	}
 }
 

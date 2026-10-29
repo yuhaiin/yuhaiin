@@ -39,6 +39,14 @@ static-only controls in the features listed below.
 | 2.7 Actual Backup/Update UI, permissions, confirmation, history/results and recovery point state | Backup recovery/import/update panels, API scopes/raw route guards, component tests, real Chrome and actual authenticated service tests. | Key inputs clear after use; private material has no read API. Confirmation and revision are enforced by backend, not only by buttons. |
 | Performance and real failure recovery | Streaming transfer/codec/full create/restore/import/retrieval benchmarks, fresh CLI RSS fixture and actual 1/64/256 MiB systemd stop→CLI→HTTPS/commit samples. | Recorded resource figures state their boundaries. Test fixtures include real config+management databases and payload content checks; they do not establish arbitrary large production/slow-storage downtime. |
 
+The configuration-only JSON export and legacy S3 SQLite snapshot omit managed
+certificate and Gateway CA keys, ACME/provider secrets and S3 credentials.
+Their automatic backup/maintenance consent is disabled; legacy S3 restore keeps
+the target's local backup settings. However, node and inbound configuration can
+still contain inline passwords and private keys. Therefore the requirement to
+exclude sensitive identity material from configuration export by default is not
+yet fully satisfied, and these unencrypted exports must still be protected.
+
 Automatic disruptive service maintenance is qualified for root-owned Linux
 systemd and lingering systemd user services. Standalone, launchd, Windows and embedded automatic
 supervision are not claimed. Offline operations retain documented platform

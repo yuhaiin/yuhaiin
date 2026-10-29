@@ -1,11 +1,54 @@
 package sqlite
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"path/filepath"
 	"testing"
+
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 )
+
+func TestConfigurationExportOmitsS3SecretsAndDisablesAutomaticBackup(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	settings := `{"instanceName":"fixture","interval":30,"lastBackupHash":"digest-marker","s3":{"enabled":true,"accessKey":"config-access-marker","secretKey":"config-secret-marker","bucket":"example"},"recovery":{"enabled":true,"allowMaintenance":true,"localPoints":{"enabled":true,"keepCount":2}}}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO backup_settings(id,updated_at,data_json) VALUES(1,1,?)`, settings); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"config-access-marker", "config-secret-marker", "digest-marker"} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Errorf("configuration export includes %s", marker)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM backup_settings WHERE id=1`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var restored contractbackup.Option
+	if err := json.Unmarshal([]byte(raw), &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.S3.Enabled || restored.Recovery == nil || restored.Recovery.Enabled || restored.Recovery.AllowMaintenance || restored.Recovery.LocalPoints == nil || restored.Recovery.LocalPoints.Enabled {
+		t.Fatal("restoring configuration enabled automatic or destructive maintenance", raw)
+	}
+}
 
 func TestPrePolicySelectorConfigurationExportRemainsRestorable(t *testing.T) {
 	s, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))

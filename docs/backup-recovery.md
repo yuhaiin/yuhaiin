@@ -42,11 +42,34 @@ The existing configuration format, S3 credentials/settings and object name
 state snapshot, distinct from the JSON configuration export and from the full encrypted disaster-recovery archive. It still contains configuration-bound
 sensitive material; transfer streaming does not provide archive encryption.
 
+New configuration snapshots retain only the existing configuration-export
+tables and schema metadata. They exclude managed certificate/ACME keys, DNS
+provider tokens, the Gateway CA, runtime data and S3 access/secret keys. The
+snapshot's S3 and automatic recovery/cleanup settings are disabled. Offline
+legacy S3 restore imports configuration into the target's private copy and
+retains that target's existing backup settings and credentials. A standalone
+JSON configuration export also omits S3 credentials and disables backup and
+maintenance consent; configure them again after importing it. Node and inbound
+configuration can still contain passwords and private keys, so both formats
+require protection.
+Previously uploaded snapshots are not rewritten or deleted by this change and
+may contain the excluded secrets; review their storage and rotate exposed keys.
+
 `VACUUM INTO` reads a consistent SQLite snapshot including committed WAL data.
-It writes into a private temporary directory and the existing sanitizer removes
-runtime history. The file is opened as a seekable stream and removed on every
+It writes into a private temporary directory; the sanitizer uses the shared
+configuration allowlist, rebuilds the derived search index and compacts deleted
+pages. Unknown virtual tables are refused rather than exported without a known
+sanitizer. The file is opened as a seekable stream and removed on every
 success/error/cancellation path. Uploads no longer allocate a byte slice the size
 of the database. The source is not a raw copy of the live WAL database.
+
+`go test ./pkg/app/backup -run '^$' -bench '^BenchmarkConfigurationSnapshot$'
+-benchmem -benchtime=1s -count=2` compares the sanitizer with 1,000 legacy node
+rows and 10,000 Gateway statistics rows on a warm local filesystem. On a Ryzen
+5 5600G, two runs before this change took 22.3–22.6 ms and about 32 KB/797 Go
+allocations per snapshot; after, they took 22.7 ms and about 52 KB/1,398 Go
+allocations. The fixture excludes S3 transfer and does not establish resource
+usage for a large production database.
 
 `pkg/s3` keeps its API and uses the AWS SDK v2 client instead of `simples3.FilePut`:
 the latter allocates the complete object both before signing and during signing.

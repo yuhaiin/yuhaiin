@@ -66,6 +66,15 @@ func RestoreConfiguration(ctx context.Context, directory string, data []byte) er
 	if err != nil {
 		return err
 	}
+	// A configuration-only S3 object contains no transport credentials or
+	// maintenance consent. Its import must not replace this instance's backup
+	// owner settings with the redacted source settings.
+	backupSettings := backupstore.New(staged.DB())
+	localBackup, err := backupSettings.Get(ctx)
+	if err != nil {
+		_ = staged.Close()
+		return err
+	}
 	inputs, readErr := backupstore.LoadRecoveryRuntime(ctx, staged.DB())
 	if readErr != nil || inputs == nil {
 		_ = staged.Close()
@@ -77,6 +86,9 @@ func RestoreConfiguration(ctx context.Context, directory string, data []byte) er
 		return err
 	}
 	importErr := sqlite.RestoreConfig(ctx, staged.DB(), configuration)
+	if importErr == nil {
+		importErr = backupSettings.Save(ctx, localBackup)
+	}
 	if err := errors.Join(importErr, staged.Close()); err != nil {
 		return err
 	}

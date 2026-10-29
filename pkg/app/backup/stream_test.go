@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -20,6 +21,78 @@ import (
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"go.uber.org/goleak"
 )
+
+func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.T) {
+	var object []byte
+	b, store := streamingBackup(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			object, _ = io.ReadAll(r.Body)
+			return
+		}
+		_, _ = w.Write(object)
+	})
+	config, err := store.Runtime(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.S3.AccessKey, config.S3.SecretKey = "s3-access-key-marker", "s3-secret-key-marker"
+	if err := store.Save(t.Context(), config); err != nil {
+		t.Fatal(err)
+	}
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, statement := range []string{
+		`INSERT INTO managed_certificates(id,revision,config_json,status_json) VALUES('cert',1,'{}','{}')`,
+		`INSERT INTO managed_certificate_material VALUES('cert','certificate','site-private-key-marker')`,
+		`INSERT INTO certificate_acme_accounts VALUES('https://ca.invalid','mail@example.com','acme-private-key-marker','')`,
+		`INSERT INTO certificate_dns_providers VALUES('provider',1,'{}','dns-provider-token-marker')`,
+		`INSERT INTO gateway_ca VALUES(1,1,'certificate','gateway-ca-private-key-marker')`,
+		`INSERT INTO metadata(key,value) VALUES('private_runtime_marker','private-runtime-marker')`,
+		`CREATE TABLE future_private_state (value TEXT NOT NULL)`,
+		`INSERT INTO future_private_state VALUES('future-private-table-marker')`,
+	} {
+		if _, err := db.DB().ExecContext(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.Run(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "future-private-table-marker", "s3-access-key-marker", "s3-secret-key-marker"} {
+		if bytes.Contains(object, []byte(marker)) {
+			t.Errorf("configuration S3 object contains %s", marker)
+		}
+	}
+	var count int
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM managed_certificate_material`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("sanitizing the export modified the live certificate", count, err)
+	}
+}
+
+func TestConfigurationS3SnapshotRejectsUnknownVirtualTables(t *testing.T) {
+	var calls atomic.Int32
+	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB().ExecContext(t.Context(), `CREATE VIRTUAL TABLE unknown_private_index USING fts5(value)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO unknown_private_index(value) VALUES('private index content')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Run(t.Context()); err == nil {
+		t.Fatal("an unknown virtual index was uploaded without a safe sanitizer")
+	}
+	if calls.Load() != 0 {
+		t.Fatal("unsafe configuration snapshot reached S3")
+	}
+}
 
 func streamingBackup(t *testing.T, handler http.HandlerFunc) (*Backup, *backupstore.Store) {
 	t.Helper()

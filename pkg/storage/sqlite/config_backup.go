@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 )
 
 const MaxConfigBackupBytes = 32 << 20
@@ -38,6 +40,32 @@ var configBackupTables = []string{
 	"subscriptions", "publishes", "route_settings", "route_rules", "route_rules_v2",
 	"route_lists", "route_list_refresh", "route_lists_v2", "route_registries", "backup_settings", "metadata",
 	"gateway_configuration", "gateway_references", "node_monitoring_settings",
+}
+
+// ConfigurationBackupTables returns the tables used by configuration export.
+// Callers sanitizing a private SQLite snapshot must separately filter metadata.
+func ConfigurationBackupTables() []string { return slices.Clone(configBackupTables) }
+
+// ConfigurationBackupSettings removes transport credentials and destructive
+// automation consent while preserving the remaining configuration fields.
+func ConfigurationBackupSettings(data string) (string, error) {
+	var options contractbackup.Option
+	if err := json.Unmarshal([]byte(data), &options); err != nil {
+		return "", errors.New("invalid configuration backup settings")
+	}
+	options.LastBackupHash = ""
+	options.S3.AccessKey, options.S3.SecretKey, options.S3.Enabled = "", "", false
+	if options.Recovery != nil {
+		options.Recovery.Enabled, options.Recovery.AllowMaintenance = false, false
+		if options.Recovery.LocalPoints != nil {
+			options.Recovery.LocalPoints.Enabled = false
+		}
+	}
+	encoded, err := json.Marshal(options)
+	if err != nil {
+		return "", errors.New("cannot encode configuration backup settings")
+	}
+	return string(encoded), nil
 }
 
 func configBackupFilter(table string) string {
@@ -95,6 +123,16 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 		for i, value := range values {
 			if b, ok := value.([]byte); ok {
 				value = string(b)
+			}
+			if table == "backup_settings" && columns[i] == "data_json" {
+				raw, ok := value.(string)
+				if !ok {
+					return out, errors.New("invalid configuration backup settings")
+				}
+				value, err = ConfigurationBackupSettings(raw)
+				if err != nil {
+					return out, err
+				}
 			}
 			encoded, err := json.Marshal(value)
 			if err != nil {

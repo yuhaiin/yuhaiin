@@ -27,7 +27,10 @@ routing rules/lists/registries and backup settings. Only the selected TCP/UDP no
 IDs are exported from metadata. Runtime counters, traffic/history, fake IP data,
 migration markers and schemas are excluded. Android installer/document IDs and
 session summaries live outside these tables. Backups are plaintext and include
-credentials; Android explains this before export or sharing.
+node/inbound credentials and private keys; Android explains this before export or sharing. S3
+access and secret keys are omitted, and S3 backup, automatic recovery and
+local-point cleanup consent are disabled in the exported settings. Configure
+them again after importing the file.
 
 Exports read one transactionally consistent snapshot. Validation performs a
 restore transaction and rolls it back, checking SQL constraints before Android

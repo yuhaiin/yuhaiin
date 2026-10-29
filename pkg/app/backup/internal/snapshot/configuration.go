@@ -3,11 +3,11 @@ package snapshot
 import (
 	"context"
 	"database/sql"
-	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
-	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -25,10 +25,52 @@ func SanitizeConfiguration(ctx context.Context, path string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	for _, table := range backupRuntimeTables {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil {
-			return fmt.Errorf("clear runtime table %s from backup snapshot failed: %w", table, err)
+	// A denylist silently exports secrets when new owners add tables. Use the
+	// same configuration-only allowlist as the existing import/export format;
+	// retain migration metadata so older S3 objects remain SQLite snapshots.
+	rows, err := tx.QueryContext(ctx, `SELECT name, type FROM pragma_table_list WHERE schema='main' AND type IN ('table','virtual','shadow') AND substr(name,1,7) != 'sqlite_'`)
+	if err != nil {
+		return fmt.Errorf("list backup snapshot tables: %w", err)
+	}
+	type tableInfo struct{ name, kind string }
+	var tables []tableInfo
+	for rows.Next() {
+		var table tableInfo
+		if err := rows.Scan(&table.name, &table.kind); err != nil {
+			_ = rows.Close()
+			return err
 		}
+		tables = append(tables, table)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `PRAGMA defer_foreign_keys=ON`); err != nil {
+		return err
+	}
+	allowed := storagesqlite.ConfigurationBackupTables()
+	for _, table := range tables {
+		// The nodes index derives only from retained configuration; deleting its
+		// FTS shadow tables directly corrupts SQLite. Rebuild the index below.
+		if table.kind == "virtual" || table.kind == "shadow" {
+			if table.name == "nodes_fts" || table.kind == "shadow" && strings.HasPrefix(table.name, "nodes_fts_") {
+				continue
+			}
+			return fmt.Errorf("unsupported virtual table %s in configuration snapshot", table.name)
+		}
+		if table.name == "migrate" || slices.Contains(allowed, table.name) {
+			continue
+		}
+		quoted := `"` + strings.ReplaceAll(table.name, `"`, `""`) + `"`
+		if _, err := tx.ExecContext(ctx, "DELETE FROM "+quoted); err != nil {
+			return fmt.Errorf("clear non-configuration table %s from backup snapshot: %w", table.name, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM metadata WHERE key NOT IN ('schema_version', 'selected_tcp_node_v2', 'selected_udp_node_v2')`); err != nil {
+		return fmt.Errorf("clear non-configuration metadata from backup snapshot: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO nodes_fts(nodes_fts) VALUES('rebuild')`); err != nil {
+		return fmt.Errorf("rebuild configuration search index: %w", err)
 	}
 
 	// Refresh timestamps and errors are runtime bookkeeping, not configuration.
@@ -52,20 +94,15 @@ func SanitizeConfiguration(ctx context.Context, path string) error {
 		return fmt.Errorf("read backup settings from backup snapshot failed: %w", err)
 	}
 	if err == nil {
-		var opt contractbackup.Option
-		if err := json.Unmarshal([]byte(data), &opt); err != nil {
-			return fmt.Errorf("decode backup settings from backup snapshot failed: %w", err)
-		}
-		opt.LastBackupHash = ""
-		normalized, err := json.Marshal(opt)
+		normalized, err := storagesqlite.ConfigurationBackupSettings(data)
 		if err != nil {
-			return fmt.Errorf("encode normalized backup settings failed: %w", err)
+			return fmt.Errorf("sanitize backup settings in backup snapshot: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE backup_settings
 			SET updated_at = 0, data_json = ?
 			WHERE id = 1
-		`, string(normalized)); err != nil {
+		`, normalized); err != nil {
 			return fmt.Errorf("normalize backup settings in backup snapshot failed: %w", err)
 		}
 	}
