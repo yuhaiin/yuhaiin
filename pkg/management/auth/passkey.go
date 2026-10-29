@@ -298,7 +298,7 @@ func (s *Server) registerPasskeys(mux *http.ServeMux, register func(string, Perm
 		}
 		creation, session, err := wa.BeginRegistration(user,
 			webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{
-				ResidentKey:       protocol.ResidentKeyRequirementRequired,
+				ResidentKey:      protocol.ResidentKeyRequirementRequired,
 				UserVerification: protocol.VerificationRequired,
 			}))
 		if err != nil {
