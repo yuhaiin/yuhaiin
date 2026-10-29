@@ -33,6 +33,9 @@ jobs:
       - name: Test recovery journal path validation
         run: go test -count=1 -run '^TestRecoveryMaintenanceGuardValidatesNestedJournalDirectories$' ./pkg/app/backup/recovery
 
+      - name: Test configuration snapshot secret isolation
+        run: go test -count=1 -run '^TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial$' ./pkg/app/backup
+
       - name: Download release binary
         uses: actions/download-artifact@v8
         with:
