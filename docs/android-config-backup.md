@@ -34,8 +34,9 @@ Configure credentials and explicitly enable affected entries after importing.
 Subscription links must be recreated, and publish paths, passwords and node
 lists reconfigured; they are omitted to avoid exposing access credentials or
 making a previously protected publication accessible without a password.
-Gateway request/response headers, rewritten queries and header/query condition
-values are removed; affected policies and Gateways must be reviewed and enabled
+Gateway request/response headers, rewritten queries, header/query condition
+values and credentials in Gateway URL userinfo, queries and fragments are removed;
+affected policies, filters and Gateways must be reviewed and enabled
 again. Routes selecting an affected disabled Gateway reject connections until
 it is enabled. Older versions do not understand this guard and must not import
 these snapshots. Guarded JSON exports use format version 2 so older JSON

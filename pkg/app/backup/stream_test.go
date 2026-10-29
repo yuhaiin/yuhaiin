@@ -265,6 +265,61 @@ func TestConfigurationS3SnapshotRejectsUnknownGatewayFields(t *testing.T) {
 	}
 }
 
+func TestConfigurationS3SnapshotRedactsGatewayURLCredentials(t *testing.T) {
+	var object []byte
+	var uploads atomic.Int32
+	b, _ := streamingBackup(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			object, _ = io.ReadAll(r.Body)
+			uploads.Add(1)
+			return
+		}
+		_, _ = w.Write(object)
+	})
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[{"id":"filter","gatewayId":"g","enabled":true,"url":"https://example.org/list?token=s3-filter-secret-marker","text":""}],"fallback":{"type":"redirect","status":302,"location":"?token=s3-redirect-secret-marker","rewrite":{}}}]}`
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := b.Run(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if uploads.Load() != 1 {
+		t.Fatalf("unchanged sanitized Gateway uploaded %d times", uploads.Load())
+	}
+	for _, marker := range []string{"s3-filter-secret-marker", "s3-redirect-secret-marker"} {
+		if bytes.Contains(object, []byte(marker)) {
+			t.Fatalf("S3 object contains %s", marker)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "s3-snapshot.db")
+	if err := os.WriteFile(path, object, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := storagesqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	config, err := plainstore.NewGatewayStore(snapshot.DB()).Load(t.Context())
+	if err != nil || len(config.Gateways) != 1 || config.Gateways[0].Enabled || config.Gateways[0].Default.Location != "/" {
+		t.Fatal("redacted relative redirect is invalid", config, err)
+	}
+	if _, err := gateway.CompilePolicy(config.Rules, config.Gateways[0].Default); err != nil {
+		t.Fatal("redacted fallback cannot be compiled", err)
+	}
+	var source string
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT data_json FROM gateway_configuration WHERE id=1`).Scan(&source); err != nil || source != doc {
+		t.Fatal("snapshot changed live Gateway configuration", err)
+	}
+}
+
 func streamingBackup(t *testing.T, handler http.HandlerFunc) (*Backup, *backupstore.Store) {
 	t.Helper()
 	directory := t.TempDir()

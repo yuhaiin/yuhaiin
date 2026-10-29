@@ -61,8 +61,9 @@ Subscription URLs are omitted because tokens may occur anywhere in their paths.
 Publish passwords, paths and node lists are cleared so an imported publish
 cannot expose nodes with an empty password. Recreate subscription links and
 reconfigure publish targets and credentials after importing either format.
-Gateway request/response header values, rewritten queries and header/query
-condition values are also removed. Affected policies and their Gateways are
+Gateway request/response header values, rewritten queries, header/query
+condition values, and userinfo, query strings and fragments in Gateway backend,
+health, filter and redirect URLs are also removed. Affected policies, filters and their Gateways are
 disabled until an administrator restores the values and reviews the policy;
 routes selecting such a Gateway reject connections while it is disabled, instead
 of falling through to ordinary forwarding. An explicit re-enable clears this

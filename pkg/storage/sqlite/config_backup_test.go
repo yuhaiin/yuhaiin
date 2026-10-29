@@ -490,6 +490,78 @@ func TestConfigurationExportDisablesGatewayWithRedactedFallback(t *testing.T) {
 	}
 }
 
+func TestConfigurationExportRedactsGatewayURLCredentials(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[{"id":"pool","name":"Pool","backends":[{"url":"https://backend.example/api?token=backend-secret-marker"}],"healthPath":"/health?token=health-secret-marker"}],"filters":[{"id":"filter","enabled":true,"gatewayId":"g","url":"https://filters.example/list?token=filter-secret-marker","text":""}],"fallback":{"type":"redirect","status":302,"location":"https://example.org/path?token=redirect-secret-marker","rewrite":{}}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope ConfigBackup
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Version != 2 {
+		t.Fatal("Gateway URL redaction requires the guarded export version", envelope.Version, err)
+	}
+	for _, marker := range []string{"backend-secret-marker", "health-secret-marker", "filter-secret-marker", "redirect-secret-marker"} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Fatalf("configuration export contains %s", marker)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled, guard, filterEnabled int
+	var backend, filter, redirect string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].enabled'),json_extract(data_json,'$.gateways[0].rejectWhenDisabled'),json_extract(data_json,'$.gateways[0].filters[0].enabled'),json_extract(data_json,'$.gateways[0].backendPools[0].backends[0].url'),json_extract(data_json,'$.gateways[0].filters[0].url'),json_extract(data_json,'$.gateways[0].fallback.location') FROM gateway_configuration WHERE id=1`).Scan(&enabled, &guard, &filterEnabled, &backend, &filter, &redirect); err != nil {
+		t.Fatal(err)
+	}
+	if enabled != 0 || guard != 1 || filterEnabled != 0 || backend != "https://backend.example/api" || filter != "https://filters.example/list" || redirect != "https://example.org/path" {
+		t.Fatal("unsafe or invalid sanitized Gateway", enabled, guard, filterEnabled, backend, filter, redirect)
+	}
+}
+
+func TestConfigurationExportKeepsRedactedRelativeRedirectValid(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"redirect","status":302,"location":"?token=relative-secret-marker","rewrite":{}}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("relative-secret-marker")) {
+		t.Fatal("relative redirect credential retained")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var location string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].fallback.location') FROM gateway_configuration`).Scan(&location); err != nil || location != "/" {
+		t.Fatal("redacted redirect became invalid", location, err)
+	}
+}
+
 func TestConfigurationExportRejectsExcessivelyNestedEndpoint(t *testing.T) {
 	db, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {

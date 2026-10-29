@@ -4,6 +4,8 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"net/url"
+	"strings"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 )
@@ -23,16 +25,50 @@ func Gateway(data string) (string, bool, bool, error) {
 	changed, guarded := false, false
 	for i := range workspace.Gateways {
 		g := &workspace.Gateways[i]
-		modified := redactGatewayAction(&g.Fallback)
+		modified, err := redactGatewayAction(&g.Fallback)
+		if err != nil {
+			return "", false, false, err
+		}
 		for j := range g.Policies {
 			rule := &g.Policies[j]
 			matchChanged, err := redactGatewayCondition(&rule.Match, 0)
 			if err != nil {
 				return "", false, false, err
 			}
-			if redactGatewayAction(&rule.Action) || matchChanged {
+			actionChanged, err := redactGatewayAction(&rule.Action)
+			if err != nil {
+				return "", false, false, err
+			}
+			if actionChanged || matchChanged {
 				rule.Enabled = false
 				modified = true
+			}
+		}
+		for j := range g.BackendPools {
+			pool := &g.BackendPools[j]
+			var scrubbed bool
+			pool.HealthPath, scrubbed, err = redactGatewayURL(pool.HealthPath)
+			if err != nil {
+				return "", false, false, err
+			}
+			modified = modified || scrubbed
+			for k := range pool.Backends {
+				pool.Backends[k].URL, scrubbed, err = redactGatewayURL(pool.Backends[k].URL)
+				if err != nil {
+					return "", false, false, err
+				}
+				modified = modified || scrubbed
+			}
+		}
+		for j := range g.Filters {
+			filter := &g.Filters[j]
+			var scrubbed bool
+			filter.URL, scrubbed, err = redactGatewayURL(filter.URL)
+			if err != nil {
+				return "", false, false, err
+			}
+			if scrubbed {
+				filter.Enabled, modified = false, true
 			}
 		}
 		if modified {
@@ -52,12 +88,37 @@ func Gateway(data string) (string, bool, bool, error) {
 	return string(result), true, guarded, nil
 }
 
-func redactGatewayAction(action *contract.Action) bool {
+func redactGatewayAction(action *contract.Action) (bool, error) {
 	changed := len(action.Rewrite.Headers) > 0 || len(action.ResponseHeaders) > 0 || action.Rewrite.Query != nil
 	action.Rewrite.Headers = nil
 	action.ResponseHeaders = nil
 	action.Rewrite.Query = nil
-	return changed
+	var locationChanged bool
+	var err error
+	action.Location, locationChanged, err = redactGatewayURL(action.Location)
+	if locationChanged && action.Location == "" && action.Type == "redirect" {
+		// A query-only relative redirect becomes empty after redaction. Keep a
+		// valid inert placeholder so the disabled policy remains editable.
+		action.Location = "/"
+	}
+	return changed || locationChanged, err
+}
+
+// URL paths may themselves be bearer credentials and remain an explicit
+// limitation of unencrypted configuration exports.
+func redactGatewayURL(raw string) (string, bool, error) {
+	if !strings.ContainsAny(raw, "?@#") {
+		return raw, false, nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", false, errors.New("invalid gateway URL in configuration export")
+	}
+	if u.User == nil && u.RawQuery == "" && !u.ForceQuery && u.Fragment == "" {
+		return raw, false, nil
+	}
+	u.User, u.RawQuery, u.Fragment, u.RawFragment, u.ForceQuery = nil, "", "", "", false
+	return u.String(), true, nil
 }
 
 func redactGatewayCondition(condition *contract.Condition, depth int) (bool, error) {

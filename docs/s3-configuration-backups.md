@@ -15,8 +15,9 @@ WAL data are never modified.
 
 Recognized node and inbound credentials are removed; affected endpoints are
 disabled. Subscription links are omitted, while publish passwords, paths and
-node lists are removed. Gateway header and query values are removed, and
-relevant policies and Gateways are disabled. Recreate the omitted links and
+node lists are removed. Gateway header and query values and URL userinfo,
+queries and fragments are removed, and relevant policies, filters and Gateways
+are disabled. Recreate the omitted links and
 review affected entries after import. Routes targeting a Gateway disabled by
 this sanitization reject connections until it is explicitly re-enabled; import
 these snapshots only into a version supporting `rejectWhenDisabled`, because

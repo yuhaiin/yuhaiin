@@ -44,8 +44,8 @@ certificate and Gateway CA keys, ACME/provider secrets, S3 credentials and
 recognized node/inbound credentials. Affected nodes/listeners are disabled and
 affected legacy nodes deselected. Automatic backup/maintenance consent is
 disabled; subscription URLs are omitted and publish targets and credentials are
-cleared. Gateway header and query values are redacted, and affected policies
-and Gateways disabled; selected routes reject connections until the Gateway is
+cleared. Gateway header and query values and URL userinfo, queries and fragments
+are redacted, and affected policies, filters and Gateways disabled; selected routes reject connections until the Gateway is
 explicitly re-enabled. This guard requires a version that understands the
 `rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings. Opaque
 URL paths, custom data and unknown fields may still contain secrets. Therefore
