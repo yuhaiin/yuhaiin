@@ -29,6 +29,7 @@ type Backup struct {
 	proxy    netapi.Proxy
 	instance *AppInstance
 	ticker   *time.Ticker
+	tickerStop chan struct{}
 	mu       sync.Mutex
 }
 
@@ -117,26 +118,42 @@ func (b *Backup) resetTicker() {
 		return
 	}
 
-	if b.ticker != nil {
-		b.ticker.Stop()
-		b.ticker = nil
-	}
+	b.stopTicker()
 
 	if opt.Interval == 0 {
 		return
 	}
 
-	b.ticker = time.NewTicker(time.Duration(opt.Interval) * time.Minute)
+	ticker := time.NewTicker(time.Duration(opt.Interval) * time.Minute)
+	stop := make(chan struct{})
+	b.ticker = ticker
+	b.tickerStop = stop
 
 	log.Info("start new backup ticker", "interval", time.Duration(opt.Interval)*time.Minute)
 
 	go func() {
-		for range b.ticker.C {
-			if err := b.Run(context.Background()); err != nil {
-				log.Error("backup failed", "err", err)
+		for {
+			select {
+			case <-ticker.C:
+				if err := b.Run(context.Background()); err != nil {
+					log.Error("backup failed", "err", err)
+				}
+			case <-stop:
+				return
 			}
 		}
 	}()
+}
+
+// stopTicker is called with b.mu held. Stop does not close a ticker channel,
+// so also signal its worker to exit when the backup interval changes.
+func (b *Backup) stopTicker() {
+	if b.ticker != nil {
+		b.ticker.Stop()
+		close(b.tickerStop)
+		b.ticker = nil
+		b.tickerStop = nil
+	}
 }
 
 func (b *Backup) Get(context.Context) (contractbackup.Option, error) {
@@ -391,10 +408,7 @@ func (b *Backup) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if b.ticker != nil {
-		b.ticker.Stop()
-		b.ticker = nil
-	}
+	b.stopTicker()
 
 	return nil
 }
