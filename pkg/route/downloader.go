@@ -3,7 +3,9 @@ package route
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -24,6 +26,39 @@ type Downloader struct {
 	path   string
 }
 
+// sourceError retains the cause for errors.Is while keeping URL-bearing
+// transport errors out of status messages and logs.
+type sourceError struct {
+	operation string
+	cause     error
+}
+
+func (e *sourceError) Error() string {
+	switch {
+	case errors.Is(e.cause, context.Canceled):
+		return e.operation + ": canceled"
+	case errors.Is(e.cause, context.DeadlineExceeded):
+		return e.operation + ": timed out"
+	case errors.Is(e.cause, os.ErrNotExist):
+		return e.operation + ": not found"
+	case errors.Is(e.cause, os.ErrPermission):
+		return e.operation + ": permission denied"
+	default:
+		if timeout, ok := errors.AsType[net.Error](e.cause); ok && timeout.Timeout() {
+			return e.operation + ": timed out"
+		}
+		if _, ok := errors.AsType[*tls.CertificateVerificationError](e.cause); ok {
+			return e.operation + ": TLS certificate verification failed"
+		}
+		if _, ok := errors.AsType[*net.DNSError](e.cause); ok {
+			return e.operation + ": DNS lookup failed"
+		}
+		return e.operation
+	}
+}
+
+func (e *sourceError) Unwrap() error { return e.cause }
+
 type uri struct {
 	scheme string
 	path   string
@@ -39,7 +74,7 @@ func NewDownloader(path string, dialer func() netapi.Proxy) *Downloader {
 func (d *Downloader) parseURI(urlstr string) (uri, error) {
 	url, err := url.Parse(urlstr)
 	if err != nil {
-		return uri{}, err
+		return uri{}, &sourceError{operation: "invalid route source", cause: err}
 	}
 
 	if url.Scheme == "file" {
@@ -61,10 +96,13 @@ func (d *Downloader) parseURI(urlstr string) (uri, error) {
 func (d *Downloader) GetReader(url string) (io.ReadCloser, error) {
 	path := d.GetPath(url)
 	if path == "" {
-		return nil, fmt.Errorf("get path failed: %s", url)
+		return nil, errors.New("invalid route source")
 	}
-
-	return os.Open(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, &sourceError{operation: "route source cache unavailable", cause: err}
+	}
+	return file, nil
 }
 
 func (d *Downloader) GetPath(url string) string {
@@ -82,8 +120,10 @@ func (d *Downloader) GetPath(url string) string {
 }
 
 func (d *Downloader) DownloadIfNotExists(ctx context.Context, url string, beforeWrite func()) error {
-	if _, err := os.Stat(d.GetPath(url)); err == nil || !os.IsNotExist(err) {
-		return err
+	if _, err := os.Stat(d.GetPath(url)); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return &sourceError{operation: "route source cache unavailable", cause: err}
 	}
 
 	return d.Download(ctx, url, beforeWrite)
@@ -101,7 +141,7 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 
 	err = os.MkdirAll(d.path, os.ModePerm)
 	if err != nil {
-		return err
+		return &sourceError{operation: "route source storage unavailable", cause: err}
 	}
 
 	hc := &http.Client{
@@ -120,28 +160,29 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return err
+		return &sourceError{operation: "invalid route source", cause: err}
 	}
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return &sourceError{operation: "route source request failed", cause: err}
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Warn("close response body failed", "err", err)
+			log.Warn("close route source response failed", "err", &sourceError{operation: "route source response close failed", cause: err})
 		}
 	}()
 
 	if resp.StatusCode != 200 {
-		data, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("status code: %d, data: %s", resp.StatusCode, string(data))
+		// Error bodies may echo credentials, and an untrusted server can send
+		// an arbitrarily large response. The status is sufficient for diagnosis.
+		return fmt.Errorf("HTTP status: %d", resp.StatusCode)
 	}
 
 	// Download to a temporary file first to ensure atomicity of the file update.
 	tmpFile, err := os.CreateTemp(d.path, "download-*.tmp")
 	if err != nil {
-		return fmt.Errorf("create temp file: %w", err)
+		return &sourceError{operation: "route source temporary file unavailable", cause: err}
 	}
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
 
@@ -149,10 +190,10 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 	closeErr := tmpFile.Close()
 
 	if copyErr != nil {
-		return fmt.Errorf("copy to temp file: %w", copyErr)
+		return &sourceError{operation: "route source copy failed", cause: copyErr}
 	}
 	if closeErr != nil {
-		return fmt.Errorf("close temp file: %w", closeErr)
+		return &sourceError{operation: "route source temporary file close failed", cause: closeErr}
 	}
 
 	if beforeWrite != nil {
@@ -161,7 +202,7 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 
 	finalPath := filepath.Join(d.path, hexName(url, url))
 	if err := os.Rename(tmpFile.Name(), finalPath); err != nil {
-		return fmt.Errorf("rename temp file to final path: %w", err)
+		return &sourceError{operation: "route source cache update failed", cause: err}
 	}
 
 	return nil

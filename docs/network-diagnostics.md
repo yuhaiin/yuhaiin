@@ -48,6 +48,21 @@ credentials and raw dialer errors/logs. It stays in the browser unless the user
 copies/downloads it; there is no report upload service. Review operational details
 before sharing it.
 
+## Route list and GeoIP failures
+
+Route-list refresh and activation diagnostics identify a remote source by its
+one-based position in the configured URL list. They report the HTTP status or
+a safe failure category, including cancellation, timeout, TLS verification,
+DNS lookup and local-file failures. Logs and status messages omit source URL
+credentials, paths, queries and remote error-response bodies. GeoIP loading
+also omits source file paths. Non-successful HTTP responses are closed without
+buffering or waiting for the error body; transport cancellation and file-error
+classification remain available through Go's error chain.
+
+The configured source URLs themselves remain in configuration. Existing logs
+and stored errors from older versions are not rewritten; configuration backups
+omit those stored route-refresh errors.
+
 ## Local Tailnet integration fixture readiness
 
 The previous tailscale-lite fixture needed both clients to appear at its real

@@ -65,6 +65,8 @@ Stored route-list and GeoIP refresh errors are omitted because failures can
 include full credential-bearing URLs. Route sources and refresh settings are
 retained; only the backup copy is changed. The existing S3 snapshot also resets
 the legacy list's last-refresh timestamp, while JSON export retains it.
+New route refresh and activation diagnostics omit source URLs, source file
+paths and response bodies; the backup cleanup also protects older stored errors.
 Route source and registry URLs themselves remain in the configuration, and
 may contain credentials in their path or query. Protect these unencrypted
 exports or use a full encrypted disaster-recovery backup when URLs are private.
