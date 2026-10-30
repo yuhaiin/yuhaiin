@@ -15,7 +15,9 @@ WAL data are never modified.
 
 Recognized node and inbound credentials are removed; affected endpoints are
 disabled. ShadowsocksR protocol and obfuscation parameters are removed because
-they can contain a user key or custom HTTP headers. Subscription links are omitted, while publish passwords, paths and
+they can contain a user key or custom HTTP headers. HTTP Mock payloads are
+removed because they can contain arbitrary sensitive bytes. Subscription links
+are omitted, while publish passwords, paths and
 node lists are removed. Gateway header and query values and URL userinfo,
 queries and fragments are removed, and relevant policies, filters and Gateways
 are disabled. Recreate the omitted links and

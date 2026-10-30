@@ -381,6 +381,45 @@ func TestConfigurationExportRedactsInboundIdentityAndDisablesListener(t *testing
 	}
 }
 
+func TestConfigurationExportRedactsHTTPMockPayloads(t *testing.T) {
+	const payload = "c2VjcmV0LW1vY2stbWFya2Vy"
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	node := `{"id":"mock-node","name":"Mock","enabled":true,"chain":[{"type":"http_mock","http_mock":{"data":"` + payload + `"}}]}`
+	inbound := `{"id":"mock-inbound","name":"Mock","enabled":true,"transports":[{"type":"http_mock","http_mock":{"dataBase64":"` + payload + `"}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('mock-node','Mock','','manual',1,'[]',0,?)`, node); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('mock-inbound','Mock',1,'tcp','http','[]',0,?)`, inbound); err != nil {
+		t.Fatal(err)
+	}
+	export, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(export, []byte(payload)) {
+		t.Fatal("configuration export retained an HTTP Mock payload")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), export); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"nodes_v2", "inbounds_v2"} {
+		var enabled int
+		var data string
+		if err := target.DB().QueryRowContext(t.Context(), "SELECT enabled,data_json FROM "+table).Scan(&enabled, &data); err != nil || enabled != 0 || !strings.Contains(data, `"enabled":false`) {
+			t.Fatal("redacted endpoint remained enabled", table, err)
+		}
+	}
+}
+
 func TestConfigurationExportRedactsLegacyEndpointCopies(t *testing.T) {
 	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {

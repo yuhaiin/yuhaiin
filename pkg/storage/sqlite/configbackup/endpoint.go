@@ -88,6 +88,9 @@ func sensitiveEndpointField(parent, key string) bool {
 		// ShadowsocksR protocol parameters can contain a user key, while
 		// obfuscation parameters can contain arbitrary HTTP headers.
 		return parent == "shadowsocksr"
+	case "data", "database64":
+		// HTTP Mock payloads are arbitrary bytes and can contain credentials.
+		return parent == "httpmock"
 	case "username":
 		return parent == "socks4a"
 	default:

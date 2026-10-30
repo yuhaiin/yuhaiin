@@ -45,7 +45,9 @@ recognized node/inbound credentials. Affected nodes/listeners are disabled and
 affected legacy nodes deselected. Automatic backup/maintenance consent is
 disabled; subscription URLs are omitted and publish targets and credentials are
 cleared. ShadowsocksR protocol and obfuscation parameters are also cleared,
-because they can contain user keys or custom HTTP headers. Gateway header and query values and URL userinfo, queries and fragments
+because they can contain user keys or custom HTTP headers; HTTP Mock payloads
+are cleared because they can contain arbitrary sensitive bytes. Gateway header
+and query values and URL userinfo, queries and fragments
 are redacted, and affected policies, filters and Gateways disabled; selected routes reject connections until the Gateway is
 explicitly re-enabled. This guard requires a version that understands the
 `rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings. Opaque

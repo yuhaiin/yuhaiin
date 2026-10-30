@@ -56,7 +56,9 @@ node/inbound credentials are removed, and affected nodes and listeners are
 disabled; affected legacy nodes are deselected. Administrators must re-enter
 credentials and explicitly enable the affected entries after import. Both
 ShadowsocksR protocol and obfuscation parameters are removed because they can
-contain a user key or custom HTTP headers; reconfigure them after import. Opaque URL
+contain a user key or custom HTTP headers. HTTP Mock payloads are also removed
+because they can contain arbitrary sensitive bytes. Reconfigure affected entries
+after import. Opaque URL
 paths, custom data and unknown fields may still contain secrets, so both formats
 require protection.
 Subscription URLs are omitted because tokens may occur anywhere in their paths.
