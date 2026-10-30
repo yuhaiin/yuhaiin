@@ -54,7 +54,9 @@ JSON configuration export also omits S3 credentials and disables backup and
 maintenance consent; configure them again after importing it. Recognized inline
 node/inbound credentials are removed, and affected nodes and listeners are
 disabled; affected legacy nodes are deselected. Administrators must re-enter
-credentials and explicitly enable the affected entries after import. Opaque URL
+credentials and explicitly enable the affected entries after import. Both
+ShadowsocksR protocol and obfuscation parameters are removed because they can
+contain a user key or custom HTTP headers; reconfigure them after import. Opaque URL
 paths, custom data and unknown fields may still contain secrets, so both formats
 require protection.
 Subscription URLs are omitted because tokens may occur anywhere in their paths.

@@ -84,6 +84,10 @@ func sensitiveEndpointField(parent, key string) bool {
 		return parent == "nebula"
 	case "identity":
 		return parent == "zerotier"
+	case "protoparam", "obfsparam":
+		// ShadowsocksR protocol parameters can contain a user key, while
+		// obfuscation parameters can contain arbitrary HTTP headers.
+		return parent == "shadowsocksr"
 	case "username":
 		return parent == "socks4a"
 	default:

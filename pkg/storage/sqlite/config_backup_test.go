@@ -298,6 +298,8 @@ func TestConfigurationExportRedactsEmbeddedNodeCredentials(t *testing.T) {
 		{"vmess", `{"type":"vmess","vmess":{"id":"identity-marker","aid":"0","security":"auto"}}`},
 		{"vless", `{"type":"vless","vless":{"uuid":"identity-marker"}}`},
 		{"hysteria2", `{"type":"hysteria2","hysteria2":{"host":"vpn.example","auth":"identity-marker","salamander_password":"identity-marker"}}`},
+		{"shadowsocksr protocol parameter", `{"type":"shadowsocksr","shadowsocksr":{"protocol":"auth_chain_a","protoparam":"42:identity-marker"}}`},
+		{"shadowsocksr obfuscation parameter", `{"type":"shadowsocksr","shadowsocksr":{"obfs":"http_simple","obfsparam":"vpn.example#Authorization: identity-marker"}}`},
 		{"openvpn", `{"type":"openvpn","openvpn":{"gateway":"vpn.example","password":"identity-marker","client_key_pem":"identity-marker","tls_auth_key":"identity-marker","tls_crypt_key":"identity-marker","auth":"SHA256"}}`},
 		{"nebula", `{"type":"nebula","nebula":{"config_yaml":"private_key: identity-marker"}}`},
 		{"tls", `{"type":"tls_termination","tls_termination":{"tls":{"certificates":[{"cert":"cHVibGlj","key":"identity-marker"}]}}}`},

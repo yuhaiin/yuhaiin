@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -262,6 +263,52 @@ func TestConfigurationS3SnapshotRejectsUnknownGatewayFields(t *testing.T) {
 	}
 	if calls.Load() != 0 {
 		t.Fatal("unsafe gateway snapshot reached S3")
+	}
+}
+
+func TestConfigurationS3SnapshotRedactsShadowsocksRParameters(t *testing.T) {
+	var object []byte
+	b, _ := streamingBackup(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			object, _ = io.ReadAll(r.Body)
+			return
+		}
+		_, _ = w.Write(object)
+	})
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	doc := `{"id":"ssr","name":"SSR","origin":"manual","enabled":true,"chain":[{"type":"shadowsocksr","shadowsocksr":{"protocol":"auth_chain_a","protoparam":"42:ssr-protocol-secret-marker","obfs":"http_simple","obfsparam":"vpn.example#Authorization: ssr-header-secret-marker"}}]}`
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('ssr','SSR','','manual',1,'["shadowsocksr"]',0,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Run(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"ssr-protocol-secret-marker", "ssr-header-secret-marker"} {
+		if bytes.Contains(object, []byte(marker)) {
+			t.Fatal("S3 snapshot retained a ShadowsocksR credential")
+		}
+	}
+	path := filepath.Join(t.TempDir(), "s3-snapshot.db")
+	if err := os.WriteFile(path, object, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := storagesqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	var enabled int
+	var sanitized string
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled,data_json FROM nodes_v2 WHERE id='ssr'`).Scan(&enabled, &sanitized); err != nil || enabled != 0 || !strings.Contains(sanitized, `"enabled":false`) {
+		t.Fatal("redacted ShadowsocksR node was not disabled", err)
+	}
+	var source string
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT data_json FROM nodes_v2 WHERE id='ssr'`).Scan(&source); err != nil || source != doc {
+		t.Fatal("snapshot changed the live ShadowsocksR node", err)
 	}
 }
 
