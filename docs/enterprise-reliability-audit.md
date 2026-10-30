@@ -90,6 +90,12 @@ implemented independently of an unattended schedule.
   traffic. Required-probe admission and actual CLI blocked/permitted CA tests
   exercise failure without Direct fallback. Probe/CA/provider HTTPS validates
   certificates, limits bodies/origins/redirects and requires management scopes.
+- Management handler responses default to plain text with `nosniff` before
+  committing a status, body or flush. Explicit JSON, binary, HTML and event-stream
+  types remain unchanged. `TestManagementResponseContentTypes` uses real HTTP
+  connections, including an informational response followed by JSON; untyped
+  reflected input is not automatically served as HTML. This is independent of
+  the final CodeQL result, which must still be inspected on the pushed head.
 - New metrics use finite result/network/mode/state labels, not arbitrary Node,
   user, domain or URL labels. Node/certificate events and backup registries have
   explicit retention bounds. Collectors read snapshots rather than SQLite on a

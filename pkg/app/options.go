@@ -381,17 +381,29 @@ type wrapResponseWriter struct {
 }
 
 func (w *wrapResponseWriter) Write(b []byte) (int, error) {
-	w.writed = true
+	if !w.writed {
+		w.WriteHeader(http.StatusOK)
+	}
 	return w.ResponseWriter.Write(b)
 }
 
 func (w *wrapResponseWriter) WriteHeader(s int) {
-	w.writed = true
+	if !w.writed && (s >= http.StatusOK || s == http.StatusSwitchingProtocols) {
+		// Management responses must opt into executable content. Set the default
+		// before committing headers, including handlers that flush before writing.
+		if w.Header().Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.writed = true
+	}
 	w.ResponseWriter.WriteHeader(s)
 }
 
 func (w *wrapResponseWriter) Flush() {
-	w.writed = true
+	if !w.writed {
+		w.WriteHeader(http.StatusOK)
+	}
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 
