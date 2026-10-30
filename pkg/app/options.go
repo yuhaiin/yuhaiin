@@ -362,6 +362,11 @@ type wrapResponseWriter struct {
 
 func (w *wrapResponseWriter) Write(b []byte) (int, error) {
 	if !w.writed {
+		// Keep the body-write content type explicit for static analysis too;
+		// WriteHeader separately covers status-only and flushed responses.
+		if w.ResponseWriter.Header().Get("Content-Type") == "" {
+			w.ResponseWriter.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		}
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(b)
