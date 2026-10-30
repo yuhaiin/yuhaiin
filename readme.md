@@ -221,94 +221,58 @@ References: [tun2socks](https://github.com/xjasonlyu/tun2socks), [shadowsocksR](
 
 Contributions, bug reports, and reproducible interoperability tests are welcome.
 
-### Intelligent outbound selectors
+### Enterprise reliability
 
-Opt-in selectors support priority failover, fresh RTT, measured download speed,
-normalized balanced scoring, and weighted new connections. Manual selection
-remains the compatibility default. The management UI exposes candidate evidence,
-thresholds, manual lock, bounded manual download tests, and explicit preferred-node recovery. Metric-mode return must still clear ranking and switching thresholds. See the
-[intelligent selector guide](docs/intelligent-selectors.md) for configuration,
-measurement limits, migrations, and the remaining reliability rollout work.
+The reliability changes are reviewed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622)
+and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535), both targeting
+main. See the [delivery overview](docs/enterprise-reliability.md) and
+[requirement evidence](docs/enterprise-reliability-audit.md) for the implementation,
+validation and supported-host boundaries.
 
-The monitoring follow-up adds shared scheduled TCP/HTTPS/DNS/STUN checks,
-conservative mobile/metered-network defaults, and optional periodic download
-tests using the same bounded implementation and durable traffic budget.
+**Intelligent outbound selection.** Existing Selectors support manual, priority
+failover, fresh RTT, measured throughput, normalized balanced scoring and weighted
+new flows. Manual selection remains the upgrade default. Candidates, independent
+TCP/UDP evidence, circuit recovery, preferred return, hold/cooldown and explicit
+fallback explain each selection. Existing sessions retain their chosen runtime.
+Shared cancellable probes and optional download/upload tests enforce concurrency,
+byte/time and durable daily budgets, with conservative mobile/network-cost policy.
+Observed business traffic remains distinct from measured target-specific capacity.
+See [selection and benchmarks](docs/intelligent-selectors.md),
+[probe policy](docs/probe-policy.md) and [measurement bounds](docs/measurement-bounds.md).
 
-The circuit follow-up adds independent TCP/UDP Closed/Open/Half-open admission,
-finite recovery quotas, visible evidence and reasons, and protection against
-stale measurements after transport/credential changes. Existing manual choices
-and established sessions retain their semantics.
+**Backup, recovery and updates.** Configuration migration excludes managed
+identity material by default; arbitrary custom strings and private URL paths still
+need protection. Full disaster recovery uses an explicit owned inventory,
+WAL-safe SQLite snapshots during stopped-writer maintenance, streaming age
+encryption and external backup keys. Local/S3 scheduling, verified transfer,
+retrieval, retention, authenticated original/clone previews and controlled
+startup/rollback share the existing backup owners. The offline CLI remains
+available when the Web UI cannot start. Plaintext pre-restore copies have separate,
+default-off cleanup consent. Protected updates validate package/schema metadata,
+create a recovery point and verify actual startup; migrated databases require
+reviewed paired binary/database restoration.
+See [configuration and data ownership](docs/backup-recovery.md),
+[archive/CLI](docs/recovery-archive.md), [managed backups](docs/managed-recovery-backups.md)
+and [safe updates](docs/update-rollback.md).
 
-Application probes and active download tests share existing routing and traffic
-controls, with startup readiness and bounded connection cleanup. See the
-[measurement policy guide](docs/probe-policy.md) for scope and qualification.
+Automatic disruptive maintenance is qualified for root-owned Linux systemd and
+lingering user services. Windows offline restore, validation/finalization and
+rollback require elevated local NTFS access. Other hosts/storage retain the
+explicit capability and durability limits in the guides. Optional unattended
+restore drills are separate from the implemented deterministic and real-service
+fault-injection tests.
 
-Measurement resource limits and finite-label reliability metrics: [measurement bounds](docs/measurement-bounds.md).
+**Managed HTTPS certificates.** Stable site resources support ACME HTTP-01 and
+Cloudflare DNS-01, private account/provider storage, persisted renewal/ARI advice,
+bounded retries and verified hot replacement. Management HTTPS explicitly selects
+`-https-certificate-id`; Gateway TLS termination references managed IDs. Existing
+file/self-signed TLS and separate MITM/TLS Auto CAs retain their ownership.
+See [certificate lifecycle](docs/managed-certificates.md).
 
-Enterprise reliability is being developed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622) and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535). See the [delivery tracker](docs/enterprise-reliability.md) for current behavior, qualification and support boundaries.
-
-The [managed-certificate guide](docs/managed-certificates.md) covers schema-24
-private storage, HTTP-01/Cloudflare DNS-01, persistent renewal, permission-gated
-API/UI and Gateway TLS references with hot replacement. Management HTTPS supports explicit host-owned `-https-certificate-id` selection
-and compatible recovery/update checks. Live ARI advice and persisted refresh
-share the existing bounded certificate worker.
-
-Backup transfer bounds and the disaster-recovery implementation status:
-[backup and recovery](docs/backup-recovery.md).
-
-Encrypted full snapshots, external backup keys, offline restore preview and crash-safe recovery:
-[recovery archives](docs/recovery-archive.md).
-
-Managed full encrypted local/S3 backups, confirmed service maintenance, archive
-verification/download and retention: [managed recovery backups](docs/managed-recovery-backups.md).
-Plaintext pre-restore copies have separate, default-off [startup/offline cleanup](docs/managed-recovery-backups.md#local-rollback-copy-retention), with protected live dependencies and resumable deletion.
-Missing or damaged local S3 copies can be explicitly retrieved and repaired with
-size/digest checks. Retain public recovery metadata separately for the offline
-`recovery fetch` command; [retrieval workflow](docs/managed-recovery-backups.md#recover-a-missing-or-damaged-local-s3-copy).
-Web restore activation is available on root-owned Linux systemd and lingering user-service deployments;
-protected updates now capture an encrypted recovery point before replacement and
-verify real startup on that host. Migration failure requires the matching source
-binary/database backup, with an offline status/restore path. Other hosts retain the documented offline workflows and durability limits; [protected update procedure](docs/update-rollback.md#protected-update-and-offline-recovery).
-
-
-The Backup page also supports bounded encrypted archive uploads and authenticated
-original-instance/clone recovery previews. It shows file and identity warnings
-without changing the running deployment. Supported installed services can then
-perform an explicitly confirmed restore using sealed staging and independent
-startup/rollback supervision. Other hosts retain the offline recovery CLI. See the
-[managed recovery guide](docs/managed-recovery-backups.md#web-archive-import-and-authenticated-preview).
-
-The Backup page reports the latest actual restore commit or rollback. Offline
-restores can explicitly adopt relocated startup inputs across service restarts;
-failed subsequent restores recover the previous startup binding with the original
-files. See [startup adoption](docs/recovery-archive.md#activation-real-startup-and-rollback).
-Scheduling and transfers live in `pkg/app/backup`; deployment snapshots,
-activation and startup rollback live in `pkg/app/backup/recovery`. SQLite metadata
-lives in `pkg/store/backup`, and the encrypted format in `pkg/store/backup/archive`.
-Tests follow their owners; the parent application assembles the existing runtime.
-
-Software update checks now validate checksum-bound target schema catalogs against
-live SQLite/WAL state without executing prospective binaries. Unknown or incompatible
-old binaries cannot be automatically restored. Database-migrating targets require
-the coordinated update recovery-point workflow; [scope and offline steps](docs/update-rollback.md#verified-target-schema-preflight).
-
-Active upload measurements now extend the intelligent Selector's existing test
-and observation owners, with explicit supported-endpoint consent, shared hard
-budgets and independent download/upload freshness. See the
-[measurement guide](docs/intelligent-selectors.md#explicit-upload-measurements)
-for the protocol and optional separate HTTPS endpoint tool.
-
-Node details distinguish observed current/window-average transfer rates from
-active target/time-specific measurements and recent retained TCP dial failures.
-The window uses the existing observer, resets after restart/suspend and adds no
-forwarding work or database migration. See the [observation guide](docs/intelligent-selectors.md#observed-traffic-window-and-recent-tcp-dial-outcomes).
-
-
-Runtime selection reuses immutable Node health histories across Selectors,
-without adding observation owners or per-packet work. Full-history before/after
-heap, allocations, shared-Selector and shutdown measurements document the cache
-memory tradeoff in the [resource qualification](docs/intelligent-selectors.md#runtime-heap-and-lifecycle-qualification).
-
-Full capture checks WAL-aware snapshot, dependency and ciphertext space. The
-[actual maintenance report](docs/managed-recovery-backups.md#capture-space-and-real-maintenance-measurements)
-records independent CLI RSS and confirmed real startup for 1/64/256 MiB payloads.
+Scheduling/transfers live in `pkg/app/backup`; coherent deployment snapshots,
+activation and startup rollback in `pkg/app/backup/recovery`; SQLite metadata in
+`pkg/store/backup`; and the encrypted format in `pkg/store/backup/archive`.
+Tests follow these owners. The guides retain reproducible ranking/admission,
+shared-Selector heap/goroutine, streaming-backup and
+[actual maintenance/RSS measurements](docs/managed-recovery-backups.md#capture-space-and-real-maintenance-measurements),
+with fixture limits rather than production-capacity guarantees.

@@ -5,7 +5,7 @@ Review uses one PR per repository, both targeting `main`:
 [frontend #535](https://github.com/yuhaiin/yuhaiin-react/pull/535).
 The implementation extends existing owners and does not depend on the unmerged
 enterprise identity/resource/security stacks. The backend includes main through
-`c1638a81` and the frontend includes main through `82022f5`. This PR adds no
+`293aa065` and the frontend includes main through `adf2322`. This PR adds no
 Controller/Agent, Raft, distributed state, WAF or VPN protocol; SSTP server
 support is inherited from main.
 
