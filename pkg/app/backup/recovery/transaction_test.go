@@ -10,16 +10,27 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
-func recoveryTransactionFixture(t *testing.T) (string, *recoveryTransaction) {
+func requireRecoveryDurability(t *testing.T, directory string) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
-		t.Skip("directory synchronization activation is not yet supported on Windows")
+		if err := backupfs.SyncDirectory(directory); err != nil {
+			if os.Getenv("YUH_WINDOWS_RECOVERY_REQUIRE") == "1" {
+				t.Fatal("Windows recovery durability qualification failed", err)
+			}
+			t.Skip("recovery requires elevated local NTFS volume access", err)
+		}
 	}
+}
+
+func recoveryTransactionFixture(t *testing.T) (string, *recoveryTransaction) {
+	t.Helper()
 	directory := t.TempDir()
+	requireRecoveryDurability(t, directory)
 	stage := ".recovery-stage-fixture"
 	if err := os.Mkdir(filepath.Join(directory, stage), 0o700); err != nil {
 		t.Fatal(err)

@@ -4,20 +4,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
 func SyncDirectory(directory string) error {
-	if runtime.GOOS == "windows" {
-		return errors.ErrUnsupported
-	}
 	file, err := os.Open(directory)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	return file.Sync()
+	return errors.Join(Sync(file), file.Close())
 }
 
 // Reject symlink components even when they stay inside the root: a transaction
@@ -36,7 +31,7 @@ func Destination(root *os.Root, name string, createParents bool) (bool, error) {
 			if err != nil {
 				return false, err
 			}
-			err = errors.Join(directory.Sync(), directory.Close())
+			err = errors.Join(Sync(directory), directory.Close())
 			if err != nil {
 				return false, err
 			}

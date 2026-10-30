@@ -74,8 +74,8 @@ func TestRecoveryManagedStartupServiceDrill(t *testing.T) {
 		}
 		return
 	}
-	if runtime.GOOS == "windows" {
-		t.Skip("durable activation requires directory synchronization")
+	if runtime.GOOS == "windows" && os.Getenv("YUH_WINDOWS_RECOVERY_REQUIRE") != "1" {
+		t.Skip("native Windows recovery drill requires qualified elevated NTFS access")
 	}
 	t.Setenv("EXTERNAL_WEB", "")
 	target := recoveryServiceDeployment(t, "original", "")

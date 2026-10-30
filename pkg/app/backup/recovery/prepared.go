@@ -58,7 +58,7 @@ func sealImport(ctx context.Context, directory string, tx *recoveryTransaction, 
 			return nil, err
 		}
 		digest, size, hashErr := hashRecoveryOriginal(ctx, file, backuparchive.MaxDataBytes-total)
-		hashErr = errors.Join(hashErr, file.Sync(), file.Close())
+		hashErr = errors.Join(hashErr, backupfs.Sync(file), file.Close())
 		if hashErr != nil {
 			return nil, hashErr
 		}

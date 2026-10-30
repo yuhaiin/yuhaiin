@@ -1,3 +1,5 @@
+//go:build linux || darwin || freebsd || openbsd || netbsd || dragonfly
+
 package backupfs
 
 import "math/bits"

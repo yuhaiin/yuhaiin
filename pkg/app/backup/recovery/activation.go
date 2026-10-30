@@ -9,7 +9,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 
@@ -22,8 +21,13 @@ import (
 // an error models a failed operation; panic/process exit models a crash without
 // executing rollback defers. Production passes nil.
 func activateRecoverySet(ctx context.Context, directory string, tx *recoveryTransaction, checkpoint func(string) error) (resultErr error) {
-	if runtime.GOOS == "windows" {
-		return errors.New("durable offline activation requires a filesystem with directory synchronization")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Qualify durability before creating a point, journal or replacement. In
+	// particular Windows requires elevated access to a local NTFS volume.
+	if err := backupfs.SyncDirectory(directory); err != nil {
+		return err
 	}
 	root, err := os.OpenRoot(directory)
 	if err != nil {
@@ -43,7 +47,7 @@ func activateRecoverySet(ctx context.Context, directory string, tx *recoveryTran
 				return err
 			}
 			digest, size, hashErr := hashRecoveryOriginal(ctx, file, backuparchive.MaxDataBytes-originals)
-			hashErr = errors.Join(hashErr, file.Sync(), file.Close())
+			hashErr = errors.Join(hashErr, backupfs.Sync(file), file.Close())
 			if hashErr != nil {
 				return hashErr
 			}
@@ -63,7 +67,7 @@ func activateRecoverySet(ctx context.Context, directory string, tx *recoveryTran
 			if err != nil {
 				return err
 			}
-			err = errors.Join(file.Sync(), file.Close())
+			err = errors.Join(backupfs.Sync(file), file.Close())
 			if err != nil {
 				return err
 			}

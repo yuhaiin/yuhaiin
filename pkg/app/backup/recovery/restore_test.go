@@ -60,9 +60,7 @@ func TestRecoveryCloneRotatesMachineKeys(t *testing.T) {
 }
 
 func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("offline activation needs directory synchronization")
-	}
+	requireRecoveryDurability(t, t.TempDir())
 	source, key := testfixture.BasicDeployment(t)
 	db, err := sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
 	if err != nil {

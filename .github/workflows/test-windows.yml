@@ -30,7 +30,17 @@ jobs:
       - name: Test native recovery directory durability
         env:
           YUH_WINDOWS_RECOVERY_REQUIRE: '1'
-        run: go test -count=1 -run '^TestWindowsRecoveryDirectoryDurability$' ./pkg/app/backup/internal/backupfs
+        run: go test -count=1 -timeout=180s ./pkg/app/backup/internal/backupfs
+
+      - name: Test native recovery crash, rollback and encrypted restoration
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: go test -count=1 -timeout=300s -run '^(TestRecoveryTransaction.*|TestWindowsRecovery.*|TestEncryptedRecoveryRetainsPrivateSourceURL)$' ./pkg/app/backup/recovery
+
+      - name: Test CLI restoration, real startup, TLS and startup rollback
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: go test -count=1 -timeout=300s -run '^(TestRecoveryServiceStartupDrill|TestRecoveryManagedStartupServiceDrill)$' ./cmd/yuhaiin
 
       - name: Test recovery staging and backup key ACLs
         run: go test -count=1 -run '^TestWindowsRecoveryArtifactsHavePrivateACLs$' ./pkg/store/backup/archive
