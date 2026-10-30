@@ -11,6 +11,15 @@ import (
 // This fixture measures snapshot and sanitization, not network upload or large
 // production databases. Runtime rows and the legacy FTS index are deliberate.
 func BenchmarkConfigurationSnapshot(b *testing.B) {
+	benchmarkConfigurationSnapshot(b, false)
+}
+
+func BenchmarkConfigurationSnapshotWithRouteRefreshErrors(b *testing.B) {
+	benchmarkConfigurationSnapshot(b, true)
+}
+
+func benchmarkConfigurationSnapshot(b *testing.B, routeErrors bool) {
+	b.Helper()
 	directory := b.TempDir()
 	db, err := storagesqlite.Open(b.Context(), paths.PathGenerator.State(directory))
 	if err != nil {
@@ -34,6 +43,15 @@ func BenchmarkConfigurationSnapshot(b *testing.B) {
 	for i := range 10000 {
 		if _, err := tx.ExecContext(b.Context(), `INSERT INTO gateway_statistics(gateway_id,requests,updated_at) VALUES(?,1,1)`, fmt.Sprint(i)); err != nil {
 			b.Fatal(err)
+		}
+	}
+	if routeErrors {
+		for i := range 1000 {
+			id := fmt.Sprintf("route-%d", i)
+			data := fmt.Sprintf(`{"id":%q,"name":%q,"type":"host","source":{"type":"remote","remote":{"urls":["https://example.org/list"]}},"errorMsgs":["https://example.org/expired-token: download failed"]}`, id, id)
+			if _, err := tx.ExecContext(b.Context(), `INSERT INTO route_lists_v2(id,name,list_type,source_type,updated_at,data_json) VALUES(?,?,'host','remote',1,?)`, id, id, data); err != nil {
+				b.Fatal(err)
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {

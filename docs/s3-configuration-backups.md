@@ -27,6 +27,8 @@ these snapshots only into a version supporting `rejectWhenDisabled`, because
 older versions cannot enforce that protection. S3 access keys, managed site and
 ACME keys, DNS provider tokens and the Gateway CA are omitted. Restore of a
 legacy S3 snapshot retains the target's own S3 and recovery settings.
+Stored route-list and GeoIP refresh errors are omitted because they can include
+credential-bearing URLs; route sources and refresh configuration are retained.
 Guarded JSON exports use format version 2, which older JSON importers reject;
 the legacy S3 SQLite format has no equivalent version gate.
 

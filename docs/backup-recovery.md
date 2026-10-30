@@ -61,6 +61,10 @@ because they can contain arbitrary sensitive bytes. Reconfigure affected entries
 after import. Opaque URL
 paths, custom data and unknown fields may still contain secrets, so both formats
 require protection.
+Stored route-list and GeoIP refresh errors are omitted because failures can
+include full credential-bearing URLs. Route sources and refresh settings are
+retained; only the backup copy is changed. The existing S3 snapshot also resets
+the legacy list's last-refresh timestamp, while JSON export retains it.
 Current-format Node and Inbound documents reject unrecognized fields before
 either export or S3 upload, except recognized legacy credential aliases whose
 values have already been cleared. Upgrade to a compatible server or remove the
@@ -111,6 +115,15 @@ creation rather than transfer or forwarding; allocation counts are cumulative.
 Raw [before](benchmarks/data/configuration-backup-2026-10-30/before-typed-validation.txt)
 and [after](benchmarks/data/configuration-backup-2026-10-30/after-typed-validation.txt)
 results are retained.
+The same fixture plus 1,000 route lists containing refresh errors measured
+36.80–36.91 ms and about 2.61 MB/58,200 allocations before removing those
+errors, versus 59.77–59.97 ms and about 4.71 MB/99,600 allocations after (three
+runs, `BenchmarkConfigurationSnapshotWithRouteRefreshErrors`, `-benchtime=2s`,
+same host and warm filesystem). This exercises worst-case error-bearing list
+documents; allocations are cumulative, not peak RSS. Raw
+[before](benchmarks/data/route-backup-2026-10-30/before-redaction.txt) and
+[after](benchmarks/data/route-backup-2026-10-30/after-redaction.txt) results are
+retained.
 The sanitizer processes at most 128 rows and roughly 1 MiB of replacements per
 batch, plus one potentially larger configuration document. The fixture excludes
 S3 transfer and does not establish performance for a large production database.

@@ -50,7 +50,10 @@ are cleared because they can contain arbitrary sensitive bytes. Gateway header
 and query values and URL userinfo, queries and fragments
 are redacted, and affected policies, filters and Gateways disabled; selected routes reject connections until the Gateway is
 explicitly re-enabled. This guard requires a version that understands the
-`rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings. Opaque
+`rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings.
+Route-list and GeoIP refresh errors are omitted from both configuration backup
+formats because they may contain full download URLs; their source configuration
+is retained. Opaque
 URL paths, custom data and legacy unknown fields may still contain secrets.
 Current-format Node and Inbound documents with unknown fields are rejected
 before JSON export and S3 upload, except recognized credential aliases already

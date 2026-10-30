@@ -295,6 +295,131 @@ func TestConfigurationS3SnapshotRejectsUnknownEndpointFields(t *testing.T) {
 	}
 }
 
+func TestConfigurationBackupsOmitRouteRefreshErrors(t *testing.T) {
+	var object []byte
+	var uploads atomic.Int32
+	b, _ := streamingBackup(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			object, _ = io.ReadAll(r.Body)
+			uploads.Add(1)
+			return
+		}
+		_, _ = w.Write(object)
+	})
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, statement := range []string{
+		`INSERT INTO route_lists(name,kind,updated_at,data_json) VALUES('legacy','remote',1,'{}')`,
+		`INSERT INTO route_list_refresh(name,refresh_interval,last_refresh_time,last_error) VALUES('legacy',3600,42,'legacy-secret-marker')`,
+		`INSERT INTO route_lists_v2(id,name,list_type,source_type,updated_at,data_json) VALUES('list','List','host','remote',1,'{"id":"list","name":"List","type":"host","source":{"type":"remote","remote":{"urls":["https://public.example/list"]}},"errorMsgs":["https://private.example/old-token-marker: failed"]}')`,
+		`INSERT INTO settings_kv(section,key,value_json,updated_at) VALUES('route_extra','refresh_config','{"revision":3,"refresh_interval":3600,"last_refresh_time":42,"error":"refresh-secret-marker","host_index_disk":true}',1)`,
+		`INSERT INTO settings_kv(section,key,value_json,updated_at) VALUES('route_extra','maxminddb_geoip','{"download_url":"https://public.example/geoip","error":"geoip-secret-marker"}',1)`,
+		`INSERT INTO settings_kv(section,key,value_json,updated_at) VALUES('other','settings','{"error":"keep-unrelated-value"}',1)`,
+	} {
+		if _, err := db.DB().ExecContext(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	jsonExport, err := storagesqlite.ExportConfig(t.Context(), db.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := b.Run(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if uploads.Load() != 1 {
+		t.Fatal("unchanged sanitized configuration was uploaded repeatedly")
+	}
+	for _, data := range [][]byte{jsonExport, object} {
+		for _, marker := range []string{"legacy-secret-marker", "old-token-marker", "refresh-secret-marker", "geoip-secret-marker"} {
+			if bytes.Contains(data, []byte(marker)) {
+				t.Fatal("configuration backup retained a route refresh error")
+			}
+		}
+	}
+	jsonTarget, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "json.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer jsonTarget.Close()
+	if err := storagesqlite.RestoreConfig(t.Context(), jsonTarget.DB(), jsonExport); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "s3.db")
+	if err := os.WriteFile(path, object, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := storagesqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	for i, restored := range []*storagesqlite.Store{jsonTarget, snapshot} {
+		var list, refresh, geo, unrelated, lastError string
+		var interval, lastRefresh int
+		if err := restored.DB().QueryRowContext(t.Context(), `SELECT data_json FROM route_lists_v2 WHERE id='list'`).Scan(&list); err != nil {
+			t.Fatal(err)
+		}
+		if err := restored.DB().QueryRowContext(t.Context(), `SELECT value_json FROM settings_kv WHERE section='route_extra' AND key='refresh_config'`).Scan(&refresh); err != nil {
+			t.Fatal(err)
+		}
+		if err := restored.DB().QueryRowContext(t.Context(), `SELECT value_json FROM settings_kv WHERE section='route_extra' AND key='maxminddb_geoip'`).Scan(&geo); err != nil {
+			t.Fatal(err)
+		}
+		if err := restored.DB().QueryRowContext(t.Context(), `SELECT value_json FROM settings_kv WHERE section='other' AND key='settings'`).Scan(&unrelated); err != nil {
+			t.Fatal(err)
+		}
+		if err := restored.DB().QueryRowContext(t.Context(), `SELECT refresh_interval,last_refresh_time,last_error FROM route_list_refresh WHERE name='legacy'`).Scan(&interval, &lastRefresh, &lastError); err != nil {
+			t.Fatal(err)
+		}
+		wantLastRefresh := 42
+		if i == 1 {
+			wantLastRefresh = 0 // S3 snapshots already reset runtime refresh time.
+		}
+		if !strings.Contains(list, "https://public.example/list") || !strings.Contains(refresh, `"refresh_interval":3600`) || !strings.Contains(geo, "https://public.example/geoip") || !strings.Contains(unrelated, "keep-unrelated-value") || interval != 3600 || lastRefresh != wantLastRefresh || lastError != "" {
+			t.Fatalf("route settings changed: list=%t refresh=%t geo=%t unrelated=%t interval=%d lastRefresh=%d cleared=%t", strings.Contains(list, "https://public.example/list"), strings.Contains(refresh, `"refresh_interval":3600`), strings.Contains(geo, "https://public.example/geoip"), strings.Contains(unrelated, "keep-unrelated-value"), interval, lastRefresh, lastError == "")
+		}
+	}
+	var live string
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT last_error FROM route_list_refresh WHERE name='legacy'`).Scan(&live); err != nil || live != "legacy-secret-marker" {
+		t.Fatal("backup changed live route refresh status", err)
+	}
+	for _, query := range []string{
+		`SELECT instr(data_json,'old-token-marker') FROM route_lists_v2 WHERE id='list'`,
+		`SELECT instr(value_json,'refresh-secret-marker') FROM settings_kv WHERE section='route_extra' AND key='refresh_config'`,
+		`SELECT instr(value_json,'geoip-secret-marker') FROM settings_kv WHERE section='route_extra' AND key='maxminddb_geoip'`,
+	} {
+		var position int
+		if err := db.DB().QueryRowContext(t.Context(), query).Scan(&position); err != nil || position == 0 {
+			t.Fatal("backup changed live route refresh status", err)
+		}
+	}
+}
+
+func TestConfigurationBackupsRejectAmbiguousRouteRefreshErrors(t *testing.T) {
+	var calls atomic.Int32
+	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO route_lists_v2(id,name,list_type,source_type,updated_at,data_json) VALUES('list','List','host','remote',1,'{"errorMsgs":["first-secret"],"errorMsgs":["second-secret"]}')`); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := storagesqlite.ExportConfig(t.Context(), db.DB()); err == nil || len(data) != 0 {
+		t.Fatal("ambiguous route errors were exported")
+	}
+	if err := b.Run(t.Context()); err == nil || calls.Load() != 0 {
+		t.Fatal("ambiguous route errors reached S3")
+	}
+}
+
 func TestConfigurationS3SnapshotRedactsHTTPMockPayloads(t *testing.T) {
 	const payload = "c2VjcmV0LW1vY2stbWFya2Vy"
 	var object []byte

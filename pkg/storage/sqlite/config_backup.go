@@ -70,6 +70,25 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 	if _, err := tx.ExecContext(ctx, `UPDATE nodes SET search_text=''`); err != nil {
 		return err
 	}
+	for _, key := range []string{"refresh_config", "maxminddb_geoip"} {
+		var data string
+		err := tx.QueryRowContext(ctx, `SELECT value_json FROM settings_kv WHERE section='route_extra' AND key=?`, key).Scan(&data)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		cleaned, changed, err := configbackup.RouteRefreshErrors(data, "error")
+		if err != nil {
+			return err
+		}
+		if changed {
+			if _, err := tx.ExecContext(ctx, `UPDATE settings_kv SET value_json=? WHERE section='route_extra' AND key=?`, cleaned, key); err != nil {
+				return err
+			}
+		}
+	}
 	for _, spec := range []struct{ table, key, disable string }{
 		{"nodes_v2", "id", "enabled=0"},
 		{"inbounds_v2", "id", "enabled=0"},
@@ -80,7 +99,7 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 			return err
 		}
 	}
-	for _, spec := range []struct{ table, key string }{{"publishes", "name"}, {"gateway_configuration", "id"}} {
+	for _, spec := range []struct{ table, key string }{{"publishes", "name"}, {"gateway_configuration", "id"}, {"route_lists_v2", "id"}} {
 		if err := sanitizeSnapshotDocuments(ctx, tx, spec.table, spec.key, ""); err != nil {
 			return err
 		}
@@ -113,6 +132,8 @@ func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disa
 			var redacted string
 			var changed bool
 			switch table {
+			case "route_lists_v2":
+				redacted, changed, err = configbackup.RouteRefreshErrors(raw, "errorMsgs")
 			case "publishes":
 				redacted, changed, err = configbackup.Publish(raw)
 			case "gateway_configuration":
@@ -162,6 +183,17 @@ func sanitizeEndpointDocument(table, raw string) (string, bool, error) {
 		return configbackup.Inbound(raw)
 	default:
 		return configbackup.Endpoint(raw)
+	}
+}
+
+func backupTextValue(value any) (string, bool) {
+	switch text := value.(type) {
+	case string:
+		return text, true
+	case []byte:
+		return string(text), true
+	default:
+		return "", false
 	}
 }
 
@@ -253,6 +285,48 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 		}
 		if err := rows.Scan(pointers...); err != nil {
 			return out, err
+		}
+		if table == "route_list_refresh" {
+			index := slices.Index(columns, "last_error")
+			if index < 0 {
+				return out, errors.New("invalid route refresh schema")
+			}
+			values[index] = ""
+		}
+		if table == "settings_kv" {
+			section, key, data := slices.Index(columns, "section"), slices.Index(columns, "key"), slices.Index(columns, "value_json")
+			if section < 0 || key < 0 || data < 0 {
+				return out, errors.New("invalid settings schema")
+			}
+			sectionName, sectionOK := backupTextValue(values[section])
+			keyName, keyOK := backupTextValue(values[key])
+			if !sectionOK || !keyOK {
+				return out, errors.New("invalid settings key")
+			}
+			if sectionName == "route_extra" && (keyName == "refresh_config" || keyName == "maxminddb_geoip") {
+				raw, ok := backupTextValue(values[data])
+				if !ok {
+					return out, errors.New("invalid route refresh settings")
+				}
+				values[data], _, err = configbackup.RouteRefreshErrors(raw, "error")
+				if err != nil {
+					return out, err
+				}
+			}
+		}
+		if table == "route_lists_v2" {
+			index := slices.Index(columns, "data_json")
+			if index < 0 {
+				return out, errors.New("invalid route list schema")
+			}
+			raw, ok := backupTextValue(values[index])
+			if !ok {
+				return out, errors.New("invalid route list configuration")
+			}
+			values[index], _, err = configbackup.RouteRefreshErrors(raw, "errorMsgs")
+			if err != nil {
+				return out, err
+			}
 		}
 		if slices.Contains([]string{"nodes", "nodes_v2", "inbounds", "inbounds_v2"}, table) {
 			dataIndex := slices.Index(columns, "data_json")
