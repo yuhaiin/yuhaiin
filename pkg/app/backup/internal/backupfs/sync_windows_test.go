@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func requireWindowsRecoveryVolume(t *testing.T, directory string) {
+func requireWindowsRecoveryVolume(t testing.TB, directory string) {
 	t.Helper()
 	qualify := func(message string) {
 		t.Helper()
@@ -77,5 +77,25 @@ func TestWindowsRecoveryFlushFailureIsNotCommitted(t *testing.T) {
 	})
 	if !called || !errors.Is(err, fault) {
 		t.Fatal("a failed volume flush was reported as a durable commit", called, err)
+	}
+}
+
+func BenchmarkWindowsRecoveryDirectorySync(b *testing.B) {
+	directory := b.TempDir()
+	requireWindowsRecoveryVolume(b, directory)
+	file, err := os.Create(filepath.Join(directory, "pending-data"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer file.Close()
+	payload := make([]byte, 4096)
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := file.WriteAt(payload, 0); err != nil {
+			b.Fatal(err)
+		}
+		if err := SyncDirectory(directory); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

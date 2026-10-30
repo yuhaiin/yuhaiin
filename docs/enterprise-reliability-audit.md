@@ -73,7 +73,10 @@ be protected.
 Automatic disruptive service maintenance is qualified for root-owned Linux
 systemd and lingering systemd user services. Standalone, launchd, Windows and embedded automatic
 supervision are not claimed. Offline operations retain documented platform
-limits, including unqualified durable Windows activation. Optional periodic
+limits. Windows offline restoration requires elevated local NTFS access; the
+native qualification job includes flush errors, process crashes, encrypted
+restoration and CLI/TLS startup/rollback. Inspect that job's exact-head result
+before treating the Windows path as qualified. Optional periodic
 automated restoration drills are not implemented; the original request made
 that item optional. Actual deterministic and service fault drills above are
 implemented independently of an unattended schedule.

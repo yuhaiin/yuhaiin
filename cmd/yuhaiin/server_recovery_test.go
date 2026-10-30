@@ -80,6 +80,7 @@ func recoveryServiceDeployment(t *testing.T, marker, inboundAddress string) stri
 func TestRecoveryServiceStartupDrill(t *testing.T) {
 	const marker = "YUH_RECOVERY_SERVICE_DRILL"
 	const targetVariable = "YUH_RECOVERY_SERVICE_DIRECTORY"
+	const addressVariable = "YUH_RECOVERY_SERVICE_FAILED_ADDRESS"
 	if action := os.Getenv(marker); action != "" {
 		directory := os.Getenv(targetVariable)
 		wait = func(ctx context.Context, listeners ...net.Listener) error {
@@ -96,11 +97,26 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 				}
 			}
 		}
+		if action == "failed-inbound" {
+			// Verify the restored resource before run closes owners and rolls it
+			// back. Native socket error wording differs between operating systems.
+			db, err := sqlite.OpenSnapshotReader(t.Context(), filepath.Join(directory, "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			items, readErr := store.NewInboundStore(db).List(t.Context())
+			closeErr := db.Close()
+			address := os.Getenv(addressVariable)
+			if readErr != nil || closeErr != nil || address == "" || len(items) != 1 || !items[0].Enabled || items[0].Network.TCPUDP == nil || items[0].Network.TCPUDP.Host != address {
+				t.Fatal("restored listener does not match the occupied fault address", readErr, closeErr)
+			}
+		}
 		err := run([]string{"-path", directory, "-host", "127.0.0.1:0"})
 		if action == "failed-inbound" {
 			if err == nil || !strings.Contains(err.Error(), "inbound failed") {
 				t.Fatal("failed restored listener was accepted", err)
 			}
+			t.Log("restored-inbound-fault-confirmed")
 			return
 		}
 		if action == "recover-interruption" {
@@ -170,7 +186,7 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 				defer cancel()
 				command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestRecoveryServiceStartupDrill$", "-test.v")
-				command.Env = append(os.Environ(), marker+"="+action, targetVariable+"="+target)
+				command.Env = append(os.Environ(), marker+"="+action, targetVariable+"="+target, addressVariable+"="+address)
 				return command.CombinedOutput()
 			}
 			logs, err := invoke(action)
@@ -183,7 +199,7 @@ func TestRecoveryServiceStartupDrill(t *testing.T) {
 			if err != nil {
 				t.Fatalf("real service recovery: %v\n%s", err, logs)
 			}
-			if action == "failed-inbound" && !bytes.Contains(logs, []byte("address already in use")) {
+			if action == "failed-inbound" && !bytes.Contains(logs, []byte("restored-inbound-fault-confirmed")) {
 				t.Fatal("occupied-port fault was not reached")
 			}
 			if action == "healthy" || action == "clone" {

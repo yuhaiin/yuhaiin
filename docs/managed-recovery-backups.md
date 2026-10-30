@@ -29,9 +29,9 @@ rather than acquiring a different file identity. Enable lingering for the user
 with `loginctl enable-linger` so its manager survives logout; the server refuses
 automatic maintenance if it cannot verify this prerequisite. Standalone, macOS,
 Windows and embedded hosts need further host
-integration; the offline CLI remains separate. Windows restore activation also
-retains its documented directory-sync limitation. These are current support
-boundaries, not completion of the full cross-platform recovery objective.
+integration; the offline CLI remains separate. Windows offline restoration
+requires elevated local NTFS volume access, including its first validation
+startup and rollback. See the [Windows recovery prerequisites](recovery-archive.md#windows-offline-recovery).
 
 On Windows, backup snapshot and archive-preview staging directories, generated
 backup identity files and newly written archives use protected ACLs created
@@ -39,8 +39,9 @@ before writing content. Access is limited to the process account and Local
 System; descendants inherit the staging directory's ACL. The operation fails
 before writing secrets if the filesystem does not enforce persistent ACLs.
 Use a trusted parent directory; administrators and the account running the
-service can change its permissions. This does not enable Windows restore
-activation or establish crash durability for Windows directory operations.
+service can change its permissions. These ACL checks protect secrets; native
+volume flushing and the recovery journal provide the separate restoration
+durability mechanism.
 
 The full-backup interval is at least 60 minutes and at most one year. The default
 is daily, with a 30-minute per-job deadline; the maximum deadline is 24 hours.
@@ -314,10 +315,12 @@ RSS or WAN throughput. The parent has no equivalent import operation.
 [Raw results](benchmarks/data/recovery-2026-10-27/import-staging.txt) are retained;
 the benchmark is also run by the existing reliability workflow.
 
-The current Web import publisher requires directory synchronization. Windows
-publication remains explicitly unsupported while its private staging/durability
-and service coordinator are completed; cross-compilation is not evidence of a
-working Windows restoration workflow.
+The Web import publisher and retrieval owner use the same native durability
+operation on Windows and therefore require elevated local NTFS access. Their
+publication support does not install a Windows service coordinator: automatic
+disruptive maintenance remains limited to qualified systemd hosts. Use the
+documented offline CLI on other hosts. Native Windows qualification includes
+real crash/rollback and CLI startup tests; cross-compilation is insufficient.
 
 
 ### Race-suite fixture budget

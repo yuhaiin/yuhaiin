@@ -189,8 +189,35 @@ A source path in the manifest never authorizes writing that original location.
 Conflicting namespaces, missing references and unsafe paths abort before moving
 any live files. The target must already exist; preview/restore currently require
 the source platform and architecture. Activation requires working directory
-fsync semantics and is currently unavailable on Windows. Creation/verification
-and ordinary server startup keep their existing platform behavior.
+fsync semantics on Unix, or elevated native volume-flush access on local NTFS
+on Windows. Creation/verification and ordinary startup without a pending
+recovery keep their existing platform behavior.
+
+### Windows offline recovery
+
+Stop every writer and run restoration from an elevated shell under an account
+that can read the deployment and backup identity. The restored instance's
+validation startup, journal finalization, rollback and recovery-point cleanup
+also need elevated volume-flush access. Ordinary startup without a pending
+recovery keeps its previous permissions unless an explicitly enabled cleanup
+operation needs it.
+Windows automatic service maintenance is not enabled by this support.
+
+The existing journal, staging and rollback owners use native
+[`FlushFileBuffers` on the owning volume](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers)
+to persist file data and directory-entry changes. The volume is resolved from
+the actual open object, not inferred from a possibly remapped drive letter.
+This permits syncing originals opened read-only. UNC/network paths, non-NTFS
+filesystems and unavailable volume access are refused; no unsuccessful flush
+is treated as a commit. Initial volume access is checked before file replacement.
+The operation can flush other pending writes on that volume and can be slower
+than a file-only sync. It belongs to recovery maintenance, not forwarding.
+As with Unix fsync, storage must honor the operating system's flush requests.
+
+The native Windows qualification job requires elevated NTFS and exercises
+directory/read-only-file syncing, injected flush errors, real process exits at
+file-switch checkpoints, encrypted restoration, CLI startup/TLS and startup
+rollback. Cross-compilation alone does not qualify those operations.
 
 ### Activation, real startup and rollback
 
