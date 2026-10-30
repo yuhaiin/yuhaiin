@@ -49,7 +49,11 @@ actual restore tests. Affected current nodes/listeners are disabled.
 Automatic backup/maintenance consent is
 disabled; subscription URLs are omitted and publish targets and credentials are
 cleared. ShadowsocksR protocol and obfuscation parameters are also cleared,
-because they can contain user keys or custom HTTP headers; HTTP Mock payloads
+because they can contain user keys or custom HTTP headers. REALITY client short
+IDs and inbound short-ID allowlists are cleared in both plaintext formats;
+redacted endpoints are disabled while public keys and names remain. Actual JSON
+restore, a downloaded S3 snapshot and encrypted original recovery cover that
+distinction. HTTP Mock payloads
 are cleared because they can contain arbitrary sensitive bytes. Gateway header
 and query values and URL userinfo, queries and fragments
 are redacted, and affected policies, filters and Gateways disabled; selected routes reject connections until the Gateway is

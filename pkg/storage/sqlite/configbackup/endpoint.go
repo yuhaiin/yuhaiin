@@ -76,8 +76,12 @@ func Inbound(data string) (string, bool, error) {
 
 func redactEndpointCredentials(document map[string]jsontext.Value, parent string, depth int) (bool, error) {
 	changed := false
+	parentName := normalizeField(parent)
 	for key, value := range document {
-		if normalizeField(parent) == "authentication" && normalizeField(key) == "users" {
+		keyName := normalizeField(key)
+		arrayCredential := parentName == "authentication" && keyName == "users" ||
+			parentName == "reality" && keyName == "shortids"
+		if arrayCredential {
 			if string(value) != "[]" && string(value) != "null" {
 				document[key], changed = jsontext.Value("[]"), true
 			}
@@ -112,6 +116,8 @@ func sensitiveEndpointField(parent, key string) bool {
 		return parent == "vmess"
 	case "uuid":
 		return parent == "vless"
+	case "shortid", "shortids":
+		return parent == "reality"
 	case "configyaml":
 		return parent == "nebula"
 	case "identity":

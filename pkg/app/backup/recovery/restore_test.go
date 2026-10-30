@@ -3,6 +3,7 @@ package recovery
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path/filepath"
@@ -70,6 +71,7 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	const privateBackupURL = "https://example.org/backup?token=encrypted-backup-marker"
 	const privatePolicy = `{"mode":"manual","latencyTarget":"https://example.org/probe?token=encrypted-probe-marker","speedTest":{"url":"https://example.org/download?token=encrypted-speed-marker"}}`
 	const privateMonitoring = `{"probe":{"latencyTarget":"https://example.org/probe?token=encrypted-global-probe-marker"},"speed":{"test":{"url":"https://example.org/download?token=encrypted-global-speed-marker"}},"uploadSpeed":{"test":{"url":"https://example.org/upload?token=encrypted-global-upload-marker"}}}`
+	const privateReality = `{"id":"reality","name":"Reality","origin":"manual","enabled":false,"chain":[{"type":"reality","reality":{"server_name":"example.org","public_key":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE","short_id":"ca70b15e20261031"}}]}`
 	const legacyRoot = `{"privateKey":"encrypted-legacy-root-marker"}`
 	const legacyNode = `{"identityRecord":"encrypted-legacy-node-marker"}`
 	const legacyInbound = `{"identityRecord":"encrypted-legacy-inbound-marker"}`
@@ -80,6 +82,9 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, privateMonitoring); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('reality','Reality','','manual',0,'["reality"]',1,?)`, privateReality); err != nil {
 		t.Fatal(err)
 	}
 	options, err := backupstore.New(db.DB()).Get(t.Context())
@@ -116,6 +121,9 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 			t.Fatal("historical identity was not protected in the archive")
 		}
 	}
+	if bytes.Contains(ciphertext, []byte("ca70b15e20261031")) {
+		t.Fatal("REALITY authentication identifier was not protected in the archive")
+	}
 	input, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -141,6 +149,13 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	}
 	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM node_monitoring_settings WHERE id=1`).Scan(&restored); err != nil || restored != privateMonitoring {
 		t.Fatal("encrypted recovery changed the private monitoring targets", err)
+	}
+	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM nodes_v2 WHERE id='reality'`).Scan(&restored); err != nil {
+		t.Fatal(err)
+	}
+	var restoredNode nodecontract.Node
+	if err := json.Unmarshal([]byte(restored), &restoredNode); err != nil || len(restoredNode.Chain) != 1 || restoredNode.Chain[0].Reality == nil || restoredNode.Chain[0].Reality.ShortID != "ca70b15e20261031" || restoredNode.Chain[0].Reality.PublicKey != "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" || restoredNode.ID != "reality" || restoredNode.Enabled {
+		t.Fatal("encrypted recovery changed REALITY authentication or public configuration", err)
 	}
 	restoredOptions, err := backupstore.New(reader).Get(t.Context())
 	if err != nil || restoredOptions.S3.EndpointURL != privateBackupURL {

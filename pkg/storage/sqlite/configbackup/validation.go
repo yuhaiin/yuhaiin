@@ -53,7 +53,7 @@ func removeEmptyValidationMember(value jsontext.Value, path []string) (jsontext.
 			return nil, false
 		}
 		if len(path) == 1 {
-			if string(child) != `""` && string(child) != "null" {
+			if string(child) != `""` && string(child) != "null" && string(child) != "[]" {
 				return nil, false
 			}
 			delete(object, path[0])

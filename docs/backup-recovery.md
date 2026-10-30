@@ -65,7 +65,10 @@ node/inbound credentials are removed, and affected current nodes and listeners
 are disabled. Administrators must re-enter
 credentials and explicitly enable the affected entries after import. Both
 ShadowsocksR protocol and obfuscation parameters are removed because they can
-contain a user key or custom HTTP headers. HTTP Mock payloads are also removed
+contain a user key or custom HTTP headers. REALITY client short IDs and inbound
+short-ID allowlists are also removed; public keys and server names remain.
+Re-enter those authentication identifiers before enabling an imported endpoint.
+Encrypted full recovery preserves the original identifiers. HTTP Mock payloads are also removed
 because they can contain arbitrary sensitive bytes. Reconfigure affected entries
 after import. Opaque URL
 paths, custom data and unknown fields may still contain secrets, so both formats
