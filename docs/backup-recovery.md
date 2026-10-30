@@ -77,11 +77,15 @@ the legacy list's last-refresh timestamp, while JSON export retains it.
 New route refresh and activation diagnostics omit source URLs, source file
 paths and response bodies; the backup cleanup also protects older stored errors.
 New plaintext exports and S3 configuration snapshots refuse route-list,
-registry, GeoIP and DNS source URLs containing user credentials, a query or a
+registry, GeoIP, DNS, health-probe and active-speed-test URLs containing user credentials, a query or a
 fragment. Removing those parts could change the resource or routing policy, so
 the operation fails before producing an export or contacting S3. Use an
 encrypted full disaster-recovery backup for these configurations. Source paths
 can still contain credentials; protect configuration exports with private paths.
+This check includes global monitoring defaults, Selector overrides and nested
+probe/download/upload test schedules. Public targets and legacy `null` Selector
+policies retain their original values. Encrypted recovery retains private test
+targets unchanged.
 The private offline importer remains compatible with historical SQLite objects
 and retains their source URLs; its projection is never used for an external
 plaintext export.

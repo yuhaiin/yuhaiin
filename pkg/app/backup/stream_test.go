@@ -62,13 +62,21 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	}
 	activeSelectors := []contractnode.Selector{
 		{ID: "current-manual", Name: "Current manual", NodeID: "current-set"},
-		{ID: "current-auto", Name: "Current auto", NodeID: "current-direct", Policy: &contractnode.SelectorPolicy{Mode: "weighted", Candidates: []contractnode.SelectorCandidate{{NodeID: "current-direct", Enabled: true, Weight: 3}, {NodeID: "current-set", Enabled: true, Weight: 1}}}},
+		{ID: "current-auto", Name: "Current auto", NodeID: "current-direct", Policy: &contractnode.SelectorPolicy{
+			Mode: "weighted", Candidates: []contractnode.SelectorCandidate{{NodeID: "current-direct", Enabled: true, Weight: 3}, {NodeID: "current-set", Enabled: true, Weight: 1}},
+			LatencyTarget: "https://example.org/probe", SpeedTarget: "https://example.org/download", UploadTarget: "https://example.org/upload",
+			Probe: &contractnode.ProbeSchedule{LatencyTarget: "https://example.org/override"},
+		}},
 	}
 	for i := range activeSelectors {
 		activeSelectors[i], err = plainstore.NewSelectorStore(db.DB()).Save(t.Context(), activeSelectors[i])
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+	const publicMonitoring = `{"probe":{"enabled":false,"latencyTarget":"https://example.org/probe"},"speed":{"enabled":false,"test":{"url":"https://example.org/download"}},"uploadSpeed":{"enabled":false,"test":{"url":"https://example.org/upload"}}}`
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, publicMonitoring); err != nil {
+		t.Fatal(err)
 	}
 	checkActiveResources := func(restored *storagesqlite.Store) {
 		t.Helper()
@@ -83,6 +91,10 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 			if err != nil || !reflect.DeepEqual(got, want) {
 				t.Fatal("configuration migration changed current selector", want.ID, err)
 			}
+		}
+		var got string
+		if err := restored.DB().QueryRowContext(t.Context(), `SELECT data_json FROM node_monitoring_settings WHERE id=1`).Scan(&got); err != nil || got != publicMonitoring {
+			t.Fatal("configuration migration changed public monitoring targets", err)
 		}
 	}
 	for _, statement := range []string{
@@ -472,6 +484,17 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 		{"resolver", `INSERT INTO resolvers_v2(id,resolver_type,host,updated_at,data_json) VALUES('private','doh',?,1,'{}')`, `https://example.org/dns-query?token=private-source-marker`},
 		{"schemeless resolver", `INSERT INTO resolvers_v2(id,resolver_type,host,updated_at,data_json) VALUES('private','doh',?,1,'{}')`, `user:private-source-marker@example.org/dns-query`},
 		{"resolver JSON copy", `INSERT INTO resolvers_v2(id,resolver_type,host,updated_at,data_json) VALUES('private','doh','https://example.org/dns-query',1,?)`, `{"host":"user:private-source-marker@example.org/dns-query"}`},
+		{"selector latency", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"latencyTarget":"https://example.org/probe?token=private-source-marker"}`},
+		{"selector download", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"speedTarget":"https://example.org/download?token=private-source-marker"}`},
+		{"selector upload", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"uploadTarget":"https://example.org/upload?token=private-source-marker"}`},
+		{"selector probe override", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"probe":{"enabled":true,"latencyTarget":"https://example.org/probe?token=private-source-marker"}}`},
+		{"selector download test", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"speedTest":{"url":"https://example.org/download?token=private-source-marker"}}`},
+		{"selector upload test", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"uploadTest":{"url":"https://example.org/upload?token=private-source-marker","direction":"upload","allowUpload":true}}`},
+		{"selector periodic download", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"periodicSpeed":{"enabled":true,"test":{"url":"https://example.org/download?token=private-source-marker"}}}`},
+		{"selector periodic upload", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"periodicUpload":{"enabled":true,"test":{"url":"https://example.org/upload?token=private-source-marker","direction":"upload","allowUpload":true}}}`},
+		{"global probe", `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, `{"probe":{"enabled":true,"latencyTarget":"https://example.org/probe?token=private-source-marker"}}`},
+		{"global download", `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, `{"speed":{"enabled":true,"test":{"url":"https://example.org/download?token=private-source-marker"}}}`},
+		{"global upload", `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, `{"uploadSpeed":{"enabled":true,"test":{"direction":"upload","allowUpload":true,"url":"https://example.org/upload?token=private-source-marker"}}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls atomic.Int32
@@ -481,6 +504,9 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer db.Close()
+			if err := plainstore.NewNodeStore(db.DB()).Save(t.Context(), contractnode.Node{ID: "n", Name: "Node", Origin: "manual", Enabled: true, Chain: []contractnode.Protocol{{Type: "direct", Direct: &contractnode.Direct{}}}}, 1); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := db.DB().ExecContext(t.Context(), tc.query, tc.document); err != nil {
 				t.Fatal(err)
 			}
@@ -498,6 +524,18 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 			local, err := storagesqlite.ExportConfigForLocalRestore(t.Context(), db.DB())
 			if err != nil || !bytes.Contains(local, []byte("private-source-marker")) {
 				t.Fatal("refusing a public backup changed the live source or broke local restoration", err)
+			}
+			target, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer target.Close()
+			if err := storagesqlite.RestoreConfig(t.Context(), target.DB(), local); err != nil {
+				t.Fatal("historical private configuration could not be restored", err)
+			}
+			restored, err := storagesqlite.ExportConfigForLocalRestore(t.Context(), target.DB())
+			if err != nil || !bytes.Contains(restored, []byte("private-source-marker")) {
+				t.Fatal("historical private configuration lost its source URL", err)
 			}
 		})
 	}

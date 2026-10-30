@@ -7,7 +7,7 @@ import (
 	"slices"
 )
 
-var sourceURLTables = []string{"route_lists", "route_lists_v2", "route_registries", "settings_kv", "dns_resolvers", "resolvers_v2"}
+var sourceURLTables = []string{"route_lists", "route_lists_v2", "route_registries", "settings_kv", "dns_resolvers", "resolvers_v2", "outbound_selectors", "node_monitoring_settings"}
 
 func ValidateSourceURLRow(table string, columns []string, values []any) error {
 	if !slices.Contains(sourceURLTables, table) {
@@ -35,6 +35,12 @@ func ValidateSourceURLRow(table string, columns []string, values []any) error {
 			return err
 		}
 		return SourceURL(raw)
+	case "outbound_selectors":
+		var err error
+		document, err = text("policy_json")
+		if err != nil {
+			return err
+		}
 	case "settings_kv":
 		section, err := text("section")
 		if err != nil {
