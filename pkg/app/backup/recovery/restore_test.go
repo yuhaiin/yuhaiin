@@ -71,7 +71,7 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	const privateBackupURL = "https://example.org/backup?token=encrypted-backup-marker"
 	const privatePolicy = `{"mode":"manual","latencyTarget":"https://example.org/probe?token=encrypted-probe-marker","speedTest":{"url":"https://example.org/download?token=encrypted-speed-marker"}}`
 	const privateMonitoring = `{"probe":{"latencyTarget":"https://example.org/probe?token=encrypted-global-probe-marker"},"speed":{"test":{"url":"https://example.org/download?token=encrypted-global-speed-marker"}},"uploadSpeed":{"test":{"url":"https://example.org/upload?token=encrypted-global-upload-marker"}}}`
-	const privateReality = `{"id":"reality","name":"Reality","origin":"manual","enabled":false,"chain":[{"type":"reality","reality":{"server_name":"example.org","public_key":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE","short_id":"ca70b15e20261031"}}]}`
+	const privateReality = `{"id":"reality","name":"Reality","origin":"manual","enabled":false,"chain":[{"type":"reality","reality":{"server_name":"example.org","public_key":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE","short_id":"ca70b15e20261031"}},{"type":"http","http":{"user":"encrypted-user-marker","password":""}}]}`
 	const legacyRoot = `{"privateKey":"encrypted-legacy-root-marker"}`
 	const legacyNode = `{"identityRecord":"encrypted-legacy-node-marker"}`
 	const legacyInbound = `{"identityRecord":"encrypted-legacy-inbound-marker"}`
@@ -116,7 +116,7 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	if err != nil || bytes.Contains(ciphertext, []byte("encrypted-source-marker")) || bytes.Contains(ciphertext, []byte("encrypted-legacy-root-marker")) {
 		t.Fatal("private source was not protected in the archive", err)
 	}
-	for _, marker := range []string{"encrypted-legacy-node-marker", "encrypted-legacy-inbound-marker", "encrypted-probe-marker", "encrypted-speed-marker", "encrypted-global-probe-marker", "encrypted-global-speed-marker", "encrypted-global-upload-marker", "encrypted-backup-marker"} {
+	for _, marker := range []string{"encrypted-legacy-node-marker", "encrypted-legacy-inbound-marker", "encrypted-probe-marker", "encrypted-speed-marker", "encrypted-global-probe-marker", "encrypted-global-speed-marker", "encrypted-global-upload-marker", "encrypted-backup-marker", "encrypted-user-marker"} {
 		if bytes.Contains(ciphertext, []byte(marker)) {
 			t.Fatal("historical identity was not protected in the archive")
 		}
@@ -154,8 +154,11 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	var restoredNode nodecontract.Node
-	if err := json.Unmarshal([]byte(restored), &restoredNode); err != nil || len(restoredNode.Chain) != 1 || restoredNode.Chain[0].Reality == nil || restoredNode.Chain[0].Reality.ShortID != "ca70b15e20261031" || restoredNode.Chain[0].Reality.PublicKey != "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" || restoredNode.ID != "reality" || restoredNode.Enabled {
+	if err := json.Unmarshal([]byte(restored), &restoredNode); err != nil || len(restoredNode.Chain) != 2 || restoredNode.Chain[0].Reality == nil || restoredNode.Chain[0].Reality.ShortID != "ca70b15e20261031" || restoredNode.Chain[0].Reality.PublicKey != "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE" || restoredNode.ID != "reality" || restoredNode.Enabled {
 		t.Fatal("encrypted recovery changed REALITY authentication or public configuration", err)
+	}
+	if restoredNode.Chain[1].HTTP == nil || restoredNode.Chain[1].HTTP.User != "encrypted-user-marker" || restoredNode.Chain[1].HTTP.Password != "" {
+		t.Fatal("encrypted recovery changed username-only authentication")
 	}
 	restoredOptions, err := backupstore.New(reader).Get(t.Context())
 	if err != nil || restoredOptions.S3.EndpointURL != privateBackupURL {

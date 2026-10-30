@@ -61,8 +61,9 @@ legacy S3 restore imports configuration into the target's private copy and
 retains that target's existing backup settings and credentials. A standalone
 JSON configuration export also omits S3 credentials and disables backup and
 maintenance consent; configure them again after importing it. Recognized inline
-node/inbound credentials are removed, and affected current nodes and listeners
-are disabled. Administrators must re-enter
+node/inbound credentials, including usernames, are removed, and affected
+current nodes and listeners are disabled. A nonempty HTTP/SOCKS username with
+an empty password is still an authentication credential. Administrators must re-enter
 credentials and explicitly enable the affected entries after import. Both
 ShadowsocksR protocol and obfuscation parameters are removed because they can
 contain a user key or custom HTTP headers. REALITY client short IDs and inbound
@@ -73,6 +74,23 @@ because they can contain arbitrary sensitive bytes. Reconfigure affected entries
 after import. Opaque URL
 paths, custom data and unknown fields may still contain secrets, so both formats
 require protection.
+The default projection is checked against the current storage owners and typed
+credential contracts, rather than copying every database or application file:
+
+| Material | Configuration JSON / S3 snapshot | Evidence |
+| --- | --- | --- |
+| Management users, verifiers, sessions, devices and Passkeys | The management database is outside the configuration projection. | Configuration-table allowlist; `TestBackupSQLiteSnapshotExcludesRuntimeState`. |
+| Managed site/CA keys, ACME account keys, DNS-provider tokens | Material tables and private files are excluded; a file path or public trust key is not the private file contents. | `TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial`. |
+| Node/inbound credentials | Usernames, passwords, UUIDs, REALITY short IDs, private/PSK/cookie/token fields, credential references and opaque credential containers are cleared; changed entries are disabled. | `TestConfigurationBackupsRemoveAuthenticationMaterial` and endpoint export tests. |
+| S3 credentials and unattended-operation consent | Keys are cleared and automatic backup/maintenance consent is disabled. | `TestConfigurationExportOmitsS3SecretsAndDisablesAutomaticBackup`. |
+| Gateway authentication conditions and rewrites | Sensitive header/query values are removed; affected policies reject until reviewed and enabled. | Gateway export/import and actual interception tests. |
+| Traffic/node history, derived caches and retired endpoint copies | Runtime/history rows and inactive copies are excluded; policy settings remain. | Snapshot runtime-state and retired-copy restore tests. |
+
+Public keys, trust roots, server names, routing data and user-entered text can be
+needed for configuration migration. Their inclusion is not a promise that
+arbitrary custom strings or opaque URL paths contain no secret. Protect those
+configurations and use encrypted full recovery when retaining private values.
+
 Stored route-list and GeoIP refresh errors are omitted because failures can
 include full credential-bearing URLs. Route sources and refresh settings are
 retained; only the backup copy is changed. The existing S3 snapshot also resets

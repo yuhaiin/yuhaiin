@@ -41,7 +41,8 @@ static-only controls in the features listed below.
 
 The configuration-only JSON export and legacy S3 SQLite snapshot omit managed
 certificate and Gateway CA keys, ACME/provider secrets, S3 credentials and
-recognized node/inbound credentials. Unused historical `settings_json`, `nodes`,
+recognized node/inbound credentials, including usernames even when their
+password is empty. Unused historical `settings_json`, `nodes`,
 `inbounds` and `node_tags` rows are omitted from new plaintext exports/snapshots.
 Current settings/nodes/Sets/Selectors and the live database are preserved;
 private historical import and encrypted full recovery retain the old rows, with
@@ -70,10 +71,12 @@ URL paths and custom data may still contain secrets. Opaque inactive endpoint
 records are no longer placed in new plaintext backups.
 Current-format Node and Inbound documents with unknown fields are rejected
 before JSON export and S3 upload, except recognized credential aliases already
-cleared by the sanitizer. Therefore
-the requirement to exclude sensitive identity material from configuration export
-by default is not yet fully verified, and these unencrypted exports must still
-be protected.
+cleared by the sanitizer. The current storage owners and typed credentials are
+covered by the default projections; the [configuration material audit](backup-recovery.md)
+maps the excluded identities, keys, verifiers and history to their source tests.
+This is not a guarantee that arbitrary administrator-entered text or opaque URL
+paths contain no secret. Those unencrypted configurations still require
+protection; private values belong in encrypted full recovery.
 
 Automatic disruptive service maintenance is qualified for root-owned Linux
 systemd and lingering systemd user services. Standalone, launchd, Windows and embedded automatic

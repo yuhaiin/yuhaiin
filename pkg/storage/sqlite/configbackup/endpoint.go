@@ -13,7 +13,9 @@ import (
 )
 
 var credentialFields = []string{
-	"password", "salamanderpassword", "sharedsecret", "localcookie", "peercookie", "psk", "secretkey", "presharedkey", "privatekey", "privatekeybase64", "privatekeypassphrase", "clientkeypem", "tlsauthkey", "tlscryptkey", "headerprotectionkey", "authkey", "authtoken", "bearertoken", "totpsecret", "token", "credentialref", "key", "keybase64", "cakeybase64", "mldsa65seed",
+	// HTTP/SOCKS authentication can use a nonempty username with an empty
+	// password. Removing only passwords would retain that complete credential.
+	"user", "username", "password", "salamanderpassword", "sharedsecret", "localcookie", "peercookie", "psk", "secretkey", "presharedkey", "privatekey", "privatekeybase64", "privatekeypassphrase", "clientkeypem", "tlsauthkey", "tlscryptkey", "headerprotectionkey", "authkey", "authtoken", "bearertoken", "totpsecret", "token", "credentialref", "key", "keybase64", "cakeybase64", "mldsa65seed",
 }
 
 var fieldNormalizer = strings.NewReplacer("_", "", "-", "")
@@ -129,8 +131,6 @@ func sensitiveEndpointField(parent, key string) bool {
 	case "data", "database64":
 		// HTTP Mock payloads are arbitrary bytes and can contain credentials.
 		return parent == "httpmock"
-	case "username":
-		return parent == "socks4a"
 	default:
 		return false
 	}
