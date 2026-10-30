@@ -57,8 +57,9 @@ explicitly re-enabled. This guard requires a version that understands the
 `rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings.
 Route-list and GeoIP refresh errors are omitted from both configuration backup
 formats because they may contain full download URLs. New plaintext exports and
-S3 configuration backups refuse route, registry, GeoIP, DNS, health-probe and active-speed-test URLs with
-user credentials, queries or fragments rather than silently changing the
+S3 configuration backups refuse route, registry, GeoIP, DNS, S3 endpoint,
+health-probe and active-speed-test URLs with user credentials, queries or
+fragments rather than silently changing the
 resource. Historical SQLite objects remain locally restorable with their source
 URLs. Opaque
 URL paths and custom data may still contain secrets. Opaque inactive endpoint

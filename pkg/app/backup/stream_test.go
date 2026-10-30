@@ -492,6 +492,7 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 		{"selector upload test", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"uploadTest":{"url":"https://example.org/upload?token=private-source-marker","direction":"upload","allowUpload":true}}`},
 		{"selector periodic download", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"periodicSpeed":{"enabled":true,"test":{"url":"https://example.org/download?token=private-source-marker"}}}`},
 		{"selector periodic upload", `INSERT INTO outbound_selectors(id,name,node_id,revision,policy_json) VALUES('s','Selector','n',1,?)`, `{"mode":"failover","candidates":[{"nodeId":"n","enabled":true,"weight":1}],"periodicUpload":{"enabled":true,"test":{"url":"https://example.org/upload?token=private-source-marker","direction":"upload","allowUpload":true}}}`},
+		{"S3 endpoint", `INSERT OR REPLACE INTO backup_settings(id,updated_at,data_json) VALUES(1,1,?)`, `{"instanceName":"fixture","s3":{"enabled":true,"endpointUrl":"https://example.org/store?token=private-source-marker","bucket":"backups"}}`},
 		{"global probe", `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, `{"probe":{"enabled":true,"latencyTarget":"https://example.org/probe?token=private-source-marker"}}`},
 		{"global download", `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, `{"speed":{"enabled":true,"test":{"url":"https://example.org/download?token=private-source-marker"}}}`},
 		{"global upload", `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, `{"uploadSpeed":{"enabled":true,"test":{"direction":"upload","allowUpload":true,"url":"https://example.org/upload?token=private-source-marker"}}}`},
@@ -514,6 +515,12 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 				t.Fatal("credential-bearing source URL was exported")
 			} else if strings.Contains(err.Error(), "private-source-marker") {
 				t.Fatal("backup refusal exposed a private source URL")
+			}
+			if snapshot, err := b.snapshotStateDB(t.Context()); err == nil {
+				_ = snapshot.Close()
+				t.Fatal("credential-bearing source URL entered a configuration snapshot")
+			} else if strings.Contains(err.Error(), "private-source-marker") {
+				t.Fatal("snapshot refusal exposed a private source URL")
 			}
 			if err := b.Run(t.Context()); err == nil || strings.Contains(err.Error(), "private-source-marker") {
 				t.Fatal("unsafe source must be refused without revealing credentials")

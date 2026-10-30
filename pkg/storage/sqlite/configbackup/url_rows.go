@@ -7,7 +7,7 @@ import (
 	"slices"
 )
 
-var sourceURLTables = []string{"route_lists", "route_lists_v2", "route_registries", "settings_kv", "dns_resolvers", "resolvers_v2", "outbound_selectors", "node_monitoring_settings"}
+var sourceURLTables = []string{"route_lists", "route_lists_v2", "route_registries", "settings_kv", "dns_resolvers", "resolvers_v2", "outbound_selectors", "node_monitoring_settings", "backup_settings"}
 
 func ValidateSourceURLRow(table string, columns []string, values []any) error {
 	if !slices.Contains(sourceURLTables, table) {

@@ -67,6 +67,7 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	const privateURL = "https://example.org/manifest?token=encrypted-source-marker"
+	const privateBackupURL = "https://example.org/backup?token=encrypted-backup-marker"
 	const privatePolicy = `{"mode":"manual","latencyTarget":"https://example.org/probe?token=encrypted-probe-marker","speedTest":{"url":"https://example.org/download?token=encrypted-speed-marker"}}`
 	const privateMonitoring = `{"probe":{"latencyTarget":"https://example.org/probe?token=encrypted-global-probe-marker"},"speed":{"test":{"url":"https://example.org/download?token=encrypted-global-speed-marker"}},"uploadSpeed":{"test":{"url":"https://example.org/upload?token=encrypted-global-upload-marker"}}}`
 	const legacyRoot = `{"privateKey":"encrypted-legacy-root-marker"}`
@@ -79,6 +80,14 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO node_monitoring_settings(id,data_json) VALUES(1,?)`, privateMonitoring); err != nil {
+		t.Fatal(err)
+	}
+	options, err := backupstore.New(db.DB()).Get(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options.S3.EndpointURL = privateBackupURL
+	if err := backupstore.New(db.DB()).Save(t.Context(), options); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT OR REPLACE INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,?,1)`, legacyRoot); err != nil {
@@ -102,7 +111,7 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	if err != nil || bytes.Contains(ciphertext, []byte("encrypted-source-marker")) || bytes.Contains(ciphertext, []byte("encrypted-legacy-root-marker")) {
 		t.Fatal("private source was not protected in the archive", err)
 	}
-	for _, marker := range []string{"encrypted-legacy-node-marker", "encrypted-legacy-inbound-marker", "encrypted-probe-marker", "encrypted-speed-marker", "encrypted-global-probe-marker", "encrypted-global-speed-marker", "encrypted-global-upload-marker"} {
+	for _, marker := range []string{"encrypted-legacy-node-marker", "encrypted-legacy-inbound-marker", "encrypted-probe-marker", "encrypted-speed-marker", "encrypted-global-probe-marker", "encrypted-global-speed-marker", "encrypted-global-upload-marker", "encrypted-backup-marker"} {
 		if bytes.Contains(ciphertext, []byte(marker)) {
 			t.Fatal("historical identity was not protected in the archive")
 		}
@@ -132,6 +141,10 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	}
 	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM node_monitoring_settings WHERE id=1`).Scan(&restored); err != nil || restored != privateMonitoring {
 		t.Fatal("encrypted recovery changed the private monitoring targets", err)
+	}
+	restoredOptions, err := backupstore.New(reader).Get(t.Context())
+	if err != nil || restoredOptions.S3.EndpointURL != privateBackupURL {
+		t.Fatal("encrypted recovery changed the private backup endpoint", err)
 	}
 	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM settings_json WHERE id=1`).Scan(&restored); err != nil || restored != legacyRoot {
 		t.Fatal("encrypted recovery changed the historical root document", err)
