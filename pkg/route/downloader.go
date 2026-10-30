@@ -144,18 +144,20 @@ func (d *Downloader) Download(ctx context.Context, url string, beforeWrite func(
 		return &sourceError{operation: "route source storage unavailable", cause: err}
 	}
 
-	hc := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				ad, err := netapi.ParseAddress(network, addr)
-				if err != nil {
-					return nil, err
-				}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			ad, err := netapi.ParseAddress(network, addr)
+			if err != nil {
+				return nil, err
+			}
 
-				return d.dialer().Conn(ctx, ad)
-			},
+			return d.dialer().Conn(ctx, ad)
 		},
-		Timeout: 30 * time.Second,
+	}
+	defer transport.CloseIdleConnections()
+	hc := &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second,
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)

@@ -57,7 +57,8 @@ DNS lookup and local-file failures. Logs and status messages omit source URL
 credentials, paths, queries and remote error-response bodies. GeoIP loading
 also omits source file paths. Non-successful HTTP responses are closed without
 buffering or waiting for the error body; transport cancellation and file-error
-classification remain available through Go's error chain.
+classification remain available through Go's error chain. Each one-shot download
+also closes its temporary HTTP transport's idle connections on completion.
 
 The configured source URLs themselves remain in configuration. Existing logs
 and stored errors from older versions are not rewritten; configuration backups

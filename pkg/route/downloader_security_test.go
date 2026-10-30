@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -102,5 +103,28 @@ func TestDownloadFailureDoesNotWaitForResponseBody(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("download waited for an untrusted error body")
+	}
+}
+
+func TestDownloadClosesTemporaryTransport(t *testing.T) {
+	closed := make(chan struct{}, 1)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "example.org\n")
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateClosed {
+			closed <- struct{}{}
+		}
+	}
+	server.Start()
+	defer server.Close()
+	d := NewDownloader(t.TempDir(), func() netapi.Proxy { return direct.Default })
+	if err := d.Download(t.Context(), server.URL, nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("one-shot route download retained its HTTP connection")
 	}
 }
