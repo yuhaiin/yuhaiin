@@ -530,9 +530,27 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 	before = pid("yuhaiin.service")
 	second := requestCapture()
 	pendingID := second.ID
+	// Preserve bounded, non-secret observations when this particular wait
+	// times out. The outer harness collects the journal only after later drills
+	// finish, by which time the relevant entries may have been displaced.
+	var observed struct {
+		waiting, sawID                    bool
+		polls, databaseErrors, killErrors int
+		phase, errorCode                  string
+		servicePID, helperPID             int
+	}
+	observed.waiting = true
+	t.Cleanup(func() {
+		if t.Failed() && observed.waiting {
+			t.Logf("capture fault injection: polls=%d sawID=%t databaseErrors=%d phase=%q errorCode=%q servicePID=%d helperPID=%d killErrors=%d",
+				observed.polls, observed.sawID, observed.databaseErrors, observed.phase, observed.errorCode, observed.servicePID, observed.helperPID, observed.killErrors)
+		}
+	})
 	wait("interruptible real helper", func() bool {
+		observed.polls++
 		raw, err := sql.Open(sqlite.DriverName(), "file:"+filepath.Join(directory, "state.db")+"?mode=ro")
 		if err != nil {
+			observed.databaseErrors++
 			return false
 		}
 		defer raw.Close()
@@ -542,18 +560,40 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		if pendingID == "" {
 			return false
 		}
+		observed.sawID = true
 		var phase string
-		if err := raw.QueryRow("SELECT state FROM backup_recovery_history WHERE id=?", pendingID).Scan(&phase); err != nil || phase != "capturing" {
+		if err := raw.QueryRow("SELECT state FROM backup_recovery_history WHERE id=?", pendingID).Scan(&phase); err != nil {
+			observed.databaseErrors++
 			return false
 		}
-		if pid("yuhaiin.service") != 0 || pid("yuhaiin-recovery-"+pendingID+".service") == 0 {
+		observed.phase = phase
+		if phase == "failed" {
+			var data string
+			if raw.QueryRow("SELECT data_json FROM backup_recovery_history WHERE id=?", pendingID).Scan(&data) == nil {
+				var item contractrecovery.Backup
+				if json.Unmarshal([]byte(data), &item) == nil {
+					observed.errorCode = item.ErrorCode
+				}
+			}
+		}
+		if phase != "capturing" {
+			return false
+		}
+		observed.servicePID = pid("yuhaiin.service")
+		observed.helperPID = pid("yuhaiin-recovery-" + pendingID + ".service")
+		if observed.servicePID != 0 || observed.helperPID == 0 {
 			return false
 		}
 		// Kill the helper's main process. A whole-cgroup kill can report an
 		// auxiliary-thread ESRCH/EIO after the main process already died, hiding
 		// the successful fault injection from this readiness predicate.
-		return run("kill", "--kill-whom=main", "--signal=KILL", "yuhaiin-recovery-"+pendingID+".service") == nil
+		if err := run("kill", "--kill-whom=main", "--signal=KILL", "yuhaiin-recovery-"+pendingID+".service"); err != nil {
+			observed.killErrors++
+			return false
+		}
+		return true
 	})
+	observed.waiting = false
 	wait("ExecStopPost restart after helper death", func() bool {
 		if rpc(t.Context(), "backup.recovery.status", struct{}{}, &status) != nil {
 			return false
