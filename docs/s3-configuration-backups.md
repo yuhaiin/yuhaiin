@@ -30,7 +30,12 @@ legacy S3 snapshot retains the target's own S3 and recovery settings.
 Guarded JSON exports use format version 2, which older JSON importers reject;
 the legacy S3 SQLite format has no equivalent version gate.
 
-The sanitizer cannot identify every secret in custom data or opaque URL paths.
+Current-format Node and Inbound documents with unrecognized fields cause the
+snapshot to fail before upload, except recognized legacy credential aliases
+whose values have already been cleared; upgrade to a compatible version or remove the
+unsupported fields before retrying. Legacy endpoint documents retain their
+historical compatibility behavior. The sanitizer cannot identify every secret
+in legacy custom data or opaque URL paths.
 Protect all configuration snapshots. Previously uploaded objects are not
 rewritten or removed and may still contain secrets excluded by newer versions.
 

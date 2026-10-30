@@ -118,7 +118,7 @@ func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disa
 			case "gateway_configuration":
 				redacted, changed, _, err = configbackup.Gateway(raw)
 			default:
-				redacted, changed, err = configbackup.Endpoint(raw)
+				redacted, changed, err = sanitizeEndpointDocument(table, raw)
 			}
 			if err != nil {
 				_ = rows.Close()
@@ -151,6 +151,17 @@ func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disa
 		if count == 0 {
 			return nil
 		}
+	}
+}
+
+func sanitizeEndpointDocument(table, raw string) (string, bool, error) {
+	switch table {
+	case "nodes_v2":
+		return configbackup.Node(raw)
+	case "inbounds_v2":
+		return configbackup.Inbound(raw)
+	default:
+		return configbackup.Endpoint(raw)
 	}
 }
 
@@ -262,7 +273,7 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 			if !ok {
 				return out, errors.New("invalid endpoint configuration in export")
 			}
-			redacted, changed, err := configbackup.Endpoint(raw)
+			redacted, changed, err := sanitizeEndpointDocument(table, raw)
 			if err != nil {
 				return out, err
 			}

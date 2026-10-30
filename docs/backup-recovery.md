@@ -61,6 +61,12 @@ because they can contain arbitrary sensitive bytes. Reconfigure affected entries
 after import. Opaque URL
 paths, custom data and unknown fields may still contain secrets, so both formats
 require protection.
+Current-format Node and Inbound documents reject unrecognized fields before
+either export or S3 upload, except recognized legacy credential aliases whose
+values have already been cleared. Upgrade to a compatible server or remove the
+unsupported fields before retrying; the backup is not uploaded on rejection.
+Legacy endpoint formats still require special care because their historical
+schema cannot establish the same unknown-field guarantee.
 Subscription URLs are omitted because tokens may occur anywhere in their paths.
 Publish passwords, paths and node lists are cleared so an imported publish
 cannot expose nodes with an empty password. Recreate subscription links and
@@ -97,6 +103,14 @@ rows plus 10,000 Gateway statistics rows on a warm local filesystem. On a Ryzen
 5 5600G, two runs before endpoint redaction took 24.2–24.4 ms and about
 52–53 KB/1,400 Go allocations per snapshot; after, they took 32.3 ms and
 about 1.92 MB/52,300 allocations. Allocated bytes are cumulative, not peak RSS.
+With current-format Node and Inbound field validation, the same fixture measured
+32.46–33.00 ms and about 1.92 MB/52,300 allocations before the validation,
+versus 33.77–34.18 ms and about 2.61 MB/58,200 allocations after it (three runs,
+`-benchtime=2s`, same host, local warm filesystem). This measures backup
+creation rather than transfer or forwarding; allocation counts are cumulative.
+Raw [before](benchmarks/data/configuration-backup-2026-10-30/before-typed-validation.txt)
+and [after](benchmarks/data/configuration-backup-2026-10-30/after-typed-validation.txt)
+results are retained.
 The sanitizer processes at most 128 rows and roughly 1 MiB of replacements per
 batch, plus one potentially larger configuration document. The fixture excludes
 S3 transfer and does not establish performance for a large production database.

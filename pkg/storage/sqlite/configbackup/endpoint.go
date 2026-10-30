@@ -7,11 +7,16 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+
+	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 )
 
 var credentialFields = []string{
 	"password", "salamanderpassword", "sharedsecret", "localcookie", "peercookie", "psk", "secretkey", "presharedkey", "privatekey", "privatekeybase64", "privatekeypassphrase", "clientkeypem", "tlsauthkey", "tlscryptkey", "headerprotectionkey", "authkey", "authtoken", "bearertoken", "totpsecret", "token", "credentialref", "key", "keybase64", "cakeybase64", "mldsa65seed",
 }
+
+var fieldNormalizer = strings.NewReplacer("_", "", "-", "")
 
 // Endpoint removes recognized inline node or inbound
 // credentials and disables the endpoint until its identity is restored.
@@ -40,6 +45,33 @@ func Endpoint(data string) (string, bool, error) {
 		return "", false, errors.New("cannot encode redacted endpoint configuration")
 	}
 	return string(result), true, nil
+}
+
+// Node and Inbound validate current-format documents after credential removal.
+// A future field may itself contain a secret, so an older exporter must refuse
+// it instead of silently placing its contents in an unencrypted backup.
+func Node(data string) (string, bool, error) {
+	redacted, changed, err := Endpoint(data)
+	if err != nil {
+		return "", false, err
+	}
+	var value contractnode.Node
+	if err := validateEndpoint(redacted, &value); err != nil {
+		return "", false, errors.New("unsupported node configuration in export")
+	}
+	return redacted, changed, nil
+}
+
+func Inbound(data string) (string, bool, error) {
+	redacted, changed, err := Endpoint(data)
+	if err != nil {
+		return "", false, err
+	}
+	var value contractinbound.Inbound
+	if err := validateEndpoint(redacted, &value); err != nil {
+		return "", false, errors.New("unsupported inbound configuration in export")
+	}
+	return redacted, changed, nil
 }
 
 func redactEndpointCredentials(document map[string]jsontext.Value, parent string, depth int) (bool, error) {
@@ -99,7 +131,7 @@ func sensitiveEndpointField(parent, key string) bool {
 }
 
 func normalizeField(value string) string {
-	return strings.ReplaceAll(strings.ToLower(value), "_", "")
+	return fieldNormalizer.Replace(strings.ToLower(value))
 }
 
 func redactEndpointValue(value jsontext.Value, parent string, depth int) (jsontext.Value, bool, error) {

@@ -51,7 +51,10 @@ and query values and URL userinfo, queries and fragments
 are redacted, and affected policies, filters and Gateways disabled; selected routes reject connections until the Gateway is
 explicitly re-enabled. This guard requires a version that understands the
 `rejectWhenDisabled` property. Legacy S3 restore keeps the target's local backup settings. Opaque
-URL paths, custom data and unknown fields may still contain secrets. Therefore
+URL paths, custom data and legacy unknown fields may still contain secrets.
+Current-format Node and Inbound documents with unknown fields are rejected
+before JSON export and S3 upload, except recognized credential aliases already
+cleared by the sanitizer. Therefore
 the requirement to exclude sensitive identity material from configuration export
 by default is not yet fully verified, and these unencrypted exports must still
 be protected.

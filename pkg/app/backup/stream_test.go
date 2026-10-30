@@ -266,6 +266,35 @@ func TestConfigurationS3SnapshotRejectsUnknownGatewayFields(t *testing.T) {
 	}
 }
 
+func TestConfigurationS3SnapshotRejectsUnknownEndpointFields(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, document string
+	}{
+		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`},
+		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`},
+		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+			db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			if _, err := db.DB().ExecContext(t.Context(), tc.query, tc.document); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Run(t.Context()); err == nil || strings.Contains(err.Error(), "sensitive-marker") {
+				t.Fatal("snapshot must reject unknown fields without disclosing their values")
+			}
+			if calls.Load() != 0 {
+				t.Fatal("unsafe endpoint snapshot reached S3")
+			}
+		})
+	}
+}
+
 func TestConfigurationS3SnapshotRedactsHTTPMockPayloads(t *testing.T) {
 	const payload = "c2VjcmV0LW1vY2stbWFya2Vy"
 	var object []byte
@@ -463,7 +492,7 @@ func TestBackupDownloadVerificationAndSkipUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('node','Node','','manual',1,'["ssh"]',1,'{"id":"node","name":"Node","enabled":true,"origin":"manual","chain":[{"type":"ssh","ssh":{"host":"host.example","user":"admin","password":"private","hostKey":"public"}}]}')`); err != nil {
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('node','Node','','manual',1,'["ssh"]',1,'{"id":"node","name":"Node","enabled":true,"origin":"manual","chain":[{"type":"simple","simple":{"host":"host.example"}},{"type":"ssh","ssh":{"user":"admin","password":"private","hostKey":"public"}}]}')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"private","path":"private-path","points":["node"],"address":"example.org","insecure":false}')`); err != nil {

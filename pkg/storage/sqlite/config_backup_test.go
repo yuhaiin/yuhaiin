@@ -305,7 +305,9 @@ func TestConfigurationExportRedactsEmbeddedNodeCredentials(t *testing.T) {
 		{"tls", `{"type":"tls_termination","tls_termination":{"tls":{"certificates":[{"cert":"cHVibGlj","key":"identity-marker"}]}}}`},
 		{"network split", `{"type":"network_split","network_split":{"tcp":{"type":"tailscale","tailscale":{"auth_key":"identity-marker"}}}}`},
 		{"escaped key", `{"type":"wireguard","wireguard":{"secr\u0065tKey":"identity-marker"}}`},
-		{"legacy field casing", `{"type":"wireguard","wireguard":{"Private_Key":"identity-marker","Pre_Shared_Key":"identity-marker"}}`},
+		{"legacy field casing", `{"type":"ssh","ssh":{"Private_Key":"identity-marker","Private_Key_Passphrase":"identity-marker","host_key":"public"}}`},
+		{"legacy unknown credential aliases", `{"type":"wireguard","wireguard":{"Private_Key":"identity-marker","Pre_Shared_Key":"identity-marker"}}`},
+		{"legacy field punctuation", `{"type":"ssh","ssh":{"pass-word":"identity-marker","private-key":"identity-marker","host_key":"public"}}`},
 		{"url credentials", `{"type":"masque","masque":{"url":"https://user:identity-marker@vpn.example/connect?token=identity-marker#identity-marker"}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -486,6 +488,34 @@ func TestConfigurationExportRejectsUnknownGatewayFields(t *testing.T) {
 	}
 	if data, err := ExportConfig(t.Context(), source.DB()); err == nil || len(data) != 0 {
 		t.Fatal("export accepted unknown gateway data that may contain credentials")
+	}
+}
+
+func TestConfigurationExportRejectsUnknownEndpointFields(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, document string
+	}{
+		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`},
+		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`},
+		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			if _, err := db.DB().ExecContext(t.Context(), tc.query, tc.document); err != nil {
+				t.Fatal(err)
+			}
+			data, err := ExportConfig(t.Context(), db.DB())
+			if err == nil || len(data) != 0 {
+				t.Fatal("unknown endpoint field may contain credentials and must not be exported")
+			}
+			if strings.Contains(err.Error(), "sensitive-marker") {
+				t.Fatal("export error disclosed an unknown field value")
+			}
+		})
 	}
 }
 
