@@ -69,7 +69,11 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	const privateURL = "https://example.org/manifest?token=encrypted-source-marker"
+	const legacyRoot = `{"privateKey":"encrypted-legacy-root-marker"}`
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('private','Private',?,1,0,1)`, privateURL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT OR REPLACE INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,?,1)`, legacyRoot); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -81,7 +85,7 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	ciphertext, err := os.ReadFile(path)
-	if err != nil || bytes.Contains(ciphertext, []byte("encrypted-source-marker")) {
+	if err != nil || bytes.Contains(ciphertext, []byte("encrypted-source-marker")) || bytes.Contains(ciphertext, []byte("encrypted-legacy-root-marker")) {
 		t.Fatal("private source was not protected in the archive", err)
 	}
 	input, err := os.Open(path)
@@ -103,6 +107,9 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	var restored string
 	if err := reader.QueryRowContext(t.Context(), `SELECT url FROM route_registries WHERE id='private'`).Scan(&restored); err != nil || restored != privateURL {
 		t.Fatal("encrypted recovery changed the private source", err)
+	}
+	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM settings_json WHERE id=1`).Scan(&restored); err != nil || restored != legacyRoot {
+		t.Fatal("encrypted recovery changed the historical root document", err)
 	}
 }
 

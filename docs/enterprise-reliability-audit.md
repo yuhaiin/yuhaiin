@@ -41,7 +41,11 @@ static-only controls in the features listed below.
 
 The configuration-only JSON export and legacy S3 SQLite snapshot omit managed
 certificate and Gateway CA keys, ACME/provider secrets, S3 credentials and
-recognized node/inbound credentials. Affected nodes/listeners are disabled and
+recognized node/inbound credentials. The unused historical `settings_json`
+root document is omitted from new configuration exports/snapshots.
+Current settings and the live database are
+preserved; private historical import and encrypted full recovery retain that
+document, with actual restore tests. Affected nodes/listeners are disabled and
 affected legacy nodes deselected. Automatic backup/maintenance consent is
 disabled; subscription URLs are omitted and publish targets and credentials are
 cleared. ShadowsocksR protocol and obfuscation parameters are also cleared,

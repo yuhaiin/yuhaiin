@@ -11,6 +11,54 @@ import (
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 )
 
+func TestConfigurationExportOmitsUnusedLegacyRootDocument(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	const legacy = `{"privateKey":"legacy-root-private-marker","unknown":{"authorization":"legacy-root-credential-marker"}}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,?,1)`, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO settings_kv(section,key,value_json,updated_at) VALUES('general','ipv6','true',1)`); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("legacy-root-")) {
+		t.Fatal("unused historical root configuration leaked into plaintext export")
+	}
+	var unchanged string
+	if err := source.DB().QueryRowContext(t.Context(), `SELECT data_json FROM settings_json`).Scan(&unchanged); err != nil || unchanged != legacy {
+		t.Fatal("live historical configuration was changed", err)
+	}
+	local, err := ExportConfigForLocalRestore(t.Context(), source.DB())
+	if err != nil || !bytes.Contains(local, []byte("legacy-root-private-marker")) {
+		t.Fatal("private historical import no longer retains its legacy document", err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var value string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT value_json FROM settings_kv WHERE section='general' AND key='ipv6'`).Scan(&value); err != nil || value != "true" {
+		t.Fatal("current settings were lost during configuration migration", err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), local); err != nil {
+		t.Fatal("historical local projection could not be restored", err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM settings_json`).Scan(&value); err != nil || value != legacy {
+		t.Fatal("local historical recovery lost its legacy root document", err)
+	}
+}
+
 func TestConfigurationExportOmitsS3SecretsAndDisablesAutomaticBackup(t *testing.T) {
 	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {

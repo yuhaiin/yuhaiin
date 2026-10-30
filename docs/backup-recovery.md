@@ -47,7 +47,13 @@ sensitive material; transfer streaming does not provide archive encryption.
 New configuration snapshots retain only the existing configuration-export
 tables and schema metadata. They exclude managed certificate/ACME keys, DNS
 provider tokens, the Gateway CA, runtime data and S3 access/secret keys. The
-snapshot's S3 and automatic recovery/cleanup settings are disabled. Offline
+unused historical `settings_json` root document is omitted too: current owners
+read `settings_kv` and typed resource tables, while that old document can retain
+arbitrary credentials and keys. The empty table and schema remain compatible.
+This only changes new configuration exports/snapshots, not the live database;
+the private historical importer and encrypted full recovery retain the document.
+Previously uploaded objects remain sensitive and are not rewritten.
+The snapshot's S3 and automatic recovery/cleanup settings are disabled. Offline
 legacy S3 restore imports configuration into the target's private copy and
 retains that target's existing backup settings and credentials. A standalone
 JSON configuration export also omits S3 credentials and disables backup and

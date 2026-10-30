@@ -50,6 +50,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	}
 	defer db.Close()
 	for _, statement := range []string{
+		`INSERT INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,'{"privateKey":"legacy-root-private-marker","unknown":{"authorization":"legacy-root-credential-marker"}}',1)`,
 		`INSERT INTO managed_certificates(id,revision,config_json,status_json) VALUES('cert',1,'{}','{}')`,
 		`INSERT INTO managed_certificate_material VALUES('cert','certificate','site-private-key-marker')`,
 		`INSERT INTO certificate_acme_accounts VALUES('https://ca.invalid','mail@example.com','acme-private-key-marker','')`,
@@ -136,12 +137,15 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
+	for _, marker := range []string{"legacy-root-private-marker", "legacy-root-credential-marker", "site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
 		if bytes.Contains(object, []byte(marker)) {
 			t.Errorf("configuration S3 object contains %s", marker)
 		}
 	}
 	var count int
+	if err := db.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM settings_json`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("sanitizing the export modified the live legacy document", count, err)
+	}
 	if err := db.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM managed_certificate_material`).Scan(&count); err != nil || count != 1 {
 		t.Fatal("sanitizing the export modified the live certificate", count, err)
 	}
@@ -170,6 +174,9 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		t.Fatal(err)
 	}
 	defer snapshot.Close()
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM settings_json`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("S3 snapshot retained the unused historical root document", count, err)
+	}
 	configuration, err := plainstore.NewGatewayStore(snapshot.DB()).Load(t.Context())
 	if err != nil {
 		t.Fatal("redacted gateway configuration is unreadable", err)

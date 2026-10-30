@@ -60,6 +60,12 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 	if routeState != 1 {
 		return errors.New("configuration backup requires route activation state")
 	}
+	// Current owners read settings_kv and their typed tables. The unused legacy
+	// root document can retain an entire historical configuration and its keys.
+	// Keep the table/schema for compatibility, but never upload these old bytes.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM settings_json`); err != nil {
+		return err
+	}
 	// Subscription URLs can carry bearer credentials in an arbitrary path.
 	// They must be re-entered explicitly rather than guessed from URL syntax.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM subscriptions`); err != nil {
@@ -275,7 +281,7 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 		}
 	}
 	filter := configBackupFilter(table)
-	if table == "subscriptions" {
+	if table == "subscriptions" || table == "settings_json" && !localRestore {
 		filter = " WHERE 0"
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT * FROM "+table+filter)
