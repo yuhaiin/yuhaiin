@@ -470,15 +470,16 @@ func TestConfigurationExportRedactsHTTPMockPayloads(t *testing.T) {
 	}
 }
 
-func TestConfigurationExportRedactsLegacyEndpointCopies(t *testing.T) {
+func TestConfigurationExportOmitsInactiveLegacyEndpointCopies(t *testing.T) {
 	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer source.Close()
 	for _, query := range []string{
-		`INSERT INTO nodes(hash,group_name,name,origin,selected_tcp,search_text,updated_at,data_json) VALUES('legacy','fixture','Legacy',1,1,'legacy-search-marker',1,'{"name":"Legacy","protocols":[{"wireguard":{"secretKey":"legacy-node-key-marker"}}]}')`,
-		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","http":{"password":"legacy-inbound-password-marker"}}')`,
+		`INSERT INTO nodes(hash,group_name,name,origin,selected_tcp,search_text,updated_at,data_json) VALUES('legacy','fixture','Legacy',1,1,'legacy-search-marker',1,'{"name":"Legacy","identityRecord":"legacy-node-opaque-marker","protocols":[{"wireguard":{"secretKey":"legacy-node-key-marker"}}]}')`,
+		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","identityRecord":"legacy-inbound-opaque-marker","http":{"password":"legacy-inbound-password-marker"}}')`,
+		`INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('legacy-tag-marker','node','legacy',1)`,
 	} {
 		if _, err := source.DB().ExecContext(t.Context(), query); err != nil {
 			t.Fatal(err)
@@ -488,7 +489,7 @@ func TestConfigurationExportRedactsLegacyEndpointCopies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"legacy-node-key-marker", "legacy-inbound-password-marker", "legacy-search-marker"} {
+	for _, secret := range []string{"legacy-node-key-marker", "legacy-inbound-password-marker", "legacy-search-marker", "legacy-node-opaque-marker", "legacy-inbound-opaque-marker", "legacy-tag-marker"} {
 		if bytes.Contains(data, []byte(secret)) {
 			t.Errorf("legacy configuration export includes %s", secret)
 		}
@@ -501,12 +502,28 @@ func TestConfigurationExportRedactsLegacyEndpointCopies(t *testing.T) {
 	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
 		t.Fatal(err)
 	}
-	var selected, enabled int
-	if err := target.DB().QueryRowContext(t.Context(), `SELECT selected_tcp FROM nodes WHERE hash='legacy'`).Scan(&selected); err != nil || selected != 0 {
-		t.Fatal("redacted legacy node stayed selected", selected, err)
+	for _, table := range []string{"nodes", "inbounds", "node_tags"} {
+		var count int
+		if err := target.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatal("configuration import retained an inactive legacy table", table, count, err)
+		}
+		if err := source.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 1 {
+			t.Fatal("export changed the live legacy table", table, count, err)
+		}
 	}
-	if err := target.DB().QueryRowContext(t.Context(), `SELECT enabled FROM inbounds WHERE name='legacy-inbound'`).Scan(&enabled); err != nil || enabled != 0 {
-		t.Fatal("redacted legacy listener stayed enabled", enabled, err)
+	local, err := ExportConfigForLocalRestore(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), local); err != nil {
+		t.Fatal("historical local projection could not be restored", err)
+	}
+	var raw string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM nodes WHERE hash='legacy'`).Scan(&raw); err != nil || !strings.Contains(raw, "legacy-node-opaque-marker") || strings.Contains(raw, "legacy-node-key-marker") {
+		t.Fatal("local legacy node compatibility changed", err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM inbounds WHERE name='legacy-inbound'`).Scan(&raw); err != nil || !strings.Contains(raw, "legacy-inbound-opaque-marker") || strings.Contains(raw, "legacy-inbound-password-marker") {
+		t.Fatal("local legacy inbound compatibility changed", err)
 	}
 }
 

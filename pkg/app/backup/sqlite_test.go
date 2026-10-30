@@ -135,6 +135,9 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	if _, err := historical.DB().ExecContext(t.Context(), `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('old-private','Old registry','https://example.org/manifest?token=legacy-private-source',1,0,1)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := historical.DB().ExecContext(t.Context(), `INSERT INTO nodes(hash,group_name,name,origin,updated_at,data_json) VALUES('archived','','Archived',1,1,'{"identityRecord":"historical-node-marker"}'); INSERT INTO inbounds(name,enabled,inbound_type,updated_at,data_json) VALUES('archived',0,'http',1,'{"identityRecord":"historical-inbound-marker"}'); INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('archived-tag','node','archived',1)`); err != nil {
+		t.Fatal(err)
+	}
 	if err := historical.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -173,6 +176,16 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	var legacyURL string
 	if err := reopened.DB().QueryRowContext(t.Context(), `SELECT url FROM route_registries WHERE id='old-private'`).Scan(&legacyURL); err != nil || legacyURL != "https://example.org/manifest?token=legacy-private-source" {
 		t.Fatal("local restoration changed the historical private source", err)
+	}
+	for _, table := range []string{"nodes", "inbounds"} {
+		var historicalDocument string
+		if err := reopened.DB().QueryRowContext(t.Context(), "SELECT data_json FROM "+table).Scan(&historicalDocument); err != nil || !strings.Contains(historicalDocument, "historical-") {
+			t.Fatal("local restoration lost an inactive historical document", table, err)
+		}
+	}
+	var legacyTag string
+	if err := reopened.DB().QueryRowContext(t.Context(), `SELECT tag_name FROM node_tags`).Scan(&legacyTag); err != nil || legacyTag != "archived-tag" {
+		t.Fatal("local restoration lost its historical tag", err)
 	}
 	if data, err := storagesqlite.ExportConfig(t.Context(), reopened.DB()); err == nil || len(data) != 0 {
 		t.Fatal("restored historical URL was permitted in a new plaintext export")

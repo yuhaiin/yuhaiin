@@ -46,6 +46,11 @@ var configBackupTables = []string{
 	"user_usage_settings", "inbound_traffic_control", "route_configuration_state",
 }
 
+// Retain these schemas for historical imports, not their inactive data in new
+// plaintext exports. Current owners use typed v2 resources and Set nodes. A
+// guessed credential-field list cannot safely sanitize opaque legacy records.
+var retiredConfigBackupTables = []string{"settings_json", "node_tags", "nodes", "inbounds"}
+
 // ConfigurationBackupTables returns the tables used by configuration export.
 // Callers sanitizing a private SQLite snapshot must separately filter metadata.
 func ConfigurationBackupTables() []string { return slices.Clone(configBackupTables) }
@@ -60,20 +65,14 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 	if routeState != 1 {
 		return errors.New("configuration backup requires route activation state")
 	}
-	// Current owners read settings_kv and their typed tables. The unused legacy
-	// root document can retain an entire historical configuration and its keys.
-	// Keep the table/schema for compatibility, but never upload these old bytes.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM settings_json`); err != nil {
-		return err
+	for _, table := range retiredConfigBackupTables {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil {
+			return err
+		}
 	}
 	// Subscription URLs can carry bearer credentials in an arbitrary path.
 	// They must be re-entered explicitly rather than guessed from URL syntax.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM subscriptions`); err != nil {
-		return err
-	}
-	// The old node search column may contain copies of credentials independently
-	// of data_json. Rebuild the snapshot's FTS index after clearing it.
-	if _, err := tx.ExecContext(ctx, `UPDATE nodes SET search_text=''`); err != nil {
 		return err
 	}
 	for _, key := range []string{"refresh_config", "maxminddb_geoip"} {
@@ -98,8 +97,6 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 	for _, spec := range []struct{ table, key, disable string }{
 		{"nodes_v2", "id", "enabled=0"},
 		{"inbounds_v2", "id", "enabled=0"},
-		{"nodes", "id", "selected_tcp=0,selected_udp=0"},
-		{"inbounds", "name", "enabled=0"},
 	} {
 		if err := sanitizeSnapshotDocuments(ctx, tx, spec.table, spec.key, spec.disable); err != nil {
 			return err
@@ -281,7 +278,7 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 		}
 	}
 	filter := configBackupFilter(table)
-	if table == "subscriptions" || table == "settings_json" && !localRestore {
+	if table == "subscriptions" || !localRestore && slices.Contains(retiredConfigBackupTables, table) {
 		filter = " WHERE 0"
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT * FROM "+table+filter)

@@ -41,12 +41,12 @@ static-only controls in the features listed below.
 
 The configuration-only JSON export and legacy S3 SQLite snapshot omit managed
 certificate and Gateway CA keys, ACME/provider secrets, S3 credentials and
-recognized node/inbound credentials. The unused historical `settings_json`
-root document is omitted from new configuration exports/snapshots.
-Current settings and the live database are
-preserved; private historical import and encrypted full recovery retain that
-document, with actual restore tests. Affected nodes/listeners are disabled and
-affected legacy nodes deselected. Automatic backup/maintenance consent is
+recognized node/inbound credentials. Unused historical `settings_json`, `nodes`,
+`inbounds` and `node_tags` rows are omitted from new plaintext exports/snapshots.
+Current settings/nodes/Sets/Selectors and the live database are preserved;
+private historical import and encrypted full recovery retain the old rows, with
+actual restore tests. Affected current nodes/listeners are disabled.
+Automatic backup/maintenance consent is
 disabled; subscription URLs are omitted and publish targets and credentials are
 cleared. ShadowsocksR protocol and obfuscation parameters are also cleared,
 because they can contain user keys or custom HTTP headers; HTTP Mock payloads
@@ -61,7 +61,8 @@ S3 configuration backups refuse route, registry, GeoIP and DNS source URLs with
 user credentials, queries or fragments rather than silently changing the
 resource. Historical SQLite objects remain locally restorable with their source
 URLs. Opaque
-URL paths, custom data and legacy unknown fields may still contain secrets.
+URL paths and custom data may still contain secrets. Opaque inactive endpoint
+records are no longer placed in new plaintext backups.
 Current-format Node and Inbound documents with unknown fields are rejected
 before JSON export and S3 upload, except recognized credential aliases already
 cleared by the sanitizer. Therefore

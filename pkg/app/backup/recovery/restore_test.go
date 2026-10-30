@@ -70,10 +70,18 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	}
 	const privateURL = "https://example.org/manifest?token=encrypted-source-marker"
 	const legacyRoot = `{"privateKey":"encrypted-legacy-root-marker"}`
+	const legacyNode = `{"identityRecord":"encrypted-legacy-node-marker"}`
+	const legacyInbound = `{"identityRecord":"encrypted-legacy-inbound-marker"}`
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('private','Private',?,1,0,1)`, privateURL); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT OR REPLACE INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,?,1)`, legacyRoot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes(hash,group_name,name,origin,updated_at,data_json) VALUES('archived','','Archived',1,1,?)`, legacyNode); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO inbounds(name,enabled,inbound_type,updated_at,data_json) VALUES('archived',0,'http',1,?)`, legacyInbound); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -87,6 +95,11 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	ciphertext, err := os.ReadFile(path)
 	if err != nil || bytes.Contains(ciphertext, []byte("encrypted-source-marker")) || bytes.Contains(ciphertext, []byte("encrypted-legacy-root-marker")) {
 		t.Fatal("private source was not protected in the archive", err)
+	}
+	for _, marker := range []string{"encrypted-legacy-node-marker", "encrypted-legacy-inbound-marker"} {
+		if bytes.Contains(ciphertext, []byte(marker)) {
+			t.Fatal("historical identity was not protected in the archive")
+		}
 	}
 	input, err := os.Open(path)
 	if err != nil {
@@ -110,6 +123,12 @@ func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
 	}
 	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM settings_json WHERE id=1`).Scan(&restored); err != nil || restored != legacyRoot {
 		t.Fatal("encrypted recovery changed the historical root document", err)
+	}
+	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM nodes WHERE hash='archived'`).Scan(&restored); err != nil || restored != legacyNode {
+		t.Fatal("encrypted recovery changed the historical node document", err)
+	}
+	if err := reader.QueryRowContext(t.Context(), `SELECT data_json FROM inbounds WHERE name='archived'`).Scan(&restored); err != nil || restored != legacyInbound {
+		t.Fatal("encrypted recovery changed the historical inbound document", err)
 	}
 }
 

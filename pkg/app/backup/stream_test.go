@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
@@ -49,6 +51,40 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		t.Fatal(err)
 	}
 	defer db.Close()
+	activeNodes := []contractnode.Node{
+		{ID: "current-direct", Name: "Current direct", Origin: "manual", Enabled: true, Chain: []contractnode.Protocol{{Type: "direct", Direct: &contractnode.Direct{}}}},
+		{ID: "current-set", Name: "Current set", Origin: "manual", Enabled: true, Chain: []contractnode.Protocol{{Type: "set", Set: &contractnode.Set{Nodes: []string{"current-direct"}}}}},
+	}
+	for _, node := range activeNodes {
+		if err := plainstore.NewNodeStore(db.DB()).Save(t.Context(), node, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	activeSelectors := []contractnode.Selector{
+		{ID: "current-manual", Name: "Current manual", NodeID: "current-set"},
+		{ID: "current-auto", Name: "Current auto", NodeID: "current-direct", Policy: &contractnode.SelectorPolicy{Mode: "weighted", Candidates: []contractnode.SelectorCandidate{{NodeID: "current-direct", Enabled: true, Weight: 3}, {NodeID: "current-set", Enabled: true, Weight: 1}}}},
+	}
+	for i := range activeSelectors {
+		activeSelectors[i], err = plainstore.NewSelectorStore(db.DB()).Save(t.Context(), activeSelectors[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	checkActiveResources := func(restored *storagesqlite.Store) {
+		t.Helper()
+		for _, want := range activeNodes {
+			got, err := plainstore.NewNodeStore(restored.DB()).Get(t.Context(), want.ID)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatal("configuration migration changed current node or Set", want.ID, err)
+			}
+		}
+		for _, want := range activeSelectors {
+			got, err := plainstore.NewSelectorStore(restored.DB()).Get(t.Context(), want.ID)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatal("configuration migration changed current selector", want.ID, err)
+			}
+		}
+	}
 	for _, statement := range []string{
 		`INSERT INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,'{"privateKey":"legacy-root-private-marker","unknown":{"authorization":"legacy-root-credential-marker"}}',1)`,
 		`INSERT INTO managed_certificates(id,revision,config_json,status_json) VALUES('cert',1,'{}','{}')`,
@@ -59,9 +95,10 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		`INSERT INTO metadata(key,value) VALUES('private_runtime_marker','private-runtime-marker')`,
 		`INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('wg','WireGuard','','manual',1,'["wireguard"]',0,'{"id":"wg","name":"WireGuard","origin":"manual","enabled":true,"chain":[{"type":"wireguard","wireguard":{"secretKey":"wire-private-marker","peers":[{"preSharedKey":"wire-preshared-marker"}]}}]}')`,
 		`INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('inbound','Inbound',1,'tcp_udp','http','[]',0,'{"id":"inbound","name":"Inbound","enabled":true,"network":{"type":"tcp_udp","tcp_udp":{"host":"127.0.0.1:1080"}},"transports":[],"protocol":{"type":"http","http":{"username":"alice","password":"inbound-password-marker"}}}')`,
-		`INSERT INTO nodes(hash,group_name,name,origin,selected_tcp,search_text,updated_at,data_json) VALUES('legacy','fixture','Legacy',1,1,'legacy-search-secret-marker',1,'{"name":"Legacy","wireguard":{"secretKey":"legacy-wire-key-marker"}}')`,
+		`INSERT INTO nodes(hash,group_name,name,origin,selected_tcp,search_text,updated_at,data_json) VALUES('legacy','fixture','Legacy',1,1,'legacy-search-secret-marker',1,'{"name":"Legacy","identityRecord":"legacy-node-opaque-marker","wireguard":{"secretKey":"legacy-wire-key-marker"}}')`,
 		`INSERT INTO nodes_fts(rowid,name,group_name,search_text) SELECT id,name,group_name,search_text FROM nodes WHERE hash='legacy'`,
-		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","http":{"password":"legacy-password-marker"}}')`,
+		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","identityRecord":"legacy-inbound-opaque-marker","http":{"password":"legacy-password-marker"}}')`,
+		`INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('legacy-tag-marker','node','legacy',1)`,
 		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/subscription-path-marker","type":"reserve"}')`,
 		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
 		`INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[{"id":"g1","name":"Protected","enabled":true,"revision":1,"policies":[{"id":"policy","name":"auth","enabled":true,"match":{"all":[{"field":"header","operator":"exact","key":"Authorization","values":["Bearer condition-secret-marker"]},{"not":{"field":"query","operator":"exact","key":"token","values":["query-secret-marker"]}}]},"action":{"type":"forward","rewrite":{"query":"token=rewrite-query-secret-marker","headers":{"Authorization":["Bearer rewrite-secret-marker"]}},"responseHeaders":{"Set-Cookie":["session=response-secret-marker"]}}}],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}},{"id":"g2","name":"Unchanged","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}}]}')`,
@@ -87,6 +124,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := storagesqlite.RestoreConfig(t.Context(), importTarget.DB(), jsonExport); err != nil {
 		t.Fatal("cannot import redacted JSON configuration", err)
 	}
+	checkActiveResources(importTarget)
 	jsonGateway, err := plainstore.NewGatewayStore(importTarget.DB()).Load(t.Context())
 	if err != nil || len(jsonGateway.Gateways) != 2 || jsonGateway.Gateways[0].Enabled || !jsonGateway.Gateways[1].Enabled {
 		t.Fatal("unsafe gateway state after JSON import", jsonGateway, err)
@@ -137,7 +175,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"legacy-root-private-marker", "legacy-root-credential-marker", "site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
+	for _, marker := range []string{"legacy-root-private-marker", "legacy-root-credential-marker", "legacy-node-opaque-marker", "legacy-inbound-opaque-marker", "legacy-tag-marker", "site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
 		if bytes.Contains(object, []byte(marker)) {
 			t.Errorf("configuration S3 object contains %s", marker)
 		}
@@ -174,8 +212,11 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		t.Fatal(err)
 	}
 	defer snapshot.Close()
-	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM settings_json`).Scan(&count); err != nil || count != 0 {
-		t.Fatal("S3 snapshot retained the unused historical root document", count, err)
+	checkActiveResources(snapshot)
+	for _, table := range []string{"settings_json", "nodes", "inbounds", "node_tags", "nodes_fts"} {
+		if err := snapshot.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatal("S3 snapshot retained inactive historical data", table, count, err)
+		}
 	}
 	configuration, err := plainstore.NewGatewayStore(snapshot.DB()).Load(t.Context())
 	if err != nil {
@@ -204,12 +245,6 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	}
 	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM inbounds_v2 WHERE id='inbound'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
 		t.Fatal("redacted inbound remained enabled in S3 snapshot", exportedEnabled, err)
-	}
-	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT selected_tcp FROM nodes WHERE hash='legacy'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
-		t.Fatal("redacted legacy node remained selected", exportedEnabled, err)
-	}
-	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM inbounds WHERE name='legacy-inbound'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
-		t.Fatal("redacted legacy inbound remained enabled", exportedEnabled, err)
 	}
 }
 

@@ -47,19 +47,22 @@ sensitive material; transfer streaming does not provide archive encryption.
 New configuration snapshots retain only the existing configuration-export
 tables and schema metadata. They exclude managed certificate/ACME keys, DNS
 provider tokens, the Gateway CA, runtime data and S3 access/secret keys. The
-unused historical `settings_json` root document is omitted too: current owners
-read `settings_kv` and typed resource tables, while that old document can retain
-arbitrary credentials and keys. The empty table and schema remain compatible.
+unused historical `settings_json`, `nodes`, `inbounds` and `node_tags` rows are
+omitted too. Current owners use `settings_kv`, `nodes_v2`, `inbounds_v2` and Set
+nodes; the inactive old copies can contain opaque identity material that a
+credential-name sanitizer cannot safely classify. Their empty tables and schemas
+remain compatible. Current nodes, Sets and manual/automatic Selector settings
+remain included and are read back through the existing Store APIs in tests.
 This only changes new configuration exports/snapshots, not the live database;
-the private historical importer and encrypted full recovery retain the document.
+the private historical importer and encrypted full recovery retain the old rows.
 Previously uploaded objects remain sensitive and are not rewritten.
 The snapshot's S3 and automatic recovery/cleanup settings are disabled. Offline
 legacy S3 restore imports configuration into the target's private copy and
 retains that target's existing backup settings and credentials. A standalone
 JSON configuration export also omits S3 credentials and disables backup and
 maintenance consent; configure them again after importing it. Recognized inline
-node/inbound credentials are removed, and affected nodes and listeners are
-disabled; affected legacy nodes are deselected. Administrators must re-enter
+node/inbound credentials are removed, and affected current nodes and listeners
+are disabled. Administrators must re-enter
 credentials and explicitly enable the affected entries after import. Both
 ShadowsocksR protocol and obfuscation parameters are removed because they can
 contain a user key or custom HTTP headers. HTTP Mock payloads are also removed
@@ -86,8 +89,8 @@ Current-format Node and Inbound documents reject unrecognized fields before
 either export or S3 upload, except recognized legacy credential aliases whose
 values have already been cleared. Upgrade to a compatible server or remove the
 unsupported fields before retrying; the backup is not uploaded on rejection.
-Legacy endpoint formats still require special care because their historical
-schema cannot establish the same unknown-field guarantee.
+Inactive legacy endpoint copies are excluded as whole rows, rather than relying
+on field-name guesses. Previously uploaded objects can still contain those rows.
 Subscription URLs are omitted because tokens may occur anywhere in their paths.
 Publish passwords, paths and node lists are cleared so an imported publish
 cannot expose nodes with an empty password. Recreate subscription links and
@@ -132,6 +135,15 @@ creation rather than transfer or forwarding; allocation counts are cumulative.
 Raw [before](benchmarks/data/configuration-backup-2026-10-30/before-typed-validation.txt)
 and [after](benchmarks/data/configuration-backup-2026-10-30/after-typed-validation.txt)
 results are retained.
+After excluding inactive legacy copies, the base fixture (1,000 legacy and 1,000
+current nodes plus 10,000 runtime rows) measured 33.72–33.79 ms before versus
+29.91–29.98 ms after, with 2.62 MB / 58,500 allocations versus 2.43 MB / 46,600
+allocations (three runs, `BenchmarkConfigurationSnapshot`, `-benchtime=2s`, same
+Ryzen 5 5600G and warm filesystem). The sanitized output now omits the inactive
+1,000-row legacy set; this compares the changed backup content, not an identical
+payload or forwarding. Byte counts are cumulative allocations, not peak RSS.
+Raw [before](benchmarks/data/retired-config-copies-2026-10-30/before.txt) and
+[after](benchmarks/data/retired-config-copies-2026-10-30/after.txt) data are retained.
 The same fixture plus 1,000 route lists containing refresh errors measured
 36.80–36.91 ms and about 2.61 MB/58,200 allocations before removing those
 errors, versus 59.77–59.97 ms and about 4.71 MB/99,600 allocations after (three

@@ -63,8 +63,8 @@ func SanitizeConfiguration(ctx context.Context, path string) error {
 	}
 	allowed := storagesqlite.ConfigurationBackupTables()
 	for _, table := range tables {
-		// The nodes index derives only from retained configuration; deleting its
-		// FTS shadow tables directly corrupts SQLite. Rebuild the index below.
+		// Keep the retired nodes index structurally valid after clearing its
+		// owner rows. Deleting FTS shadow tables directly corrupts SQLite.
 		if table.kind == "virtual" || table.kind == "shadow" {
 			if table.name == "nodes_fts" || table.kind == "shadow" && strings.HasPrefix(table.name, "nodes_fts_") {
 				continue
