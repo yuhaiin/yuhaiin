@@ -575,6 +575,7 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 					observed.errorCode = item.ErrorCode
 				}
 			}
+			t.Fatalf("capture failed before helper fault injection (code=%q)", observed.errorCode)
 		}
 		if phase != "capturing" {
 			return false
@@ -770,5 +771,12 @@ func TestInstalledRecoveryMaintenance(t *testing.T) {
 		_, err := os.Lstat(filepath.Join(directory, ".recovery-imports", imported.ID))
 		return errors.Is(err, os.ErrNotExist)
 	})
-
+	// Staging removal and application commit precede the independent unit's
+	// final restart. Do not let teardown stop the service while ExecStopPost
+	// can still enqueue a Start and cancel that Stop (or the next drill's Stop).
+	wait("clone restore helper completion", func() bool {
+		output, _ := drillSystemctl(t.Context(), "show", "yuhaiin-restore-"+imported.ID+".service", "--property=ActiveState", "--value").Output()
+		state := strings.TrimSpace(string(output))
+		return state == "inactive" || state == "failed"
+	})
 }

@@ -56,7 +56,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 		v, _ := strconv.Atoi(strings.TrimSpace(string(out)))
 		return v
 	}
-	copyFile := func(from, to string) {
+	copyFile := func(t *testing.T, from, to string) {
 		t.Helper()
 		input, err := os.Open(from)
 		if err != nil {
@@ -73,7 +73,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			t.Fatal(copyErr, closeErr)
 		}
 	}
-	wait := func(label string, ready func() bool) {
+	wait := func(t *testing.T, label string, ready func() bool) {
 		t.Helper()
 		deadline := time.Now().Add(100 * time.Second)
 		for time.Now().Before(deadline) {
@@ -90,7 +90,9 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 	}
 	for _, scenario := range []string{"healthy_migration", "failed_readiness", "killed_startup"} {
 		t.Run(scenario, func(t *testing.T) {
-			_ = command("stop", "yuhaiin.service")
+			if err := command("stop", "yuhaiin.service"); err != nil {
+				t.Fatal(err)
+			}
 			directory := drillDataPath("data-update-" + scenario)
 			if err := os.MkdirAll(filepath.Join(directory, "web"), 0700); err != nil {
 				t.Fatal(err)
@@ -99,7 +101,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				t.Fatal(err)
 			}
 			executable := "/app/yuhaiin-update-" + scenario
-			copyFile("/app/yuhaiin", executable)
+			copyFile(t, "/app/yuhaiin", executable)
 			unit := fmt.Sprintf("[Unit]\nDescription=Isolated protected update fixture\n[Service]\nType=simple\nExecStart=%s run -path %s -https=true -host 127.0.0.1:50052 -eweb %s/web\nRestart=no\n", executable, directory, directory)
 			if err := os.WriteFile(drillUnitPath(t), []byte(unit), 0600); err != nil {
 				t.Fatal(err)
@@ -111,7 +113,11 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if err := command("start", "yuhaiin.service"); err != nil {
 				t.Fatal(err)
 			}
-			wait("source startup", func() bool { return pid("yuhaiin.service") > 0 && fileExists(filepath.Join(directory, "state.db")) })
+			wait(t, "source startup", func() bool {
+				current := pid("yuhaiin.service")
+				running, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", current))
+				return err == nil && running == executable && fileExists(filepath.Join(directory, "state.db"))
+			})
 			// Metadata-only access does not bootstrap or migrate target-owned stores.
 			db, err := sql.Open(sqlite.DriverName(), "file:"+filepath.Join(directory, "state.db")+"?mode=rw")
 			if err != nil {
@@ -123,7 +129,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				t.Fatal(err)
 			}
 			owner := backupstore.New(db)
-			wait("source inputs recorded", func() bool {
+			wait(t, "source inputs recorded", func() bool {
 				value, err := backupstore.LoadRecoveryRuntime(t.Context(), db)
 				return err == nil && value != nil
 			})
@@ -148,7 +154,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				input = "/app/update-failed"
 			}
 			stage := filepath.Join(filepath.Dir(executable), "yuhaiin-update-"+uuid.New().String())
-			copyFile(input, stage)
+			copyFile(t, input, stage)
 			data, err := os.ReadFile(input + compatibility.Suffix)
 			if err != nil {
 				t.Fatal(err)
@@ -180,13 +186,13 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				t.Fatal(err)
 			}
 			if scenario == "killed_startup" {
-				wait("target startup fence", func() bool { return fileExists(barrier) })
+				wait(t, "target startup fence", func() bool { return fileExists(barrier) })
 				if err := command("kill", "--kill-whom=main", "--signal=KILL", supervisor); err != nil {
 					t.Fatal(err)
 				}
 			}
 			var outcome *maintenance.Record
-			wait("durable update outcome", func() bool {
+			wait(t, "durable update outcome", func() bool {
 				outcome, err = maintenance.Read(directory)
 				return err == nil && outcome != nil && maintenance.Terminal(outcome.Phase)
 			})
@@ -217,7 +223,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if err := premature.Run(); err == nil {
 				t.Fatal("source started before paired database recovery")
 			}
-			wait("independent helper cleanup", func() bool { return pid(supervisor) == 0 })
+			wait(t, "independent helper cleanup", func() bool { return pid(supervisor) == 0 })
 			// Restoration runs through the public offline CLI with the external key, not
 			// through a direct database copy or a fake successful service start.
 			identity := filepath.Join(directory, "external-test-identity")
@@ -242,7 +248,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 				t.Fatal("offline paired recovery failed", err)
 			}
 			// The verified source in normal binary history is the required partner.
-			copyFile(filepath.Join(updatepkg.HistoryDirectory(directory), source.SHA256+".bin"), executable)
+			copyFile(t, filepath.Join(updatepkg.HistoryDirectory(directory), source.SHA256+".bin"), executable)
 			if scenario == "killed_startup" {
 				// The startup fence belongs only to the injected target attempt.
 				unit = strings.Split(unit, "ExecStartPre=")[0]
@@ -260,7 +266,7 @@ func TestInstalledProtectedUpdate(t *testing.T) {
 			if err := command("start", "yuhaiin.service"); err != nil {
 				t.Fatal(err)
 			}
-			wait("verified paired recovery startup", func() bool {
+			wait(t, "verified paired recovery startup", func() bool {
 				record, err := maintenance.Read(directory)
 				return err == nil && record != nil && record.Phase == "recovered" && pid("yuhaiin.service") > 0
 			})

@@ -108,7 +108,7 @@ def main():
                  '-e', f'YUHAIIN_RECOVERY_SYSTEMD_USER={int(args.user_session)}',
                  '-e', f'YUHAIIN_RECOVERY_ASSET_MIB={args.asset_mib}', name,
                  '/app/drill.test', '-test.run=' + test_pattern,
-                 '-test.v', '-test.timeout=8m'], timeout=540)
+                 '-test.v', '-test.failfast', '-test.timeout=8m'], timeout=540)
         except Exception:
             journal = subprocess.run([*runtime, 'exec', name, 'journalctl', '--no-pager',
                             '-u', 'yuhaiin.service', '-u', 'yuhaiin-recovery-*',

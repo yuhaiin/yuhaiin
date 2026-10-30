@@ -44,6 +44,20 @@ self-signed management certificate, new administrator initialization and rejecti
 of the old session. Failure diagnostics redact the newly issued local setup
 capability before printing service journals; `test_runner.py` covers that guard.
 
+The final clone helper must finish its complete transient-unit lifecycle before
+test teardown stops the source service. A committed application transaction and
+removed staging directory do not establish that `ExecStopPost` has finished;
+its late Start can cancel a Stop issued by the next scenario. The update drill
+checks Stop errors and the actual source executable, as well as the new data
+directory, before testing a migration. Subtest failures are attributed to the
+subtest that owns the operation.
+
+The runner stops on the first failed test so later scenarios cannot displace
+the relevant journal entries. If capture fails before the intended helper kill,
+the fault-injection test reports its finite error code immediately instead of
+waiting for a capture window that can no longer occur. That failure is distinct
+from a successful injected crash and from the teardown ordering above.
+
 
 For a real large offline create/restore/startup measurement, run with
 `--asset-mib 256` (bounded to 0–1024 MiB). CI enables this case. The test writes
