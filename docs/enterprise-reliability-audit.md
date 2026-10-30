@@ -96,6 +96,11 @@ implemented independently of an unattended schedule.
   connections, including an informational response followed by JSON; untyped
   reflected input is not automatically served as HTML. This is independent of
   the final CodeQL result, which must still be inspected on the pushed head.
+- The optional embedded `app.Auth` Basic API uses a random-salted, bounded
+  PBKDF2 verifier; cancellation and valid/invalid credentials have local tests.
+  Construct it with `NewAuth`, not historical manual SHA-256 fields. This does
+  not enable Basic login in the standalone management identity middleware or
+  change its database. The management guide records the verification cost.
 - New metrics use finite result/network/mode/state labels, not arbitrary Node,
   user, domain or URL labels. Node/certificate events and backup registries have
   explicit retention bounds. Collectors read snapshots rather than SQLite on a

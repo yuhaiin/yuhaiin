@@ -3,8 +3,6 @@ package app
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -296,24 +294,6 @@ type MigrationStore interface {
 	Migrate(context.Context) error
 }
 
-type Auth struct {
-	Username [32]byte
-	Password [32]byte
-}
-
-func NewAuth(username, password string) *Auth {
-	return &Auth{
-		Username: sha256.Sum256([]byte(username)),
-		Password: sha256.Sum256([]byte(password)),
-	}
-}
-
-func (a *Auth) Auth(password, username string) bool {
-	rSumUser := sha256.Sum256([]byte(username))
-	rSumPass := sha256.Sum256([]byte(password))
-	return subtle.ConstantTimeCompare(rSumUser[:], a.Username[:]) == 1 && subtle.ConstantTimeCompare(rSumPass[:], a.Password[:]) == 1
-}
-
 func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.ResponseWriter, *http.Request) error) {
 	handleFunc(mux, auth, nil, path, b)
 }
@@ -338,7 +318,7 @@ func handleFunc(mux *http.ServeMux, auth *Auth, policy *managementOriginPolicy, 
 
 		if auth != nil {
 			username, password, ok := r.BasicAuth()
-			if !ok || !auth.Auth(password, username) {
+			if !ok || !auth.authenticate(r.Context(), password, username) {
 				// ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return

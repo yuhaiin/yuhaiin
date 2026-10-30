@@ -1,0 +1,8 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/app
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkLegacyBasicAuth-12    	 6358495	       188.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLegacyBasicAuth-12    	 6365174	       188.6 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/app	2.420s
