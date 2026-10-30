@@ -29,8 +29,12 @@ ACME keys, DNS provider tokens and the Gateway CA are omitted. Restore of a
 legacy S3 snapshot retains the target's own S3 and recovery settings.
 Stored route-list and GeoIP refresh errors are omitted because they can include
 credential-bearing URLs; route sources and refresh configuration are retained.
-Route source and registry URLs may themselves contain credentials in paths or
-queries, so protect these unencrypted objects or use an encrypted full backup.
+Route, registry, GeoIP and DNS source URLs with user credentials, a query or a
+fragment cause a new plaintext configuration backup to fail before upload.
+Use an encrypted full backup instead; the exporter does not silently change
+those resources or routing rules. Opaque paths may still contain credentials.
+Historical SQLite objects can still be restored locally with their original
+source URLs.
 Guarded JSON exports use format version 2, which older JSON importers reject;
 the legacy S3 SQLite format has no equivalent version gate.
 

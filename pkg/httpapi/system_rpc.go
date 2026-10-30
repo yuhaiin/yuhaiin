@@ -14,6 +14,7 @@ import (
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/diagnostics"
+	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite/configbackup"
 )
 
 type v2API struct{ services V2Services }
@@ -175,6 +176,9 @@ func (a v2API) runBackup(ctx context.Context, _ *emptyRequest) (*emptyResponse, 
 		return nil, unavailable("backup controller is unavailable")
 	}
 	if err := a.services.Backup.Run(ctx); err != nil {
+		if errors.Is(err, configbackup.ErrPrivateSourceURL) {
+			return nil, &rpcError{status: http.StatusConflict, code: "private_configuration_url", message: configbackup.ErrPrivateSourceURL.Error()}
+		}
 		return nil, err
 	}
 	return &emptyResponse{}, nil

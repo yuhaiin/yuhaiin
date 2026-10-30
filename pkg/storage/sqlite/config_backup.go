@@ -104,7 +104,7 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 			return err
 		}
 	}
-	return nil
+	return configbackup.ValidateSnapshotSourceURLs(ctx, tx)
 }
 
 func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disable string) error {
@@ -227,6 +227,17 @@ func configBackupFilter(table string) string {
 }
 
 func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
+	return exportConfig(ctx, db, false)
+}
+
+// ExportConfigForLocalRestore projects a historical SQLite object for the
+// private, offline configuration importer. It preserves existing source URLs;
+// never use it for an external plaintext export or upload.
+func ExportConfigForLocalRestore(ctx context.Context, db *sql.DB) ([]byte, error) {
+	return exportConfig(ctx, db, true)
+}
+
+func exportConfig(ctx context.Context, db *sql.DB, localRestore bool) ([]byte, error) {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -234,7 +245,7 @@ func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
 	defer func() { _ = tx.Rollback() }()
 	backup := ConfigBackup{Format: "yuhaiin-config", Version: 1, CreatedAt: time.Now().UTC(), Tables: make(map[string]ConfigBackupTable)}
 	for _, table := range configBackupTables {
-		data, err := readConfigTable(ctx, tx, table)
+		data, err := readConfigTable(ctx, tx, table, localRestore)
 		if err != nil {
 			return nil, fmt.Errorf("export %s: %w", table, err)
 		}
@@ -253,7 +264,7 @@ func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
 	return data, err
 }
 
-func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBackupTable, error) {
+func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore bool) (ConfigBackupTable, error) {
 	if table == "inbound_traffic_control" {
 		var exists bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='inbound_traffic_control')`).Scan(&exists); err != nil {
@@ -386,6 +397,11 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string) (ConfigBacku
 				out.requiresGatewayGuard = out.requiresGatewayGuard || guarded
 			}
 			if err != nil {
+				return out, err
+			}
+		}
+		if !localRestore {
+			if err := configbackup.ValidateSourceURLRow(table, columns, values); err != nil {
 				return out, err
 			}
 		}

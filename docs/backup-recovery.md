@@ -67,9 +67,15 @@ retained; only the backup copy is changed. The existing S3 snapshot also resets
 the legacy list's last-refresh timestamp, while JSON export retains it.
 New route refresh and activation diagnostics omit source URLs, source file
 paths and response bodies; the backup cleanup also protects older stored errors.
-Route source and registry URLs themselves remain in the configuration, and
-may contain credentials in their path or query. Protect these unencrypted
-exports or use a full encrypted disaster-recovery backup when URLs are private.
+New plaintext exports and S3 configuration snapshots refuse route-list,
+registry, GeoIP and DNS source URLs containing user credentials, a query or a
+fragment. Removing those parts could change the resource or routing policy, so
+the operation fails before producing an export or contacting S3. Use an
+encrypted full disaster-recovery backup for these configurations. Source paths
+can still contain credentials; protect configuration exports with private paths.
+The private offline importer remains compatible with historical SQLite objects
+and retains their source URLs; its projection is never used for an external
+plaintext export.
 Current-format Node and Inbound documents reject unrecognized fields before
 either export or S3 upload, except recognized legacy credential aliases whose
 values have already been cleared. Upgrade to a compatible server or remove the
@@ -129,6 +135,13 @@ documents; allocations are cumulative, not peak RSS. Raw
 [before](benchmarks/data/route-backup-2026-10-30/before-redaction.txt) and
 [after](benchmarks/data/route-backup-2026-10-30/after-redaction.txt) results are
 retained.
+The public-source URL check on this same route-list fixture measured
+60.33–60.84 ms and about 4.71 MB/99,600 allocations before, versus
+66.70–67.44 ms and about 7.04 MB/143,800 allocations after (three runs,
+`-benchtime=2s`). Validation reads one row at a time and does not retain the
+database in memory; allocated bytes are cumulative, not peak RSS. Raw
+[before](benchmarks/data/source-url-guard-2026-10-30/before.txt) and
+[after](benchmarks/data/source-url-guard-2026-10-30/after.txt) results are retained.
 The sanitizer processes at most 128 rows and roughly 1 MiB of replacements per
 batch, plus one potentially larger configuration document. The fixture excludes
 S3 transfer and does not establish performance for a large production database.

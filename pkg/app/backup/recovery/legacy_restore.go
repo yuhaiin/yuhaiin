@@ -54,7 +54,7 @@ func RestoreConfiguration(ctx context.Context, directory string, data []byte) er
 	if err != nil {
 		return err
 	}
-	configuration, exportErr := sqlite.ExportConfig(ctx, input.DB())
+	configuration, exportErr := sqlite.ExportConfigForLocalRestore(ctx, input.DB())
 	if err := errors.Join(exportErr, input.Close()); err != nil {
 		return err
 	}

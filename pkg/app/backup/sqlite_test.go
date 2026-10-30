@@ -122,6 +122,26 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("snapshot sqlite state failed: %v", err)
 	}
+	// Historical objects can contain private source URLs. Local restore must
+	// retain their routing meaning without allowing new plaintext exports.
+	historicalPath := filepath.Join(t.TempDir(), "historical.db")
+	if err := os.WriteFile(historicalPath, snapshot, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	historical, err := storagesqlite.Open(t.Context(), historicalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := historical.DB().ExecContext(t.Context(), `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('old-private','Old registry','https://example.org/manifest?token=legacy-private-source',1,0,1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := historical.Close(); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = os.ReadFile(historicalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := settings.Save(t.Context(), contractsettings.Settings{NetInterface: "after"}); err != nil {
 		t.Fatalf("write modified sqlite config failed: %v", err)
@@ -150,6 +170,13 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	}
 	defer reopened.Close()
 	reopenedSettings := plainstore.NewSettingsStore(reopened.DB())
+	var legacyURL string
+	if err := reopened.DB().QueryRowContext(t.Context(), `SELECT url FROM route_registries WHERE id='old-private'`).Scan(&legacyURL); err != nil || legacyURL != "https://example.org/manifest?token=legacy-private-source" {
+		t.Fatal("local restoration changed the historical private source", err)
+	}
+	if data, err := storagesqlite.ExportConfig(t.Context(), reopened.DB()); err == nil || len(data) != 0 {
+		t.Fatal("restored historical URL was permitted in a new plaintext export")
+	}
 	got, err := reopenedSettings.Load(t.Context())
 	if err != nil {
 		t.Fatalf("view restored sqlite config failed: %v", err)

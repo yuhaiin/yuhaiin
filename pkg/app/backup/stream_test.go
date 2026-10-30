@@ -420,6 +420,47 @@ func TestConfigurationBackupsRejectAmbiguousRouteRefreshErrors(t *testing.T) {
 	}
 }
 
+func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
+	for _, tc := range []struct{ name, query, document string }{
+		{"list", `INSERT INTO route_lists_v2(id,name,list_type,source_type,updated_at,data_json) VALUES('list','List','host','remote',1,?)`, `{"id":"list","source":{"type":"remote","remote":{"urls":["https://example.org/list?token=private-source-marker"]}}}`},
+		{"escaped list URL", `INSERT INTO route_lists_v2(id,name,list_type,source_type,updated_at,data_json) VALUES('list','List','host','remote',1,?)`, `{"source":{"remote":{"urls":["https:\u002f\u002fexample.org/list?token=private-source-marker"]}}}`},
+		{"registry", `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('custom','Registry',?,1,0,1)`, `https://user:private-source-marker@example.org/manifest.json`},
+		{"registry fragment", `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('custom','Registry',?,1,0,1)`, `https://example.org/manifest.json#private-source-marker`},
+		{"GeoIP", `INSERT INTO settings_kv(section,key,value_json,updated_at) VALUES('route_extra','maxminddb_geoip',?,1)`, `{"download_url":"https://example.org/geoip?license_key=private-source-marker","error":""}`},
+		{"resolver", `INSERT INTO resolvers_v2(id,resolver_type,host,updated_at,data_json) VALUES('private','doh',?,1,'{}')`, `https://example.org/dns-query?token=private-source-marker`},
+		{"schemeless resolver", `INSERT INTO resolvers_v2(id,resolver_type,host,updated_at,data_json) VALUES('private','doh',?,1,'{}')`, `user:private-source-marker@example.org/dns-query`},
+		{"resolver JSON copy", `INSERT INTO resolvers_v2(id,resolver_type,host,updated_at,data_json) VALUES('private','doh','https://example.org/dns-query',1,?)`, `{"host":"user:private-source-marker@example.org/dns-query"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+			db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			if _, err := db.DB().ExecContext(t.Context(), tc.query, tc.document); err != nil {
+				t.Fatal(err)
+			}
+			if data, err := storagesqlite.ExportConfig(t.Context(), db.DB()); err == nil || len(data) != 0 {
+				t.Fatal("credential-bearing source URL was exported")
+			} else if strings.Contains(err.Error(), "private-source-marker") {
+				t.Fatal("backup refusal exposed a private source URL")
+			}
+			if err := b.Run(t.Context()); err == nil || strings.Contains(err.Error(), "private-source-marker") {
+				t.Fatal("unsafe source must be refused without revealing credentials")
+			}
+			if calls.Load() != 0 {
+				t.Fatal("private source URL reached S3")
+			}
+			local, err := storagesqlite.ExportConfigForLocalRestore(t.Context(), db.DB())
+			if err != nil || !bytes.Contains(local, []byte("private-source-marker")) {
+				t.Fatal("refusing a public backup changed the live source or broke local restoration", err)
+			}
+		})
+	}
+}
+
 func TestConfigurationS3SnapshotRedactsHTTPMockPayloads(t *testing.T) {
 	const payload = "c2VjcmV0LW1vY2stbWFya2Vy"
 	var object []byte

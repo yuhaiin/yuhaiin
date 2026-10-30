@@ -59,6 +59,53 @@ func TestRecoveryCloneRotatesMachineKeys(t *testing.T) {
 	}
 }
 
+func TestEncryptedRecoveryRetainsPrivateSourceURL(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("offline activation needs directory synchronization")
+	}
+	source, key := testfixture.BasicDeployment(t)
+	db, err := sqlite.Open(t.Context(), filepath.Join(source, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const privateURL = "https://example.org/manifest?token=encrypted-source-marker"
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('private','Private',?,1,0,1)`, privateURL); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "private.yhb")
+	manifest, err := Create(t.Context(), source, path, backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext, err := os.ReadFile(path)
+	if err != nil || bytes.Contains(ciphertext, []byte("encrypted-source-marker")) {
+		t.Fatal("private source was not protected in the archive", err)
+	}
+	input, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	target := t.TempDir()
+	_, err = Restore(t.Context(), target, input, backuparchive.Decryption{Identity: key.String()}, RestoreOptions{Mode: "original", ConfirmedMaintenance: true,
+		ConfirmBackupID: manifest.ID, ConfirmSourceInstanceID: manifest.InstanceID, ConfirmTargetInstanceID: "empty", ConfirmSourceStopped: true, ConfirmCredentialRevival: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := sqlite.OpenSnapshotReader(t.Context(), filepath.Join(target, "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	var restored string
+	if err := reader.QueryRowContext(t.Context(), `SELECT url FROM route_registries WHERE id='private'`).Scan(&restored); err != nil || restored != privateURL {
+		t.Fatal("encrypted recovery changed the private source", err)
+	}
+}
+
 func TestRecoveryRestoredTokenScopeAndRevocationRemainEffective(t *testing.T) {
 	source, key := testfixture.Deployment(t)
 	identity, err := sqlite.OpenManagement(t.Context(), filepath.Join(source, "management.db"))
