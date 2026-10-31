@@ -27,7 +27,9 @@ func TestBufioReaderPool(t *testing.T) {
 
 	PutBufioReader(r)
 
-	t.Log(bytes.Equal(cc, yy.Bytes()))
+	if !bytes.Equal(cc, yy.Bytes()) {
+		t.Fatal("pooled reader changed the payload")
+	}
 
 	r = GetBufioReader(yy, MaxSegmentSize)
 
@@ -37,7 +39,9 @@ func TestBufioReaderPool(t *testing.T) {
 
 	PutBufioReader(r)
 
-	t.Log(bytes.Equal(cc, zz.Bytes()))
+	if !bytes.Equal(cc, zz.Bytes()) {
+		t.Fatal("reused pooled reader changed the payload")
+	}
 }
 
 func TestXxx(t *testing.T) {

@@ -246,67 +246,6 @@ func (t *testPacketConn) SetWriteDeadline(time.Time) error {
 	return nil
 }
 
-func TestP(t *testing.T) {
-	t.Skip("demonstration NAT loop; blocks waiting for UDP packets")
-
-	natTable := map[string]net.PacketConn{}
-	getTargetAddress := func([]byte) (*net.UDPAddr, []byte) {
-		// TODO implement proxy protocol
-		return nil, nil
-	}
-
-	packetResponse := func(net.Addr, []byte) []byte {
-		// TODO implement proxy protocol
-		return nil
-	}
-
-	pc, err := net.ListenPacket("udp", "")
-	if err != nil {
-		panic(err)
-	}
-	defer pc.Close()
-
-	for {
-		buf := make([]byte, 1024)
-		n, addr, err := pc.ReadFrom(buf)
-		if err != nil {
-			panic(err)
-		}
-
-		conn, ok := natTable[addr.String()]
-		if !ok {
-			conn, err = net.ListenPacket("udp", "")
-			if err != nil {
-				panic(err)
-			}
-
-			go func() {
-				defer conn.Close()
-				for {
-					buf := make([]byte, 1024)
-					n, src, err := conn.ReadFrom(buf)
-					if err != nil {
-						panic(err)
-					}
-					_, err = pc.WriteTo(packetResponse(src, buf[:n]), addr)
-					if err != nil {
-						panic(err)
-					}
-				}
-			}()
-
-			natTable[addr.String()] = conn
-		}
-
-		target, remain := getTargetAddress(buf[:n])
-
-		_, err = conn.WriteTo(remain, target)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
 func TestWrapConnThrottlesReadDeadlineRefresh(t *testing.T) {
 	pc := &testPacketConn{t: t, saddr: netapi.EmptyAddr, ip: true}
 	wrapped := &wrapConn{PacketConn: pc}

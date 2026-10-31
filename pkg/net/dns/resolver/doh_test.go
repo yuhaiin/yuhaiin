@@ -1,146 +1,10 @@
 package resolver
 
 import (
-	"context"
-	"net/netip"
 	"testing"
 
-	"codeberg.org/miekg/dns"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/assert"
 )
-
-func TestDOH(t *testing.T) {
-	t.Skip("requires external DoH services")
-
-	s, err := netip.ParsePrefix("223.5.5.5/24")
-	assert.NoError(t, err)
-	s5Dialer := socks5.Dial("127.0.0.1", "1080", "", "")
-
-	configMap := map[string]Config{
-		"google": {
-			Type:   "doh",
-			Host:   "dns.google",
-			Subnet: s,
-			// Dialer: s5Dialer,
-		},
-		"iijJP": {
-			Type:       "doh",
-			Host:       "103.2.57.5",
-			Servername: "public.dns.iij.jp",
-			Subnet:     s,
-		},
-		"cloudflare": {
-			Type:   "doh",
-			Host:   "cloudflare-dns.com",
-			Subnet: s,
-			Dialer: s5Dialer,
-		},
-		"quad9": {
-			Type:   "doh",
-			Host:   "9.9.9.9",
-			Subnet: s,
-		},
-		"a.passcloud": {
-			Type:   "doh",
-			Host:   "a.passcloud.xyz",
-			Subnet: s,
-		},
-		"adguard": {
-			Type: "doh",
-			Host: "https://unfiltered.adguard-dns.com/dns-query",
-		},
-		"ali": {
-			Type:   "doh",
-			Host:   "223.5.5.5",
-			Subnet: s,
-		},
-		"dns.pub": {
-			Type:   "doh",
-			Host:   "dns.pub",
-			Subnet: s,
-		},
-		"sm2.dnspub": {
-			Type:   "doh",
-			Host:   "sm2.doh.pub",
-			Subnet: s,
-		},
-		"360": {
-			Type:   "doh",
-			Host:   "doh.360.cn",
-			Subnet: s,
-		},
-		"dnssb": {
-			Type:   "doh",
-			Host:   "doh.dns.sb",
-			Subnet: s,
-			// Dialer: s5Dialer,
-		},
-		"opendns": {
-			Type:   "doh",
-			Host:   "doh.opendns.com",
-			Subnet: s,
-			// Dialer: s5Dialer,
-		},
-		"tuna": {
-			Type: "doh",
-			Host: "https://101.6.6.6:8443/dns-query",
-		},
-		"controld": {
-			Type: "doh",
-			Host: "https://freedns.controld.com/p0",
-		},
-	}
-
-	d, err := New(configMap["cloudflare"])
-	assert.NoError(t, err)
-
-	t.Log(d.LookupIP(context.TODO(), "plasma"))
-	t.Log(d.LookupIP(context.TODO(), "fonts.gstatic.com"))
-	t.Log(d.LookupIP(context.TODO(), "fonts.gstatic.com"))
-	// t.Log(d.LookupIP(context.TODO(), "dc.services.visualstudio.com")) // -> will error, but not found reason
-	t.Log(d.LookupIP(context.TODO(), "i2.hdslb.com"))
-	t.Log(d.LookupIP(context.TODO(), "www.baidu.com"))
-	// t.Log(d.LookupIP(context.TODO(), "push.services.mozilla.com"))
-	// t.Log(d.LookupIP(context.TODO(), "www.google.com"))
-	// t.Log(d.LookupIP(context.TODO(), "www.pixiv.net"))
-	// t.Log(d.LookupIP(context.TODO(), "s1.hdslb.com"))
-	// t.Log(d.LookupIP(context.TODO(), "dns.nextdns.io"))
-	// t.Log(d.LookupIP(context.TODO(), "bilibili.com"))
-	// t.Log(d.LookupIP(context.TODO(), "test-ipv6.com"))
-	// t.Log(d.LookupIP(context.TODO(), "ss1.bdstatic.com"))
-	// t.Log(d.LookupIP(context.TODO(), "www.twitter.com"))
-	// t.Log(d.LookupIP(context.TODO(), "www.facebook.com"))
-	// t.Log(d.LookupIP(context.TODO(), "yahoo.co.jp"))
-	// t.Log(d.LookupIP(context.TODO(), "115-235-111-150.dhost.00cdn.com"))
-
-	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
-		Name:  "www.google.com.",
-		Qtype: dns.TypeA,
-	}))
-	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
-		Name:  "www.google.com.",
-		Qtype: dns.TypeA,
-	}))
-
-	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
-		Name:  "cdn.v2ex.com.",
-		Qtype: dns.TypeHTTPS,
-	}))
-	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
-		Name:  "auth.openai.com.",
-		Qtype: dns.TypeHTTPS,
-	}))
-	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
-		Name:  "auth.openai.com.",
-		Qtype: dns.TypeA,
-	}))
-	t.Log(d.Raw(context.TODO(), netapi.DNSQuestion{
-		Name:  "auth.openai.com.",
-		Qtype: dns.TypeAAAA,
-	}))
-}
 
 func TestGetURL(t *testing.T) {
 	dnsQStr := "https://8.8.8.8/dns-query"
@@ -157,6 +21,4 @@ func TestGetURL(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "https://8.8.8.8/test-path", u.String())
 
-	t.Log(parseDohUrl("https://"))
-	t.Log(parseDohUrl("/dns-query"))
 }

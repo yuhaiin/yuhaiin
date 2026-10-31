@@ -4,21 +4,12 @@ package netlink
 
 import (
 	"net"
-	"net/netip"
 	"os"
 	"syscall"
 	"testing"
 
 	"golang.org/x/sys/unix"
 )
-
-func TestFindProcess(t *testing.T) {
-	// 172.19.0.1:55168
-	// 10.0.0.103:443
-	src := netip.MustParseAddrPort("172.19.0.1:40498")
-	to := netip.MustParseAddrPort("10.0.0.103:443")
-	t.Log(FindProcessName("udp", src, to))
-}
 
 func TestProcSearchLiveLinuxSockets(t *testing.T) {
 	for _, network := range []string{"tcp4", "tcp6", "udp4", "udp6"} {

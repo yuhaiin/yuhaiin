@@ -224,14 +224,3 @@ func TestError(t *testing.T) {
 
 	assert.Equal(t, netapi.IsBlockError(y), true)
 }
-
-func TestDial8305(t *testing.T) {
-	t.Skip("requires external network access to www.google.com:443")
-
-	add, err := netapi.ParseDomainPort("tcp", "www.google.com", 443)
-	assert.NoError(t, err)
-	conn, err := DialHappyEyeballsv2(context.TODO(), add)
-	assert.NoError(t, err)
-	defer conn.Close()
-	t.Log(conn.LocalAddr(), conn.RemoteAddr())
-}

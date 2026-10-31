@@ -8,10 +8,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 )
 
-func TestTCP(t *testing.T) {
-	t.Log(HTTP(direct.Default, "https://www.baidu.com"))
-}
-
 func TestHTTPWithInsecureSkipVerify(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
