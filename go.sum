@@ -437,6 +437,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261030200527-b285d837609a h1:lbbAY
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261030200527-b285d837609a/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261031123904-7dd151336110 h1:2THSRSuvFi+0zJiiAOm2xj17NDunbK5IOY/sN27yykU=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261031123904-7dd151336110/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261031132650-996788a80707 h1:ZxTpQZjjuunl3QM+hCccqx3iu2mSwGF9h3AtpxJNsX4=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261031132650-996788a80707/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29 h1:v9Bl1yxwwLSSGQ0eScz295TtVTXlYuw0igjbV1Iql2Q=
 github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29/go.mod h1:tj43hgM1bWIR/0HMUwaEOFVxPxCbr/HAnbAkSjn//Uo=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
