@@ -1,0 +1,10 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/app/backup
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkRecoveryArchiveRetrieval/1MiB-12         	     207	   1706265 ns/op	 614.54 MB/s	   99170 B/op	     728 allocs/op
+BenchmarkRecoveryArchiveRetrieval/1MiB-12         	     202	   1749793 ns/op	 599.26 MB/s	   95629 B/op	     704 allocs/op
+BenchmarkRecoveryArchiveRetrieval/16MiB-12        	      14	  23485257 ns/op	 714.37 MB/s	   98994 B/op	     710 allocs/op
+BenchmarkRecoveryArchiveRetrieval/16MiB-12        	      14	  23214920 ns/op	 722.69 MB/s	   99589 B/op	     710 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/app/backup	1.401s

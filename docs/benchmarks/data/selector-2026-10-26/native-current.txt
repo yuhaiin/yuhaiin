@@ -1,0 +1,33 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorNewFlow/manual/tcp-12     	  536140	       692.9 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12     	  451815	       713.9 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12     	  471750	       707.1 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12     	  680276	       442.4 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12     	  797476	       449.0 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12     	  693602	       466.1 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12   	  340012	       884.8 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12   	  402054	       862.3 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12   	  417753	       867.0 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12   	  666981	       538.2 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12   	  560815	       544.5 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12   	  562599	       542.0 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12   	  379632	       893.8 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12   	  362305	       902.0 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12   	  355201	       905.1 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12   	  552835	       571.8 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12   	  549765	       573.8 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12   	  620733	       569.1 ns/op	     344 B/op	       9 allocs/op
+BenchmarkNativeSelectionAvailability/100-12         	  139825	      2476 ns/op	     952 B/op	       5 allocs/op
+BenchmarkNativeSelectionAvailability/100-12         	  147030	      2448 ns/op	     952 B/op	       5 allocs/op
+BenchmarkNativeSelectionAvailability/100-12         	  144338	      2499 ns/op	     952 B/op	       5 allocs/op
+BenchmarkNativeSelectionAvailability/1000-12        	   10000	     34335 ns/op	    9368 B/op	      11 allocs/op
+BenchmarkNativeSelectionAvailability/1000-12        	   10000	     32837 ns/op	    9368 B/op	      11 allocs/op
+BenchmarkNativeSelectionAvailability/1000-12        	   10000	     32800 ns/op	    9368 B/op	      11 allocs/op
+BenchmarkObservedPacketSend-12                      	86114574	         4.023 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                      	87326160	         4.026 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                      	84255679	         4.023 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	9.565s

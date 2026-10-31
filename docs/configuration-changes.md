@@ -93,8 +93,8 @@ Restoring a provider does not restore deleted account bindings or sessions.
 
 ## Persistence, limits and recovery
 
-Configuration schema migration **18** adds `configuration_changes`. Private
-management migration **12** adds the same journal and persistent provider
+Configuration schema migration **25** adds `configuration_changes`. Private
+management migration **14** adds the same journal and persistent provider
 revision clocks, backfilled from current providers. Both migrations are atomic;
 interruption leaves the preceding schema and credentials intact. Restart resumes
 with saved drafts, history and monotonic provider revisions. The private journal

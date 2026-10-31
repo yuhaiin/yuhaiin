@@ -140,6 +140,23 @@ func BenchmarkAdmissionBypass(b *testing.B) {
 	}
 }
 
+func BenchmarkAdmissionImportedGuard(b *testing.B) {
+	config := admissionConfig()
+	config.Gateways[0].Enabled = false
+	config.Gateways[0].RejectWhenDisabled = true
+	m, _ := newTestManager(b, config, nil)
+	address, _ := netapi.ParseAddress("tcp", "example.com:443")
+	conn := new(failOnReadConn)
+	meta := &netapi.StreamMeta{Src: conn, Address: address}
+	ctx := netapi.WithContext(b.Context())
+	b.ReportAllocs()
+	for b.Loop() {
+		if !m.InterceptGateway(ctx, meta, "g") {
+			b.Fatal("imported Gateway did not reject traffic")
+		}
+	}
+}
+
 func TestAdmissionRechecksSniffedHostBeforeAllocatingProbe(t *testing.T) {
 	m, _ := newTestManager(t, admissionConfig(), nil)
 	address, _ := netapi.ParseAddress("tcp", "192.0.2.1:443")

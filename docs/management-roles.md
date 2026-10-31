@@ -4,7 +4,7 @@ Management roles govern `/api/v2` capabilities; traffic groups govern network
 access. Assigning a management role never changes traffic group membership.
 
 The protected `admin`, `read-only` and `none` base roles retain their meanings.
-Migration 9 adds custom role definitions and many-to-many assignments alongside
+Migration 11 adds custom role definitions and many-to-many assignments alongside
 the existing user role column. The existing last-active-administrator database
 triggers remain in place. Upgrades neither rewrite credentials nor replace local
 administrators. A custom role containing administrator-like permissions does

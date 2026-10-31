@@ -11,6 +11,9 @@ import (
 var timeout = 10 * time.Second
 
 func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
+	return DNSWithContext(context.Background(), p, host, target)
+}
+func DNSWithContext(ctx context.Context, p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := resolver.New(resolver.Config{
 		Type:   "udp",
 		Host:   host,
@@ -23,7 +26,7 @@ func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	_, err = d.LookupIP(ctx, target)
@@ -35,6 +38,9 @@ func DNS(p netapi.Proxy, host, target string) (time.Duration, error) {
 }
 
 func DNSOverQuic(p netapi.Proxy, host, target string) (time.Duration, error) {
+	return DNSOverQuicWithContext(context.Background(), p, host, target)
+}
+func DNSOverQuicWithContext(ctx context.Context, p netapi.Proxy, host, target string) (time.Duration, error) {
 	d, err := resolver.New(
 		resolver.Config{
 			Type:   "doq",
@@ -49,7 +55,7 @@ func DNSOverQuic(p netapi.Proxy, host, target string) (time.Duration, error) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	_, err = d.LookupIP(ctx, target)

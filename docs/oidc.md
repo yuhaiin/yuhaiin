@@ -74,7 +74,7 @@ transaction as account linking or session issuance, so pending callbacks cannot
 use retired configuration. HTTP provider changes invalidate pending flows and
 cached discovery. Delete removes that provider's bindings and revokes its sessions.
 
-Migration 10 upgrades only the private management database, retaining GitHub and
+Migration 12 upgrades only the private management database, retaining GitHub and
 Google configuration, account links and existing local users. Interrupted migration
 rolls back and can be retried. Management identities/OIDC client secrets remain
 outside the ordinary configuration database and its backups.

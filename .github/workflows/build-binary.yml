@@ -96,5 +96,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: yuhaiin_${{ inputs.os }}_${{ inputs.arch }}
-          path: ${{ steps.build.outputs.binary }}
+          path: |
+            ${{ steps.build.outputs.binary }}
+            ${{ steps.build.outputs.binary }}.update.json
           if-no-files-found: error

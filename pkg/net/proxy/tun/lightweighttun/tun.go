@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -34,7 +35,13 @@ func Validate(o device.TunConfig) error {
 	if o.Driver != "" && o.Driver != device.DriverChannel {
 		return fmt.Errorf("lightweight: driver %q is unsupported; use channel", o.Driver)
 	}
-	return lightweight.ValidateConfig(lightweight.Config{OutputScheduler: trafficcontrol.SchedulerMode(o.OutputScheduler), MTU: int(o.MTU), CongestionControl: o.CongestionControl})
+	var addresses []netip.Addr
+	if configuration.IPv6.Load() && o.PortalV6 != "" {
+		if prefix, err := netip.ParsePrefix(o.PortalV6); err == nil {
+			addresses = append(addresses, prefix.Addr())
+		}
+	}
+	return lightweight.ValidateConfig(lightweight.Config{Addresses: addresses, OutputScheduler: trafficcontrol.SchedulerMode(o.OutputScheduler), MTU: int(o.MTU), CongestionControl: o.CongestionControl})
 }
 func stackConfig(o *device.Opt) lightweight.Config {
 	var addresses []netip.Addr

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"net"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"slices"
@@ -36,6 +37,7 @@ type snapshot struct {
 	config                contract.Config
 	startupError          string
 	gateways              map[string]*gatewayRuntime
+	rejectDisabled        map[string]struct{}
 	listeners             map[string]*gatewayRuntime
 	interceptionByGateway map[string]*interceptRule
 }
@@ -65,6 +67,8 @@ type Manager struct {
 	recoverDestination  func(context.Context, netapi.Address) netapi.Address
 	lookupProcess       func(context.Context, netapi.Address)
 	localAudit          func(*netapi.Context, string, bool)
+	managedCertificates func(context.Context, []string) (*tls.Config, error)
+	serveACMEHTTP01     func(string, http.ResponseWriter, *http.Request) bool
 	internalConnections sync.Map
 	sessionsMu          sync.Mutex
 	sessions            map[net.Conn]interceptSession
@@ -105,7 +109,7 @@ func NewManager(ctx context.Context, store ConfigStore, authority *Authority, se
 		}
 		m.persistedStatistics = m.restoredStatistics
 	}
-	if err := m.start(config); err != nil {
+	if err := m.start(ctx, config); err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -124,8 +128,8 @@ func NewManager(ctx context.Context, store ConfigStore, authority *Authority, se
 	return m, nil
 }
 
-func (m *Manager) start(config contract.Config) error {
-	prepared, err := m.prepare(config)
+func (m *Manager) start(ctx context.Context, config contract.Config) error {
+	prepared, err := m.prepare(ctx, config)
 	if err != nil {
 		return err
 	}
@@ -133,6 +137,17 @@ func (m *Manager) start(config contract.Config) error {
 	if err != nil {
 		prepared.close()
 		return err
+	}
+	if references, ok := m.store.(interface {
+		SynchronizeCertificateReferences(context.Context, contract.Config) error
+	}); ok {
+		if err := references.SynchronizeCertificateReferences(ctx, prepared.config); err != nil {
+			for _, listener := range listeners {
+				listener.close()
+			}
+			prepared.close()
+			return err
+		}
 	}
 	m.current.Store(prepared)
 	m.publishListeners(listeners, prepared)
@@ -162,7 +177,7 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 	if err != nil {
 		return config, err
 	}
-	prepared, err := m.prepare(config)
+	prepared, err := m.prepare(ctx, config)
 	if err != nil {
 		return config, err
 	}
@@ -192,7 +207,7 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 	return m.Config(), nil
 }
 
-func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
+func (m *Manager) prepare(ctx context.Context, config contract.Config) (*snapshot, error) {
 	data, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
@@ -241,8 +256,26 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 		if g.ID == "" || g.Name == "" || s.gateways[g.ID] != nil || g.MaxBodyBytes < 0 {
 			return nil, errors.New("gateway requires unique ID, name and valid body limit")
 		}
+		if !g.Enabled && g.RejectWhenDisabled {
+			if s.rejectDisabled == nil {
+				s.rejectDisabled = make(map[string]struct{})
+			}
+			s.rejectDisabled[g.ID] = struct{}{}
+		}
 		if !slices.Contains([]string{"", "off", "termination"}, g.TLSMode) {
 			return nil, errors.New("listener TLS mode must be off or termination")
+		}
+		if len(g.ManagedCertificateIDs) > 0 && (g.TLSMode != "termination" || g.Listen == "" || g.CertificateFile != "" || g.KeyFile != "") {
+			return nil, errors.New("managed certificates require a TLS termination listener without file certificates")
+		}
+		if g.ACMEHTTP01 {
+			_, port, err := net.SplitHostPort(g.Listen)
+			if err != nil || port != "80" || g.TLSMode == "termination" {
+				return nil, errors.New("HTTP-01 requires an explicitly enabled plaintext port-80 listener")
+			}
+			if m.serveACMEHTTP01 == nil {
+				return nil, errors.New("HTTP-01 service is unavailable")
+			}
 		}
 		selected := make([]contract.Rule, 0, len(g.RuleIDs))
 		seen := make(map[string]bool)
@@ -280,11 +313,21 @@ func (m *Manager) prepare(config contract.Config) (*snapshot, error) {
 			entry.sources = append(entry.sources, prefix)
 		}
 		if g.TLSMode == "termination" {
-			certificate, err := tls.LoadX509KeyPair(g.CertificateFile, g.KeyFile)
-			if err != nil {
-				return nil, errors.New("load gateway listener certificate failed")
+			if len(g.ManagedCertificateIDs) > 0 {
+				if m.managedCertificates == nil {
+					return nil, errors.New("managed certificate service is unavailable")
+				}
+				entry.tls, err = m.managedCertificates(ctx, g.ManagedCertificateIDs)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				certificate, err := tls.LoadX509KeyPair(g.CertificateFile, g.KeyFile)
+				if err != nil {
+					return nil, errors.New("load gateway listener certificate failed")
+				}
+				entry.tls = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}, NextProtos: []string{"h2", "http/1.1"}}
 			}
-			entry.tls = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}, NextProtos: []string{"h2", "http/1.1"}}
 		}
 		if g.Listen != "" {
 			host, _, err := net.SplitHostPort(g.Listen)

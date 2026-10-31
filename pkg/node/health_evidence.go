@@ -1,0 +1,206 @@
+package node
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"io"
+	"net"
+	"slices"
+	"time"
+
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/apernet/quic-go"
+)
+
+// selectionHealthSnapshot retains one immutable copy of each existing health
+// history. It is a read cache under nodeCounters.mu, not another observation
+// owner. Normal traffic still updates only the original bounded histories.
+type selectionHealthSnapshot struct {
+	generation, tcpSequence, udpSequence uint64
+	tcp, udp                             contract.ChannelHealth
+}
+
+type selectorObservations struct {
+	TCPHealth, UDPHealth         contract.ChannelHealth
+	Throughput, UploadThroughput contract.ThroughputMeasurement
+}
+
+// selectionSnapshot is internal to snapshot compilation. Its history slices
+// are immutable and must not escape through mutable management API responses.
+// Unchanged histories need no copy, even when many Selectors share the Node.
+func (n *nodeCounters) selectionSnapshot() selectorObservations {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	generation := n.generation.Load()
+	if n.selectionHealth == nil || n.selectionHealth.generation != generation {
+		n.selectionHealth = &selectionHealthSnapshot{generation: generation,
+			tcpSequence: n.tcpHealth.Sequence, udpSequence: n.udpHealth.Sequence,
+			tcp: copyHealth(n.tcpHealth), udp: copyHealth(n.udpHealth)}
+	} else {
+		if n.selectionHealth.tcpSequence != n.tcpHealth.Sequence {
+			n.selectionHealth.tcp = copyHealth(n.tcpHealth)
+			n.selectionHealth.tcpSequence = n.tcpHealth.Sequence
+		}
+		if n.selectionHealth.udpSequence != n.udpHealth.Sequence {
+			n.selectionHealth.udp = copyHealth(n.udpHealth)
+			n.selectionHealth.udpSequence = n.udpHealth.Sequence
+		}
+	}
+	now := time.Now()
+	return selectorObservations{TCPHealth: currentHealth(n.selectionHealth.tcp, now), UDPHealth: currentHealth(n.selectionHealth.udp, now),
+		Throughput: n.throughput, UploadThroughput: n.uploadThroughput}
+}
+
+func copyHealth(h contract.ChannelHealth) contract.ChannelHealth {
+	h.Samples = slices.Clone(h.Samples)
+	normalizeHealthSequence(&h)
+	h.LatencySamples = slices.Clone(h.LatencySamples)
+	return h
+}
+func currentHealth(h contract.ChannelHealth, now time.Time) contract.ChannelHealth {
+	if len(h.Samples) == 0 || now.UnixMilli()-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
+		h.State = "unknown"
+	}
+	return h
+}
+func cloneHealth(h contract.ChannelHealth) contract.ChannelHealth {
+	return currentHealth(copyHealth(h), time.Now())
+}
+
+// neutralHealthError applies equally to generic counters, circuit evidence and
+// construction results. A local rejection or ordinary shutdown is not a remote
+// health observation, even when wrapped in another transport error.
+func neutralHealthError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, errNodeReconfigured) || localProbeDenial(err) {
+		return true
+	}
+	if stream, ok := errors.AsType[*quic.StreamError](err); ok && stream.ErrorCode == 0 {
+		return true
+	}
+	if app, ok := errors.AsType[*quic.ApplicationError](err); ok && app.ErrorCode == 0 {
+		return true
+	}
+	if transport, ok := errors.AsType[*quic.TransportError](err); ok && transport.ErrorCode == quic.NoError {
+		return true
+	}
+	return false
+}
+
+// Only explicit network/transport failures are evidence. Policy/quota errors
+// and ordinary application errors remain visible to their owners and do not
+// condemn a node. Dial timeouts count; caller cancellation does not.
+func healthFailure(err error) bool {
+	if err == nil || neutralHealthError(err) {
+		return false
+	}
+	if _, ok := errors.AsType[*tls.CertificateVerificationError](err); ok {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	_, ok := errors.AsType[net.Error](err)
+	return ok
+}
+
+func (n *nodeCounters) remoteEvidence(tcp bool, sample contract.HealthSample, err error) {
+	n.recordEvidence(tcp, sample, err, 0, false)
+}
+func (n *nodeCounters) remoteEvidenceAtGeneration(tcp bool, sample contract.HealthSample, err error, epoch uint64) {
+	n.recordEvidence(tcp, sample, err, epoch, true)
+}
+func (n *nodeCounters) recordEvidence(tcp bool, sample contract.HealthSample, err error, epoch uint64, check bool) {
+	if err != nil && !healthFailure(err) {
+		return
+	}
+	sample.OK = err == nil && sample.OK
+	if e, ok := errors.AsType[net.Error](err); ok {
+		sample.Timeout = e.Timeout()
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if check && epoch != n.generation.Load() {
+		return
+	}
+	h := &n.tcpHealth
+	if !tcp {
+		h = &n.udpHealth
+	}
+	if sample.At == 0 {
+		sample.At = time.Now().UnixMilli()
+	}
+	if tcp {
+		// A lazy-handshake protocol reports connect success without reaching its
+		// server. While the latest end-to-end probe is failing, that alone cannot
+		// reset the failure streak; a real first response from a server can.
+		switch {
+		case evidenceStrength(sample.Kind) >= 3:
+			n.tcpProbeFailedAt = 0
+			if !sample.OK {
+				n.tcpProbeFailedAt = sample.At
+			}
+		case sample.Kind == "response" && sample.OK:
+			n.tcpProbeFailedAt = 0
+		case sample.Kind == "connect" && sample.OK && n.tcpProbeFailedAt > 0 && sample.At-n.tcpProbeFailedAt <= recentNodeObservation.Milliseconds():
+			return
+		}
+	}
+	if len(h.Samples) > 0 && sample.At-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
+		h.ConsecutiveFailures, h.ConsecutiveSuccesses = 0, 0
+		h.State = "unknown"
+	}
+	normalizeHealthSequence(h)
+	h.Sequence++
+	sample.Sequence = h.Sequence
+	h.Samples = append(h.Samples, sample)
+	if len(h.Samples) > 64 {
+		h.Samples = slices.Delete(h.Samples, 0, len(h.Samples)-64)
+	}
+	if sample.Kind == "https" || sample.Kind == "dns" {
+		h.LatencySamples = append(h.LatencySamples, sample)
+		if len(h.LatencySamples) > 64 {
+			h.LatencySamples = slices.Delete(h.LatencySamples, 0, len(h.LatencySamples)-64)
+		}
+	}
+	if sample.Kind == "response" {
+		// A response strengthens the connect evidence, rather than counting the
+		// same TCP request twice toward recovery or stability.
+	} else if sample.OK {
+		h.ConsecutiveFailures = 0
+		h.ConsecutiveSuccesses = min(h.ConsecutiveSuccesses+1, 64)
+		if h.State != "unhealthy" || h.ConsecutiveSuccesses >= 2 {
+			h.State = "healthy"
+		}
+	} else {
+		h.ConsecutiveSuccesses = 0
+		h.ConsecutiveFailures = min(h.ConsecutiveFailures+1, 64)
+		h.State = "degraded"
+		if h.ConsecutiveFailures >= 3 {
+			h.State = "unhealthy"
+		}
+	}
+	if listeners := n.circuitListeners.Load(); listeners != nil {
+		list := listeners.tcp
+		if !tcp {
+			list = listeners.udp
+		}
+		for _, b := range list {
+			b.observe(*h, time.Now())
+		}
+	}
+}
+
+// Constructor errors are explicit inability to create this outbound, not a
+// claim about remote TCP/UDP reachability. Keep their evidence kind separate.
+func (n *nodeCounters) constructionFailure(err error) {
+	n.constructionFailureAtGeneration(err, n.generation.Load())
+}
+func (n *nodeCounters) constructionFailureAtGeneration(err error, epoch uint64) {
+	if neutralHealthError(err) {
+		return
+	}
+	for _, tcp := range []bool{true, false} {
+		n.remoteEvidenceAtGeneration(tcp, contract.HealthSample{Kind: "construction", OK: false}, nil, epoch)
+	}
+}

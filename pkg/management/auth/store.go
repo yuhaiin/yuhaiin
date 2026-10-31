@@ -270,6 +270,10 @@ func (s *Store) ResetEnrollment(ctx context.Context, actor, id string) (IssuedCr
 	if _, err := tx.ExecContext(ctx, `DELETE FROM management_oauth_links WHERE user_id=?`, id); err != nil {
 		return IssuedCredential{}, err
 	}
+	// A credential reset is account recovery: revoke every Passkey too.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM management_passkeys WHERE user_id=?`, id); err != nil {
+		return IssuedCredential{}, err
+	}
 	issued, err := issueCredential(ctx, tx, id, "enrollment", nil, time.Now().Add(15*time.Minute).Unix())
 	if err != nil {
 		return IssuedCredential{}, err

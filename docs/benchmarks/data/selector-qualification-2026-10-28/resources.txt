@@ -1,0 +1,10 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorRuntimeResources/100/1-selectors-12         	       1	 110899412 ns/op	         0 active-extra-goroutines	    180608 active-flow-heap-delta-B	         0 closed-goroutine-delta	     51424 closed-heap-delta-B	         4.000 live-extra-goroutines	   4274768 live-heap-delta-B	53069952 B/op	   65207 allocs/op
+BenchmarkSelectorRuntimeResources/100/10-selectors-12        	       1	 425401105 ns/op	         0 active-extra-goroutines	    180672 active-flow-heap-delta-B	         0 closed-goroutine-delta	     14864 closed-heap-delta-B	         4.000 live-extra-goroutines	   5056632 live-heap-delta-B	347174432 B/op	  320006 allocs/op
+BenchmarkSelectorRuntimeResources/1000/1-selectors-12        	       1	 867328309 ns/op	         0 active-extra-goroutines	    180576 active-flow-heap-delta-B	         0 closed-goroutine-delta	     12240 closed-heap-delta-B	         4.000 live-extra-goroutines	  42580376 live-heap-delta-B	551542544 B/op	  433797 allocs/op
+BenchmarkSelectorRuntimeResources/1000/10-selectors-12       	       1	4476362414 ns/op	         0 active-extra-goroutines	    180672 active-flow-heap-delta-B	         0 closed-goroutine-delta	      -512.0 closed-heap-delta-B	         4.000 live-extra-goroutines	  50938640 live-heap-delta-B	4176659296 B/op	 2754868 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	5.901s

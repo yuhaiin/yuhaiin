@@ -3,11 +3,25 @@
 package sqlite
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
 	mattnsqlite "github.com/mattn/go-sqlite3"
 )
+
+func restrictBackupSnapshot(conn *sql.Conn) error {
+	return conn.Raw(func(value any) error {
+		sqliteConn, ok := value.(*mattnsqlite.SQLiteConn)
+		if !ok {
+			return errors.New("unexpected SQLite snapshot connection")
+		}
+		sqliteConn.SetLimit(mattnsqlite.SQLITE_LIMIT_LENGTH, 64<<20)
+		sqliteConn.SetLimit(mattnsqlite.SQLITE_LIMIT_SQL_LENGTH, 1<<20)
+		sqliteConn.SetLimit(mattnsqlite.SQLITE_LIMIT_EXPR_DEPTH, 64)
+		return nil
+	})
+}
 
 const (
 	backendName = "github.com/mattn/go-sqlite3"

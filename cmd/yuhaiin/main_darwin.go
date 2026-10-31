@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/servicehost"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
@@ -69,18 +70,18 @@ func restart(args []string) error {
 		return fmt.Errorf("error running launchctl list %s: %v, %s", service, err, out)
 	}
 	pid := getPid(out)
-	if err := bootoutDarwinService(); err != nil {
+	if err := servicehost.BootoutDarwin(); err != nil {
 		return err
 	}
 	if pid > 0 {
-		if err := waitForDarwinProcessExit(pid); err != nil {
+		if err := servicehost.WaitDarwinExit(pid); err != nil {
 			return err
 		}
 	}
-	if err := bootstrapDarwinService(); err != nil {
+	if err := servicehost.BootstrapDarwin(); err != nil {
 		return err
 	}
-	_, err = kickstartDarwinService(service)
+	_, err = servicehost.KickstartDarwin(service)
 	return err
 }
 
@@ -92,7 +93,7 @@ func stop(args []string) error {
 }
 
 func start(args []string) error {
-	_, err := kickstartDarwinService(service)
+	_, err := servicehost.KickstartDarwin(service)
 	return err
 }
 
@@ -104,7 +105,7 @@ func uninstallSystemDaemonDarwin(args []string) (ret error) {
 	running := exec.Command("launchctl", "print", "system/"+service).Run() == nil
 
 	if running {
-		if err := bootoutDarwinService(); err != nil {
+		if err := servicehost.BootoutDarwin(); err != nil {
 			fmt.Printf("launchctl bootout %s: %v\n", sysPlist, err)
 			ret = err
 		}
@@ -208,10 +209,10 @@ func installSystemDaemonDarwin(args []string) (err error) {
 		return err
 	}
 
-	if err := bootstrapDarwinService(); err != nil {
+	if err := servicehost.BootstrapDarwin(); err != nil {
 		return err
 	}
-	if _, err := kickstartDarwinService(service); err != nil {
+	if _, err := servicehost.KickstartDarwin(service); err != nil {
 		return err
 	}
 

@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/store
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkRecoveryHistory/100-12         	    1119	    324542 ns/op	  187325 B/op	     567 allocs/op
+BenchmarkRecoveryHistory/100-12         	     738	    413042 ns/op	  187344 B/op	     567 allocs/op
+BenchmarkRecoveryHistory/100-12         	     957	    340772 ns/op	  187210 B/op	     568 allocs/op
+BenchmarkRecoveryHistory/1000-12        	     100	   3198266 ns/op	 2032302 B/op	    6052 allocs/op
+BenchmarkRecoveryHistory/1000-12        	     100	   3164383 ns/op	 2032314 B/op	    6049 allocs/op
+BenchmarkRecoveryHistory/1000-12        	     100	   3289152 ns/op	 2031983 B/op	    6044 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/store	2.615s

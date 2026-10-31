@@ -148,6 +148,9 @@ func (r *reconnectingClient) available(ctx context.Context) (*Client, error) {
 			return c, nil
 		}
 		r.mu.RUnlock()
+		if netapi.IsBackgroundProbe(ctx) {
+			return nil, netapi.ErrBackgroundProbeUnavailable
+		}
 		if stopped {
 			return nil, net.ErrClosed
 		}

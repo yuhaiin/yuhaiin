@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/update/compatibility
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkObservedSchemaCompatibility-12    	     237	   1509622 ns/op	  107228 B/op	     817 allocs/op
+BenchmarkObservedSchemaCompatibility-12    	     234	   1525022 ns/op	  106775 B/op	     816 allocs/op
+BenchmarkObservedSchemaCompatibility-12    	     230	   1543423 ns/op	  106801 B/op	     816 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/update/compatibility	1.172s

@@ -1,5 +1,5 @@
-// Package ppp is a minimal client-side PPP implementation for tunnelling IP
-// over a transport such as SSTP. It performs LCP setup, MS-CHAPv2
+// Package ppp implements client and server PPP control for tunnelling IP
+// over transports such as SSTP. It performs LCP setup, MS-CHAPv2
 // authentication and IPCP to learn the assigned address and DNS. It is
 // transport-neutral: frames go through a Transport supplied by the caller.
 //

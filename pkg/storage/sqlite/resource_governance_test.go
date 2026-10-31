@@ -14,7 +14,7 @@ func TestResourceMigrationInterruptedAndRestarted(t *testing.T) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, m := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration, trafficAccessMigration} {
+		for _, m := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration, trafficGroupsMigration, trafficAccessMigration} {
 			if err := applyMigration(ctx, db, m); err != nil {
 				return err
 			}
@@ -29,7 +29,7 @@ func TestResourceMigrationInterruptedAndRestarted(t *testing.T) {
 	if err := applyMigration(t.Context(), old.DB(), broken); err == nil {
 		t.Fatal("interrupted migration committed")
 	}
-	if schemaObjectExists(t, old.DB(), "quota_windows") || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != 7 {
+	if schemaObjectExists(t, old.DB(), "quota_windows") || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != int64(trafficAccessMigration.Version) {
 		t.Fatal("partial resource schema committed")
 	}
 	if err := old.Close(); err != nil {

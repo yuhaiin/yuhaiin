@@ -59,7 +59,8 @@ LINUX_MIPSLE=GOOS=linux GOARCH=mipsle GOMIPS=softfloat
 ANDROID_ARM64=GOOS=android GOARCH=arm64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
 ANDROID_AMD64=GOOS=android GOARCH=amd64 CGO_ENABLED=1 CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang
 
-YUHAIIN=-v ./cmd/yuhaiin/...
+# Build one command so Go emits the executable even when it has internal subpackages.
+YUHAIIN=-v ./cmd/yuhaiin
 CLI=-v ./cmd/cli/...
 DNSRELAY= -v ./cmd/dnsrelay/...
 

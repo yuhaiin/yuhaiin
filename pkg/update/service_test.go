@@ -14,6 +14,8 @@ import (
 	"time"
 
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 )
 
 type testInstaller struct {
@@ -22,6 +24,9 @@ type testInstaller struct {
 	done    chan struct{}
 }
 
+func (i *testInstaller) InspectCompatibility(context.Context, compatibility.Manifest) (contractupdate.CompatibilityStatus, error) {
+	return contractupdate.CompatibilityStatus{State: "compatible", Reason: "schema_catalog_matches"}, nil
+}
 func (i *testInstaller) Supported() (bool, string) { return true, "" }
 func (i *testInstaller) StagingDir() string        { return i.dir }
 func (i *testInstaller) Start(_ context.Context, path string) error {
@@ -105,15 +110,24 @@ func TestServiceCheckAndApplyVerifiesChecksum(t *testing.T) {
 	binary := []byte("new binary")
 	hash := sha256.Sum256(binary)
 	checksum := hex.EncodeToString(hash[:]) + "  yuhaiin-linux-amd64\n"
+	schemas := make(map[string][]sqlite.MigrationDescriptor)
+	for _, kind := range []string{"configuration", "management"} {
+		schemas[kind], _ = sqlite.MigrationCatalog(kind)
+	}
+	manifest, _ := json.Marshal(compatibility.Manifest{Format: "yuhaiin-update", Version: 1, StartupGuard: 1, Asset: "yuhaiin-linux-amd64", Size: int64(len(binary)), SHA256: hex.EncodeToString(hash[:]), Platform: "linux", Architecture: "amd64", Schemas: schemas})
+	manifestHash := sha256.Sum256(manifest)
+	checksum += hex.EncodeToString(manifestHash[:]) + "  yuhaiin-linux-amd64.update.json\n"
 	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body := ""
 		status := http.StatusOK
 		switch r.URL.Path {
 		case "/releases":
-			payload, _ := json.Marshal([]release{{Tag: "v2.0.0", HTMLURL: "release", Assets: []releaseAsset{{Name: "yuhaiin-linux-amd64", URL: "https://test/binary"}, {Name: "checksums.txt", URL: "https://test/checksums"}}}})
+			payload, _ := json.Marshal([]release{{Tag: "v2.0.0", HTMLURL: "release", Assets: []releaseAsset{{Name: "yuhaiin-linux-amd64", URL: "https://test/binary", Size: int64(len(binary))}, {Name: "yuhaiin-linux-amd64.update.json", URL: "https://test/compatibility"}, {Name: "checksums.txt", URL: "https://test/checksums"}}}})
 			body = string(payload)
 		case "/binary":
 			body = string(binary)
+		case "/compatibility":
+			body = string(manifest)
 		case "/checksums":
 			body = checksum
 		default:
@@ -142,6 +156,7 @@ func TestServiceCheckAndApplyVerifiesChecksum(t *testing.T) {
 	if filepath.Dir(installer.started) != dir {
 		t.Fatalf("staged file=%s outside %s", installer.started, dir)
 	}
+	_ = os.Remove(installer.started + compatibility.Suffix)
 	_ = os.Remove(installer.started)
 }
 

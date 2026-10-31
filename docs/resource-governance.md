@@ -111,7 +111,7 @@ start a new budget and should be treated as a security-sensitive policy edit.
 
 ## Persistence and recovery
 
-Migration **8, `resource_governance`**, adds private resource configuration,
+Migration **10, `resource_governance`**, adds private resource configuration,
 normalized group references, immutable quota definitions, quota windows and
 threshold history. A referenced group cannot be deleted until its resource
 assignment is removed. IDs and historical credential ownership survive account

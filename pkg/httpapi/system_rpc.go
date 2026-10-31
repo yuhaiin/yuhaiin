@@ -14,6 +14,7 @@ import (
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/diagnostics"
+	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite/configbackup"
 )
 
 type v2API struct{ services V2Services }
@@ -26,12 +27,26 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2UpdateStatus, api.updateStatus)
 	addRPCRoute(handlers, v2UpdateHistory, api.updateHistory)
 	addRPCRoute(handlers, v2UpdateRollback, api.updateRollback)
+	addRPCRoute(handlers, v2UpdateCancel, api.updateCancel)
 	addRPCRoute(handlers, v2SettingsGet, api.settings)
 	addRPCRoute(handlers, v2SettingsPut, api.saveSettings)
 	addRPCRoute(handlers, v2BackupConfigGet, api.backupConfig)
 	addRPCRoute(handlers, v2BackupConfigPut, api.saveBackupConfig)
 	addRPCRoute(handlers, v2BackupRun, api.runBackup)
 	addRPCRoute(handlers, v2BackupRestore, api.restoreBackup)
+	addRPCRoute(handlers, v2RecoveryBackupStatus, api.recoveryBackups)
+	addRPCRoute(handlers, v2RecoveryBackupCreate, api.createRecoveryBackup)
+	handlers.add(v2RecoveryBackupDownload, recoveryBackupDownload(services))
+	addRPCRoute(handlers, v2RecoveryBackupDelete, api.deleteRecoveryBackup)
+	addRPCRoute(handlers, v2RecoveryBackupRetry, api.retryRecoveryBackup)
+	addRPCRoute(handlers, v2RecoveryBackupVerify, api.verifyRecoveryBackup)
+	addRPCRoute(handlers, v2RecoveryBackupRetrieve, api.retrieveRecoveryBackup)
+	addRPCRoute(handlers, v2RecoveryImportList, api.recoveryImports)
+	handlers.add(v2RecoveryImportUpload, recoveryImportUpload(services))
+	addRPCRoute(handlers, v2RecoveryImportPreview, api.previewRecoveryImport)
+	addRPCRoute(handlers, v2RecoveryImportDiscard, api.discardRecoveryImport)
+	addRPCRoute(handlers, v2RecoveryImportActivate, api.activateRecoveryImport)
+	addRPCRoute(handlers, v2RecoveryRestoreStatus, api.recoveryRestoreStatus)
 	addRPCRoute(handlers, v2ToolsDiagnostics, api.diagnostics)
 	addRPCRoute(handlers, v2ToolsInterfaces, api.interfaces)
 	addRPCRoute(handlers, v2ToolsLicenses, api.licenses)
@@ -161,6 +176,9 @@ func (a v2API) runBackup(ctx context.Context, _ *emptyRequest) (*emptyResponse, 
 		return nil, unavailable("backup controller is unavailable")
 	}
 	if err := a.services.Backup.Run(ctx); err != nil {
+		if errors.Is(err, configbackup.ErrPrivateSourceURL) {
+			return nil, &rpcError{status: http.StatusConflict, code: "private_configuration_url", message: configbackup.ErrPrivateSourceURL.Error()}
+		}
 		return nil, err
 	}
 	return &emptyResponse{}, nil
@@ -379,4 +397,23 @@ func (a v2API) diagnostics(ctx context.Context, request *contracttools.Diagnosti
 		return nil, &rpcError{status: http.StatusTooManyRequests, code: "busy", message: err.Error()}
 	}
 	return &report, err
+}
+
+func (a v2API) updateCancel(ctx context.Context, request *updateCancelRequest) (*emptyResponse, error) {
+	owner, ok := a.services.Update.(UpdateCanceller)
+	if !ok {
+		return nil, unavailable("protected update cancellation is unavailable")
+	}
+	if !request.Confirm {
+		return nil, badRequest(errors.New("update cancellation requires confirmation"))
+	}
+	if err := owner.Cancel(ctx, request.ID); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
+}
+
+type updateCancelRequest struct {
+	ID      string `json:"id"`
+	Confirm bool   `json:"confirm"`
 }

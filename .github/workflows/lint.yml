@@ -76,7 +76,7 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: tailscale-release-dns
-      - name: Test MagicDNS with production Tailscale build tags
+      - name: Test tsnet MagicDNS with production Tailscale build tags
         run: |
           go test ./cmd/buildtags
           tags="$(go run ./cmd/buildtags/...)"
@@ -113,11 +113,11 @@ jobs:
           cache-scope: http-gateway-tests
       - name: Test Gateway, interception, CA, storage and inbound routing
         run: |
-          go test -race -count=1 -timeout=180s \
+          go test -race -count=1 -timeout=300s \
             ./pkg/gateway ./pkg/cert ./pkg/net/proxy/http \
-            ./pkg/net/proxy/tls ./pkg/inbound ./pkg/httpapi ./pkg/store \
+            ./pkg/net/proxy/tls ./pkg/inbound ./pkg/httpapi ./pkg/store ./pkg/store/backup/... \
             ./pkg/storage/sqlite ./pkg/route ./pkg/contract/connection ./pkg/resolver ./pkg/statistics \
-            ./pkg/node ./pkg/app ./pkg/contract/inbound ./pkg/contract/node
+            ./pkg/node ./pkg/app ./pkg/app/backup/... ./pkg/contract/inbound ./pkg/contract/node
 
   management-auth-tests:
     runs-on: ubuntu-latest
@@ -131,7 +131,7 @@ jobs:
           node-version: '24'
       - name: Test management permissions and Web Crypto interoperability
         run: |
-          go test -race -count=1 -timeout=180s \
-            ./pkg/management/auth ./pkg/httpapi ./pkg/app ./cmd/yuhaiin
+          go test -race -count=1 -timeout=300s \
+            ./pkg/management/auth ./pkg/httpapi ./pkg/app ./pkg/app/backup/... ./cmd/yuhaiin/...
           go test -count=1 -tags=sqlite_mattn,fts5 -timeout=180s \
             ./pkg/storage/sqlite ./pkg/management/auth

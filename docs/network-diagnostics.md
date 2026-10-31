@@ -47,3 +47,42 @@ platform, version and TUN counters. It excludes node configuration objects,
 credentials and raw dialer errors/logs. It stays in the browser unless the user
 copies/downloads it; there is no report upload service. Review operational details
 before sharing it.
+
+## Route list and GeoIP failures
+
+Route-list refresh and activation diagnostics identify a remote source by its
+one-based position in the configured URL list. They report the HTTP status or
+a safe failure category, including cancellation, timeout, TLS verification,
+DNS lookup and local-file failures. Logs and status messages omit source URL
+credentials, paths, queries and remote error-response bodies. GeoIP loading
+also omits source file paths. Non-successful HTTP responses are closed without
+buffering or waiting for the error body; transport cancellation and file-error
+classification remain available through Go's error chain. Each one-shot download
+also closes its temporary HTTP transport's idle connections on completion.
+
+The configured source URLs themselves remain in configuration. Existing logs
+and stored errors from older versions are not rewritten; configuration backups
+omit those stored route-refresh errors.
+
+## Local Tailnet integration fixture readiness
+
+The previous tailscale-lite fixture needed both clients to appear at its real
+DERP server before timing cold peer TCP. Control readiness and a known peer route
+could precede relay registration, producing a handshake retry. That repair was
+qualified with a 20-scenario mixed-STUN race batch.
+
+Main [#628](https://github.com/yuhaiin/yuhaiin/pull/628) subsequently restored the
+tsnet adapter and its local encrypted Tailnet/DNS fixture. Reliability now uses
+that current fixture and the original tsnet readiness path; the removed lite
+client/barrier is not retained. Native observations read the running server's
+in-memory health tracker and assigned addresses, without a LocalAPI request,
+client initialization or a claim that configuration proves peer health.
+
+Reproduce and qualify with local servers, without a public tailnet:
+
+```sh
+go test -race -count=3 -run '^TestLocalTailnet$' -timeout=180s -v ./pkg/net/proxy/tailscale
+go test -count=3 -timeout=180s ./pkg/net/proxy/tailscale
+tags="$(go run ./cmd/buildtags/...)"
+go test -count=3 -timeout=180s -tags="$tags" ./pkg/net/proxy/tailscale
+```

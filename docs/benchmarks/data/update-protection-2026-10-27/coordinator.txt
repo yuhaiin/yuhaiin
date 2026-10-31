@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/update/maintenance
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkProtectedUpdateCoordinator-12    	       8	  45218419 ns/op	 1674439 B/op	   10834 allocs/op
+BenchmarkProtectedUpdateCoordinator-12    	       9	  36365163 ns/op	 1672224 B/op	   10785 allocs/op
+BenchmarkProtectedUpdateCoordinator-12    	       8	  37867138 ns/op	 1673608 B/op	   10790 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/update/maintenance	2.495s

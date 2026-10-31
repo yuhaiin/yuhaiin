@@ -3,11 +3,22 @@
 package sqlite
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 
 	moderncsqlite "modernc.org/sqlite"
+	sqlitelib "modernc.org/sqlite/lib"
 )
+
+func restrictBackupSnapshot(conn *sql.Conn) error {
+	for id, limit := range map[int]int{sqlitelib.SQLITE_LIMIT_LENGTH: 64 << 20, sqlitelib.SQLITE_LIMIT_SQL_LENGTH: 1 << 20, sqlitelib.SQLITE_LIMIT_EXPR_DEPTH: 64} {
+		if _, err := moderncsqlite.Limit(conn, id, limit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 const (
 	backendName = "modernc.org/sqlite"

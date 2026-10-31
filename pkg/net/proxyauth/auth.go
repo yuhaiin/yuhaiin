@@ -29,6 +29,16 @@ type Provider interface {
 	Verifier(inboundID, protocol string, allowedUsers []string) Verifier
 }
 
+// MSCHAPv2Verifier checks a challenge response against device credentials.
+// The NT hash returned on success is password-equivalent; callers must use it
+// only to finish the current PPP/SSTP handshake.
+type MSCHAPv2Verifier func(ctx context.Context, username string, serverChallenge, peerChallenge [16]byte, response [24]byte) (*Identity, [16]byte, error)
+
+// MSCHAPv2Provider is an optional capability of the existing identity provider.
+type MSCHAPv2Provider interface {
+	MSCHAPv2Verifier(inboundID string, allowedUsers []string) MSCHAPv2Verifier
+}
+
 // Check preserves the legacy partial-username/password matching rules. With a
 // verifier installed an empty legacy configuration never permits anonymous use.
 func Check(ctx context.Context, verify Verifier, username string, proof []byte, legacyUser, legacyPassword string) (*Identity, error) {

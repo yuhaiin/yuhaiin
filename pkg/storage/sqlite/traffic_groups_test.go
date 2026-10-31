@@ -14,7 +14,7 @@ func TestTrafficGroupsMigrationRestartAndInterruptedTransaction(t *testing.T) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration} {
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration} {
 			if err := applyMigration(ctx, db, migration); err != nil {
 				return err
 			}
@@ -35,7 +35,7 @@ func TestTrafficGroupsMigrationRestartAndInterruptedTransaction(t *testing.T) {
 	if schemaObjectExists(t, old.DB(), "traffic_groups") {
 		t.Fatal("interrupted migration leaked partial schema")
 	}
-	if queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != 5 {
+	if queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != int64(managementPasskeyMigration.Version) {
 		t.Fatal("interrupted migration committed its marker")
 	}
 	if err := old.Close(); err != nil {

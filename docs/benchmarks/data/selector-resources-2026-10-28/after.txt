@@ -1,0 +1,23 @@
+Source: 57669d09 plus immutable selection-health cache in this PR. Additional 10-shared-Selector cases have no pre-change counterpart.
+Benchmark fixture SHA256: 42b4857f9b5d308a26f97dc48b435c5ae87f5bf2dbc60595b5164a7e26229cbc
+Go 1.27.3, Linux amd64, Ryzen 5 5600G.
+Command: go test ./pkg/node -run '^$' -bench '^BenchmarkSelectorRuntimeResources$' -benchmem -benchtime=1x -count=3 (before restricts to /^(100|1000)$/^1-selectors$).
+50 unhealthy/healthy cycles, 100 complete publications; periodic network tests off.
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorRuntimeResources/100/1-selectors-12         	       1	 113528173 ns/op	         0 active-extra-goroutines	    180672 active-flow-heap-delta-B	         0 closed-goroutine-delta	     55728 closed-heap-delta-B	         4.000 live-extra-goroutines	   4269888 live-heap-delta-B	52653192 B/op	   65119 allocs/op
+BenchmarkSelectorRuntimeResources/100/1-selectors-12         	       1	 110471630 ns/op	         0 active-extra-goroutines	    180608 active-flow-heap-delta-B	         0 closed-goroutine-delta	     26136 closed-heap-delta-B	         4.000 live-extra-goroutines	   4253176 live-heap-delta-B	52356184 B/op	   63213 allocs/op
+BenchmarkSelectorRuntimeResources/100/1-selectors-12         	       1	 112066392 ns/op	         0 active-extra-goroutines	    180576 active-flow-heap-delta-B	         0 closed-goroutine-delta	     14288 closed-heap-delta-B	         4.000 live-extra-goroutines	   4246272 live-heap-delta-B	52344272 B/op	   63170 allocs/op
+BenchmarkSelectorRuntimeResources/100/10-selectors-12        	       1	 413608754 ns/op	         0 active-extra-goroutines	    180576 active-flow-heap-delta-B	         0 closed-goroutine-delta	      1312 closed-heap-delta-B	         4.000 live-extra-goroutines	   5015976 live-heap-delta-B	343156816 B/op	  319712 allocs/op
+BenchmarkSelectorRuntimeResources/100/10-selectors-12        	       1	 414934732 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	        48.00 closed-heap-delta-B	         4.000 live-extra-goroutines	   5015160 live-heap-delta-B	343021864 B/op	  319771 allocs/op
+BenchmarkSelectorRuntimeResources/100/10-selectors-12        	       1	 416168647 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	     10192 closed-heap-delta-B	         4.000 live-extra-goroutines	   5016040 live-heap-delta-B	343127408 B/op	  319721 allocs/op
+BenchmarkSelectorRuntimeResources/1000/1-selectors-12        	       1	 814476711 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	      6752 closed-heap-delta-B	         4.000 live-extra-goroutines	  42547976 live-heap-delta-B	548024616 B/op	  433440 allocs/op
+BenchmarkSelectorRuntimeResources/1000/1-selectors-12        	       1	 835583041 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	      3504 closed-heap-delta-B	         4.000 live-extra-goroutines	  42547688 live-heap-delta-B	548627320 B/op	  433533 allocs/op
+BenchmarkSelectorRuntimeResources/1000/1-selectors-12        	       1	 825042816 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	     25456 closed-heap-delta-B	         4.000 live-extra-goroutines	  42549448 live-heap-delta-B	548206400 B/op	  433686 allocs/op
+BenchmarkSelectorRuntimeResources/1000/10-selectors-12       	       1	4203399939 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	     -9904 closed-heap-delta-B	         4.000 live-extra-goroutines	  50613600 live-heap-delta-B	4142314144 B/op	 2754440 allocs/op
+BenchmarkSelectorRuntimeResources/1000/10-selectors-12       	       1	4300737520 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	     13200 closed-heap-delta-B	         4.000 live-extra-goroutines	  50594920 live-heap-delta-B	4142342128 B/op	 2754737 allocs/op
+BenchmarkSelectorRuntimeResources/1000/10-selectors-12       	       1	4277076687 ns/op	         0 active-extra-goroutines	    180560 active-flow-heap-delta-B	         0 closed-goroutine-delta	      1232 closed-heap-delta-B	         4.000 live-extra-goroutines	  50613952 live-heap-delta-B	4142341728 B/op	 2754538 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	16.879s

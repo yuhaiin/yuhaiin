@@ -12,7 +12,6 @@ import (
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/maxminddb"
-	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -91,7 +90,7 @@ func (s *Lists) prepareSnapshot(ctx context.Context, snapshot plainstore.RouteSn
 		geo, err := maxminddb.NewMaxMindDB(s.downloader.GetPath(prepared.geoURL))
 		if err != nil {
 			prepared.close()
-			return nil, fmt.Errorf("prepare GeoIP: %w", err)
+			return nil, &sourceError{operation: "prepare GeoIP failed", cause: err}
 		}
 		prepared.geo = geo
 	}
@@ -153,7 +152,7 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 		}
 		valid := make([]string, 0, len(urls))
 		problems := make([]string, 0)
-		for _, url := range urls {
+		for i, url := range urls {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -170,9 +169,9 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 				valid = append(valid, url)
 			}
 			if fetchErr != nil || readErr != nil {
-				problem := fmt.Sprintf("%s: %v", secret.PublicURL(url), secret.RemoteError(fetchErr))
+				problem := fmt.Sprintf("source %d: %v", i+1, fetchErr)
 				if fetchErr == nil {
-					problem = fmt.Sprintf("%s: %v", secret.PublicURL(url), secret.RemoteError(readErr))
+					problem = fmt.Sprintf("source %d: %v", i+1, readErr)
 				} else if readErr == nil {
 					problem += " (using cached file)"
 				}

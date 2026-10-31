@@ -28,6 +28,7 @@ import (
 	redirserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -92,6 +93,17 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			Peers: toWireguardPeers(p.Peers),
 		}, handler)
 	}
+	if config.Protocol.Type == contract.ProtocolSSTP {
+		if config.Network.Type != contract.NetworkTCPUDP || len(config.Transports) != 0 || config.Network.TCPUDP == nil {
+			return nil, errors.New("sstp inbound requires a TCP listener and no additional transports")
+		}
+		if config.Network.TCPUDP.UDP != contract.UDPDisabled && config.Network.TCPUDP.UDP != contract.UDPTCPOnly {
+			return nil, errors.New("sstp inbound requires TCP-only networking")
+		}
+		if _, ok := provider.(proxyauth.MSCHAPv2Provider); !ok {
+			return nil, errors.New("sstp requires MS-CHAPv2-capable identity provider")
+		}
+	}
 	if config.Protocol.Type == contract.ProtocolKrunlet {
 		if config.Network.Type != contract.NetworkEmpty {
 			return nil, errors.New("krunlet inbound requires empty network")
@@ -128,7 +140,12 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		}
 	}
 
-	server, err := contractProtocol(config.Protocol, lis, handler, ranges, verifier)
+	var sstpVerifier proxyauth.MSCHAPv2Verifier
+	if config.Protocol.Type == contract.ProtocolSSTP {
+		mschapProvider := provider.(proxyauth.MSCHAPv2Provider)
+		sstpVerifier = scope.WrapMSCHAPv2(mschapProvider.MSCHAPv2Verifier(config.ID, config.Authentication.Users))
+	}
+	server, err := contractProtocol(config.Protocol, lis, handler, ranges, verifier, sstpVerifier)
 	if err != nil {
 		closeIfNotNil(lis)
 		return nil, err
@@ -283,10 +300,10 @@ func contractTransport(config contract.Transport, lis netapi.Listener) (netapi.L
 	}
 }
 
-func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, ranges [2]netip.Prefix, verifiers ...func(string) proxyauth.Verifier) (netapi.Accepter, error) {
+func contractProtocol(config contract.Protocol, lis netapi.Listener, handler netapi.Handler, ranges [2]netip.Prefix, verifier func(string) proxyauth.Verifier, sstpVerifier proxyauth.MSCHAPv2Verifier) (netapi.Accepter, error) {
 	verify := func(protocol string) proxyauth.Verifier {
-		if len(verifiers) > 0 && verifiers[0] != nil {
-			return verifiers[0](protocol)
+		if verifier != nil {
+			return verifier(protocol)
 		}
 		return nil
 	}
@@ -328,6 +345,20 @@ func contractProtocol(config contract.Protocol, lis netapi.Listener, handler net
 		options := tunConfig(*config.Tun)
 		options.FakeIPRanges = ranges
 		return tun.NewTun(options, lis, handler)
+	case contract.ProtocolSSTP:
+		c := config.SSTP
+		if c.TLS == nil {
+			return nil, errors.New("sstp: TLS configuration is required")
+		}
+		tlsConfig, err := ytls.ParseServerTLSConfig(serverTLSConfig(*c.TLS))
+		if err != nil {
+			return nil, err
+		}
+
+		return sstp.NewServer(sstp.ServerConfig{
+			ServerAddress: c.ServerAddress, ClientAddresses: c.ClientAddresses,
+			DNS: c.DNS, MTU: c.MTU, MaxSessions: c.MaxSessions, Authenticate: sstpVerifier,
+		}, tlsConfig, lis, handler)
 	case contract.ProtocolReverseTCP:
 		return newReverseTCPServer(config.ReverseTCP.Target, lis, handler)
 	case contract.ProtocolNone:

@@ -35,6 +35,8 @@ const (
 	ConnectionsRead           = permission.ConnectionsRead
 	ConnectionsWrite          = permission.ConnectionsWrite
 	GatewayRead               = permission.GatewayRead
+	CertificatesRead          = permission.CertificatesRead
+	CertificatesManage        = permission.CertificatesManage
 	GatewayWrite              = permission.GatewayWrite
 	SettingsRead              = permission.SettingsRead
 	SettingsWrite             = permission.SettingsWrite
@@ -75,7 +77,7 @@ func RolePermissions(role string) []Permission {
 	}
 	if role == ReadOnly {
 		return []Permission{NodesRead, InboundsRead, RoutesRead, ResolverRead,
-			ConnectionsRead, GatewayRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
+			ConnectionsRead, GatewayRead, CertificatesRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
 	}
 	return nil
 }
@@ -95,7 +97,7 @@ func (p Principal) Allows(permission Permission) bool {
 type principalKey struct{}
 
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
-	return context.WithValue(ctx, principalKey{}, p)
+	return context.WithValue(permission.WithActorID(ctx, p.UserID), principalKey{}, p)
 }
 
 func FromContext(ctx context.Context) (Principal, bool) {

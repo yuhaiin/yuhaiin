@@ -12,10 +12,17 @@ import (
 // never contain these identities, and restoring one cannot replace an admin.
 func OpenManagement(ctx context.Context, path string) (*Store, error) {
 	return open(ctx, path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := checkStoreCompatibility(ctx, db, "management"); err != nil {
+			return err
+		}
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration, managementOIDCMigration, managementSecurityAuditMigration, managementConfigurationChangesMigration} {
+		migrations, err := knownMigrations("management")
+		if err != nil {
+			return err
+		}
+		for _, migration := range migrations {
 			var name string
 			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
 			if err == nil {
@@ -34,6 +41,12 @@ func OpenManagement(ctx context.Context, path string) (*Store, error) {
 		return nil
 	})
 }
+
+// SSTP needs a password-equivalent NT hash for its MS-CHAPv2 challenge protocol.
+// Existing credentials cannot be upgraded without the original one-time secret.
+var managementSSTPMigration = Migration{Version: 6, Name: "sstp_proxy_verifiers", Statements: []string{
+	`ALTER TABLE proxy_credentials ADD COLUMN sstp_nt_hash BLOB`,
+}}
 
 var managementAuditMigration = Migration{Version: 5, Name: "management_audit_context", Statements: []string{
 	`ALTER TABLE management_security_events ADD COLUMN source TEXT NOT NULL DEFAULT ''`,
@@ -126,3 +139,17 @@ var managementOAuthMigration = Migration{
         )`,
 	},
 }
+
+// Passkeys belong to management identities, never configuration exports.
+var managementPasskeyMigration = Migration{Version: 7, Name: "management_passkeys", Statements: []string{
+	`CREATE TABLE management_passkeys (
+        credential_id BLOB PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES management_users(id) ON DELETE CASCADE,
+        rp_id TEXT NOT NULL,
+        data BLOB NOT NULL,
+        name TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL DEFAULT 0
+    )`,
+	`CREATE INDEX management_passkeys_owner ON management_passkeys(user_id,rp_id)`,
+}}

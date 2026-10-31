@@ -1,7 +1,7 @@
 # Management security audit
 
 The optional management identity module extends its existing private security
-ledger. Migration 11 retains users, credentials, groups, OIDC bindings and audit
+ledger. Migration 13 retains users, credentials, groups, OIDC bindings and audit
 IDs, adds indexed metadata, and creates retention settings, a durable forwarding
 outbox and delivery counters. A stable random instance ID identifies the ledger
 across restarts. Restoring ordinary configuration cannot replace these tables.

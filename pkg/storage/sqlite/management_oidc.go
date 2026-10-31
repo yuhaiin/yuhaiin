@@ -2,7 +2,7 @@ package sqlite
 
 // Generic OIDC stays in the existing private identity store. Existing OAuth
 // bindings survive unchanged; no configuration/backup database gains identities.
-var managementOIDCMigration = Migration{Version: 10, Name: "management_oidc", Statements: []string{
+var managementOIDCMigration = Migration{Version: 12, Name: "management_oidc", Statements: []string{
 	`CREATE TABLE management_oauth_providers_v2 (
  provider TEXT PRIMARY KEY, client_id TEXT NOT NULL, client_secret TEXT NOT NULL,
  redirect_url TEXT NOT NULL, issuer TEXT NOT NULL DEFAULT '', name TEXT NOT NULL DEFAULT '',

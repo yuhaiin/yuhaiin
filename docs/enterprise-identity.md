@@ -14,7 +14,7 @@ must not be used as an enterprise authorization boundary.
 Core networking still depends only on `pkg/net/proxyauth` identity capabilities.
 It does not import the optional management authentication implementation.
 Native Android does not open an identity database. The SQLite management store
-migrates from schema 5 to schema 6 atomically, adding `traffic_groups` and
+migrates from schema 7 to schema 8 atomically, adding `traffic_groups` and
 `traffic_group_members`, indexes and membership integrity triggers. Existing
 users, credential verifiers, roles, sessions and configuration are preserved.
 The configuration database is unchanged; audit JSON accepts the optional

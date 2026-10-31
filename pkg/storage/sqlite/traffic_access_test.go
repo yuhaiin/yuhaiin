@@ -14,7 +14,7 @@ func TestTrafficAccessMigrationRollsBackAndRestarts(t *testing.T) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, m := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration} {
+		for _, m := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration, trafficGroupsMigration} {
 			if err := applyMigration(ctx, db, m); err != nil {
 				return err
 			}
@@ -29,7 +29,7 @@ func TestTrafficAccessMigrationRollsBackAndRestarts(t *testing.T) {
 	if err := applyMigration(t.Context(), old.DB(), broken); err == nil {
 		t.Fatal("interrupted migration succeeded")
 	}
-	if schemaObjectExists(t, old.DB(), "traffic_access_config") || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != 6 {
+	if schemaObjectExists(t, old.DB(), "traffic_access_config") || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != int64(trafficGroupsMigration.Version) {
 		t.Fatal("partial authorization migration committed")
 	}
 	if err := old.Close(); err != nil {

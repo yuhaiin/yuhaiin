@@ -18,6 +18,7 @@ import (
 )
 
 type Rules struct {
+	ready    atomic.Bool
 	rules    RouteRuleBook
 	settings RouteSettingsBook
 	route    *Route
@@ -78,6 +79,8 @@ func (r *Rules) applyStored(ctx context.Context) (err error) {
 		message := ""
 		if err != nil {
 			message = err.Error()
+		} else {
+			r.ready.Store(true)
 		}
 		r.applyError.Store(new(message))
 	}()
@@ -134,6 +137,10 @@ func (r *Rules) applyStored(ctx context.Context) (err error) {
 	}
 	return nil
 }
+
+// HasActiveSnapshot stays true after a failed edit that retained the last good
+// routing snapshot, but is false when initial activation never succeeded.
+func (r *Rules) HasActiveSnapshot() bool { return r != nil && r.ready.Load() && !r.closed.Load() }
 
 func (r *Rules) ScheduleApply() {
 	if r == nil || r.closed.Load() {

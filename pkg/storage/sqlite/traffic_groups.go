@@ -1,6 +1,6 @@
 package sqlite
 
-var trafficGroupsMigration = Migration{Version: 6, Name: "traffic_groups", Statements: []string{
+var trafficGroupsMigration = Migration{Version: 8, Name: "traffic_groups", Statements: []string{
 	`CREATE TABLE traffic_groups (
 		id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE,
 		description TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,

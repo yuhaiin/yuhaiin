@@ -1,0 +1,16 @@
+go version go1.27.3-X:nodwarf5 linux/amd64
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/app
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkRecoveryImportStaging/1MiB-12         	     252	   1432341 ns/op	 732.07 MB/s	   49609 B/op	     305 allocs/op
+BenchmarkRecoveryImportStaging/1MiB-12         	     247	   1439779 ns/op	 728.29 MB/s	   49613 B/op	     305 allocs/op
+BenchmarkRecoveryImportStaging/1MiB-12         	     252	   1421542 ns/op	 737.63 MB/s	   49499 B/op	     305 allocs/op
+BenchmarkRecoveryImportStaging/16MiB-12        	      20	  16723543 ns/op	1003.21 MB/s	   51836 B/op	     308 allocs/op
+BenchmarkRecoveryImportStaging/16MiB-12        	      20	  16917670 ns/op	 991.70 MB/s	   51774 B/op	     308 allocs/op
+BenchmarkRecoveryImportStaging/16MiB-12        	      20	  16825342 ns/op	 997.14 MB/s	   52519 B/op	     308 allocs/op
+BenchmarkRecoveryImportStaging/64MiB-12        	       5	  66297140 ns/op	1012.24 MB/s	   56395 B/op	     314 allocs/op
+BenchmarkRecoveryImportStaging/64MiB-12        	       5	  66326675 ns/op	1011.79 MB/s	   56331 B/op	     314 allocs/op
+BenchmarkRecoveryImportStaging/64MiB-12        	       5	  65987966 ns/op	1016.99 MB/s	   59312 B/op	     317 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/app	3.738s

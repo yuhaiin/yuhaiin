@@ -101,3 +101,19 @@ func (a *App) CheckHealth() (string, error) {
 	data, err := json.Marshal(health)
 	return string(data), err
 }
+
+// SetMonitoringNetworkState lets the Android host suspend optional probes on
+// background/metered/offline transitions and reschedule them on network change.
+// Periodic monitoring still requires its separately saved opt-in settings.
+func (a *App) SetMonitoringNetworkState(online, metered, foreground bool) error {
+	a.mu.Lock()
+	instance := a.instance
+	a.mu.Unlock()
+	if instance == nil || instance.NodeRuntime == nil {
+		return errors.New("yuhaiin is not running")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := instance.NodeRuntime.SetMonitoringNetworkState(ctx, contractnode.MonitoringNetworkState{Online: online, Metered: metered, Foreground: foreground})
+	return err
+}

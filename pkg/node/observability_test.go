@@ -3,13 +3,16 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"syscall"
 	"testing"
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/apernet/quic-go"
 )
 
@@ -314,5 +317,56 @@ func TestObservedNodeUnsupportedHalfClose(t *testing.T) {
 	}
 	if err := conn.CloseRead(); !errors.Is(err, errors.ErrUnsupported) {
 		t.Fatalf("unsupported CloseRead: %v", err)
+	}
+}
+
+func TestNeutralOutcomesPreserveGenericAndChannelHealth(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"cancelled", context.Canceled}, {"closed", net.ErrClosed}, {"eof", io.EOF},
+		{"quota", trafficcontrol.ErrLocalLimit},
+		{"quota_timeout", errors.Join(trafficcontrol.ErrLocalLimit, context.DeadlineExceeded)},
+		{"policy", &net.OpError{Op: "block", Err: errors.New("policy denied")}},
+		{"nested_policy", &net.OpError{Op: "dial", Err: &net.OpError{Op: "block", Err: errors.New("policy denied")}}},
+		{"background_reuse", netapi.ErrBackgroundProbeUnavailable}, {"reconfigured", errNodeReconfigured},
+		{"quic_stream", &quic.StreamError{ErrorCode: 0}}, {"quic_application", &quic.ApplicationError{ErrorCode: 0}},
+		{"quic_transport", &quic.TransportError{ErrorCode: quic.NoError}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := fmt.Errorf("outbound operation: %w", tc.err)
+			c := new(nodeCounters)
+			c.success()
+			before := c.snapshot()
+			proxy := &observedProxy{Proxy: observedTestProxy{connect: func() (net.Conn, error) { return nil, err }, packet: func() (net.PacketConn, error) { return nil, err }}, c: c}
+			if _, got := proxy.Conn(t.Context(), nil); !errors.Is(got, tc.err) {
+				t.Fatal("dial error swallowed", got)
+			}
+			if _, got := proxy.PacketConn(t.Context(), nil); !errors.Is(got, tc.err) {
+				t.Fatal("packet error swallowed", got)
+			}
+			c.ioError(err)
+			c.constructionFailure(err)
+			after := c.snapshot()
+			if after.Failures != before.Failures || after.LastFailureAt != before.LastFailureAt || after.LastError != before.LastError || c.status("a").State != "healthy" {
+				t.Fatal("neutral outcome degraded generic state", after)
+			}
+			if len(after.TCPHealth.Samples) != 0 || len(after.UDPHealth.Samples) != 0 {
+				t.Fatal("neutral outcome entered circuit evidence", after)
+			}
+		})
+	}
+}
+func TestRealDialFailureStillUpdatesGenericAndChannelHealth(t *testing.T) {
+	c := new(nodeCounters)
+	err := &net.OpError{Op: "dial", Err: syscall.ECONNREFUSED}
+	proxy := &observedProxy{Proxy: observedTestProxy{connect: func() (net.Conn, error) { return nil, err }}, c: c}
+	if _, got := proxy.Conn(t.Context(), nil); !errors.Is(got, syscall.ECONNREFUSED) {
+		t.Fatal(got)
+	}
+	value := c.snapshot()
+	if value.Failures != 1 || value.LastFailureAt == 0 || c.status("a").State != "degraded" || len(value.TCPHealth.Samples) != 1 || value.TCPHealth.Samples[0].OK {
+		t.Fatal("real network failure ignored", value)
 	}
 }

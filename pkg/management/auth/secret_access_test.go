@@ -221,6 +221,7 @@ func TestSensitiveOperationsProtectRPCAndFriendlyAliases(t *testing.T) {
 	}{
 		{"POST /api/v2/rpc/backup.run", BackupManage}, {"POST /api/v2/backup/run", BackupManage},
 		{"POST /api/v2/rpc/backup.restore", BackupManage}, {"POST /api/v2/backup/restore", BackupManage},
+		{"POST /api/v2/rpc/backup.recovery.import.activate", BackupManage}, {"POST /api/v2/backup/recovery/imports/{id}/activate", BackupManage},
 		{"POST /api/v2/rpc/tools.logs", Diagnostics}, {"GET /api/v2/tools/logs", Diagnostics}, {"GET /api/v2/tools/logs/v2", Diagnostics},
 		{"POST /api/v2/rpc/gateway.ca.import", GatewayWrite}, {"POST /api/v2/gateway/ca/import", GatewayWrite},
 		{"POST /api/v2/rpc/gateway.ca.generate", GatewayWrite}, {"POST /api/v2/gateway/ca/generate", GatewayWrite},
@@ -256,7 +257,7 @@ func TestSecretSideEffectsRequireDurableAuthorizationAudit(t *testing.T) {
 	if _, err := s.db.ExecContext(t.Context(), `CREATE TRIGGER fail_secret_side_effect_audit BEFORE INSERT ON management_security_events BEGIN SELECT RAISE(ABORT,'audit unavailable');END`); err != nil {
 		t.Fatal(err)
 	}
-	for _, pattern := range []string{"POST /api/v2/gateway/ca/generate", "POST /api/v2/rpc/gateway.ca.import", "POST /api/v2/backup/restore"} {
+	for _, pattern := range []string{"POST /api/v2/gateway/ca/generate", "POST /api/v2/rpc/gateway.ca.import", "POST /api/v2/backup/restore", "POST /api/v2/rpc/backup.recovery.import.activate", "POST /api/v2/backup/recovery/imports/{id}/activate"} {
 		t.Run(pattern, func(t *testing.T) {
 			mux := http.NewServeMux()
 			called := false

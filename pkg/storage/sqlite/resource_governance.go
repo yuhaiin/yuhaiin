@@ -2,7 +2,7 @@ package sqlite
 
 // Identity resource policy and quota credits share the private management DB.
 // Ordinary configuration restore must not roll back authoritative byte usage.
-var resourceGovernanceMigration = Migration{Version: 8, Name: "resource_governance", Statements: []string{
+var resourceGovernanceMigration = Migration{Version: 10, Name: "resource_governance", Statements: []string{
 	`CREATE TABLE resource_config(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, data TEXT NOT NULL CHECK(json_valid(data)))`,
 	`CREATE TABLE resource_groups(group_id TEXT PRIMARY KEY REFERENCES traffic_groups(id)) WITHOUT ROWID`,
 	`CREATE TRIGGER resource_group_delete BEFORE UPDATE OF deleted ON traffic_groups

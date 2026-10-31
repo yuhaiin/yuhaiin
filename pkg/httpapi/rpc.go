@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"net/http"
@@ -14,6 +15,9 @@ type rpcHandler[Request, Response any] func(context.Context, *Request) (*Respons
 
 func addRPCRoute[Request, Response any](handlers *v2Handlers, endpoint v2Endpoint, handler rpcHandler[Request, Response]) {
 	handlers.add(endpoint, func(w http.ResponseWriter, r *http.Request) error {
+		if limit := v2RPCBodyLimits[endpoint]; limit > 0 {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+		}
 		var request Request
 		if err := readJSONBody(r, &request); err != nil {
 			return writeError(w, http.StatusBadRequest, "bad_request", err.Error())
@@ -49,6 +53,9 @@ func badRequest(err error) error {
 	}
 	if errors.Is(err, secret.ErrPreserved) {
 		return &rpcError{status: http.StatusConflict, code: "secret_reference_conflict", message: err.Error()}
+	}
+	if errors.Is(err, contractbackup.ErrBusy) {
+		return &rpcError{status: http.StatusConflict, code: "backup_busy", message: err.Error()}
 	}
 	if errors.Is(err, plainstore.ErrConflict) {
 		return &rpcError{status: http.StatusConflict, code: "conflict", message: err.Error()}

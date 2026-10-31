@@ -94,10 +94,19 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 		_ = proxy.Close()
 		return nil, err
 	}
-	return &Runtime{Audit: audit, Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
+	upstream := &UpstreamCredentials{store: store}
+	if _, err := upstream.snapshot(ctx); err != nil {
+		_ = audit.Close()
+		_ = resources.Close()
+		_ = access.Controller.Close()
+		_ = proxy.Close()
+		return nil, err
+	}
+	return &Runtime{Audit: audit, Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: upstream, db: db}, nil
 }
 
 func (r *Runtime) Close() error {
+	r.Upstream.close()
 	var resourceErr, auditErr error
 	if r.Audit != nil {
 		auditErr = r.Audit.Close()

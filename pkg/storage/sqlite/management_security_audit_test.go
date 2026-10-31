@@ -14,7 +14,7 @@ func TestSecurityAuditMigrationInterruptionRetainsIdentitiesAndHistory(t *testin
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration, managementOIDCMigration} {
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration, managementOIDCMigration} {
 			if err := applyMigration(ctx, db, migration); err != nil {
 				return err
 			}

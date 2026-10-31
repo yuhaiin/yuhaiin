@@ -3,7 +3,11 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
@@ -12,6 +16,77 @@ import (
 type UpstreamCredentials struct {
 	store   *Store
 	Changed func(string)
+	cacheMu sync.Mutex
+	epoch   atomic.Uint64
+	cache   atomic.Pointer[upstreamSnapshot]
+	closed  atomic.Bool
+}
+
+type upstreamSecret struct {
+	value    credential.Value
+	revision int64
+}
+type upstreamSnapshot struct {
+	epoch  uint64
+	values map[string]upstreamSecret
+}
+
+// Immutable snapshots keep credential resolution out of SQLite on new outbound
+// connections. Mutations invalidate before notifying the node runtime. The epoch
+// prevents a concurrent old read from publishing a valid-looking stale snapshot.
+func (u *UpstreamCredentials) snapshot(ctx context.Context) (*upstreamSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if u.closed.Load() {
+		return nil, sql.ErrConnDone
+	}
+	if s := u.cache.Load(); s != nil && s.epoch == u.epoch.Load() {
+		return s, nil
+	}
+	u.cacheMu.Lock()
+	defer u.cacheMu.Unlock()
+	for {
+		if u.closed.Load() {
+			return nil, sql.ErrConnDone
+		}
+		epoch := u.epoch.Load()
+		if s := u.cache.Load(); s != nil && s.epoch == epoch {
+			return s, nil
+		}
+		rows, err := u.store.db.QueryContext(ctx, `SELECT id,type,username,password,revision FROM upstream_credentials`)
+		if err != nil {
+			return nil, err
+		}
+		s := &upstreamSnapshot{epoch: epoch, values: make(map[string]upstreamSecret)}
+		for rows.Next() {
+			var id string
+			var secret upstreamSecret
+			if err = rows.Scan(&id, &secret.value.Type, &secret.value.Username, &secret.value.Password, &secret.revision); err != nil {
+				break
+			}
+			s.values[id] = secret
+		}
+		err = errors.Join(err, rows.Err(), rows.Close())
+		if err != nil {
+			return nil, err
+		}
+		if u.closed.Load() {
+			return nil, sql.ErrConnDone
+		}
+		if epoch != u.epoch.Load() {
+			continue
+		}
+		u.cache.Store(s)
+		return s, nil
+	}
+}
+
+func (u *UpstreamCredentials) close() {
+	u.closed.Store(true)
+	u.cacheMu.Lock()
+	u.cache.Store(nil)
+	u.cacheMu.Unlock()
 }
 
 type UpstreamCredentialRequest struct {
@@ -36,10 +111,18 @@ func (u *UpstreamCredentials) List(ctx context.Context) ([]credential.Metadata, 
 	return out, rows.Err()
 }
 func (u *UpstreamCredentials) Lookup(ctx context.Context, id string) (credential.Value, int64, error) {
-	var v credential.Value
-	var revision int64
-	err := u.store.db.QueryRowContext(ctx, `SELECT type,username,password,revision FROM upstream_credentials WHERE id=?`, id).Scan(&v.Type, &v.Username, &v.Password, &revision)
-	return v, revision, err
+	if err := ctx.Err(); err != nil {
+		return credential.Value{}, 0, err
+	}
+	s := u.cache.Load()
+	if u.closed.Load() || s == nil || s.epoch != u.epoch.Load() {
+		return credential.Value{}, 0, sql.ErrConnDone
+	}
+	v, ok := s.values[id]
+	if !ok {
+		return credential.Value{}, 0, sql.ErrNoRows
+	}
+	return v.value, v.revision, nil
 }
 func (u *UpstreamCredentials) Save(ctx context.Context, actor Principal, id string, r UpstreamCredentialRequest) (credential.Metadata, error) {
 	if !actor.Allows(UpstreamCredentialsManage) {
@@ -80,10 +163,14 @@ func (u *UpstreamCredentials) Save(ctx context.Context, actor Principal, id stri
 	if err = tx.Commit(); err != nil {
 		return credential.Metadata{}, err
 	}
+	u.epoch.Add(1)
+	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	_, refreshErr := u.snapshot(refreshCtx)
+	cancel()
 	if u.Changed != nil {
 		u.Changed(id)
 	}
-	return credential.Metadata{ID: id, Name: r.Name, Type: r.Type, Revision: revision}, nil
+	return credential.Metadata{ID: id, Name: r.Name, Type: r.Type, Revision: revision}, refreshErr
 }
 func (u *UpstreamCredentials) Delete(ctx context.Context, actor Principal, id string) error {
 	if !actor.Allows(UpstreamCredentialsManage) {
@@ -107,8 +194,12 @@ func (u *UpstreamCredentials) Delete(ctx context.Context, actor Principal, id st
 	if err = tx.Commit(); err != nil {
 		return err
 	}
+	u.epoch.Add(1)
+	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	_, refreshErr := u.snapshot(refreshCtx)
+	cancel()
 	if u.Changed != nil {
 		u.Changed(id)
 	}
-	return nil
+	return refreshErr
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func TestConfigurationChangeMigrationsAreAtomicAndRestartable(t *testing.T) {
-	management := []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration, managementOIDCMigration, managementSecurityAuditMigration}
+	management := []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration, managementOIDCMigration, managementSecurityAuditMigration}
 	for _, test := range []struct {
 		name   string
 		prior  []Migration

@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/app
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkFullRecoveryRestoreExternalRecipient/1MiB-12         	      42	   8822501 ns/op	 118.85 MB/s	 1974773 B/op	    2183 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/1MiB-12         	      42	   8654094 ns/op	 121.17 MB/s	 1971562 B/op	    2172 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/1MiB-12         	      42	   8765391 ns/op	 119.63 MB/s	 1973407 B/op	    2177 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/16MiB-12        	      10	  32668431 ns/op	 513.56 MB/s	17716820 B/op	    2443 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/16MiB-12        	      10	  32946544 ns/op	 509.23 MB/s	17719324 B/op	    2451 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/16MiB-12        	      10	  32608646 ns/op	 514.50 MB/s	17718177 B/op	    2448 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/64MiB-12        	       3	 108069527 ns/op	 620.98 MB/s	68051080 B/op	    3218 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/64MiB-12        	       3	 108910149 ns/op	 616.19 MB/s	68051426 B/op	    3217 allocs/op
+BenchmarkFullRecoveryRestoreExternalRecipient/64MiB-12        	       3	 108555544 ns/op	 618.20 MB/s	68051957 B/op	    3225 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/app	4.319s

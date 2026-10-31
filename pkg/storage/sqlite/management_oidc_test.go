@@ -14,7 +14,7 @@ func TestOIDCMigrationPreservesLegacyBindingsAndRollsBackOnInterruption(t *testi
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration} {
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration, managementRolesMigration} {
 			if err := applyMigration(ctx, db, migration); err != nil {
 				return err
 			}
@@ -38,7 +38,7 @@ func TestOIDCMigrationPreservesLegacyBindingsAndRollsBackOnInterruption(t *testi
 	if err := applyMigration(t.Context(), old.DB(), broken); err == nil {
 		t.Fatal("broken migration committed")
 	}
-	if queryInt(t, old.DB(), `SELECT count(*) FROM management_oauth_links WHERE subject='legacy-subject'`) != 1 || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != 9 {
+	if queryInt(t, old.DB(), `SELECT count(*) FROM management_oauth_links WHERE subject='legacy-subject'`) != 1 || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != int64(managementRolesMigration.Version) {
 		t.Fatal("interrupted migration lost legacy state")
 	}
 	if _, err := old.DB().ExecContext(t.Context(), `SELECT issuer FROM management_oauth_providers`); err == nil {

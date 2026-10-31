@@ -14,7 +14,7 @@ func TestCustomRoleMigrationInterruptedAndRestarted(t *testing.T) {
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, m := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration} {
+		for _, m := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration, trafficGroupsMigration, trafficAccessMigration, resourceGovernanceMigration} {
 			if err := applyMigration(ctx, db, m); err != nil {
 				return err
 			}
@@ -29,7 +29,7 @@ func TestCustomRoleMigrationInterruptedAndRestarted(t *testing.T) {
 	if err := applyMigration(t.Context(), old.DB(), broken); err == nil {
 		t.Fatal("interrupted role migration committed")
 	}
-	if schemaObjectExists(t, old.DB(), "management_roles") || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != 8 {
+	if schemaObjectExists(t, old.DB(), "management_roles") || queryInt(t, old.DB(), `SELECT count(*) FROM migrate`) != int64(resourceGovernanceMigration.Version) {
 		t.Fatal("partial role schema survived")
 	}
 	if err := old.Close(); err != nil {

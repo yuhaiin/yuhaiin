@@ -52,6 +52,7 @@ administrator registration. Protect access to startup output until setup closes.
 Manual local bootstrap remains available as an optional alternative:
 
 ```sh
+# Stop the server using this data directory before the local command.
 yuhaiin auth bootstrap -path /your/data-directory -login admin
 ```
 
@@ -83,9 +84,30 @@ password through the new contract, even when reusing the previous login name.
 Basic headers and the old `?token=` credential transport are rejected. There is
 no automatic conversion and no unauthenticated migration HTTP endpoint.
 
+The exported Go `app.Auth`/`HandleFunc` compatibility API remains available to
+embedded callers. It is separate from account login and creates no database.
+`NewAuth` now generates a random 16-byte salt and a 32-byte PBKDF2-HMAC-SHA256
+verifier with 600,000 iterations. Always construct it with `NewAuth`: the public
+digest fields alone, including historical unsalted SHA-256 values, cannot
+reconstruct an authorized verifier. The object is process-local, not a persisted
+credential format. Existing correctly authenticated Basic requests and CORS
+preflights keep their behavior. There are at most two concurrent verifications
+per object; canceled HTTP requests stop waiting for admission. An already
+running derivation finishes before observing cancellation, without an additional
+worker goroutine. The standalone server still rejects Basic login.
+
+On a Ryzen 5 5600G, `BenchmarkLegacyBasicAuth` measured 188.6–188.8 ns per
+verification before versus 88.1–88.3 ms after, and 0 versus 796 allocated bytes
+(0 versus 11 allocations, two runs each). This intentionally increases the cost
+of password guessing. It affects the optional embedded Basic API, not forwarding
+or account-session verification. Reproduce with `go test ./pkg/app -run '^$'
+-bench '^BenchmarkLegacyBasicAuth$' -benchmem -benchtime=1s -count=2`; retained
+results are in [the benchmark fixture directory](benchmarks/data/legacy-basic-auth-2026-10-30/).
+
 Lost/expired enrollment or lost-password recovery requires local execution:
 
 ```sh
+# Stop the server first; restart it after local credential recovery.
 yuhaiin auth recover -path /your/data-directory -id USER_UUID
 ```
 
@@ -190,6 +212,33 @@ with one unambiguous header value. Remote clients cannot bypass the HTTPS
 requirement with forwarded headers. Native local-only management still does not
 provide remote anonymous access. Separate frontend origins keep their existing
 trusted-Origin configuration. Proxy headers do not change recorded peer IPs.
+
+## Passkey sign-in (WebAuthn)
+
+Passkeys are an optional additional sign-in method for already-enrolled users.
+Sign in by password or OAuth, then choose **Add Passkey** under Account & security.
+Each user may have up to 20 named Passkeys. Registration requires a live browser
+session, user verification and a discoverable credential. The login screen offers
+a username-free Passkey button. Successful authentication issues the same
+eight-hour, revocable HttpOnly session cookie as password and OAuth.
+
+The RP ID is the hostname of the *Web UI origin*, not the controller API host.
+Only exact trusted browser origins are accepted. Stable HTTPS DNS hostnames and
+`http://localhost` (any port) are supported. IP literal origins such as
+`127.0.0.1`, remote plaintext HTTP, and non-DNS hosts are not eligible.
+Use `http://localhost:50051` instead of `http://127.0.0.1:50051` for local
+Passkeys. A separately deployed UI must be configured as a trusted controller
+Origin. Because credentials are scoped by RP ID, using the UI at
+`https://vpn.example.com` and `http://localhost` generally requires registering
+a separate Passkey at each. Ports do not affect the RP ID, but protocol and
+port remain bound to the ceremony Origin.
+
+Challenges are stored only in bounded, short-lived (five-minute), single-use
+server memory. Registration binds to the original authenticated session.
+Completion checks the current user, generation and session; login revalidates
+credential existence and current account status transactionally. Password reset
+and local recovery remove all registered Passkeys. Deletion of a Passkey does
+not invalidate unrelated sessions, but new logins with that credential fail.
 
 ## Sessions, tokens and browser behavior
 

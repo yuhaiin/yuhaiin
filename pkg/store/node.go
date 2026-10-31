@@ -45,7 +45,18 @@ func (s *NodeStore) Save(ctx context.Context, node contractnode.Node, updatedAt 
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
-	return SaveNodeContract(ctx, s.db, node, updatedAt)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := SaveNodeContract(ctx, tx, node, updatedAt); err != nil {
+		return err
+	}
+	if err := validateNodeDependencies(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []contractnode.Node, updatedAt int64) error {
@@ -121,6 +132,9 @@ func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []con
 			return err
 		}
 	}
+	if err := validateNodeDependencies(ctx, tx); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit remote node replace transaction failed: %w", err)
 	}
@@ -175,9 +189,23 @@ func (s *NodeStore) Get(ctx context.Context, id string) (contractnode.Node, erro
 	return getNodeContract(ctx, s.db, id)
 }
 
-func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
+func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) { return s.list(ctx, false) }
+
+func (s *NodeStore) list(ctx context.Context, strict bool) ([]contractnode.Node, error) {
+	var items []contractnode.Node
+	err := s.walk(ctx, strict, func(item contractnode.Node) error { items = append(items, item); return nil })
+	return items, err
+}
+
+// RangeForRecovery streams resources through the existing decoder, aborting
+// instead of silently omitting malformed persisted records.
+func (s *NodeStore) RangeForRecovery(ctx context.Context, visit func(contractnode.Node) error) error {
+	return s.walk(ctx, true, visit)
+}
+
+func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractnode.Node) error) error {
 	if s == nil || s.db == nil {
-		return nil, errors.New("node store database is nil")
+		return errors.New("node store database is nil")
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, data_json
@@ -185,27 +213,34 @@ func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) {
 		ORDER BY group_name, name, id
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("query node contracts failed: %w", err)
+		return fmt.Errorf("query node contracts failed: %w", err)
 	}
 	defer rows.Close()
 
-	var nodes []contractnode.Node
 	for rows.Next() {
 		var id, dataJSON string
 		if err := rows.Scan(&id, &dataJSON); err != nil {
-			return nil, fmt.Errorf("scan node contract failed: %w", err)
+			return fmt.Errorf("scan node contract failed: %w", err)
 		}
 		node, err := decodeNodeContract(dataJSON)
+		if strict && err == nil && node.ID != id {
+			err = errors.New("node identity differs from storage key")
+		}
 		if err != nil {
+			if strict {
+				return fmt.Errorf("stored node %s cannot be inventoried for recovery", id)
+			}
 			log.Warn("skip invalid stored node", "id", id, "err", err)
 			continue
 		}
-		nodes = append(nodes, node)
+		if err := visit(node); err != nil {
+			return err
+		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate node contracts failed: %w", err)
+		return fmt.Errorf("iterate node contracts failed: %w", err)
 	}
-	return nodes, nil
+	return nil
 }
 
 // NodeGroupSummary contains only group metadata, never full node contracts.
@@ -431,6 +466,8 @@ func (s *NodeStore) UsingIDs(ctx context.Context) ([]string, error) {
 		WHERE key IN ('selected_tcp_node_v2', 'selected_udp_node_v2')
 		UNION
 		SELECT node_id FROM outbound_selectors
+		UNION
+		SELECT json_extract(c.value, '$.nodeId') FROM outbound_selectors, json_each(policy_json, '$.candidates') c
 		UNION
 		SELECT json_extract(data_json, '$.target.id') FROM route_rules_v2 WHERE json_extract(data_json, '$.target.type') = 'node'
 		UNION

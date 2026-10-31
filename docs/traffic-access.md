@@ -11,7 +11,7 @@ separate subsequent phases. See [identity foundations](enterprise-identity.md).
 
 ## Migration and protected scope
 
-Management schema 7 adds `traffic_access_config`, an indexed group-reference
+Management schema 9 adds `traffic_access_config`, an indexed group-reference
 table and a trigger preventing deletion of referenced groups. It changes neither
 user credentials nor the configuration database. Interrupted migrations roll
 back and safely retry at restart. Invalid saved policy JSON or compilation fails

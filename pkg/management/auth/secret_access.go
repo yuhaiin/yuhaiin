@@ -44,7 +44,7 @@ func (s *Server) secretCapabilities(w http.ResponseWriter, r *http.Request, patt
 			return nil, false
 		}
 	}
-	if secretOperation(pattern, "backup.restore") && (!p.Allows(SecretsManage) || !p.Allows(SystemExecute)) {
+	if restoreSecretAccess(pattern) && (!p.Allows(SecretsManage) || !p.Allows(SystemExecute)) {
 		authError(w, http.StatusForbidden)
 		return nil, false
 	}
@@ -54,8 +54,8 @@ func (s *Server) secretCapabilities(w http.ResponseWriter, r *http.Request, patt
 	}
 	// CA material and restore operations bypass typed configuration merging.
 	// Record their durable authorization before invoking any side effect.
-	if secretOperation(pattern, "gateway.ca.import") || secretOperation(pattern, "gateway.ca.generate") || secretOperation(pattern, "backup.restore") {
-		change := secret.Change{Resource: pattern, Secrets: true, Execute: secretOperation(pattern, "backup.restore")}
+	if secretOperation(pattern, "gateway.ca.import") || secretOperation(pattern, "gateway.ca.generate") || restoreSecretAccess(pattern) {
+		change := secret.Change{Resource: pattern, Secrets: true, Execute: restoreSecretAccess(pattern)}
 		if err := s.Store.authorizeSensitiveChange(r.Context(), p, change); err != nil {
 			authError(w, http.StatusServiceUnavailable)
 			return nil, false
@@ -105,4 +105,10 @@ func (s *Store) authorizeSensitiveChange(ctx context.Context, actor Principal, c
 
 func secretOperation(pattern, endpoint string) bool {
 	return strings.HasSuffix(pattern, "/rpc/"+endpoint) || strings.HasSuffix(pattern, "/api/v2/"+strings.ReplaceAll(endpoint, ".", "/"))
+}
+
+// Both restore entry points replace executable and secret configuration. The
+// recovery API added on main must retain the existing auth restore boundary.
+func restoreSecretAccess(pattern string) bool {
+	return secretOperation(pattern, "backup.restore") || secretOperation(pattern, "backup.recovery.import.activate") || pattern == "POST /api/v2/backup/recovery/imports/{id}/activate"
 }

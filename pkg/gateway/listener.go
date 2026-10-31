@@ -149,6 +149,9 @@ func (m *Manager) stageListeners(s *snapshot) (map[string]*listenerRuntime, erro
 				http.Error(w, "source denied", http.StatusForbidden)
 				return
 			}
+			if entry.engine.config.ACMEHTTP01 && m.serveACMEHTTP01 != nil && m.serveACMEHTTP01(entry.engine.config.ID, w, r) {
+				return
+			}
 			state := netapi.ForkContext(r.Context())
 			state.SetInboundID("gateway:" + entry.engine.config.ID).SetInboundName(entry.engine.config.Name)
 			if entry.engine.policy.needsProcess && m.lookupProcess != nil {

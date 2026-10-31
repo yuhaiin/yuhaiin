@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -30,6 +32,34 @@ type BackupController interface {
 	Run(context.Context) error
 	Restore(context.Context, contractbackup.RestoreOption) error
 }
+
+type RecoveryBackupController interface {
+	RecoveryBackups(context.Context) (contractrecovery.BackupStatus, error)
+	CreateRecoveryBackup(context.Context, contractrecovery.BackupRequest) (contractrecovery.Backup, error)
+	OpenRecoveryBackup(context.Context, string) (io.ReadSeekCloser, contractrecovery.Backup, error)
+	DeleteRecoveryBackup(context.Context, string) error
+	RetryRecoveryBackup(context.Context, string) error
+	VerifyRecoveryBackup(context.Context, contractrecovery.VerifyRequest) (contractrecovery.Manifest, error)
+}
+
+type RecoveryImportController interface {
+	RecoveryImports(context.Context) ([]contractrecovery.Import, error)
+	UploadRecoveryImport(context.Context, io.ReadCloser, int64) (contractrecovery.Import, error)
+	PreviewRecoveryImport(context.Context, contractrecovery.ImportPreviewRequest) (contractrecovery.Import, error)
+	DiscardRecoveryImport(context.Context, string) error
+}
+
+type RecoveryBackupRetriever interface {
+	RetrieveRecoveryBackup(context.Context, contractrecovery.RetrieveRequest) (contractrecovery.Backup, error)
+}
+
+type RecoveryImportActivator interface {
+	ActivateRecoveryImport(context.Context, contractrecovery.ImportActivateRequest) (contractrecovery.Import, error)
+}
+
+type RecoveryRestoreReporter interface {
+	RecoveryRestoreStatus(context.Context) (contractrecovery.RestoreStatus, error)
+}
 type DiagnosticsController interface {
 	Run(context.Context, contracttools.DiagnosticRequest) (contracttools.DiagnosticReport, error)
 }
@@ -46,6 +76,10 @@ type UpdateController interface {
 	History(context.Context) (contractupdate.HistoryResult, error)
 	Rollback(context.Context, contractupdate.RollbackRequest) error
 }
+type UpdateCanceller interface {
+	Cancel(context.Context, string) error
+}
+
 type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)
 	Traffic(context.Context, string, time.Time, time.Time) (contractconnection.TrafficSeries, error)
@@ -114,7 +148,14 @@ type InboundStore interface {
 	Settings(context.Context) (plainstore.InboundSettings, error)
 	SaveSettings(context.Context, plainstore.InboundSettings) error
 }
+type SelectorController interface {
+	List(context.Context) ([]contractnode.Selector, error)
+	Save(context.Context, contractnode.Selector) (contractnode.Selector, error)
+	Delete(context.Context, string) error
+	References(context.Context, string) ([]contractroute.Reference, error)
+}
 type V2Services struct {
+	Certificates     CertificateController
 	Gateway          GatewayController
 	Settings         SettingsController
 	Inbounds         InboundStore
@@ -139,7 +180,7 @@ type V2Services struct {
 	Rules            RouteRuntimeController
 	RouteRules       *plainstore.RouteRuleStore
 	RouteEditor      *plainstore.RouteEditorStore
-	Selectors        *plainstore.SelectorStore
+	Selectors        SelectorController
 	Subscribe        SubscriptionController
 }
 type pageV2 struct {

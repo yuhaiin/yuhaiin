@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/app"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -90,6 +91,9 @@ func (a *App) Start(opt *Opts) error {
 			_ = configLock.Close()
 		}
 	}()
+	if err := recovery.GuardMaintenance(savepath); err != nil {
+		return err
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.setStartCancel(cancel)
@@ -259,27 +263,20 @@ func listenAndroidHTTP() (net.Listener, error) {
 // supplied by Android's VpnService. The plain model has a disabled desktop TUN
 // by default, while Android starts this process only after VpnService created
 // a TUN device.
-func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, driver, stack, congestionControl, outputScheduler string) error {
+func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, _ string, stack, congestionControl, outputScheduler string) error {
 	if tun == nil {
 		return errors.New("android TUN options are nil")
 	}
-	// TUN stack and congestion are orthogonal to the persisted legacy driver.
-	// The lightweight adapter supports only channel; never overwrite the user's
-	// driver preference, so switching back restores the original behavior.
-	switch stack {
-	case "":
-		// Ignore a remembered lightweight algorithm when the legacy stack is selected.
-		congestionControl = ""
-		outputScheduler = ""
-	case "lightweight":
-		driver = TunDriverChannelValue
-		if err := lightweighttun.Validate(device.TunConfig{
-			Driver: device.DriverChannel, MTU: tun.MTU, CongestionControl: congestionControl, OutputScheduler: outputScheduler,
-		}); err != nil {
-			return fmt.Errorf("invalid Android lightweight TUN configuration: %w", err)
-		}
-	default:
+	// Legacy persisted drivers now use only the lightweight packet stack.
+	if stack != "" && stack != "lightweight" {
 		return fmt.Errorf("unknown Android TUN stack %q", stack)
+	}
+	stack = "lightweight"
+	driver := TunDriverChannelValue
+	if err := lightweighttun.Validate(device.TunConfig{
+		Driver: device.DriverChannel, MTU: tun.MTU, PortalV6: tun.PortalV6, CongestionControl: congestionControl, OutputScheduler: outputScheduler,
+	}); err != nil {
+		return fmt.Errorf("invalid Android lightweight TUN configuration: %w", err)
 	}
 	db, err := state.SQLDB(ctx)
 	if err != nil {

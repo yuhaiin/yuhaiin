@@ -8,9 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
 // Optional manual bootstrap/recovery requires local execution and access to the
@@ -32,6 +34,16 @@ func authCommand(args []string) error {
 		return errors.New("invalid auth command")
 	}
 	ctx := context.Background()
+	lifecycle, err := lockfile.Acquire(filepath.Join(*dir, ".configuration.lock"))
+	if err != nil && !errors.Is(err, errors.ErrUnsupported) {
+		return err
+	}
+	if lifecycle != nil {
+		defer lifecycle.Close()
+	}
+	if err := recovery.GuardMaintenance(*dir); err != nil {
+		return err
+	}
 	db, err := storagesqlite.OpenManagement(ctx, filepath.Join(*dir, "management.db"))
 	if err != nil {
 		return err

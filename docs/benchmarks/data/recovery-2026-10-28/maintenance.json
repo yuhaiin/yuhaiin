@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-28",
+  "go": "go version go1.27.3-X:nodwarf5 linux/amd64",
+  "platform": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+  "cpu": "AMD Ryzen 5 5600G",
+  "scope": "Single warm-local-filesystem sample per size, real rootless Podman/systemd, actual configuration+management SQLite and external web asset, external age recipient. CLI GOMEMLIMIT=64MiB is soft; fresh Python parent measures only its one backend child RSS. Maintenance window includes explicit stop/reset-failed, CLI, actual HTTPS configuration readiness and restore transaction commit. Fixture generation, online preview, final content hash and server/helper peak memory are excluded. This is not packet outage sampling, cold storage, production capacity, WAN/S3 throughput or a hard memory cap. All restored payloads match SHA256; schema migration/failure/SIGKILL/offline update scenarios also pass in the final 256 MiB run.",
+  "samples": [
+    {
+      "operation": "create",
+      "assetBytes": 1048576,
+      "ciphertextBytes": 1862559,
+      "commandMs": 80,
+      "maintenanceWindowMs": 242,
+      "commandMaxRssKiB": 67472
+    },
+    {
+      "operation": "restore",
+      "assetBytes": 1048576,
+      "ciphertextBytes": 1862559,
+      "commandMs": 150,
+      "maintenanceWindowMs": 275,
+      "commandMaxRssKiB": 65524
+    },
+    {
+      "operation": "create",
+      "assetBytes": 67108864,
+      "ciphertextBytes": 67938976,
+      "commandMs": 225,
+      "maintenanceWindowMs": 339,
+      "commandMaxRssKiB": 67492
+    },
+    {
+      "operation": "restore",
+      "assetBytes": 67108864,
+      "ciphertextBytes": 67938976,
+      "commandMs": 310,
+      "maintenanceWindowMs": 439,
+      "commandMaxRssKiB": 73616
+    },
+    {
+      "operation": "create",
+      "assetBytes": 268435456,
+      "ciphertextBytes": 269314720,
+      "commandMs": 702,
+      "maintenanceWindowMs": 823,
+      "commandMaxRssKiB": 65160
+    },
+    {
+      "operation": "restore",
+      "assetBytes": 268435456,
+      "ciphertextBytes": 269314720,
+      "commandMs": 814,
+      "maintenanceWindowMs": 939,
+      "commandMaxRssKiB": 73684
+    }
+  ]
+}

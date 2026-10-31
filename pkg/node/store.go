@@ -101,3 +101,16 @@ func (p *ProxyStore) Close() error {
 
 	return nil
 }
+
+// UpdateMetadata keeps renames/group edits from tearing down an established
+// VPN client. Transport changes continue to use the explicit eviction path.
+func (p *ProxyStore) UpdateMetadata(id string, node contractnode.Node) {
+	entry, ok := p.store.Load(id)
+	if !ok {
+		return
+	}
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	entry.Name = node.Name
+	entry.ContractConfig = &node
+}

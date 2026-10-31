@@ -10,14 +10,17 @@ import (
 
 func TestSniffy(t *testing.T) {
 	conn1, conn2 := pipe.Pipe()
-	defer conn1.Close()
-	defer conn2.Close()
-
+	done := make(chan struct{})
+	defer func() {
+		_ = conn1.Close()
+		_ = conn2.Close()
+		<-done
+	}()
 	go func() {
-		err := tls.Client(conn1, &tls.Config{
+		defer close(done)
+		_ = tls.Client(conn1, &tls.Config{
 			ServerName: "test-ss",
 		}).Handshake()
-		t.Log(err)
 	}()
 
 	buf := make([]byte, 65535)

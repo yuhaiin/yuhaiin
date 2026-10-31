@@ -121,6 +121,9 @@ func TestOfficialOpenVPN(t *testing.T) {
 	for _, target := range []string{"10.88.0.1", "fd88::1"} {
 		t.Run(target, func(t *testing.T) { echoTCP(t, client, target); echoUDP(t, client, target) })
 	}
+	if status := client.NodeRuntimeStatus(); status.State != "connected" {
+		t.Fatal("authenticated tunnel not exposed", status)
+	}
 	info := client.NodeExtraInfo().OpenVPN
 	if info == nil || len(info.TunnelPrefixes) != 2 || len(info.DNS) != 1 || len(info.Routes) != 1 {
 		t.Fatalf("missing pushed config: %+v", info)

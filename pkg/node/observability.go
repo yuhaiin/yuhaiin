@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
-	"io"
 	"maps"
 	"net"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -17,7 +17,6 @@ import (
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/apernet/quic-go"
 )
 
 const nodeMetricsInterval = 5 * time.Second
@@ -25,24 +24,34 @@ const recentNodeObservation = 2 * time.Minute
 
 // nodeTotals are persisted separately from ephemeral active connection counts.
 type nodeTotals struct {
-	UploadBytes    uint64                          `json:"uploadBytes"`
-	DownloadBytes  uint64                          `json:"downloadBytes"`
-	UDPSentPackets uint64                          `json:"udpSentPackets"`
-	UDPRecvPackets uint64                          `json:"udpRecvPackets"`
-	TCPAttempts    uint64                          `json:"tcpAttempts"`
-	TCPConnections uint64                          `json:"tcpConnections"`
-	UDPAttempts    uint64                          `json:"udpAttempts"`
-	UDPSessions    uint64                          `json:"udpSessions"`
-	PingAttempts   uint64                          `json:"pingAttempts"`
-	Failures       uint64                          `json:"failures"`
-	LastSuccessAt  int64                           `json:"lastSuccessAt"`
-	LastFailureAt  int64                           `json:"lastFailureAt"`
-	LastUsedAt     int64                           `json:"lastUsedAt"`
-	LastError      string                          `json:"lastError,omitempty"`
-	Probes         map[string]contract.ProbeStatus `json:"probes,omitempty"`
+	ThroughputHistory []contract.ThroughputMeasurement `json:"throughputHistory,omitempty"`
+	TCPHealth         contract.ChannelHealth           `json:"tcpHealth"`
+	UDPHealth         contract.ChannelHealth           `json:"udpHealth"`
+	UploadThroughput  contract.ThroughputMeasurement   `json:"uploadThroughput"`
+	Throughput        contract.ThroughputMeasurement   `json:"throughput"`
+	UploadBytes       uint64                           `json:"uploadBytes"`
+	DownloadBytes     uint64                           `json:"downloadBytes"`
+	UDPSentPackets    uint64                           `json:"udpSentPackets"`
+	UDPRecvPackets    uint64                           `json:"udpRecvPackets"`
+	TCPAttempts       uint64                           `json:"tcpAttempts"`
+	TCPConnections    uint64                           `json:"tcpConnections"`
+	UDPAttempts       uint64                           `json:"udpAttempts"`
+	UDPSessions       uint64                           `json:"udpSessions"`
+	PingAttempts      uint64                           `json:"pingAttempts"`
+	Failures          uint64                           `json:"failures"`
+	LastSuccessAt     int64                            `json:"lastSuccessAt"`
+	LastFailureAt     int64                            `json:"lastFailureAt"`
+	LastUsedAt        int64                            `json:"lastUsedAt"`
+	LastError         string                           `json:"lastError,omitempty"`
+	Probes            map[string]contract.ProbeStatus  `json:"probes,omitempty"`
 }
 
 type nodeCounters struct {
+	generation                                           atomic.Uint64
+	circuitListeners                                     atomic.Pointer[nodeCircuitListeners]
+	throughputHistory                                    []contract.ThroughputMeasurement
+	tcpHealth, udpHealth                                 contract.ChannelHealth
+	throughput, uploadThroughput                         contract.ThroughputMeasurement
 	upload, download, udpSent, udpReceived               atomic.Uint64
 	tcpAttempts, tcpConnected, udpAttempts, udpConnected atomic.Uint64
 	pingAttempts, failures                               atomic.Uint64
@@ -52,6 +61,10 @@ type nodeCounters struct {
 	mu                                                   sync.Mutex
 	lastError                                            string
 	probes                                               map[string]contract.ProbeStatus
+	trafficWindow                                        nodeTrafficWindow
+	window                                               atomic.Pointer[contract.TrafficWindow]
+	selectionHealth                                      *selectionHealthSnapshot
+	tcpProbeFailedAt                                     int64
 }
 
 func (n *nodeCounters) snapshot() nodeTotals {
@@ -73,6 +86,9 @@ func (n *nodeCounters) snapshot() nodeTotals {
 func (v *nodeTotals) lastErrorAndProbes(n *nodeCounters) {
 	v.LastError = n.lastError
 	v.Probes = maps.Clone(n.probes)
+	v.TCPHealth, v.UDPHealth = cloneHealth(n.tcpHealth), cloneHealth(n.udpHealth)
+	v.Throughput, v.UploadThroughput = n.throughput, n.uploadThroughput
+	v.ThroughputHistory = slices.Clone(n.throughputHistory)
 }
 
 func (n *nodeCounters) restore(v nodeTotals) {
@@ -90,8 +106,12 @@ func (n *nodeCounters) restore(v nodeTotals) {
 	n.lastFailure.Store(v.LastFailureAt)
 	n.lastUsed.Store(v.LastUsedAt)
 	n.mu.Lock()
+	n.selectionHealth = nil
 	n.lastError = v.LastError
 	n.probes = maps.Clone(v.Probes)
+	n.tcpHealth, n.udpHealth = cloneHealth(v.TCPHealth), cloneHealth(v.UDPHealth)
+	n.throughput, n.uploadThroughput = v.Throughput, v.UploadThroughput
+	n.throughputHistory = slices.Clone(v.ThroughputHistory)
 	n.mu.Unlock()
 }
 
@@ -102,7 +122,7 @@ func (n *nodeCounters) success() {
 }
 
 func (n *nodeCounters) failure(err error) {
-	if err == nil {
+	if neutralHealthError(err) {
 		return
 	}
 	now := time.Now().UnixNano()
@@ -121,23 +141,23 @@ func (n *nodeCounters) failure(err error) {
 // Ignore ordinary session termination and idle deadlines. Unexpected I/O
 // failures matter for lazy-handshake proxy implementations.
 func (n *nodeCounters) ioError(err error) {
-	if err == nil || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-		errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if err == nil || errors.Is(err, context.DeadlineExceeded) || neutralHealthError(err) {
 		return
 	}
-	// Hysteria2 cancels streams with code 0 on normal shutdown. Relay already
-	// treats these as ordinary termination; they must not degrade node health.
-	if streamErr, ok := errors.AsType[*quic.StreamError](err); ok && streamErr.ErrorCode == 0 {
-		return
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
+
+	if netErr, ok := errors.AsType[net.Error](err); ok && netErr.Timeout() {
 		return
 	}
 	n.failure(err)
 }
 
 func (n *nodeCounters) probe(kind string, result contract.LatencyResponse, err error) {
+	n.recordProbe(kind, result, err, 0, false)
+}
+func (n *nodeCounters) probeAtGeneration(kind string, result contract.LatencyResponse, err error, epoch uint64) {
+	n.recordProbe(kind, result, err, epoch, true)
+}
+func (n *nodeCounters) recordProbe(kind string, result contract.LatencyResponse, err error, epoch uint64, check bool) {
 	if kind == "" {
 		kind = "tcp"
 	}
@@ -152,17 +172,22 @@ func (n *nodeCounters) probe(kind string, result contract.LatencyResponse, err e
 		result.Error = result.Error[:512]
 	}
 	n.mu.Lock()
+	if check && n.generation.Load() != epoch {
+		n.mu.Unlock()
+		return
+	}
 	if n.probes == nil {
 		n.probes = make(map[string]contract.ProbeStatus)
 	}
 	n.probes[kind] = contract.ProbeStatus{CheckedAt: time.Now().Unix(), Result: result}
-	if !result.OK {
+	remoteFailure := !result.OK && (err == nil || healthFailure(err))
+	if remoteFailure {
 		n.lastError = result.Error
 	}
 	n.mu.Unlock()
-	if !result.OK {
+	if remoteFailure {
 		n.lastFailure.Store(time.Now().UnixNano())
-	} else {
+	} else if result.OK {
 		n.success()
 	}
 }
@@ -177,6 +202,8 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 		state = "healthy"
 	}
 	return contract.RuntimeStatus{
+		TrafficWindow: n.freshTrafficWindow(now / int64(time.Millisecond)), RecentTCPDials: recentTCPDials(v.TCPHealth, now/int64(time.Millisecond)),
+		TCPHealth: v.TCPHealth, UDPHealth: v.UDPHealth, Throughput: v.Throughput, UploadThroughput: v.UploadThroughput, ThroughputHistory: v.ThroughputHistory,
 		ID: id, State: state, UploadBytes: strconv.FormatUint(v.UploadBytes, 10),
 		DownloadBytes:  strconv.FormatUint(v.DownloadBytes, 10),
 		UploadBps:      strconv.FormatUint(n.uploadBps.Load(), 10),
@@ -198,14 +225,15 @@ func (n *nodeCounters) status(id string) contract.RuntimeStatus {
 // nodeObserver serializes database flushes with deletes, but never holds this
 // lock in a packet or stream Read/Write operation.
 type nodeObserver struct {
-	db         *sql.DB
-	mu         sync.Mutex
-	nodes      map[string]*nodeCounters
-	saved      map[string]nodeTotals
-	lastRates  map[string][2]uint64
-	lastSample time.Time
-	stop       chan struct{}
-	done       chan struct{}
+	nextGeneration atomic.Uint64
+	db             *sql.DB
+	mu             sync.Mutex
+	nodes          map[string]*nodeCounters
+	saved          map[string]nodeTotals
+	lastRates      map[string][2]uint64
+	lastSample     time.Time
+	stop           chan struct{}
+	done           chan struct{}
 }
 
 func newNodeObserver(ctx context.Context, db *sql.DB) (*nodeObserver, error) {
@@ -263,6 +291,7 @@ func (o *nodeObserver) counter(id string) *nodeCounters {
 		return n
 	}
 	n := new(nodeCounters)
+	n.generation.Store(o.nextGeneration.Add(1))
 	o.nodes[id] = n
 	return n
 }
@@ -272,7 +301,7 @@ func (o *nodeObserver) status(id string) contract.RuntimeStatus {
 	n := o.nodes[id]
 	o.mu.Unlock()
 	if n == nil {
-		return contract.RuntimeStatus{ID: id, State: "unknown", UploadBytes: "0", DownloadBytes: "0", UploadBps: "0", DownloadBps: "0", UDPSentPackets: "0", UDPRecvPackets: "0", TCPAttempts: "0", TCPConnections: "0", UDPAttempts: "0", UDPSessions: "0", PingAttempts: "0", Failures: "0"}
+		return contract.RuntimeStatus{TCPHealth: contract.ChannelHealth{State: "unknown"}, UDPHealth: contract.ChannelHealth{State: "unknown"}, ID: id, State: "unknown", UploadBytes: "0", DownloadBytes: "0", UploadBps: "0", DownloadBps: "0", UDPSentPackets: "0", UDPRecvPackets: "0", TCPAttempts: "0", TCPConnections: "0", UDPAttempts: "0", UDPSessions: "0", PingAttempts: "0", Failures: "0"}
 	}
 	return n.status(id)
 }
@@ -288,7 +317,8 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 	}
 	changed := make(map[string]nodeTotals)
 	nowSample := time.Now()
-	elapsed := nowSample.Sub(o.lastSample).Seconds()
+	previousSample := o.lastSample
+	elapsed := nowSample.Sub(previousSample).Seconds()
 	if elapsed <= 0 {
 		elapsed = 1
 	}
@@ -296,6 +326,7 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 	for id, n := range o.nodes {
 		v := n.snapshot()
 		last := o.lastRates[id]
+		n.sampleTraffic(previousSample, nowSample, last, v)
 		if v.UploadBytes >= last[0] {
 			n.uploadBps.Store(uint64(float64(v.UploadBytes-last[0]) / elapsed))
 		}
@@ -375,6 +406,7 @@ func (o *nodeObserver) close() error {
 // A nested Set records both logical use and underlying hop use. These are
 // separate per-node views and must never be summed into global traffic.
 type observedProxy struct {
+	epoch uint64
 	netapi.Proxy
 	c *nodeCounters
 }
@@ -388,34 +420,49 @@ func (p *observedProxy) IPVersion() contract.IPVersion {
 }
 
 func (p *observedProxy) Conn(ctx context.Context, a netapi.Address) (net.Conn, error) {
+	return p.conn(ctx, a, false)
+}
+func (p *observedProxy) conn(ctx context.Context, a netapi.Address, healthProbe bool) (net.Conn, error) {
 	p.c.tcpAttempts.Add(1)
 	p.c.lastUsed.Store(time.Now().UnixNano())
+	start := time.Now()
 	conn, err := p.Proxy.Conn(ctx, a)
 	if err != nil {
 		p.c.failure(err)
+		if !healthProbe {
+			p.recordEvidence(true, contract.HealthSample{At: time.Now().UnixMilli(), Kind: "connect", OK: false}, err)
+		}
 		return nil, err
+	}
+	if !healthProbe {
+		p.recordEvidence(true, contract.HealthSample{At: time.Now().UnixMilli(), Kind: "connect", OK: true, RTTMS: float64(time.Since(start)) / float64(time.Millisecond)}, nil)
 	}
 	p.c.tcpConnected.Add(1)
 	p.c.activeTCP.Add(1)
 	p.c.success()
-	w := &observedConn{Conn: conn, c: p.c}
+	w := &observedConn{Conn: conn, c: p.c, epoch: p.epoch, healthProbe: healthProbe}
 	if b, ok := conn.(netapi.BufferReader); ok {
 		return &observedBufferedConn{observedConn: w, reader: b}, nil
 	}
 	return w, nil
 }
 func (p *observedProxy) PacketConn(ctx context.Context, a netapi.Address) (net.PacketConn, error) {
+	return p.packetConn(ctx, a, false)
+}
+func (p *observedProxy) packetConn(ctx context.Context, a netapi.Address, healthProbe bool) (net.PacketConn, error) {
 	p.c.udpAttempts.Add(1)
 	p.c.lastUsed.Store(time.Now().UnixNano())
 	conn, err := p.Proxy.PacketConn(ctx, a)
 	if err != nil {
 		p.c.failure(err)
+		if !healthProbe {
+			p.recordEvidence(false, contract.HealthSample{Kind: "session", OK: false}, err)
+		}
 		return nil, err
 	}
 	p.c.udpConnected.Add(1)
 	p.c.activeUDP.Add(1)
-	p.c.success()
-	return &observedPacketConn{PacketConn: conn, c: p.c}, nil
+	return &observedPacketConn{PacketConn: conn, c: p.c, epoch: p.epoch, healthProbe: healthProbe}, nil
 }
 func (p *observedProxy) Ping(ctx context.Context, a netapi.Address) (uint64, error) {
 	p.c.pingAttempts.Add(1)
@@ -429,17 +476,23 @@ func (p *observedProxy) Ping(ctx context.Context, a netapi.Address) (uint64, err
 }
 
 type observedConn struct {
+	epoch uint64
 	net.Conn
-	c    *nodeCounters
-	once sync.Once
+	c                *nodeCounters
+	once             sync.Once
+	failureEvidence  sync.Once
+	responseEvidence sync.Once
+	healthProbe      bool
 }
 
 func (c *observedConn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	if n > 0 {
 		c.c.download.Add(uint64(n))
+		c.responseEvidence.Do(func() { c.recordEvidence(true, contract.HealthSample{Kind: "response", OK: true}, nil) })
 	}
 	c.c.ioError(err)
+	c.recordIO(err)
 	return n, err
 }
 func (c *observedConn) Write(b []byte) (int, error) {
@@ -448,6 +501,7 @@ func (c *observedConn) Write(b []byte) (int, error) {
 		c.c.upload.Add(uint64(n))
 	}
 	c.c.ioError(err)
+	c.recordIO(err)
 	return n, err
 }
 func (c *observedConn) Close() error {
@@ -483,32 +537,71 @@ func (c *observedBufferedConn) ReadWithBuffer(f func() []byte) ([]byte, error) {
 		c.c.download.Add(uint64(len(b)))
 	}
 	c.c.ioError(err)
+	c.recordIO(err)
+	if len(b) > 0 {
+		c.responseEvidence.Do(func() { c.recordEvidence(true, contract.HealthSample{Kind: "response", OK: true}, nil) })
+	}
 	return b, err
 }
 
 type observedPacketConn struct {
+	epoch           uint64
+	failureEvidence sync.Once
+	evidence        sync.Once
 	net.PacketConn
-	c    *nodeCounters
-	once sync.Once
+	c           *nodeCounters
+	once        sync.Once
+	healthProbe bool
 }
 
 func (c *observedPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, a, err := c.PacketConn.ReadFrom(b)
-	if n > 0 {
+	if n > 0 || (err == nil && a != nil) {
 		c.c.download.Add(uint64(n))
 		c.c.udpReceived.Add(1)
+		c.evidence.Do(func() {
+			c.recordEvidence(false, contract.HealthSample{At: time.Now().UnixMilli(), Kind: "reply", OK: true}, nil)
+		})
 	}
 	c.c.ioError(err)
+	if circuitIOFailure(err) {
+		c.failureEvidence.Do(func() { c.recordEvidence(false, contract.HealthSample{Kind: "io", OK: false}, err) })
+	}
 	return n, a, err
 }
 func (c *observedPacketConn) WriteTo(b []byte, a net.Addr) (int, error) {
 	n, err := c.PacketConn.WriteTo(b, a)
-	if n > 0 {
+	if n > 0 || err == nil {
 		c.c.upload.Add(uint64(n))
 		c.c.udpSent.Add(1)
 	}
-	c.c.ioError(err)
+	if err != nil {
+		c.recordWriteError(err)
+	}
 	return n, err
+}
+func (c *observedPacketConn) WriteToContext(ctx context.Context, b []byte, a net.Addr) (int, error) {
+	var n int
+	var err error
+	if writer, ok := c.PacketConn.(netapi.ContextPacketWriter); ok {
+		n, err = writer.WriteToContext(ctx, b, a)
+	} else {
+		n, err = c.PacketConn.WriteTo(b, a)
+	}
+	if n > 0 || err == nil {
+		c.c.upload.Add(uint64(n))
+		c.c.udpSent.Add(1)
+	}
+	if err != nil {
+		c.recordWriteError(err)
+	}
+	return n, err
+}
+func (c *observedPacketConn) recordWriteError(err error) {
+	c.c.ioError(err)
+	if circuitIOFailure(err) {
+		c.failureEvidence.Do(func() { c.recordEvidence(false, contract.HealthSample{Kind: "io", OK: false}, err) })
+	}
 }
 func (c *observedPacketConn) Close() error {
 	err := c.PacketConn.Close()
@@ -519,3 +612,25 @@ func (c *observedPacketConn) Close() error {
 var _ net.Conn = (*observedConn)(nil)
 var _ net.PacketConn = (*observedPacketConn)(nil)
 var _ netapi.BufferReader = (*observedBufferedConn)(nil)
+
+func (c *observedConn) recordIO(err error) {
+	if circuitIOFailure(err) {
+		c.failureEvidence.Do(func() { c.recordEvidence(true, contract.HealthSample{Kind: "io", OK: false}, err) })
+	}
+}
+
+func (p *observedProxy) recordEvidence(tcp bool, v contract.HealthSample, err error) {
+	p.c.remoteEvidenceAtGeneration(tcp, v, err, p.epoch)
+}
+func (c *observedConn) recordEvidence(tcp bool, v contract.HealthSample, err error) {
+	if c.healthProbe {
+		return
+	}
+	c.c.remoteEvidenceAtGeneration(tcp, v, err, c.epoch)
+}
+func (c *observedPacketConn) recordEvidence(tcp bool, v contract.HealthSample, err error) {
+	if c.healthProbe {
+		return
+	}
+	c.c.remoteEvidenceAtGeneration(tcp, v, err, c.epoch)
+}

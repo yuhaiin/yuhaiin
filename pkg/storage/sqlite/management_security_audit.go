@@ -1,6 +1,6 @@
 package sqlite
 
-var managementSecurityAuditMigration = Migration{Version: 11, Name: "management_security_audit", Statements: []string{
+var managementSecurityAuditMigration = Migration{Version: 13, Name: "management_security_audit", Statements: []string{
 	`ALTER TABLE management_security_events ADD COLUMN auth_method TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE management_security_events ADD COLUMN policy_revision TEXT NOT NULL DEFAULT ''`,
 	`ALTER TABLE management_security_events ADD COLUMN reason TEXT NOT NULL DEFAULT ''`,

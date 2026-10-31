@@ -1,10 +1,13 @@
 package backup
 
+import "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+
 type Option struct {
-	InstanceName   string `json:"instanceName"`
-	S3             S3     `json:"s3"`
-	Interval       uint64 `json:"interval"`
-	LastBackupHash string `json:"lastBackupHash"`
+	InstanceName   string           `json:"instanceName"`
+	S3             S3               `json:"s3"`
+	Interval       uint64           `json:"interval"`
+	LastBackupHash string           `json:"lastBackupHash"`
+	Recovery       *recovery.Policy `json:"recovery,omitzero"`
 }
 
 type S3 struct {

@@ -1,0 +1,10 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkProbeSchedulerReplace/100-12         	   28008	     13184 ns/op	         5.000 owned-goroutines	   16425 B/op	       3 allocs/op
+BenchmarkProbeSchedulerReplace/100-12         	   24898	     13764 ns/op	         5.000 owned-goroutines	   16424 B/op	       3 allocs/op
+BenchmarkProbeSchedulerReplace/1000-12        	    2444	    139815 ns/op	         5.000 owned-goroutines	  262235 B/op	       5 allocs/op
+BenchmarkProbeSchedulerReplace/1000-12        	    2697	    135406 ns/op	         5.000 owned-goroutines	  262234 B/op	       5 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	1.427s

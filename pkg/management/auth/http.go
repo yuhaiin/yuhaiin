@@ -23,6 +23,7 @@ type Server struct {
 	Resources    *ResourcePolicies
 	Access       *AccessPolicies
 	OAuth        *OAuthService
+	Passkeys     *PasskeyService
 	Proxy        *ProxyCredentials
 	Usage        httpapi.UserUsage
 	Upstream     *UpstreamCredentials
@@ -223,6 +224,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		s.Changes = &ConfigurationChanges{server: s, identity: configchange.New(s.Store.db)}
 	}
 	s.registerConfigurationChanges(register)
+	s.registerPasskeys(mux, register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)
