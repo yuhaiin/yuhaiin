@@ -173,6 +173,9 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 	if err != nil {
 		return config, err
 	}
+	if err = authorizeUpstreamDestinations(ctx, m.current.Load().config, config); err != nil {
+		return config, err
+	}
 	config, err = reviseConfig(m.current.Load().config, config)
 	if err != nil {
 		return config, err

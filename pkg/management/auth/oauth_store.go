@@ -214,7 +214,7 @@ func (s *Store) DeleteOAuthProvider(ctx context.Context, actor, provider string)
 	if _, err := tx.ExecContext(ctx, `DELETE FROM management_oauth_links WHERE provider=?`, provider); err != nil {
 		return err
 	}
-	if err := recordEvent(ctx, tx, "oauth.provider_disabled", actor, provider); err != nil {
+	if err := recordEvent(ctx, tx, "oauth.provider_deleted", actor, provider); err != nil {
 		return err
 	}
 	if err := configchange.RecordValues(ctx, s.db, tx, "oidc-provider", provider, previous.Revision+1, previous, nil, publicOAuthProvider(previous), nil); err != nil {

@@ -24,6 +24,10 @@ to only one local account, including legacy Google identities migrated into the
 same issuer namespace. To replace such a provider binding, unlink it explicitly
 before linking another configuration for the same identity.
 
+To suspend a provider, clear its enabled setting: sign-in stops and its sessions
+are revoked, while account links remain for when it is enabled again. Deleting a
+provider also removes every account link, and restoring it cannot bring them back.
+
 Keep local passwords and the existing offline recovery procedure available.
 IdP unavailability does not replace or block those local paths. MFA is delegated
 to the IdP; SCIM, directory synchronization, refresh-token storage and back-channel

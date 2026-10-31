@@ -61,6 +61,34 @@ func WithResolvedConfiguration(ctx context.Context) context.Context {
 	return WithCapabilities(ctx, c)
 }
 
+// Holds reports whether a value contains anything Redact would mask.
+func Holds[T any](value T) bool { return holdsSecret(reflect.ValueOf(value)) }
+
+// AuthorizeChange applies Merge's secret authorization to a change only the
+// owning resource can detect, such as one that spans a reference between objects.
+func AuthorizeChange(ctx context.Context, resource string) error {
+	c, managed := FromContext(ctx)
+	if !managed {
+		return nil
+	}
+	if c.Revalidate != nil {
+		current, err := c.Revalidate(ctx)
+		if err != nil {
+			return ErrAuthorization
+		}
+		c.Manage = c.Manage && current.Manage
+	}
+	if !c.Manage {
+		return ErrManage
+	}
+	if c.BeforeChange != nil {
+		if err := c.BeforeChange(ctx, Change{Resource: resource, Secrets: true}); err != nil {
+			return ErrAudit
+		}
+	}
+	return nil
+}
+
 // FieldPolicy supports fields whose sensitivity depends on a typed discriminator,
 // such as an Authorization header matcher. Implementations return no values.
 type FieldPolicy interface{ SecretField(string) bool }

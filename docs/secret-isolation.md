@@ -40,8 +40,8 @@ before validation and before runtime publication. Removing or replacing a privat
 field requires secret management permission. So does changing where a preserved
 credential is sent while the object holds one: a node's protocol chain, a
 publication's address or TLS verification, and a Gateway action's upstream,
-outbound or rewrite destination. Upstream backend URLs are configured separately
-and are not covered by this check.
+outbound or rewrite destination. Changing the backends, outbound or TLS trust of
+an upstream also requires it while an action sends rewrite credentials there.
 
 References bind the resource type/ID, source field path and an opaque keyed
 revision of its current configuration. Reordering repeated protocol layers with
