@@ -64,6 +64,7 @@ type nodeCounters struct {
 	trafficWindow                                        nodeTrafficWindow
 	window                                               atomic.Pointer[contract.TrafficWindow]
 	selectionHealth                                      *selectionHealthSnapshot
+	tcpProbeFailedAt                                     int64
 }
 
 func (n *nodeCounters) snapshot() nodeTotals {

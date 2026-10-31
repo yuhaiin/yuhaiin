@@ -17,7 +17,35 @@ type selectionInput struct {
 	enabled            bool
 	health             contract.ChannelHealth
 	speed, uploadSpeed contract.ThroughputMeasurement
+	speedRule          throughputRule
+	uploadRule         throughputRule
 	active             int64
+}
+
+// throughputRule relaxes freshness for a periodic test: it runs far less often
+// than RTT probes, so one successful result stays valid until the next runs.
+type throughputRule struct {
+	maxAgeMS   int64
+	minSamples int
+}
+
+func periodicThroughputRule(schedule contract.SpeedSchedule, override *contract.SpeedTestRequest) throughputRule {
+	if !schedule.Enabled {
+		return throughputRule{}
+	}
+	test := schedule.Test
+	if override != nil {
+		test = *override
+	}
+	// Two intervals tolerate one skipped run, including its maximum jitter.
+	return throughputRule{maxAgeMS: 2*schedule.IntervalMS + test.Effective().TimeoutMS, minSamples: 1}
+}
+
+func (r throughputRule) apply(p contract.SelectorPolicy) contract.SelectorPolicy {
+	if r.minSamples > 0 {
+		p.MaxAgeMS, p.MinSamples = max(p.MaxAgeMS, r.maxAgeMS), r.minSamples
+	}
+	return p
 }
 
 // evaluateSelector runs only when producing a new immutable runtime snapshot.
@@ -213,8 +241,8 @@ func scoreCandidate(p contract.SelectorPolicy, in selectionInput, now time.Time)
 		c.TimeoutRate = float64(timeouts) / float64(c.HealthSamples)
 	}
 	speed, upload := in.speed, in.uploadSpeed
-	speedValid := freshThroughput(speed, p.SpeedTarget, "download", p, now)
-	uploadValid := freshThroughput(upload, p.UploadTarget, "upload", p, now)
+	speedValid := freshThroughput(speed, p.SpeedTarget, "download", in.speedRule.apply(p), now)
+	uploadValid := freshThroughput(upload, p.UploadTarget, "upload", in.uploadRule.apply(p), now)
 	if speedValid {
 		c.DownloadMbps, c.DownloadAt, c.DownloadSamples = speed.DownloadMbps, speed.At, speed.Samples
 	}
@@ -332,12 +360,25 @@ func compileSelectionOrder(selector contract.Selector, inputs []selectionInput, 
 	}
 	indices := make([]int, 0, len(inputs))
 	for i, c := range d.Candidates {
-		if c.Eligible || (selector.Policy.Fallback == "priority_unknown" && c.State == "unknown" && inputs[i].enabled && inputs[i].config.Enabled && (selector.Policy.Mode != "weighted" || inputs[i].config.Weight > 0)) {
+		if c.Eligible || (selector.Policy.Fallback == "priority_unknown" && c.State == "unknown" && inputs[i].enabled && inputs[i].config.Enabled && inputs[i].unavailableReason == "" && (selector.Policy.Mode != "weighted" || inputs[i].config.Weight > 0)) {
 			indices = append(indices, i)
 		}
 	}
 	p := selector.Policy.Effective()
 	slices.SortFunc(indices, func(a, b int) int {
+		// An unknown candidate is a last resort: its unmeasured zero RTT must not
+		// rank ahead of a measured eligible candidate.
+		if ea, eb := d.Candidates[a].Eligible, d.Candidates[b].Eligible; ea != eb {
+			if ea {
+				return -1
+			}
+			return 1
+		} else if !ea {
+			if priorityLess(inputs[a].config, inputs[b].config) {
+				return -1
+			}
+			return 1
+		}
 		if betterCandidate(p, inputs[a].config, d.Candidates[a], inputs[b].config, d.Candidates[b]) {
 			return -1
 		}

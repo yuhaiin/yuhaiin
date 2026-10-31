@@ -29,6 +29,7 @@ func (o *nodeObserver) invalidateHealth(id string) {
 	n.generation.Store(o.nextGeneration.Add(1))
 	n.circuitListeners.Store(nil)
 	n.selectionHealth = nil
+	n.tcpProbeFailedAt = 0
 	n.tcpHealth, n.udpHealth = contract.ChannelHealth{}, contract.ChannelHealth{}
 	n.throughput, n.uploadThroughput = contract.ThroughputMeasurement{}, contract.ThroughputMeasurement{}
 }

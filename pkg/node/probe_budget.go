@@ -91,13 +91,17 @@ type probeBudgetPacket struct {
 	b *probeBudgetProxy
 }
 
+// A datagram reader usually blocks with a maximum-size buffer while queries are
+// written concurrently, so its allowance is charged on delivery rather than
+// reserved for the whole wait. A datagram past the allowance is not delivered.
 func (c *probeBudgetPacket) ReadFrom(b []byte) (int, net.Addr, error) {
-	n := c.b.claim(len(b))
-	if n == 0 {
+	if c.b.remaining.Load() <= 0 {
 		return 0, nil, errProbeByteBudget
 	}
-	got, a, err := c.PacketConn.ReadFrom(b[:n])
-	c.b.remaining.Add(int64(n - got))
+	got, a, err := c.PacketConn.ReadFrom(b)
+	if got > 0 && c.b.claim(got) < got {
+		return 0, nil, errProbeByteBudget
+	}
 	return got, a, err
 }
 func (c *probeBudgetPacket) WriteTo(b []byte, a net.Addr) (int, error) {

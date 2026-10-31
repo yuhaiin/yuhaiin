@@ -93,7 +93,7 @@ meaning (weights, minimum throughput, priority). Important defaults:
 | Setting | Default |
 | --- | --- |
 | Minimum valid RTT/speed samples | 3 |
-| Measurement lifetime | 120,000 ms |
+| Measurement lifetime | 120,000 ms, extended to retain the sample threshold while probes are enabled (210,000 ms with default probes) |
 | Maximum comparable RTT | 5,000 ms |
 | Maximum recent failure ratio | 0.5 |
 | Consecutive failures / recovery observations | 3 / 2 |
@@ -141,7 +141,8 @@ new connections to move. Live status explains suppression as well as switches.
 
 When no candidate qualifies, `fallback` is explicit:
 
-- `reject` (default): fail new connections with an explanatory error.
+- `reject` (default): fail new connections with an explanatory error. Without
+  enabled probes, failover and weighted modes still admit unknown candidates.
 - `selected`: use configured `nodeId` only if that node and candidate are enabled;
   this intentionally overrides health/ranking requirements.
 - `priority_unknown`: allow unknown candidates by priority, with no implied
@@ -237,11 +238,26 @@ Latest download (`throughput`) and upload (`uploadThroughput`) keep independent
 time, target, successful-sample count and EWMA in existing node statistics JSON.
 The existing 16-entry raw history includes both directions. Config generation
 changes invalidate both rankings. Repeated tests against the same target within
-two minutes accumulate samples independently. For infrequent periodic tests,
-choose a minimum sample count of one and a suitable measurement validity window,
-or perform multiple manual tests within that smoothing window; a lone hourly
-sample does not satisfy the default three-sample threshold. The UI shows each
-direction's fresh sample time/count and labels historical Mbps by direction.
+two minutes accumulate samples independently. When a direction has an enabled
+periodic test, one successful result qualifies for two intervals plus the test
+timeout (or `maxAgeMs` if longer); `minSamples` applies only to manual-only
+measurements. A daily budget that cannot cover every candidate's schedule makes
+candidates ineligible once their results expire. The UI shows each direction's
+fresh sample time/count and labels historical Mbps by direction.
+
+Saving is refused when `maxAgeMs` cannot retain `minSamples` at the enabled probe
+rate, or when the `selected` fallback names a node that is not an enabled
+candidate. Failover and weighted selectors without enabled probes learn from
+passive traffic, so their `reject` fallback admits unknown candidates by priority
+and rejects only while every candidate has recent failures or an open circuit.
+RTT and throughput requirements with no enabled schedule depend on manual
+measurements; the server logs a warning, and new flows are rejected once those
+results expire unless the `selected` fallback is used.
+
+Completed scheduled probes that end in EOF or a protocol error count as failures,
+except a refused redirect. While the latest active TCP probe is failing, a passive
+TCP connect success is not recorded unless a first response from a server clears
+that state, so lazy-handshake connects cannot hide an unusable path.
 
 A separate endpoint tool is available without opening an app listener:
 

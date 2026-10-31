@@ -17,6 +17,7 @@ import (
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
@@ -189,6 +190,8 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 		tcp = slices.Grow(tcp[:0], candidateCount)
 		udp = slices.Grow(udp[:0], candidateCount)
 		if config.Policy != nil {
+			_, speed, upload := selectorSchedules(*config.Policy, s.defaults)
+			speedRule, uploadRule := periodicThroughputRule(speed, config.Policy.SpeedTest), periodicThroughputRule(upload, config.Policy.UploadTest)
 			for _, c := range config.Policy.Candidates {
 				n, exists := s.nodes[c.NodeID]
 				counter := s.counters[c.NodeID]
@@ -196,7 +199,7 @@ func (s *selectorRuntime) rebuild(now time.Time) {
 					continue
 				}
 				stats := counter.selectionSnapshot()
-				input := selectionInput{unavailableReason: unavailable[c.NodeID], config: c, enabled: exists && n.Enabled, health: stats.TCPHealth, speed: stats.Throughput, uploadSpeed: stats.UploadThroughput, active: counter.activeTCP.Load() + counter.activeUDP.Load()}
+				input := selectionInput{unavailableReason: unavailable[c.NodeID], config: c, enabled: exists && n.Enabled, health: stats.TCPHealth, speed: stats.Throughput, uploadSpeed: stats.UploadThroughput, speedRule: speedRule, uploadRule: uploadRule, active: counter.activeTCP.Load() + counter.activeUDP.Load()}
 				if b := p.circuits[c.NodeID].tcp; b != nil {
 					b.observe(stats.TCPHealth, now)
 					state := b.snapshot(now)
@@ -382,11 +385,19 @@ func (s *SelectorService) Save(ctx context.Context, value contract.Selector) (co
 	}
 	s.runtime.selectors.mu.Lock()
 	effective := s.runtime.selectors.effectivePolicy(value)
+	evidenceErr := validateSelectorEvidence(value, s.runtime.selectors.defaults)
+	gap := selectorEvidenceGap(value, s.runtime.selectors.defaults)
 	s.runtime.selectors.mu.Unlock()
 	if effective.Policy != nil {
 		if err := effective.Policy.Validate(); err != nil {
 			return value, err
 		}
+	}
+	if evidenceErr != nil {
+		return value, evidenceErr
+	}
+	if gap != "" {
+		log.Warn("selector will reject new flows without manual measurements", "selector", value.Name, "requires", gap)
 	}
 	value, err = store.Save(ctx, value)
 	if err != nil {

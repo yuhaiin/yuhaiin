@@ -3,6 +3,7 @@ package latency
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
+
+// ErrProbeRedirect means the endpoint answered with a refused redirect: the
+// target needs attention, but the path to it demonstrably works.
+var ErrProbeRedirect = errors.New("probe endpoint redirect refused")
 
 func HTTP(p netapi.Proxy, target string) (time.Duration, error) {
 	return HTTPWithInsecureSkipVerify(p, target, false)
@@ -72,7 +77,7 @@ func httpLatency(ctx context.Context, p netapi.Proxy, target string, insecureSki
 	}
 	defer resp.Body.Close()
 	if !redirect && resp.StatusCode >= 300 && resp.StatusCode < 400 {
-		return 0, fmt.Errorf("probe endpoint redirect refused")
+		return 0, ErrProbeRedirect
 	}
 
 	return time.Since(start), nil

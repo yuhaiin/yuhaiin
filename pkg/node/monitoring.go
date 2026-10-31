@@ -12,6 +12,7 @@ import (
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/time/rate"
@@ -69,8 +70,93 @@ func policyWithMonitoringDefaults(config contract.Selector, defaults contract.Mo
 	if p.RecoveryThreshold == 0 {
 		p.RecoveryThreshold = probe.RecoveryThreshold
 	}
+	if p.MaxAgeMS == 0 && probe.Enabled {
+		// The lifetime must cover the sample threshold at the actual probe rate.
+		p.MaxAgeMS = min(max(120_000, int64(p.Effective().MinSamples)*probePeriodMS(probe)), 86_400_000)
+	}
+	if (p.Fallback == "" || p.Fallback == "reject") && !probe.Enabled && (p.Mode == "failover" || p.Mode == "weighted") {
+		// These modes learn from passive traffic, which rejection would stop for
+		// good once evidence expires. Unknown candidates stay admissible; those
+		// with recent failures or an open circuit remain rejected.
+		p.Fallback = "priority_unknown"
+	}
 	config.Policy = &p
 	return config
+}
+
+// probePeriodMS is the longest regular time between two samples of one job: the
+// next run is scheduled after completion, including a budget wait and a timeout.
+func probePeriodMS(probe contract.ProbeSchedule) int64 {
+	return int64(float64(probe.IntervalMS)*(1+probe.Jitter)) + 2*probe.TimeoutMS
+}
+
+func selectorSchedules(p contract.SelectorPolicy, defaults contract.MonitoringConfig) (contract.ProbeSchedule, contract.SpeedSchedule, contract.SpeedSchedule) {
+	probe := defaults.Probe
+	if p.Probe != nil {
+		probe = p.Probe.Effective()
+	}
+	speed := defaults.Speed
+	if p.PeriodicSpeed != nil {
+		speed = p.PeriodicSpeed.Effective()
+	}
+	upload := contract.SpeedSchedule{}.WithDirection("upload")
+	if defaults.UploadSpeed != nil {
+		upload = defaults.UploadSpeed.WithDirection("upload")
+	}
+	if p.PeriodicUpload != nil {
+		upload = p.PeriodicUpload.WithDirection("upload")
+	}
+	return probe, speed, upload
+}
+
+// validateSelectorEvidence refuses a policy that contradicts itself. Manual
+// measurements remain a supported source, so an absent schedule is only a warning.
+func validateSelectorEvidence(config contract.Selector, defaults contract.MonitoringConfig) error {
+	if config.Policy == nil {
+		return nil
+	}
+	config = policyWithMonitoringDefaults(config, defaults)
+	p := config.Policy.Effective()
+	if p.Mode == "manual" || p.Locked {
+		return nil
+	}
+	probe, _, _ := selectorSchedules(p, defaults)
+	if selectorNeedsRTT(p) && probe.Enabled {
+		if required := int64(p.MinSamples-1) * probePeriodMS(probe); p.MaxAgeMS < required {
+			return fmt.Errorf("selector %q: maxAgeMs must be at least %d to retain %d samples at the probe interval", config.Name, required, p.MinSamples)
+		}
+	}
+	if p.Fallback == "selected" && !slices.ContainsFunc(p.Candidates, func(c contract.SelectorCandidate) bool { return c.NodeID == config.NodeID && c.Enabled }) {
+		return fmt.Errorf("selector %q: fallback to the selected node requires it to be an enabled candidate", config.Name)
+	}
+	return nil
+}
+
+func selectorNeedsRTT(p contract.SelectorPolicy) bool {
+	return p.Mode == "lowest_latency" || (p.Mode == "balanced" && (p.Weights.RTT > 0 || p.Weights.Jitter > 0))
+}
+
+// selectorEvidenceGap names a measurement only a person can currently provide:
+// without it every new flow is rejected once earlier results expire.
+func selectorEvidenceGap(config contract.Selector, defaults contract.MonitoringConfig) string {
+	if config.Policy == nil {
+		return ""
+	}
+	config = policyWithMonitoringDefaults(config, defaults)
+	p := config.Policy.Effective()
+	if p.Mode == "manual" || p.Locked || p.Fallback == "selected" {
+		return ""
+	}
+	probe, speed, upload := selectorSchedules(p, defaults)
+	switch {
+	case selectorNeedsRTT(p) && (!probe.Enabled || !slices.ContainsFunc(probe.Kinds, func(kind string) bool { return kind == "https" || kind == "dns" || kind == "udp" })):
+		return "enabled https or dns probes"
+	case (p.Mode == "highest_throughput" || p.MinDownloadMbps > 0 || (p.Mode == "balanced" && p.Weights.Download > 0)) && (!speed.Enabled || p.SpeedTarget == ""):
+		return "an enabled periodic speed test"
+	case (p.MinUploadMbps > 0 || (p.Mode == "balanced" && p.Weights.Upload > 0)) && (!upload.Enabled || p.UploadTarget == ""):
+		return "an enabled periodic upload test"
+	}
+	return ""
 }
 func (s *selectorRuntime) scheduleLocked() {
 	var jobs []probeJob
@@ -84,21 +170,7 @@ func (s *selectorRuntime) scheduleLocked() {
 		if p.Mode == "manual" || p.Locked {
 			continue
 		}
-		probe := s.defaults.Probe
-		if p.Probe != nil {
-			probe = p.Probe.Effective()
-		}
-		speed := s.defaults.Speed
-		if p.PeriodicSpeed != nil {
-			speed = p.PeriodicSpeed.Effective()
-		}
-		upload := contract.SpeedSchedule{}.WithDirection("upload")
-		if s.defaults.UploadSpeed != nil {
-			upload = s.defaults.UploadSpeed.WithDirection("upload")
-		}
-		if p.PeriodicUpload != nil {
-			upload = p.PeriodicUpload.WithDirection("upload")
-		}
+		probe, speed, upload := selectorSchedules(p, s.defaults)
 		for _, candidate := range p.Candidates {
 			n, ok := s.nodes[candidate.NodeID]
 			if !ok || !n.Enabled || !candidate.Enabled {
@@ -144,7 +216,7 @@ func (s *selectorRuntime) scheduleLocked() {
 					})
 					digest := sha256.Sum256(payload)
 					key := n.ID + "/" + fmt.Sprintf("%x", digest)
-					jobs = append(jobs, probeJob{group: fmt.Sprintf("probe:%d", probe.Concurrency), key: key, cooldown: time.Duration(probe.CooldownMS) * time.Millisecond, failureThreshold: probe.FailureThreshold, signature: nodeSignature + fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprint(probe)))), interval: time.Duration(probe.IntervalMS) * time.Millisecond, timeout: time.Duration(probe.TimeoutMS) * time.Millisecond, jitter: probe.Jitter, concurrency: probe.Concurrency, run: func(ctx context.Context) error { return s.runProbe(ctx, n, probe, req) }})
+					jobs = append(jobs, probeJob{group: fmt.Sprintf("probe:%d", probe.Concurrency), key: key, cooldown: time.Duration(probe.CooldownMS) * time.Millisecond, failureThreshold: probe.FailureThreshold, signature: nodeSignature + fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprint(probe)))), interval: time.Duration(probe.IntervalMS) * time.Millisecond, timeout: 2 * time.Duration(probe.TimeoutMS) * time.Millisecond, jitter: probe.Jitter, concurrency: probe.Concurrency, run: func(ctx context.Context) error { return s.runProbe(ctx, n, probe, req) }})
 				}
 			}
 			for _, direction := range []struct {
@@ -269,16 +341,23 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	}
 	// Reserve the complete per-probe byte allowance before starting the timing
 	// window. Waiting for the resource budget must not inflate measured RTT or
-	// count as remote failure. One shared limiter bounds all selectors together.
+	// count as remote failure, so the wait and the probe have separate timeouts
+	// within the job's limit, and the wait holds no measurement slot. One shared
+	// limiter bounds all selectors together.
+	timeout := time.Duration(options.Effective().TimeoutMS) * time.Millisecond
+	waitCtx, cancelWait := context.WithTimeout(ctx, timeout)
+	err := s.waitProbeBudget(waitCtx, options.MaxProbeBandwidth)
+	cancelWait()
+	if err != nil {
+		return errProbeSkipped
+	}
 	lease, err := s.runtime.admitMeasurement(ctx, n.ID)
 	if err != nil {
 		return errProbeSkipped
 	}
 	defer lease.release()
-	ctx = lease.ctx
-	if err := s.waitProbeBudget(ctx, options.MaxProbeBandwidth); err != nil {
-		return errProbeSkipped
-	}
+	ctx, cancel := context.WithTimeout(lease.ctx, timeout)
+	defer cancel()
 	current, epoch, err := s.runtime.cachedNode(ctx, n.ID)
 	if err != nil {
 		return err
@@ -317,11 +396,23 @@ func (s *selectorRuntime) runProbe(ctx context.Context, n contract.Node, options
 	}
 	c := s.runtime.observer.counter(n.ID)
 	c.probeAtGeneration(kind, result, err, epoch)
-	c.remoteEvidenceAtGeneration(tcp, contract.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, Kind: kind, Target: target, RTTMS: float64(duration) / float64(time.Millisecond)}, err, epoch)
+	sample := contract.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, Kind: kind, Target: target, RTTMS: float64(duration) / float64(time.Millisecond)}
+	if err == nil || healthFailure(err) {
+		c.remoteEvidenceAtGeneration(tcp, sample, err, epoch)
+	} else if !neutralProbeError(err) {
+		// A completed end-to-end probe that ends in EOF or a protocol error shows
+		// this path cannot deliver, even when passive traffic would stay neutral.
+		c.remoteEvidenceAtGeneration(tcp, sample, nil, epoch)
+	}
 	s.mu.Lock()
 	s.rebuild(time.Now())
 	s.mu.Unlock()
 	return err
+}
+
+// These outcomes say nothing about the candidate's ability to carry traffic.
+func neutralProbeError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, errNodeReconfigured) || errors.Is(err, errors.ErrUnsupported) || errors.Is(err, latency.ErrProbeRedirect)
 }
 func (s *selectorRuntime) nativeProbe(ctx context.Context, id string) error {
 	epoch := s.runtime.observer.counter(id).generation.Load()
@@ -390,6 +481,13 @@ func (r *NodeRuntime) SaveMonitoring(ctx context.Context, c contract.MonitoringC
 				r.selectors.mu.Unlock()
 				return contract.MonitoringStatus{}, err
 			}
+		}
+		if err := validateSelectorEvidence(selector, c.Effective()); err != nil {
+			r.selectors.mu.Unlock()
+			return contract.MonitoringStatus{}, err
+		}
+		if gap := selectorEvidenceGap(selector, c.Effective()); gap != "" {
+			log.Warn("selector will reject new flows without manual measurements", "selector", selector.Name, "requires", gap)
 		}
 	}
 	r.selectors.mu.Unlock()

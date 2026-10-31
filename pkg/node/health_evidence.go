@@ -130,6 +130,22 @@ func (n *nodeCounters) recordEvidence(tcp bool, sample contract.HealthSample, er
 	if sample.At == 0 {
 		sample.At = time.Now().UnixMilli()
 	}
+	if tcp {
+		// A lazy-handshake protocol reports connect success without reaching its
+		// server. While the latest end-to-end probe is failing, that alone cannot
+		// reset the failure streak; a real first response from a server can.
+		switch {
+		case evidenceStrength(sample.Kind) >= 3:
+			n.tcpProbeFailedAt = 0
+			if !sample.OK {
+				n.tcpProbeFailedAt = sample.At
+			}
+		case sample.Kind == "response" && sample.OK:
+			n.tcpProbeFailedAt = 0
+		case sample.Kind == "connect" && sample.OK && n.tcpProbeFailedAt > 0 && sample.At-n.tcpProbeFailedAt <= recentNodeObservation.Milliseconds():
+			return
+		}
+	}
 	if len(h.Samples) > 0 && sample.At-h.Samples[len(h.Samples)-1].At > recentNodeObservation.Milliseconds() {
 		h.ConsecutiveFailures, h.ConsecutiveSuccesses = 0, 0
 		h.State = "unknown"
