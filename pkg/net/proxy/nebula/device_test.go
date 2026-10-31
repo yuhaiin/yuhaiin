@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
+	"github.com/slackhq/nebula/overlay/tio"
 )
 
 type udpInjectFixture struct {
@@ -104,12 +105,16 @@ func newUDPInjectFixture(tb testing.TB, payload []byte) udpInjectFixture {
 
 func TestMemoryDeviceWriteInjectsUDPIntoLightweightStack(t *testing.T) {
 	fixture := newUDPInjectFixture(t, []byte("nebula inbound UDP"))
+	queues, err := fixture.device.Queues(1)
+	if err != nil || len(queues) != 1 {
+		t.Fatalf("device queues: count=%d err=%v", len(queues), err)
+	}
 	writeDone := make(chan struct {
 		n   int
 		err error
 	}, 1)
 	go func() {
-		n, err := fixture.device.Write(fixture.packet)
+		n, err := queues[0].Write(fixture.packet)
 		writeDone <- struct {
 			n   int
 			err error
@@ -149,6 +154,18 @@ func TestMemoryDevicesBridgeTCP(t *testing.T) {
 	}
 	left := &memoryDevice{network: leftNetwork}
 	right := &memoryDevice{network: rightNetwork}
+	leftQueues, err := left.Queues(4)
+	if err != nil || len(leftQueues) != 1 {
+		_ = right.Close()
+		_ = left.Close()
+		t.Fatalf("left device queues: count=%d err=%v", len(leftQueues), err)
+	}
+	rightQueues, err := right.Queues(1)
+	if err != nil || len(rightQueues) != 1 {
+		_ = right.Close()
+		_ = left.Close()
+		t.Fatalf("right device queues: count=%d err=%v", len(rightQueues), err)
+	}
 	listener, err := rightNetwork.ListenTCP(&net.TCPAddr{IP: net.IPv4(192, 0, 2, 2), Port: 4242})
 	if err != nil {
 		_ = rightNetwork.Close()
@@ -157,20 +174,21 @@ func TestMemoryDevicesBridgeTCP(t *testing.T) {
 	}
 
 	var pumps sync.WaitGroup
-	pump := func(from, to *memoryDevice) {
-		buffer := make([]byte, 1400)
+	pump := func(from, to tio.Queue) {
 		for {
-			n, err := from.Read(buffer)
+			packets, err := from.Read()
 			if err != nil {
 				return
 			}
-			if _, err := to.Write(buffer[:n]); err != nil {
-				return
+			for _, packet := range packets {
+				if _, err := to.Write(packet.Bytes); err != nil {
+					return
+				}
 			}
 		}
 	}
-	pumps.Go(func() { pump(left, right) })
-	pumps.Go(func() { pump(right, left) })
+	pumps.Go(func() { pump(leftQueues[0], rightQueues[0]) })
+	pumps.Go(func() { pump(rightQueues[0], leftQueues[0]) })
 	t.Cleanup(func() {
 		_ = listener.Close()
 		_ = left.Close()

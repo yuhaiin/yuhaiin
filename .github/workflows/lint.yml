@@ -128,7 +128,7 @@ jobs:
           cache-scope: management-auth-tests
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
       - name: Test management permissions and Web Crypto interoperability
         run: |
           go test -race -count=1 -timeout=300s \

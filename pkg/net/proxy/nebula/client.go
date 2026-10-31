@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -21,6 +20,7 @@ import (
 	upstreamnebula "github.com/slackhq/nebula"
 	"github.com/slackhq/nebula/config"
 	"github.com/slackhq/nebula/overlay"
+	"github.com/slackhq/nebula/overlay/tio"
 	"github.com/slackhq/nebula/routing"
 )
 
@@ -168,7 +168,8 @@ func (m *memoryDevice) Activate() error                       { return nil }
 func (m *memoryDevice) Networks() []netip.Prefix              { return m.networks }
 func (m *memoryDevice) Name() string                          { return "yuhaiin-nebula" }
 func (m *memoryDevice) RoutesFor(netip.Addr) routing.Gateways { return routing.Gateways{} }
-func (m *memoryDevice) SupportsMultiqueue() bool              { return false }
-func (m *memoryDevice) NewMultiQueueReader() (io.ReadWriteCloser, error) {
-	return nil, errors.New("nebula: multiple TUN readers are not supported")
+func (m *memoryDevice) Queues(int) ([]tio.Queue, error) {
+	// The lightweight stack has one packet reader. Match Nebula's single-queue
+	// backends and reserve enough scratch space for any IP datagram.
+	return []tio.Queue{tio.NewSingleQueue(m, 65535)}, nil
 }
