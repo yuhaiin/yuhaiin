@@ -82,3 +82,41 @@ samples of payload bytes, and may lag one interval.
 
 The native VPN state adapter, per-hop underlay wire counters and optional
 background health-check scheduler are separate future enhancements.
+
+## Selector evidence and active download measurements
+
+Opt-in intelligent Selectors extend this same per-node observer with independent
+TCP/UDP evidence, bounded comparable latency samples, and active download-test
+summaries. Generic passive counters above retain their original meaning; use the
+channel evidence and selector decision reasons when inspecting automatic
+selection. UDP PacketConn construction no longer records remote-success evidence.
+See [intelligent selectors](intelligent-selectors.md) for eligibility, measurement
+budgets, persistence, scoring, and current delivery boundaries.
+
+## Native session evidence
+
+The existing optional protocol-status interface now has production adapters for
+OpenVPN, L2TP, SoftEther, GlobalProtect and Tailscale. They read existing session
+state and expose bounded failure descriptions through the existing status API.
+There is no private-key or credential read API and no new statistics subsystem.
+
+- OpenVPN, negotiated L2TP, SoftEther and GlobalProtect report `connected` only
+  for a session that completed their existing native authentication/tunnel setup.
+- Static L2TPv3 reports `configured`: its local setup does not prove a peer handshake.
+- Tailscale control readiness reports `configured`, never a peer WireGuard
+  handshake. An unavailable control state is separate from native tunnel loss.
+- `authentication_failed` requires administrator attention. Automatic selection
+  excludes it as unavailable without incrementing transport failures/loss.
+- `idle`, `connecting`, `reconnecting`, `closed`, `failed` and `disconnected` remain
+  explicit lifecycle states. A status read never starts login or network probes.
+
+`updatedAt` is the time of the session-state observation in Unix seconds, not the
+last packet time or a last-handshake claim. Scheduled native probes ignore stale,
+future and configuration-only snapshots. Native tunnel evidence remains distinct
+from a successful HTTPS request or remote TCP/UDP target response and never
+supplies a comparable target RTT. Other protocols without trustworthy native
+status continue to use their existing passive/explicit network observations.
+
+The Nodes panel localizes these states in EN/JA/KO and displays observation time
+and this evidence boundary. Candidate details retain raw latency/throughput when
+native availability excludes the candidate, alongside an explicit reason.

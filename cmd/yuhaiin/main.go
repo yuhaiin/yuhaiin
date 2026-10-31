@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	recoverycmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/recovery"
+	updatecmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/update"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -14,6 +16,7 @@ var help = `Usage:
 
 Actions:
   auth        local management administrator bootstrap/recovery
+  recovery    encrypted backup, verification, restore preview and offline recovery
   install     install yuhaiin
   uninstall   uninstall yuhaiin
   start       start yuhaiin
@@ -49,6 +52,9 @@ func main() {
 	}
 
 	switch action {
+	case "recovery":
+		do(recoverycmd.Run)
+		return
 	case "auth":
 		do(authCommand)
 		return
@@ -67,8 +73,29 @@ func main() {
 	case "restart":
 		do(restart)
 		return
+	case "update-status":
+		do(updatecmd.Status)
+		return
+	case "update-protected-helper":
+		do(updatecmd.ProtectedInstall)
+		return
+	case "update-protected-recover":
+		do(updatecmd.RecoverProtected)
+		return
 	case "update-helper":
-		do(updateHelper)
+		do(updatecmd.Install)
+		return
+	case "recovery-restore":
+		do(recoverycmd.Restore)
+		return
+	case "recovery-restore-restart":
+		do(recoverycmd.RestartRestore)
+		return
+	case "recovery-maintenance":
+		do(recoverycmd.Capture)
+		return
+	case "recovery-maintenance-restart":
+		do(recoverycmd.RestartCapture)
 		return
 	case "version", "-v", "--version":
 		version.Output(os.Stdout)
@@ -83,5 +110,6 @@ func main() {
 
 	if err := run(args); err != nil {
 		log.Error(err.Error())
+		os.Exit(1)
 	}
 }

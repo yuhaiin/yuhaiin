@@ -1,0 +1,27 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorNewFlow/manual/tcp-12         	  882500	       916.1 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12         	  881432	       694.2 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12         	  851049	       693.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12         	 1341764	       446.6 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12         	 1340541	       447.3 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12         	 1346322	       445.2 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12       	  601988	       867.3 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12       	  627933	       865.5 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12       	  610724	       865.7 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12       	  905566	       555.2 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12       	 1000000	       556.9 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12       	  962848	       556.7 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12       	  577284	       906.6 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12       	  654885	       908.5 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12       	  608545	       903.7 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12       	  896676	       589.8 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12       	  944348	       590.4 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12       	  876994	       592.7 ns/op	     344 B/op	       9 allocs/op
+BenchmarkObservedPacketSend-12                 	65183707	         9.103 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                 	66305844	         9.050 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                 	66265852	         9.138 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	12.581s

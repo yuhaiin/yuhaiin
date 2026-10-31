@@ -1,0 +1,29 @@
+Source: immutable selection-health cache implementation. Connection/packet allocation check.
+Go 1.27.3, Linux amd64, Ryzen 5 5600G.
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	  776796	       331.4 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	  744757	       324.1 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	  708710	       319.1 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 2561286	        93.50 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 2582904	        93.82 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 2590132	       101.6 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  311672	       750.4 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  310462	      1103 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  291630	       791.2 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  456976	       440.1 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  453622	       446.6 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  559606	       427.1 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  290281	       776.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  306338	       774.8 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  302037	       773.3 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  456828	       463.1 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  489650	       457.8 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  431163	       470.0 ns/op	     288 B/op	       6 allocs/op
+BenchmarkObservedPacketSend-12                            	57671041	         4.027 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                            	56233006	         4.036 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                            	56668782	         4.040 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	5.457s

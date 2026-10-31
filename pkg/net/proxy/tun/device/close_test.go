@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 	"weak"
@@ -107,6 +108,8 @@ func (d *nativeCloseErrorDevice) Close() error {
 
 func TestDeviceCloseNativeCancellationRace(t *testing.T) {
 	cancelClosed := &os.PathError{Op: "write", Path: "|1", Err: os.ErrClosed}
+	cancelBroken := &os.PathError{Op: "write", Path: "|1", Err: syscall.EPIPE}
+	foreignBroken := &os.PathError{Op: "write", Path: "other-file", Err: syscall.EPIPE}
 	queueClosed := &os.PathError{Op: "close", Path: "/dev/net/tun", Err: os.ErrClosed}
 	failedCancel := &os.PathError{Op: "write", Path: "|1", Err: os.ErrPermission}
 	for _, tc := range []struct {
@@ -116,6 +119,10 @@ func TestDeviceCloseNativeCancellationRace(t *testing.T) {
 		want       error
 	}{
 		{"cancellation pipe already closed", cancelClosed, true, nil},
+		{"cancellation reader already closed", cancelBroken, true, nil},
+		{"other writer broken pipe", foreignBroken, true, syscall.EPIPE},
+		{"unmonitored broken pipe", cancelBroken, false, syscall.EPIPE},
+		{"joined broken pipe", errors.Join(cancelBroken, os.ErrPermission), true, os.ErrPermission},
 		{"native queue close failure", queueClosed, true, os.ErrClosed},
 		{"unexpected netlink cancellation failure", failedCancel, true, os.ErrPermission},
 		{"unmonitored device close failure", cancelClosed, false, os.ErrClosed},

@@ -1,0 +1,3 @@
+{"asset_mib": 1, "rss_kib": 79476, "elapsed_s": 0.02157398872077465, "heap_limit": "32MiB"}
+{"asset_mib": 64, "rss_kib": 88768, "elapsed_s": 0.11762621439993382, "heap_limit": "32MiB"}
+{"asset_mib": 256, "rss_kib": 90892, "elapsed_s": 0.3998400322161615, "heap_limit": "32MiB"}

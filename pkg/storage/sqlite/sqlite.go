@@ -92,6 +92,10 @@ func open(ctx context.Context, path, schema string, bootstrap func(context.Conte
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
+	if err := checkStoreCompatibility(ctx, db, schema); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	if err := configure(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -159,6 +163,9 @@ func (s *Store) Close() error {
 }
 
 func Bootstrap(ctx context.Context, db *sql.DB) error {
+	if err := checkStoreCompatibility(ctx, db, "configuration"); err != nil {
+		return err
+	}
 	if err := bootstrapBase(ctx, db); err != nil {
 		return err
 	}

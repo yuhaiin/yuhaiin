@@ -72,10 +72,18 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 	if err != nil {
 		return nil, err
 	}
-	return &Runtime{store: store, passwords: passwords, Proxy: proxy, Upstream: &UpstreamCredentials{store: store}, db: db}, nil
+	upstream := &UpstreamCredentials{store: store}
+	if _, err := upstream.snapshot(ctx); err != nil {
+		_ = proxy.Close()
+		return nil, err
+	}
+	return &Runtime{store: store, passwords: passwords, Proxy: proxy, Upstream: upstream, db: db}, nil
 }
 
-func (r *Runtime) Close() error { return errors.Join(r.Proxy.Close(), r.db.Close()) }
+func (r *Runtime) Close() error {
+	r.Upstream.close()
+	return errors.Join(r.Proxy.Close(), r.db.Close())
+}
 
 func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
 	permissions := make(map[string]Permission)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"sync/atomic"
 )
 
@@ -39,15 +40,43 @@ type PacketProxy interface {
 	PacketConn(context.Context, Address) (net.PacketConn, error)
 }
 
+// ContextPacketWriter optionally binds datagram preparation (including DNS)
+// to a caller. It does not change the established PacketConn's lifetime.
+type ContextPacketWriter interface {
+	WriteToContext(context.Context, []byte, net.Addr) (int, error)
+}
+
 type PingProxy interface {
 	Ping(context.Context, Address) (uint64, error)
 }
 
+// IsBlockError recognizes a policy marker anywhere in a wrapped or joined error
+// tree. An outer dial/read error must not hide an inner access-policy rejection.
 func IsBlockError(err error) bool {
-	if netErr, ok := errors.AsType[*net.OpError](err); ok {
-		return netErr.Op == "block"
+	for err != nil {
+		if netErr, ok := err.(*net.OpError); ok {
+			if netErr == nil {
+				return false
+			}
+			if netErr.Op == "block" {
+				return true
+			}
+		}
+		// Preserve custom As implementations as well as ordinary unwrap chains.
+		if _, ok := err.(interface{ As(any) bool }); ok {
+			if netErr, ok := errors.AsType[*net.OpError](err); ok && netErr != nil && netErr.Op == "block" {
+				return true
+			}
+		}
+		switch value := err.(type) {
+		case interface{ Unwrap() []error }:
+			return slices.ContainsFunc(value.Unwrap(), IsBlockError)
+		case interface{ Unwrap() error }:
+			err = value.Unwrap()
+		default:
+			return false
+		}
 	}
-
 	return false
 }
 

@@ -31,6 +31,7 @@ type entry struct {
 var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
+	trafficPolicyReady  atomic.Bool
 	authentication      proxyauth.Provider
 	usage               *statistics.UserUsage
 	states              map[string]runtimeState
@@ -71,8 +72,13 @@ type Inbound struct {
 // SetTrafficControl atomically activates validated policies for established
 // and new streams and later UDP datagrams without rebuilding listeners.
 func (l *Inbound) SetTrafficControl(config trafficcontrol.Config) error {
-	return l.handler.control.Apply(config)
+	if err := l.handler.control.Apply(config); err != nil {
+		return err
+	}
+	l.trafficPolicyReady.Store(true)
+	return nil
 }
+func (l *Inbound) ProbePolicyReady() bool { return l.trafficPolicyReady.Load() }
 func (l *Inbound) TrafficControl() trafficcontrol.Config {
 	return l.handler.control.Config()
 }
@@ -461,6 +467,7 @@ func (l *Inbound) SetSniff(sniff bool) {
 }
 
 func (l *Inbound) Close() error {
+	l.trafficPolicyReady.Store(false)
 	// Cancel before acquiring mu: the source may be finishing a callback that needs mu.
 	if l.unsubscribeFakeIP != nil {
 		l.unsubscribeFakeIP()

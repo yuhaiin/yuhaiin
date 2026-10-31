@@ -31,7 +31,8 @@ func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta,
 	if id == "" {
 		return false
 	}
-	if m.current.Load().startupError != "" {
+	snapshot := m.current.Load()
+	if snapshot.startupError != "" {
 		// A Route explicitly selected this failed Gateway. Returning false here
 		// would silently bypass its policy through ordinary forwarding.
 		if meta.Src != nil {
@@ -39,11 +40,18 @@ func (m *Manager) InterceptGateway(ctx *netapi.Context, meta *netapi.StreamMeta,
 		}
 		return true
 	}
-	return m.intercept(ctx, meta, id)
+	if len(snapshot.rejectDisabled) != 0 {
+		if _, guarded := snapshot.rejectDisabled[id]; guarded {
+			if meta.Src != nil {
+				_ = meta.Src.Close()
+			}
+			return true
+		}
+	}
+	return m.intercept(ctx, meta, id, snapshot)
 }
 
-func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewayID string) bool {
-	s := m.current.Load()
+func (m *Manager) intercept(ctx *netapi.Context, meta *netapi.StreamMeta, gatewayID string, s *snapshot) bool {
 	if len(s.interceptionByGateway) == 0 {
 		return false
 	}

@@ -12,10 +12,17 @@ import (
 // never contain these identities, and restoring one cannot replace an admin.
 func OpenManagement(ctx context.Context, path string) (*Store, error) {
 	return open(ctx, path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := checkStoreCompatibility(ctx, db, "management"); err != nil {
+			return err
+		}
 		if err := bootstrapBase(ctx, db); err != nil {
 			return err
 		}
-		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration} {
+		migrations, err := knownMigrations("management")
+		if err != nil {
+			return err
+		}
+		for _, migration := range migrations {
 			var name string
 			err := db.QueryRowContext(ctx, `SELECT name FROM migrate WHERE version=?`, migration.Version).Scan(&name)
 			if err == nil {

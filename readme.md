@@ -220,3 +220,59 @@ References: [tun2socks](https://github.com/xjasonlyu/tun2socks), [shadowsocksR](
 </details>
 
 Contributions, bug reports, and reproducible interoperability tests are welcome.
+
+### Enterprise reliability
+
+The reliability changes are reviewed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622)
+and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535), both targeting
+main. See the [delivery overview](docs/enterprise-reliability.md) and
+[requirement evidence](docs/enterprise-reliability-audit.md) for the implementation,
+validation and supported-host boundaries.
+
+**Intelligent outbound selection.** Existing Selectors support manual, priority
+failover, fresh RTT, measured throughput, normalized balanced scoring and weighted
+new flows. Manual selection remains the upgrade default. Candidates, independent
+TCP/UDP evidence, circuit recovery, preferred return, hold/cooldown and explicit
+fallback explain each selection. Existing sessions retain their chosen runtime.
+Shared cancellable probes and optional download/upload tests enforce concurrency,
+byte/time and durable daily budgets, with conservative mobile/network-cost policy.
+Observed business traffic remains distinct from measured target-specific capacity.
+See [selection and benchmarks](docs/intelligent-selectors.md),
+[probe policy](docs/probe-policy.md) and [measurement bounds](docs/measurement-bounds.md).
+
+**Backup, recovery and updates.** Configuration migration excludes managed
+identity material by default; arbitrary custom strings and private URL paths still
+need protection. Full disaster recovery uses an explicit owned inventory,
+WAL-safe SQLite snapshots during stopped-writer maintenance, streaming age
+encryption and external backup keys. Local/S3 scheduling, verified transfer,
+retrieval, retention, authenticated original/clone previews and controlled
+startup/rollback share the existing backup owners. The offline CLI remains
+available when the Web UI cannot start. Plaintext pre-restore copies have separate,
+default-off cleanup consent. Protected updates validate package/schema metadata,
+create a recovery point and verify actual startup; migrated databases require
+reviewed paired binary/database restoration.
+See [configuration and data ownership](docs/backup-recovery.md),
+[archive/CLI](docs/recovery-archive.md), [managed backups](docs/managed-recovery-backups.md)
+and [safe updates](docs/update-rollback.md).
+
+Automatic disruptive maintenance is qualified for root-owned Linux systemd and
+lingering user services. Windows offline restore, validation/finalization and
+rollback require elevated local NTFS access. Other hosts/storage retain the
+explicit capability and durability limits in the guides. Optional unattended
+restore drills are separate from the implemented deterministic and real-service
+fault-injection tests.
+
+**Managed HTTPS certificates.** Stable site resources support ACME HTTP-01 and
+Cloudflare DNS-01, private account/provider storage, persisted renewal/ARI advice,
+bounded retries and verified hot replacement. Management HTTPS explicitly selects
+`-https-certificate-id`; Gateway TLS termination references managed IDs. Existing
+file/self-signed TLS and separate MITM/TLS Auto CAs retain their ownership.
+See [certificate lifecycle](docs/managed-certificates.md).
+
+Scheduling/transfers live in `pkg/app/backup`; coherent deployment snapshots,
+activation and startup rollback in `pkg/app/backup/recovery`; SQLite metadata in
+`pkg/store/backup`; and the encrypted format in `pkg/store/backup/archive`.
+Tests follow these owners. The guides retain reproducible ranking/admission,
+shared-Selector heap/goroutine, streaming-backup and
+[actual maintenance/RSS measurements](docs/managed-recovery-backups.md#capture-space-and-real-maintenance-measurements),
+with fixture limits rather than production-capacity guarantees.

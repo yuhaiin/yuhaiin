@@ -56,7 +56,7 @@ jobs:
       - name: Test S3 configuration backup snapshots
         run: |
           go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
-            -run '^TestBackup' ./pkg/app
+            -run '^TestBackup' ./pkg/app/backup
 
   benchmark-compile:
     if: github.event_name == 'workflow_dispatch' && inputs.windows_benchmarks

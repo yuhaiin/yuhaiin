@@ -239,6 +239,9 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("initial tunnel did not start")
 	}
+	if status := proxy.(contractnode.NodeRuntimeStatusProvider).NodeRuntimeStatus(); status.State != "connected" {
+		t.Fatal("authenticated tunnel not exposed", status)
+	}
 	infoProvider, ok := proxy.(interface {
 		NodeExtraInfo() contractnode.NodeExtraInfo
 	})
@@ -345,6 +348,9 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	mu.Unlock()
 	if !didLogout {
 		t.Fatal("gateway did not receive logout")
+	}
+	if status := proxy.(contractnode.NodeRuntimeStatusProvider).NodeRuntimeStatus(); status.State != "closed" {
+		t.Fatal("closed tunnel still reported connected", status)
 	}
 	if _, err := proxy.Conn(ctx, tcpAddr); err == nil {
 		t.Fatal("closed proxy accepted TCP dial")

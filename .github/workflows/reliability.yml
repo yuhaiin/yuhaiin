@@ -1,0 +1,139 @@
+name: Enterprise reliability
+
+on:
+  pull_request:
+    paths:
+      - 'pkg/cert/**'
+      - 'pkg/contract/certificate/**'
+      - 'pkg/gateway/**'
+      - 'pkg/contract/gateway/**'
+      - 'pkg/management/tls/**'
+      - 'pkg/node/**'
+      - 'pkg/app/**'
+      - 'pkg/s3/**'
+      - 'pkg/inbound/**'
+      - 'pkg/route/**'
+      - 'pkg/net/trafficcontrol/**'
+      - 'pkg/net/netapi/**'
+      - 'pkg/net/proxy/direct/**'
+      - 'pkg/net/proxy/tailscale/**'
+      - 'pkg/net/proxy/globalprotect/**'
+      - 'pkg/net/proxy/openvpn/**'
+      - 'pkg/net/proxy/l2tp/**'
+      - 'pkg/net/proxy/softether/**'
+      - 'pkg/contract/node/**'
+      - 'pkg/contract/backup/**'
+      - 'pkg/utils/lockfile/**'
+      - 'pkg/net/latency/**'
+      - 'cmd/speed-test-server/**'
+      - 'pkg/store/**'
+      - 'pkg/storage/sqlite/**'
+      - 'pkg/update/**'
+      - 'pkg/contract/update/**'
+      - 'cmd/update-metadata/**'
+      - 'scripts/build/release.sh'
+      - '.github/workflows/build-binary.yml'
+      - 'pkg/httpapi/**'
+      - 'pkg/management/auth/**'
+      - 'cmd/android/**'
+      - 'cmd/yuhaiin/**'
+      - 'scripts/benchmarks/recovery/**'
+      - 'scripts/bench/recovery-maintenance/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/reliability.yml'
+
+concurrency:
+  group: reliability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [system, user]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: recovery-maintenance
+      - name: Install isolated service-test runtime
+        run: |
+          if ! command -v podman >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends podman
+          fi
+      - name: Actual capture, missing-archive S3 retrieval, restore and crash restart
+        env:
+          SERVICE_SCOPE: ${{ matrix.scope }}
+        run: |
+          python3 -m unittest discover -s scripts/bench/recovery-maintenance -p 'test_*.py'
+          if [ "$SERVICE_SCOPE" = user ]; then
+            python3 scripts/bench/recovery-maintenance/run.py --rootful --user-session --asset-mib 1
+          else
+            python3 scripts/bench/recovery-maintenance/run.py --rootful --asset-mib 256
+          fi
+  monitoring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: enterprise-reliability
+      - name: Check source formatting and Go fixes
+        run: |
+          test -z "$(git ls-files -z -- '*.go' | xargs -0 gofmt -l)"
+          go fix ./...
+          git diff --exit-code
+      - name: Deterministic scheduler and race coverage
+        run: |
+          go test -race -count=1 -timeout=300s \
+            ./pkg/node ./pkg/net/latency ./cmd/speed-test-server ./pkg/store ./pkg/store/backup/... ./pkg/httpapi ./pkg/s3 \
+            ./pkg/storage/sqlite ./pkg/update/... ./cmd/update-metadata ./pkg/management/auth ./cmd/android ./cmd/yuhaiin/... ./pkg/utils/lockfile \
+            ./pkg/inbound ./pkg/route ./pkg/app ./pkg/app/backup/... ./pkg/net/trafficcontrol ./pkg/net/proxy/direct \
+            ./pkg/net/proxy/openvpn/... ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/softether/... \
+            ./pkg/net/proxy/globalprotect ./pkg/net/proxy/tailscale
+      - name: Local ACME, renewal advice and managed TLS race coverage
+        run: |
+          go test -race -count=1 -timeout=180s \
+            ./pkg/cert/manager/... ./pkg/store/certificates ./pkg/gateway ./pkg/management/tls ./pkg/contract/certificate
+      - name: Keep offline identity inventory independent of unsupported native bridges
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in android/arm64/0 android/amd64/0 android/amd64/1 freebsd/amd64/0 openbsd/amd64/0; do
+            IFS=/ read -r target_os target_arch target_cgo <<< "$target"
+            GOOS="$target_os" GOARCH="$target_arch" CGO_ENABLED="$target_cgo" \
+              go list -deps ./pkg/app > "$RUNNER_TEMP/recovery-dependencies"
+            if grep -E '^(github.com/yuhaiin/zerotier-go|github.com/ebitengine/purego)(/|$)' "$RUNNER_TEMP/recovery-dependencies"; then
+              echo "offline recovery bypasses the native bridge platform boundary on $target" >&2
+              exit 1
+            fi
+          done
+      - name: Selection, observer and bounded measurement benchmarks
+        run: |
+          go test ./pkg/node ./pkg/net/latency -run '^$' -bench 'BenchmarkSelector|BenchmarkPassiveRateSampling|BenchmarkUploadBalancedRanking|BenchmarkUploadStreamingBody|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
+            -benchmem -benchtime=300ms -count=2
+      - name: Update schema compatibility and protected coordinator benchmarks
+        run: |
+          go test ./pkg/update/compatibility -run '^$' -bench '^BenchmarkObservedSchemaCompatibility$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/update/maintenance -run '^$' -bench '^BenchmarkProtectedUpdateCoordinator$' -benchmem -benchtime=300ms -count=2
+      - name: Backup transfer and archive benchmarks
+        run: |
+          go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/store/backup/archive -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryArchiveRetrieval$' -benchmem -benchtime=300ms -count=2
+          go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryImportStaging$' -benchmem -benchtime=300ms -count=2
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --timeout=5m

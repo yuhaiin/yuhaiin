@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,7 +29,6 @@ import (
 const defaultListen = ":0"
 
 var identities sync.Map
-var safeIdentity = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type session struct {
 	tun      *wireguard.LightweightNetTun

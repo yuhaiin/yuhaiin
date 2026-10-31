@@ -52,6 +52,7 @@ administrator registration. Protect access to startup output until setup closes.
 Manual local bootstrap remains available as an optional alternative:
 
 ```sh
+# Stop the server using this data directory before the local command.
 yuhaiin auth bootstrap -path /your/data-directory -login admin
 ```
 
@@ -83,9 +84,30 @@ password through the new contract, even when reusing the previous login name.
 Basic headers and the old `?token=` credential transport are rejected. There is
 no automatic conversion and no unauthenticated migration HTTP endpoint.
 
+The exported Go `app.Auth`/`HandleFunc` compatibility API remains available to
+embedded callers. It is separate from account login and creates no database.
+`NewAuth` now generates a random 16-byte salt and a 32-byte PBKDF2-HMAC-SHA256
+verifier with 600,000 iterations. Always construct it with `NewAuth`: the public
+digest fields alone, including historical unsalted SHA-256 values, cannot
+reconstruct an authorized verifier. The object is process-local, not a persisted
+credential format. Existing correctly authenticated Basic requests and CORS
+preflights keep their behavior. There are at most two concurrent verifications
+per object; canceled HTTP requests stop waiting for admission. An already
+running derivation finishes before observing cancellation, without an additional
+worker goroutine. The standalone server still rejects Basic login.
+
+On a Ryzen 5 5600G, `BenchmarkLegacyBasicAuth` measured 188.6–188.8 ns per
+verification before versus 88.1–88.3 ms after, and 0 versus 796 allocated bytes
+(0 versus 11 allocations, two runs each). This intentionally increases the cost
+of password guessing. It affects the optional embedded Basic API, not forwarding
+or account-session verification. Reproduce with `go test ./pkg/app -run '^$'
+-bench '^BenchmarkLegacyBasicAuth$' -benchmem -benchtime=1s -count=2`; retained
+results are in [the benchmark fixture directory](benchmarks/data/legacy-basic-auth-2026-10-30/).
+
 Lost/expired enrollment or lost-password recovery requires local execution:
 
 ```sh
+# Stop the server first; restart it after local credential recovery.
 yuhaiin auth recover -path /your/data-directory -id USER_UUID
 ```
 

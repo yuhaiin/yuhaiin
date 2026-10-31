@@ -366,11 +366,11 @@ func (s *Lists) LoadGeoip() *maxminddb.MaxMindDB {
 	now := time.Now()
 	ggeoip, err := maxminddb.NewMaxMindDB(path)
 	if err != nil {
-		log.Error("new maxminddb failed", "err", err)
+		log.Error("new maxminddb failed", "err", &sourceError{operation: "GeoIP database unavailable", cause: err})
 		return nil
 	}
 
-	log.Info("new geoip", "path", path, "cost", time.Since(now))
+	log.Info("new geoip", "cost", time.Since(now))
 
 	s.geoip = &struct{ m *maxminddb.MaxMindDB }{m: ggeoip}
 
@@ -470,7 +470,7 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 	s.geoipmu.Unlock()
 
 	if err != nil {
-		log.Error("get remote failed", "err", err, "url", download)
+		log.Error("get remote failed", "err", err)
 		return err.Error()
 	}
 
@@ -548,14 +548,14 @@ func (s *Lists) RefreshContract(ctx context.Context) error {
 			continue
 		}
 		errorMsgs[list.Name] = make([]string, 0, len(list.Source.Remote.URLs))
-		for _, url := range list.Source.Remote.URLs {
+		for i, url := range list.Source.Remote.URLs {
 			ctx, cancel := context.WithTimeout(ctx, time.Minute*3/2)
 			er := s.downloader.Download(ctx, url, nil)
 			cancel()
 			if er != nil {
 				refreshErr = errors.Join(refreshErr, fmt.Errorf("refresh list %q: %w", list.Name, er))
-				errorMsgs[list.Name] = append(errorMsgs[list.Name], fmt.Sprintf("%s: %s", url, er.Error()))
-				log.Error("download remote failed", "err", er, "url", url)
+				errorMsgs[list.Name] = append(errorMsgs[list.Name], fmt.Sprintf("source %d: %s", i+1, er.Error()))
+				log.Error("download remote failed", "err", er, "source", i+1)
 			}
 		}
 	}
@@ -952,10 +952,10 @@ func ScannerIter(scanner *bufio.Scanner) iter.Seq[string] {
 
 func (l *Lists) getLocalCacheTrimRuleIter(rules []string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		for _, v := range rules {
+		for i, v := range rules {
 			r, er := l.downloader.GetReader(v)
 			if er != nil {
-				log.Warn("get local cache failed", "err", er, "url", v)
+				log.Warn("get local cache failed", "err", er, "source", i+1)
 				continue
 			}
 			defer r.Close()

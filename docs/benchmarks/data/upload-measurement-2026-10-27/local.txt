@@ -1,0 +1,45 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/latency
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkUploadStreamingBody/1MiB-12         	     224	   1583801 ns/op	 662.06 MB/s	     124 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/1MiB-12         	     228	   1573821 ns/op	 666.26 MB/s	     123 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/1MiB-12         	     226	   1579185 ns/op	 664.00 MB/s	     124 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/16MiB-12        	      13	  25160073 ns/op	 666.82 MB/s	     850 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/16MiB-12        	      13	  25159617 ns/op	 666.83 MB/s	     850 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/16MiB-12        	      13	  25147508 ns/op	 667.15 MB/s	     850 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/64MiB-12        	       3	 101339466 ns/op	 662.22 MB/s	     680 B/op	       1 allocs/op
+BenchmarkUploadStreamingBody/64MiB-12        	       3	 101029772 ns/op	 664.25 MB/s	    3418 B/op	       2 allocs/op
+BenchmarkUploadStreamingBody/64MiB-12        	       3	 100890216 ns/op	 665.17 MB/s	    3418 B/op	       2 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/latency	2.972s
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1000000	       328.7 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1000000	       338.5 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/tcp-12         	 1000000	       324.4 ns/op	      80 B/op	       1 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 3751354	        94.69 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 3724010	        94.74 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/manual/udp-12         	 3797958	        94.85 ns/op	      96 B/op	       2 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  445819	       753.8 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  478994	       727.3 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/tcp-12       	  435846	       716.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  731097	       425.5 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  781075	       426.2 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/failover/udp-12       	  842092	       427.5 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  410708	       772.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  418508	       767.8 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/tcp-12       	  441526	       764.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  747226	       473.9 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  691592	       469.7 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorConnectionCreation/weighted/udp-12       	  767293	       478.6 ns/op	     288 B/op	       6 allocs/op
+BenchmarkUploadBalancedRanking/100-12                     	   16735	     21536 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkUploadBalancedRanking/100-12                     	   16800	     21292 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkUploadBalancedRanking/100-12                     	   16840	     21427 ns/op	   23232 B/op	     101 allocs/op
+BenchmarkUploadBalancedRanking/1000-12                    	    1600	    219638 ns/op	  236419 B/op	    1001 allocs/op
+BenchmarkUploadBalancedRanking/1000-12                    	    1683	    214210 ns/op	  236416 B/op	    1001 allocs/op
+BenchmarkUploadBalancedRanking/1000-12                    	    1627	    212921 ns/op	  236416 B/op	    1001 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	8.743s

@@ -1,11 +1,761 @@
 package sqlite
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 )
+
+func TestConfigurationExportOmitsUnusedLegacyRootDocument(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	const legacy = `{"privateKey":"legacy-root-private-marker","unknown":{"authorization":"legacy-root-credential-marker"}}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO settings_json(id,version,data_json,updated_at) VALUES(1,1,?,1)`, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO settings_kv(section,key,value_json,updated_at) VALUES('general','ipv6','true',1)`); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("legacy-root-")) {
+		t.Fatal("unused historical root configuration leaked into plaintext export")
+	}
+	var unchanged string
+	if err := source.DB().QueryRowContext(t.Context(), `SELECT data_json FROM settings_json`).Scan(&unchanged); err != nil || unchanged != legacy {
+		t.Fatal("live historical configuration was changed", err)
+	}
+	local, err := ExportConfigForLocalRestore(t.Context(), source.DB())
+	if err != nil || !bytes.Contains(local, []byte("legacy-root-private-marker")) {
+		t.Fatal("private historical import no longer retains its legacy document", err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var value string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT value_json FROM settings_kv WHERE section='general' AND key='ipv6'`).Scan(&value); err != nil || value != "true" {
+		t.Fatal("current settings were lost during configuration migration", err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), local); err != nil {
+		t.Fatal("historical local projection could not be restored", err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM settings_json`).Scan(&value); err != nil || value != legacy {
+		t.Fatal("local historical recovery lost its legacy root document", err)
+	}
+}
+
+func TestConfigurationExportOmitsS3SecretsAndDisablesAutomaticBackup(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	settings := `{"instanceName":"fixture","interval":30,"lastBackupHash":"digest-marker","s3":{"enabled":true,"accessKey":"config-access-marker","secretKey":"config-secret-marker","bucket":"example"},"recovery":{"enabled":true,"allowMaintenance":true,"localPoints":{"enabled":true,"keepCount":2}}}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO backup_settings(id,updated_at,data_json) VALUES(1,1,?)`, settings); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope ConfigBackup
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Version != 1 {
+		t.Fatal("configuration without guarded Gateways should retain the legacy format", envelope.Version, err)
+	}
+	for _, marker := range []string{"config-access-marker", "config-secret-marker", "digest-marker"} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Errorf("configuration export includes %s", marker)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM backup_settings WHERE id=1`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var restored contractbackup.Option
+	if err := json.Unmarshal([]byte(raw), &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.S3.Enabled || restored.Recovery == nil || restored.Recovery.Enabled || restored.Recovery.AllowMaintenance || restored.Recovery.LocalPoints == nil || restored.Recovery.LocalPoints.Enabled {
+		t.Fatal("restoring configuration enabled automatic or destructive maintenance", raw)
+	}
+}
+
+func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	for _, statement := range []string{
+		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/secret-url-path-marker","type":"reserve"}')`,
+		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["node-id"],"address":"example.com","insecure":false}')`,
+	} {
+		if _, err := source.DB().ExecContext(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"secret-url-path-marker", "publish-password-marker", "publish-path-marker"} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Fatalf("configuration export contains %s", marker)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `INSERT INTO subscriptions(name,updated_at,data_json) VALUES('previous',1,'{"name":"previous","url":"https://previous.example/old-secret","type":"reserve"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("subscription URL was retained", count, err)
+	}
+	var raw string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM publishes WHERE name='publication'`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var publish struct {
+		Password string   `json:"password"`
+		Path     string   `json:"path"`
+		Points   []string `json:"points"`
+	}
+	if err := json.Unmarshal([]byte(raw), &publish); err != nil {
+		t.Fatal(err)
+	}
+	if publish.Password != "" || publish.Path != "" || len(publish.Points) != 0 {
+		t.Fatal("import could expose the protected publication", raw)
+	}
+	if err := source.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("live subscriptions were changed", count, err)
+	}
+}
+
+func TestConfigurationRestoreReplacesSubscriptionsFromLegacyBackup(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy ConfigBackup
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	table := legacy.Tables["subscriptions"]
+	name, _ := json.Marshal("upstream")
+	document, _ := json.Marshal(`{"name":"upstream","url":"https://example.org/legacy-token","type":"reserve"}`)
+	table.Rows = [][]jsontext.Value{{name, jsontext.Value("1"), document}}
+	legacy.Tables["subscriptions"] = table
+	data, err = json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://old.example","type":"reserve"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatalf("legacy backup import: %v", err)
+	}
+	var restored string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM subscriptions WHERE name='upstream'`).Scan(&restored); err != nil || !strings.Contains(restored, "legacy-token") {
+		t.Fatal("legacy subscription not restored", restored, err)
+	}
+}
+
+func TestLegacyConfigurationRestorePreservesNewSettingsAndResetsActivation(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy ConfigBackup
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"user_usage_settings", "inbound_traffic_control", "route_configuration_state"} {
+		delete(legacy.Tables, name)
+	}
+	data, err = json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `CREATE TABLE inbound_traffic_control(id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);
+		INSERT INTO inbound_traffic_control VALUES(1,'{"enabled":true}');
+		INSERT INTO user_usage_settings VALUES(1,'{"auditDays":42}');
+		UPDATE route_configuration_state SET applied_revision=123,applied_rules_json='[{"id":"stale"}]',applied_config_json='{"defaultMode":"direct"}' WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var traffic, usage, rules, settings string
+	var applied int
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT config_json FROM inbound_traffic_control WHERE id=1`).Scan(&traffic); err != nil || traffic != `{"enabled":true}` {
+		t.Fatal("legacy import changed target traffic control", traffic, err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT options_json FROM user_usage_settings WHERE id=1`).Scan(&usage); err != nil || usage != `{"auditDays":42}` {
+		t.Fatal("legacy import changed target usage settings", usage, err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT applied_revision,applied_rules_json,applied_config_json FROM route_configuration_state WHERE id=1`).Scan(&applied, &rules, &settings); err != nil || applied != 0 || rules != "[]" || settings != "{}" {
+		t.Fatal("legacy import retained stale applied routes", applied, rules, settings, err)
+	}
+}
+
+func TestConfigurationPreviewDoesNotCreateLazyTrafficControlTable(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := ValidateConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var exists bool
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='inbound_traffic_control')`).Scan(&exists); err != nil || exists {
+		t.Fatal("preview changed target database schema", exists, err)
+	}
+}
+
+func TestConfigurationBackupRejectsMissingRouteActivationRecord(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup ConfigBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	table := backup.Tables["route_configuration_state"]
+	table.Rows = [][]jsontext.Value{}
+	backup.Tables["route_configuration_state"] = table
+	broken, err := json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateConfig(t.Context(), source.DB(), broken); err == nil {
+		t.Fatal("accepted backup missing its route activation record")
+	}
+	if _, err := source.DB().ExecContext(t.Context(), `DELETE FROM route_configuration_state`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ExportConfig(t.Context(), source.DB()); err == nil {
+		t.Fatal("exported an inconsistent route activation state")
+	}
+}
+
+func TestConfigurationExportRedactsWireGuardIdentityAndDisablesNode(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"id":"wg","name":"WireGuard","origin":"manual","enabled":true,"chain":[{"type":"wireguard","wireguard":{"secretKey":"private-key-marker","endpoint":["vpn.example:1234"],"peers":[{"publicKey":"public","preSharedKey":"preshared-key-marker","endpoint":"vpn.example:1234"}]}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('wg','WireGuard','','manual',1,'["wireguard"]',0,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("private-key-marker")) || bytes.Contains(data, []byte("preshared-key-marker")) {
+		t.Fatal("configuration export contains WireGuard private credentials")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled int
+	var restored string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT enabled,data_json FROM nodes_v2 WHERE id='wg'`).Scan(&enabled, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if enabled != 0 || !bytes.Contains([]byte(restored), []byte(`"enabled":false`)) || !bytes.Contains([]byte(restored), []byte("vpn.example:1234")) {
+		t.Fatal("redacted node must be disabled while retaining its endpoint", enabled, restored)
+	}
+}
+
+func TestConfigurationExportRedactsEmbeddedNodeCredentials(t *testing.T) {
+	for _, tc := range []struct{ name, protocol string }{
+		{"ssh", `{"type":"ssh","ssh":{"user":"alice","password":"identity-marker","private_key":"identity-marker","private_key_passphrase":"identity-marker","host_key":"public"}}`},
+		{"vmess", `{"type":"vmess","vmess":{"id":"identity-marker","aid":"0","security":"auto"}}`},
+		{"vless", `{"type":"vless","vless":{"uuid":"identity-marker"}}`},
+		{"hysteria2", `{"type":"hysteria2","hysteria2":{"host":"vpn.example","auth":"identity-marker","salamander_password":"identity-marker"}}`},
+		{"shadowsocksr protocol parameter", `{"type":"shadowsocksr","shadowsocksr":{"protocol":"auth_chain_a","protoparam":"42:identity-marker"}}`},
+		{"shadowsocksr obfuscation parameter", `{"type":"shadowsocksr","shadowsocksr":{"obfs":"http_simple","obfsparam":"vpn.example#Authorization: identity-marker"}}`},
+		{"openvpn", `{"type":"openvpn","openvpn":{"gateway":"vpn.example","password":"identity-marker","client_key_pem":"identity-marker","tls_auth_key":"identity-marker","tls_crypt_key":"identity-marker","auth":"SHA256"}}`},
+		{"nebula", `{"type":"nebula","nebula":{"config_yaml":"private_key: identity-marker"}}`},
+		{"tls", `{"type":"tls_termination","tls_termination":{"tls":{"certificates":[{"cert":"cHVibGlj","key":"identity-marker"}]}}}`},
+		{"network split", `{"type":"network_split","network_split":{"tcp":{"type":"tailscale","tailscale":{"auth_key":"identity-marker"}}}}`},
+		{"escaped key", `{"type":"wireguard","wireguard":{"secr\u0065tKey":"identity-marker"}}`},
+		{"legacy field casing", `{"type":"ssh","ssh":{"Private_Key":"identity-marker","Private_Key_Passphrase":"identity-marker","host_key":"public"}}`},
+		{"legacy unknown credential aliases", `{"type":"wireguard","wireguard":{"Private_Key":"identity-marker","Pre_Shared_Key":"identity-marker"}}`},
+		{"legacy field punctuation", `{"type":"ssh","ssh":{"pass-word":"identity-marker","private-key":"identity-marker","host_key":"public"}}`},
+		{"url credentials", `{"type":"masque","masque":{"url":"https://user:identity-marker@vpn.example/connect?token=identity-marker#identity-marker"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer source.Close()
+			doc := `{"id":"node","name":"Fixture","origin":"manual","enabled":true,"chain":[` + tc.protocol + `]}`
+			if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('node','Fixture','','manual',1,'[]',0,?)`, doc); err != nil {
+				t.Fatal(err)
+			}
+			data, err := ExportConfig(t.Context(), source.DB())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(data, []byte("identity-marker")) {
+				t.Fatal("credential remained in configuration export")
+			}
+			if tc.name == "openvpn" && !bytes.Contains(data, []byte("SHA256")) {
+				t.Fatal("non-secret OpenVPN algorithm was removed")
+			}
+			target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer target.Close()
+			if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+				t.Fatal(err)
+			}
+			var enabled int
+			if err := target.DB().QueryRowContext(t.Context(), `SELECT enabled FROM nodes_v2 WHERE id='node'`).Scan(&enabled); err != nil || enabled != 0 {
+				t.Fatal("redacted node remained enabled", enabled, err)
+			}
+		})
+	}
+}
+
+func TestConfigurationExportRedactsInboundIdentityAndDisablesListener(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"id":"listener","name":"Listener","enabled":true,"network":{"type":"tcp_udp","tcp_udp":{"host":"127.0.0.1:1080","udp":"enabled"}},"transports":[{"type":"reality","reality":{"privateKey":"inbound-private-marker","mldsa65Seed":"inbound-seed-marker"}},{"type":"tls_auto","tls_auto":{"caKeyBase64":"inbound-ca-marker"}}],"protocol":{"type":"wireguard","wireguard":{"privateKey":"inbound-wire-marker","peers":[{"preSharedKey":"inbound-psk-marker"}]}},"authentication":{"users":["user-id-marker"]}}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('listener','Listener',1,'tcp_udp','wireguard','[]',0,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"inbound-private-marker", "inbound-seed-marker", "inbound-ca-marker", "inbound-wire-marker", "inbound-psk-marker", "user-id-marker"} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Errorf("configuration export contains %s", marker)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled int
+	var restored string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT enabled,data_json FROM inbounds_v2 WHERE id='listener'`).Scan(&enabled, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if enabled != 0 || !bytes.Contains([]byte(restored), []byte(`"enabled":false`)) || !bytes.Contains([]byte(restored), []byte("127.0.0.1:1080")) {
+		t.Fatal("redacted listener must remain disabled with its address", enabled, restored)
+	}
+}
+
+func TestConfigurationExportRedactsHTTPMockPayloads(t *testing.T) {
+	const payload = "c2VjcmV0LW1vY2stbWFya2Vy"
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	node := `{"id":"mock-node","name":"Mock","enabled":true,"chain":[{"type":"http_mock","http_mock":{"data":"` + payload + `"}}]}`
+	inbound := `{"id":"mock-inbound","name":"Mock","enabled":true,"transports":[{"type":"http_mock","http_mock":{"dataBase64":"` + payload + `"}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('mock-node','Mock','','manual',1,'[]',0,?)`, node); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('mock-inbound','Mock',1,'tcp','http','[]',0,?)`, inbound); err != nil {
+		t.Fatal(err)
+	}
+	export, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(export, []byte(payload)) {
+		t.Fatal("configuration export retained an HTTP Mock payload")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), export); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"nodes_v2", "inbounds_v2"} {
+		var enabled int
+		var data string
+		if err := target.DB().QueryRowContext(t.Context(), "SELECT enabled,data_json FROM "+table).Scan(&enabled, &data); err != nil || enabled != 0 || !strings.Contains(data, `"enabled":false`) {
+			t.Fatal("redacted endpoint remained enabled", table, err)
+		}
+	}
+}
+
+func TestConfigurationExportOmitsInactiveLegacyEndpointCopies(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	for _, query := range []string{
+		`INSERT INTO nodes(hash,group_name,name,origin,selected_tcp,search_text,updated_at,data_json) VALUES('legacy','fixture','Legacy',1,1,'legacy-search-marker',1,'{"name":"Legacy","identityRecord":"legacy-node-opaque-marker","protocols":[{"wireguard":{"secretKey":"legacy-node-key-marker"}}]}')`,
+		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","identityRecord":"legacy-inbound-opaque-marker","http":{"password":"legacy-inbound-password-marker"}}')`,
+		`INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('legacy-tag-marker','node','legacy',1)`,
+	} {
+		if _, err := source.DB().ExecContext(t.Context(), query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"legacy-node-key-marker", "legacy-inbound-password-marker", "legacy-search-marker", "legacy-node-opaque-marker", "legacy-inbound-opaque-marker", "legacy-tag-marker"} {
+		if bytes.Contains(data, []byte(secret)) {
+			t.Errorf("legacy configuration export includes %s", secret)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"nodes", "inbounds", "node_tags"} {
+		var count int
+		if err := target.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 0 {
+			t.Fatal("configuration import retained an inactive legacy table", table, count, err)
+		}
+		if err := source.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil || count != 1 {
+			t.Fatal("export changed the live legacy table", table, count, err)
+		}
+	}
+	local, err := ExportConfigForLocalRestore(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), local); err != nil {
+		t.Fatal("historical local projection could not be restored", err)
+	}
+	var raw string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM nodes WHERE hash='legacy'`).Scan(&raw); err != nil || !strings.Contains(raw, "legacy-node-opaque-marker") || strings.Contains(raw, "legacy-node-key-marker") {
+		t.Fatal("local legacy node compatibility changed", err)
+	}
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM inbounds WHERE name='legacy-inbound'`).Scan(&raw); err != nil || !strings.Contains(raw, "legacy-inbound-opaque-marker") || strings.Contains(raw, "legacy-inbound-password-marker") {
+		t.Fatal("local legacy inbound compatibility changed", err)
+	}
+}
+
+func TestConfigurationExportRejectsAmbiguousCredentialFields(t *testing.T) {
+	db, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	doc := `{"id":"ambiguous","enabled":true,"chain":[{"type":"wireguard","wireguard":{"secretKey":"first-secret","secretKey":"second-secret"}}]}`
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('ambiguous','Ambiguous','','manual',1,'[]',0,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := ExportConfig(t.Context(), db.DB()); err == nil || len(data) != 0 {
+		t.Fatal("ambiguous duplicate credential fields were exported")
+	}
+}
+
+func TestConfigurationExportRejectsUnknownGatewayFields(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[],"futureCredentials":"sensitive-value"}')`); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := ExportConfig(t.Context(), source.DB()); err == nil || len(data) != 0 {
+		t.Fatal("export accepted unknown gateway data that may contain credentials")
+	}
+}
+
+func TestConfigurationExportRejectsUnknownEndpointFields(t *testing.T) {
+	for _, tc := range []struct {
+		name, query, document string
+	}{
+		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`},
+		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`},
+		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			if _, err := db.DB().ExecContext(t.Context(), tc.query, tc.document); err != nil {
+				t.Fatal(err)
+			}
+			data, err := ExportConfig(t.Context(), db.DB())
+			if err == nil || len(data) != 0 {
+				t.Fatal("unknown endpoint field may contain credentials and must not be exported")
+			}
+			if strings.Contains(err.Error(), "sensitive-marker") {
+				t.Fatal("export error disclosed an unknown field value")
+			}
+		})
+	}
+}
+
+func TestConfigurationExportDisablesGatewayWithRedactedFallback(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"forward","rewrite":{"query":"token=query-marker","headers":{"X-Api-Key":["header-marker"]}}}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope ConfigBackup
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Version != 2 {
+		t.Fatal("guarded configuration must use a format version rejected by older servers", envelope.Version, err)
+	}
+	if bytes.Contains(data, []byte("query-marker")) || bytes.Contains(data, []byte("header-marker")) {
+		t.Fatal("configuration export contains fallback credentials")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled int
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].enabled') FROM gateway_configuration WHERE id=1`).Scan(&enabled); err != nil || enabled != 0 {
+		t.Fatal("redacted gateway fallback remained enabled", enabled, err)
+	}
+	reexport, err := ExportConfig(t.Context(), target.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(reexport, &envelope); err != nil || envelope.Version != 2 {
+		t.Fatal("re-export of guarded Gateway lost the newer format", envelope.Version, err)
+	}
+}
+
+func TestConfigurationExportRedactsGatewayURLCredentials(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[{"id":"pool","name":"Pool","backends":[{"url":"https://backend.example/api?token=backend-secret-marker"}],"healthPath":"/health?token=health-secret-marker"}],"filters":[{"id":"filter","enabled":true,"gatewayId":"g","url":"https://filters.example/list?token=filter-secret-marker","text":""}],"fallback":{"type":"redirect","status":302,"location":"https://example.org/path?token=redirect-secret-marker","rewrite":{}}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope ConfigBackup
+	if err := json.Unmarshal(data, &envelope); err != nil || envelope.Version != 2 {
+		t.Fatal("Gateway URL redaction requires the guarded export version", envelope.Version, err)
+	}
+	for _, marker := range []string{"backend-secret-marker", "health-secret-marker", "filter-secret-marker", "redirect-secret-marker"} {
+		if bytes.Contains(data, []byte(marker)) {
+			t.Fatalf("configuration export contains %s", marker)
+		}
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled, guard, filterEnabled int
+	var backend, filter, redirect string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].enabled'),json_extract(data_json,'$.gateways[0].rejectWhenDisabled'),json_extract(data_json,'$.gateways[0].filters[0].enabled'),json_extract(data_json,'$.gateways[0].backendPools[0].backends[0].url'),json_extract(data_json,'$.gateways[0].filters[0].url'),json_extract(data_json,'$.gateways[0].fallback.location') FROM gateway_configuration WHERE id=1`).Scan(&enabled, &guard, &filterEnabled, &backend, &filter, &redirect); err != nil {
+		t.Fatal(err)
+	}
+	if enabled != 0 || guard != 1 || filterEnabled != 0 || backend != "https://backend.example/api" || filter != "https://filters.example/list" || redirect != "https://example.org/path" {
+		t.Fatal("unsafe or invalid sanitized Gateway", enabled, guard, filterEnabled, backend, filter, redirect)
+	}
+}
+
+func TestConfigurationExportKeepsRedactedRelativeRedirectValid(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	doc := `{"version":2,"revision":1,"gateways":[{"id":"g","name":"Gateway","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"redirect","status":302,"location":"?token=relative-secret-marker","rewrite":{}}}]}`
+	if _, err := source.DB().ExecContext(t.Context(), `INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	data, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("relative-secret-marker")) {
+		t.Fatal("relative redirect credential retained")
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var location string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT json_extract(data_json,'$.gateways[0].fallback.location') FROM gateway_configuration`).Scan(&location); err != nil || location != "/" {
+		t.Fatal("redacted redirect became invalid", location, err)
+	}
+}
+
+func TestConfigurationExportRejectsExcessivelyNestedEndpoint(t *testing.T) {
+	db, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	doc := `{"id":"nested","enabled":true,"value":` + strings.Repeat("[", 65) + `"secret"` + strings.Repeat("]", 65) + `}`
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('nested','Nested','','manual',1,'[]',0,?)`, doc); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ExportConfig(t.Context(), db.DB()); err == nil {
+		t.Fatal("deeply nested endpoint should be rejected before export")
+	}
+}
+
+func TestPrePolicySelectorConfigurationExportRemainsRestorable(t *testing.T) {
+	s, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, q := range []string{
+		`INSERT INTO nodes_v2 VALUES('n','Node','manual','manual',1,'["direct"]',0,'{"id":"n","name":"Node","origin":"manual","enabled":true,"chain":[{"type":"direct","direct":{}}]}')`,
+		`INSERT INTO outbound_selectors(id,name,node_id,revision) VALUES('s','Manual','n',1)`,
+	} {
+		if _, err := s.DB().ExecContext(t.Context(), q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := ExportConfig(t.Context(), s.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backup ConfigBackup
+	if err := json.Unmarshal(data, &backup); err != nil {
+		t.Fatal(err)
+	}
+	table := backup.Tables["outbound_selectors"]
+	table.Columns = table.Columns[:4]
+	for i := range table.Rows {
+		table.Rows[i] = table.Rows[i][:4]
+	}
+	backup.Tables["outbound_selectors"] = table
+	data, err = json.Marshal(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateConfig(t.Context(), s.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), s.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var policy string
+	if err := s.DB().QueryRowContext(t.Context(), `SELECT policy_json FROM outbound_selectors WHERE id='s'`).Scan(&policy); err != nil || policy != "null" {
+		t.Fatal(policy, err)
+	}
+}
 
 func TestConfigBackupRoundTripAndAtomicFailure(t *testing.T) {
 	ctx := t.Context()
@@ -102,7 +852,7 @@ func TestConfigBackupRejectsIncompleteOrUnknownFormat(t *testing.T) {
 	if err := json.Unmarshal(data, &backup); err != nil {
 		t.Fatal(err)
 	}
-	backup.Version = 2
+	backup.Version = 3
 	future, err := json.Marshal(backup)
 	if err != nil {
 		t.Fatal(err)

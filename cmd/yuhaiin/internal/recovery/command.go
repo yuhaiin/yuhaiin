@@ -1,0 +1,227 @@
+package recoverycmd
+
+import (
+	"context"
+	"encoding/json/v2"
+	"errors"
+	"flag"
+	updatemaintenance "github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
+	"io"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+	"time"
+
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
+)
+
+func Run(args []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+	return Execute(ctx, args, os.Stdout)
+}
+
+// These commands never start the server or a network listener. Verification
+// does not open deployment databases; creation and activation require stopped
+// writer owners. Restoration is committed only by a later healthy server start.
+func Execute(ctx context.Context, args []string, output io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: yuhaiin recovery <keygen|create|fetch|verify|preview|restore|rollback|prune-points> -help")
+	}
+	action := args[0]
+	flags := flag.NewFlagSet("recovery", flag.ContinueOnError)
+	timeout := flags.Duration("timeout", 30*time.Minute, "maximum command duration (up to 24h)")
+	archive := flags.String("archive", "", "encrypted recovery archive")
+	identityFile := flags.String("identity-file", "", "private X25519 identity file; newly created for keygen")
+	passphraseFile := flags.String("passphrase-file", "", "private file containing the recovery passphrase")
+	stagingParent := flags.String("staging-parent", os.TempDir(), "parent for temporary private verification staging")
+	directory := flags.String("path", configuration.DataDir.Load(), "deployment data directory for backup or recovery")
+	managementAuth := flags.Bool("management-auth", false, "management identities were enabled, for explicit startup inputs")
+	recipient := flags.String("recipient", "", "external public age X25519 recipient for create")
+	maintenance := flags.Bool("maintenance", false, "confirm server and external identity/certificate writers are stopped")
+	includeHistory := flags.Bool("include-history", false, "include optional traffic and connection history")
+	tlsMode := flags.String("management-tls", "", "override recorded management TLS mode: disabled, self_signed, files, managed")
+	certFile := flags.String("https-cert", "", "management certificate file for explicit startup inputs")
+	managedID := flags.String("https-certificate-id", "", "managed management HTTPS certificate ID for explicit startup inputs")
+	keyFile := flags.String("https-key", "", "management private key file for explicit startup inputs")
+	workingDirectory := flags.String("working-directory", "", "absolute working directory for explicit startup inputs")
+	externalWeb := flags.String("eweb", "", "external web assets for explicit startup inputs")
+	mode := flags.String("mode", "", "explicit recovery mode: original or clone")
+	confirmBackup := flags.String("confirm-backup", "", "backup UUID from preview")
+	confirmSource := flags.String("confirm-source-instance", "", "source instance UUID from preview")
+	confirmTarget := flags.String("confirm-target-instance", "", "target identity from preview, including empty/unreadable")
+	sourceStopped := flags.Bool("source-stopped", false, "confirm original deployment will not run with restored machine identities")
+	restoreCredentials := flags.Bool("restore-credentials", false, "acknowledge restoring older credential/device validity state")
+	pointCount := flags.Int("keep-points", 3, "retained finalized local rollback copies (1–1000)")
+	pointDays := flags.Int("point-days", 30, "retained local rollback-copy age in days (1–3650)")
+	confirmPoints := flags.Bool("delete-expired-points", false, "confirm permanent removal of unprotected expired/excess local rollback copies")
+	transaction := flags.String("transaction-id", "", "pending transaction UUID for offline rollback")
+	allowVersionChange := flags.Bool("allow-version-change", false, "acknowledge reviewed application version difference; unsupported schemas remain rejected")
+	adoptStartup := flags.Bool("adopt-startup", false, "persist the restored TLS/authentication/listener/file inputs for subsequent server starts")
+	s3ConfigFile := flags.String("s3-config-file", "", "owner-only JSON S3 settings for explicit offline fetch through the system network")
+	metadataFile := flags.String("metadata-file", "", "independently retained JSON recovery history item for offline fetch")
+
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if *timeout <= 0 || *timeout > 24*time.Hour {
+		return errors.New("recovery timeout must be between zero and 24 hours")
+	}
+	ctx, cancel := context.WithTimeout(ctx, *timeout)
+	defer cancel()
+	if flags.NArg() != 0 {
+		return errors.New("unexpected recovery arguments")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Mutation and snapshots share the installed helpers' maintenance lease.
+	// Keep preview/verification independent so operators can diagnose a stopped host.
+	if action == "create" || action == "restore" || action == "rollback" || action == "prune-points" {
+		lease, err := lockfile.Acquire(filepath.Join(*directory, ".recovery-maintenance.lock"))
+		if err != nil {
+			return err
+		}
+		defer lease.Close()
+		r, err := updatemaintenance.Read(*directory)
+		if err != nil {
+			return err
+		}
+		if r != nil && r.Phase == "manual_recovery" && action == "restore" && *mode != "original" {
+			return errors.New("update recovery requires original-instance mode; create a clone in a separate deployment")
+		}
+		if r != nil && !updatemaintenance.Terminal(r.Phase) {
+			return errors.New("an admitted update owns maintenance; inspect update-status or cancel the prepared handoff first")
+		}
+	}
+	switch action {
+	case "fetch":
+		if *archive == "" || *s3ConfigFile == "" || *metadataFile == "" || *identityFile != "" || *passphraseFile != "" {
+			return errors.New("fetch requires -archive, -s3-config-file and -metadata-file; decrypt separately using verify")
+		}
+		var options contract.S3
+		if err := readJSONFile(*s3ConfigFile, &options, true); err != nil {
+			return err
+		}
+		var expected contractrecovery.Backup
+		if err := readJSONFile(*metadataFile, &expected, false); err != nil {
+			return err
+		}
+		if err := backupapp.FetchArchive(ctx, *archive, options, expected, direct.Default, false); err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, struct {
+			State string `json:"state"`
+		}{"ciphertext_verified"})
+	case "prune-points":
+		if !*confirmPoints || !*maintenance {
+			return errors.New("prune-points requires -maintenance and -delete-expired-points")
+		}
+		result, err := recovery.PrunePoints(ctx, *directory, contractrecovery.PointRetention{Enabled: true, KeepCount: *pointCount, KeepDays: *pointDays}, true)
+		if err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, result)
+	case "rollback":
+		if *transaction == "" || *archive != "" || *identityFile != "" || *passphraseFile != "" {
+			return errors.New("rollback requires -transaction-id, -path and -maintenance")
+		}
+		if err := recovery.Rollback(*directory, *transaction, *maintenance); err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, struct {
+			State string `json:"state"`
+		}{"rolled_back"})
+	case "keygen":
+		if *identityFile == "" || *archive != "" || *passphraseFile != "" {
+			return errors.New("keygen requires only -identity-file")
+		}
+		recipient, err := backuparchive.GenerateIdentityFile(ctx, *identityFile)
+		if err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, struct {
+			Recipient string `json:"recipient"`
+		}{recipient})
+	case "create":
+		if *archive == "" || *identityFile != "" || (*recipient == "") == (*passphraseFile == "") {
+			return errors.New("create requires -archive and one public -recipient or private -passphrase-file")
+		}
+		key := backuparchive.Encryption{Recipient: *recipient}
+		if *passphraseFile != "" {
+			value, err := readSecretFile(*passphraseFile)
+			if err != nil {
+				return err
+			}
+			key.Passphrase = value
+		}
+		var inputs *contractrecovery.Runtime
+		if *managementAuth || *tlsMode != "" || *workingDirectory != "" || *certFile != "" || *keyFile != "" || *managedID != "" || *externalWeb != "" {
+			inputs = &contractrecovery.Runtime{ManagementAuth: *managementAuth, ManagementTLS: *tlsMode, CertificateFile: *certFile, ManagedCertificateID: *managedID, KeyFile: *keyFile, WorkingDirectory: *workingDirectory, ExternalWebDirectory: *externalWeb}
+		}
+		manifest, err := recovery.Create(ctx, *directory, *archive, key, recovery.CreateOptions{ConfirmedMaintenance: *maintenance, IncludeHistory: *includeHistory, Runtime: inputs})
+		if err != nil {
+			return err
+		}
+		return json.MarshalWrite(output, manifest)
+	case "verify", "preview", "restore":
+		if *archive == "" || (*identityFile == "") == (*passphraseFile == "") {
+			return errors.New("verify, preview and restore require -archive and one private key/passphrase file")
+		}
+		var key backuparchive.Decryption
+		if *identityFile != "" {
+			value, err := readSecretFile(*identityFile)
+			if err != nil {
+				return err
+			}
+			key.Identity = value
+		} else {
+			value, err := readSecretFile(*passphraseFile)
+			if err != nil {
+				return err
+			}
+			key.Passphrase = value
+		}
+		source, err := os.Open(*archive)
+		if err != nil {
+			return err
+		}
+		defer source.Close()
+		if info, err := source.Stat(); err != nil || !info.Mode().IsRegular() {
+			return errors.New("recovery archive must be a regular file")
+		}
+		if action == "preview" {
+			preview, err := recovery.Preview(ctx, *directory, source, key, *mode)
+			if err != nil {
+				return err
+			}
+			return json.MarshalWrite(output, preview)
+		}
+		if action == "restore" {
+			result, err := recovery.Restore(ctx, *directory, source, key, recovery.RestoreOptions{Mode: *mode, AdoptStartup: *adoptStartup,
+				ConfirmedMaintenance: *maintenance, ConfirmBackupID: *confirmBackup, ConfirmSourceInstanceID: *confirmSource,
+				ConfirmTargetInstanceID: *confirmTarget, ConfirmSourceStopped: *sourceStopped, ConfirmCredentialRevival: *restoreCredentials,
+				AllowVersionChange: *allowVersionChange})
+			if err != nil {
+				return err
+			}
+			return json.MarshalWrite(output, result)
+		}
+		prepared, err := backuparchive.Prepare(ctx, source, *stagingParent, key)
+		if err != nil {
+			return err
+		}
+		defer prepared.Close()
+		return json.MarshalWrite(output, prepared.Manifest)
+	default:
+		return errors.New("unknown recovery action; use keygen, create, fetch, verify, preview, restore or rollback")
+	}
+}

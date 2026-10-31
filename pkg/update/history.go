@@ -15,6 +15,7 @@ import (
 	"time"
 
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
 )
 
 const maxHistory = 2
@@ -154,6 +155,9 @@ func SaveHistory(dataDir, executable, version, commit string) error {
 		return err
 	}
 
+	if err := saveCurrentCompatibility(executable, binPath); err != nil {
+		return err
+	}
 	item := contractupdate.HistoryEntry{
 		ID: id, Version: version, Commit: commit, Size: size, SavedAt: time.Now().UTC(),
 	}
@@ -247,6 +251,17 @@ func StageHistory(dataDir, id, stageDir string) (string, error) {
 		_ = os.Remove(staged)
 		return "", err
 	}
+	manifest, manifestErr := historyCompatibility(dataDir, id)
+	if manifestErr == nil {
+		if err := writeStagedCompatibility(staged, manifest); err != nil {
+			_ = os.Remove(staged)
+			_ = os.Remove(staged + compatibility.Suffix)
+			return "", err
+		}
+	} else if !errors.Is(manifestErr, os.ErrNotExist) {
+		_ = os.Remove(staged)
+		return "", manifestErr
+	}
 	return staged, nil
 }
 
@@ -269,6 +284,9 @@ func PruneHistory(dataDir, activeExecutable string) error {
 			continue
 		}
 		binary, metadata := historyPaths(dir, entry.ID)
+		if err := os.Remove(binary + compatibility.Suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 		if err := os.Remove(metadata); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}

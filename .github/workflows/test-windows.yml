@@ -21,6 +21,51 @@ jobs:
   test:
     runs-on: ${{ inputs.runner }}
     steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: windows-recovery-acl
+
+      - name: Test native recovery directory durability
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: go test -count=1 -timeout=180s ./pkg/app/backup/internal/backupfs
+
+      - name: Test native recovery crash, rollback and encrypted restoration
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: go test -count=1 -timeout=300s -run '^(TestRecoveryTransaction.*|TestWindowsRecovery.*|TestEncryptedRecoveryRetainsPrivateSourceURL)$' ./pkg/app/backup/recovery
+
+      - name: Test CLI restoration, real startup, TLS and startup rollback
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: go test -count=1 -timeout=300s -run '^(TestRecoveryServiceStartupDrill|TestRecoveryManagedStartupServiceDrill)$' ./cmd/yuhaiin
+
+      - name: Measure native recovery volume-flush overhead
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: |
+          go test -run '^$' -bench '^BenchmarkWindowsRecoveryDirectorySync$' -benchmem -benchtime=300ms -count=2 -timeout=180s ./pkg/app/backup/internal/backupfs |
+            Tee-Object -FilePath windows-recovery-sync-benchmark.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Retain native recovery volume-flush measurements
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-recovery-durability-${{ inputs.arch }}-${{ github.sha }}
+          path: windows-recovery-sync-benchmark.txt
+          retention-days: 14
+
+      - name: Test recovery staging and backup key ACLs
+        run: go test -count=1 -run '^TestWindowsRecoveryArtifactsHavePrivateACLs$' ./pkg/store/backup/archive
+
+      - name: Test recovery journal path validation
+        run: go test -count=1 -run '^TestRecoveryMaintenanceGuardValidatesNestedJournalDirectories$' ./pkg/app/backup/recovery
+
+      - name: Test configuration snapshot secret isolation
+        run: go test -count=1 -run '^TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial$' ./pkg/app/backup
+
       - name: Download release binary
         uses: actions/download-artifact@v8
         with:

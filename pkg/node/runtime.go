@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -30,24 +32,41 @@ import (
 // It also implements the route dialer and node HTTP controller contracts so
 // callers do not need a second manager/controller wrapper.
 type NodeRuntime struct {
+	metrics            *reliabilityMetrics
+	measurementActive  atomic.Int32
+	measurementLimit   atomic.Int32
+	measurementMu      sync.Mutex
+	measurementClosed  bool
+	measurements       map[*measurementLease]struct{}
+	probePolicy        atomic.Pointer[ProbePolicy]
+	requireProbePolicy bool
 	credentialMu       sync.Mutex
 	credentials        credential.Resolver
 	credentialVersions map[string]string
 	path               string
 
-	mu       sync.Mutex
-	sqlite   *storagesqlite.Store
-	nodes    *plainstore.NodeStore
-	closed   bool
-	proxies  *ProxyStore
-	observer *nodeObserver
+	mu         sync.Mutex
+	sqlite     *storagesqlite.Store
+	nodes      *plainstore.NodeStore
+	closed     bool
+	proxies    *ProxyStore
+	observer   *nodeObserver
+	selectors  *selectorRuntime
+	speedSlots chan struct{}
 }
 
-func NewNodeRuntime(path string) *NodeRuntime {
-	return &NodeRuntime{
-		path:    path,
-		proxies: NewProxyStore(),
+func NewNodeRuntime(path string, options ...RuntimeOption) *NodeRuntime {
+	r := &NodeRuntime{
+		metrics:    newReliabilityMetrics(),
+		path:       path,
+		proxies:    NewProxyStore(),
+		speedSlots: make(chan struct{}, 2),
 	}
+	for _, option := range options {
+		option(r)
+	}
+	r.measurementLimit.Store(4)
+	return r
 }
 
 func (r *NodeRuntime) openNodes(ctx context.Context) (*plainstore.NodeStore, error) {
@@ -72,6 +91,14 @@ func (r *NodeRuntime) openNodes(ctx context.Context) (*plainstore.NodeStore, err
 	r.sqlite = sqliteStore
 	r.nodes = plainstore.NewNodeStore(sqliteStore.DB())
 	r.observer = observer
+	selectors, err := newSelectorRuntime(ctx, r, r.nodes)
+	if err != nil {
+		_ = observer.close()
+		_ = sqliteStore.Close()
+		r.sqlite, r.nodes, r.observer = nil, nil, nil
+		return nil, fmt.Errorf("load selector runtime: %w", err)
+	}
+	r.selectors = selectors
 	return r.nodes, nil
 }
 
@@ -84,10 +111,17 @@ func (r *NodeRuntime) Close() error {
 	r.closed = true
 	sqliteStore := r.sqlite
 	observer := r.observer
+	selectors := r.selectors
 	r.sqlite = nil
 	r.nodes = nil
 	r.mu.Unlock()
+	r.stopMeasurements()
 
+	if selectors != nil {
+		close(selectors.stop)
+		<-selectors.done
+		selectors.scheduler.close()
+	}
 	err := r.proxies.Close()
 	if observer != nil {
 		err = errors.Join(err, observer.close())
@@ -103,11 +137,25 @@ func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contrac
 	if err != nil {
 		return contractnode.Node{}, err
 	}
+	previous, previousErr := nodes.Get(ctx, node.ID)
 	node.Origin = "manual"
 	if err := nodes.Save(ctx, node, 0); err != nil {
 		return contractnode.Node{}, err
 	}
-	r.proxies.Delete(node.ID)
+	r.credentialMu.Lock()
+	transportChanged := previousErr != nil || !sameNodeTransport(previous, node)
+	if transportChanged {
+		r.cancelMeasurements(node.ID)
+		r.observer.invalidateHealth(node.ID)
+		r.proxies.Delete(node.ID)
+	}
+	r.credentialMu.Unlock()
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
+		return node, err
+	}
+	if !transportChanged {
+		r.proxies.UpdateMetadata(node.ID, r.selectors.snapshot.Load().nodes[node.ID])
+	}
 	return node, nil
 }
 
@@ -116,6 +164,7 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 	if err != nil {
 		return err
 	}
+	before := r.selectors.snapshot.Load().nodes
 	if err := nodes.ReplaceRemote(ctx, group, points, 0); err != nil {
 		return err
 	}
@@ -125,7 +174,13 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 	}
 	for _, node := range configured {
 		if node.Origin == "remote" && node.Group == group {
-			r.proxies.Delete(node.ID)
+			r.credentialMu.Lock()
+			if old, ok := before[node.ID]; !ok || !sameNodeTransport(old, node) {
+				r.cancelMeasurements(node.ID)
+				r.observer.invalidateHealth(node.ID)
+				r.proxies.Delete(node.ID)
+			}
+			r.credentialMu.Unlock()
 		}
 	}
 	if r.observer != nil {
@@ -135,6 +190,19 @@ func (r *NodeRuntime) ReplaceRemoteContractNodes(ctx context.Context, group stri
 		}
 		if err := r.observer.prune(ctx, existing); err != nil {
 			return err
+		}
+		for id := range before {
+			if !existing[id] {
+				r.cancelMeasurements(id)
+			}
+		}
+	}
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
+		return err
+	}
+	for _, node := range configured {
+		if node.Origin == "remote" && node.Group == group {
+			r.proxies.UpdateMetadata(node.ID, r.selectors.snapshot.Load().nodes[node.ID])
 		}
 	}
 	return r.clearIdleProxies(ctx, nodes)
@@ -159,7 +227,11 @@ func (r *NodeRuntime) Remove(ctx context.Context, id string) error {
 	} else if err := deleteNode(); err != nil {
 		return err
 	}
+	r.cancelMeasurements(id)
 	r.proxies.Delete(id)
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
+		return err
+	}
 	return r.clearIdleProxies(ctx, nodes)
 }
 
@@ -173,6 +245,9 @@ func (r *NodeRuntime) Select(ctx context.Context, selection contractnode.Selecti
 		return err
 	}
 	if err := nodes.Select(ctx, selection); err != nil {
+		return err
+	}
+	if err := r.refreshSelectors(ctx, nodes); err != nil {
 		return err
 	}
 	return r.clearIdleProxies(ctx, nodes)
@@ -272,21 +347,36 @@ func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.Node
 
 func (r *NodeRuntime) CloseNode(_ context.Context, id string) error {
 	if id != "" {
+		r.cancelMeasurements(id)
 		r.proxies.Delete(id)
 	}
 	return nil
 }
 
-func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.LatencyRequest) (contractnode.LatencyResponse, error) {
-	nodes, err := r.openNodes(ctx)
-	if err != nil {
-		return contractnode.LatencyResponse{}, err
-	}
-	node, err := nodes.Get(ctx, id)
+func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.LatencyRequest) (response contractnode.LatencyResponse, resultErr error) {
+	var duration time.Duration
+	defer func() {
+		r.metrics.observeProbe(req.Type, response.OK, resultErr, duration)
+	}()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	node, epoch, err := r.cachedNode(ctx, id)
 	if errors.Is(err, plainstore.ErrNotFound) {
 		return contractnode.LatencyResponse{}, fmt.Errorf("node not found")
 	}
 	if err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
+	if !r.probePolicyReady() {
+		return contractnode.LatencyResponse{}, errProbePolicyUnavailable
+	}
+	lease, err := r.admitMeasurement(ctx, id)
+	if err != nil {
+		return contractnode.LatencyResponse{}, err
+	}
+	defer lease.release()
+	ctx = lease.ctx
+	if err := r.selectors.waitProbeBudget(ctx, 0); err != nil {
 		return contractnode.LatencyResponse{}, err
 	}
 
@@ -303,21 +393,64 @@ func (r *NodeRuntime) Latency(ctx context.Context, id string, req contractnode.L
 		}
 	}
 
-	proxy, err := r.getContractDialer(ctx, id, node)
+	proxy, err := r.probeDialer(ctx, id, node, epoch, true)
 	if err != nil {
 		if r.observer != nil {
-			r.observer.counter(id).probe(req.Type, contractnode.LatencyResponse{}, err)
+			if !localProbeDenial(err) {
+				r.observer.counter(id).constructionFailureAtGeneration(err, epoch)
+			}
+			r.observer.counter(id).probeAtGeneration(req.Type, contractnode.LatencyResponse{}, err, epoch)
 		}
 		return contractnode.LatencyResponse{}, err
 	}
-	result, err := latency.LatencyWithOptions(req, &latencyDialer{Proxy: proxy, ipv6: req.IPv6}, latencyOptions)
+	start := time.Now()
+	result, err := latency.LatencyWithContext(ctx, req, newProbeBudgetProxy(&latencyDialer{Proxy: proxy, ipv6: req.IPv6}), latencyOptions)
+	duration = time.Since(start)
+	err = classifyProbeError(proxy, err)
+	if ctx.Err() != nil {
+		return result, ctx.Err()
+	}
+	if r.observer.counter(id).generation.Load() != epoch {
+		return result, errNodeReconfigured
+	}
 	if r.observer != nil {
-		r.observer.counter(id).probe(req.Type, result, err)
+		c := r.observer.counter(id)
+		c.probeAtGeneration(req.Type, result, err, epoch)
+		kind, target, tcp := "https", req.URL, true
+		if target == "" {
+			target = "https://www.gstatic.com/generate_204"
+		}
+		switch req.Type {
+		case "", "http", "tcp":
+			kind = "https_get"
+		case "tcp_connect":
+			kind, target = "tcp_connect", req.Host
+		case "dns", "udp":
+			kind, target, tcp = "dns", req.Host, false
+			if target == "" {
+				target = "223.5.5.5:53"
+			}
+			domain := req.TargetDomain
+			if domain == "" {
+				domain = "www.google.com"
+			}
+			target += "/" + domain
+		case "doq", "stun":
+			kind, target, tcp = req.Type, req.Host, false
+		case "stun_tcp":
+			kind, target = req.Type, req.Host
+		case "ip":
+			kind = req.Type
+		}
+		if (kind == "https" || kind == "https_get") && (!strings.HasPrefix(target, "https://") || latencyOptions.InsecureSkipVerify) {
+			kind = "http_unverified"
+		}
+		c.remoteEvidenceAtGeneration(tcp, contractnode.HealthSample{At: time.Now().UnixMilli(), OK: result.OK, RTTMS: float64(duration) / float64(time.Millisecond), Kind: kind, Target: target}, err, epoch)
 	}
 	return result, err
 }
 
-func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node contractnode.Node) (netapi.Proxy, error) {
+func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node contractnode.Node, expected ...uint64) (netapi.Proxy, error) {
 	if id == "" {
 		return nil, fmt.Errorf("node ID is empty")
 	}
@@ -331,6 +464,11 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 	}
 	r.credentialMu.Lock()
 	defer r.credentialMu.Unlock()
+	counter := r.observer.counter(id)
+	epoch := counter.generation.Load()
+	if len(expected) > 0 && expected[0] != epoch {
+		return nil, errNodeReconfigured
+	}
 	resolved, version, err := r.resolveCredentials(ctx, node)
 	if err != nil {
 		r.proxies.Delete(id)
@@ -344,6 +482,9 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 	}
 	r.credentialVersions[id] = version
 	proxy, err := r.proxies.LoadOrCreate(ctx, id, func() (*ProxyEntry, error) {
+		if netapi.IsBackgroundProbe(ctx) && requiresEstablishedClient(resolved.Chain) {
+			return nil, netapi.ErrBackgroundProbeUnavailable
+		}
 		proxy, err := register.ContractDialer(resolved)
 		if err != nil {
 			return nil, err
@@ -351,7 +492,7 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 		return &ProxyEntry{Proxy: proxy, ContractConfig: &node, Name: node.Name}, nil
 	})
 	if err != nil {
-		if r.observer != nil {
+		if r.observer != nil && !localProbeDenial(err) {
 			r.observer.counter(id).failure(err)
 		}
 		return nil, err
@@ -360,7 +501,7 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 		proxy = &singleFamilyNodeProxy{Proxy: proxy, ipVersion: node.IPVersion}
 	}
 	if r.observer != nil {
-		proxy = &observedProxy{Proxy: proxy, c: r.observer.counter(id)}
+		proxy = &observedProxy{Proxy: proxy, c: r.observer.counter(id), epoch: epoch}
 	}
 	return proxy, nil
 }
@@ -379,60 +520,41 @@ func (r *NodeRuntime) GetTarget(ctx context.Context, network, mode string, targe
 	case "node":
 		return r.GetDialerByID(ctx, target.ID)
 	case "selector":
-		nodes, err := r.openNodes(ctx)
-		if err != nil {
+		if _, err := r.openNodes(ctx); err != nil {
 			return nil, err
 		}
-		selector, err := nodes.Selector(ctx, target.ID)
-		if err != nil {
-			return nil, err
-		}
-		netapi.GetContext(ctx).SetSelector(selector.ID, selector.Name)
-		return r.GetDialerByID(ctx, selector.NodeID)
+		return r.selectors.target(ctx, network, target.ID)
 	default:
 		return nil, fmt.Errorf("unknown destination type %q", target.Type)
 	}
 }
 
 func (r *NodeRuntime) selected(ctx context.Context, network string) (netapi.Proxy, error) {
-	if len(network) < 3 {
-		return nil, fmt.Errorf("invalid network: %s", network)
-	}
-
-	nodes, err := r.openNodes(ctx)
-	if err != nil {
+	if _, err := r.openNodes(ctx); err != nil {
 		return nil, err
 	}
-	switch network[:3] {
-	case "tcp":
-		selected, ok, err := nodes.Selected(ctx, true)
-		if err == nil && ok {
-			return r.getContractDialer(ctx, selected.ID, selected)
-		}
-	case "udp":
-		selected, ok, err := nodes.Selected(ctx, false)
-		if err == nil && ok {
-			return r.getContractDialer(ctx, selected.ID, selected)
-		}
-	default:
+	snapshot := r.selectors.snapshot.Load()
+	id := ""
+	if strings.HasPrefix(network, "tcp") {
+		id = snapshot.tcpID
+	} else if strings.HasPrefix(network, "udp") {
+		id = snapshot.udpID
+	} else {
 		return nil, fmt.Errorf("invalid network: %s", network)
 	}
-	return nil, fmt.Errorf("selected %s node not found", network[:3])
+	n, ok := snapshot.nodes[id]
+	if !ok {
+		return nil, fmt.Errorf("selected %s node not found", network)
+	}
+	return r.getContractDialer(ctx, id, n, snapshot.generations[id])
 }
 
 func (r *NodeRuntime) GetDialerByID(ctx context.Context, id string) (netapi.Proxy, error) {
-	nodes, err := r.openNodes(ctx)
+	n, epoch, err := r.cachedNode(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	node, err := nodes.Get(ctx, id)
-	if errors.Is(err, plainstore.ErrNotFound) {
-		return nil, fmt.Errorf("node not found")
-	}
-	if err != nil {
-		return nil, err
-	}
-	return r.getContractDialer(ctx, id, node)
+	return r.getContractDialer(ctx, id, n, epoch)
 }
 
 type latencyDialer struct {

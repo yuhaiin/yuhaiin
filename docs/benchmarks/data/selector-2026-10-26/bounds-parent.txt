@@ -1,0 +1,51 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkSelectorNewFlow/manual/tcp-12         	  522105	       893.5 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12         	  486937	       741.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/tcp-12         	  446482	       757.7 ns/op	     272 B/op	       5 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12         	  755899	       473.8 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12         	  771680	       458.2 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/manual/udp-12         	  695335	       458.6 ns/op	     288 B/op	       6 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12       	  388022	       896.7 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12       	  370008	       886.8 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/tcp-12       	  368365	       961.3 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12       	  507331	       592.7 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12       	  541572	       585.8 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/failover/udp-12       	  534954	       584.8 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12       	  353973	       935.9 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12       	  364725	       917.9 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/tcp-12       	  352334	       942.6 ns/op	     328 B/op	       8 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12       	  551224	       608.2 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12       	  534222	       660.6 ns/op	     344 B/op	       9 allocs/op
+BenchmarkSelectorNewFlow/weighted/udp-12       	  562692	       608.8 ns/op	     344 B/op	       9 allocs/op
+BenchmarkObservedPacketSend-12                 	85030639	         4.068 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                 	89388582	         4.080 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12                 	89575857	         4.030 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSelectorRanking/failover/100-12       	   27679	     12659 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/100-12       	   28239	     12574 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/100-12       	   27963	     12560 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12 	   28000	     12307 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12 	   29382	     12024 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12 	   30186	     11864 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   30528	     11767 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   29590	     12187 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   29640	     11994 ns/op	   16384 B/op	       1 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   23162	     15514 ns/op	   21184 B/op	     101 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   22935	     15520 ns/op	   21184 B/op	     101 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   23224	     15689 ns/op	   21184 B/op	     101 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    2884	    122832 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    3043	    119872 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    3092	    119628 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    3102	    116459 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    3142	    116973 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    3067	    116496 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    3136	    116342 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    3069	    116582 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    3058	    116660 ns/op	  155648 B/op	       1 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    2373	    150275 ns/op	  203648 B/op	    1001 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    2254	    154924 ns/op	  203648 B/op	    1001 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    2449	    150748 ns/op	  203648 B/op	    1001 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	16.367s

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -37,7 +38,7 @@ func install(args []string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Windows service manager: %v", err)
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	service, err := m.OpenService(version.AppName)
 	if err == nil {
@@ -96,7 +97,7 @@ func uninstall(args []string) (ret error) {
 	if err != nil {
 		return fmt.Errorf("failed to connect to Windows service manager: %v", err)
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	service, err := m.OpenService(version.AppName)
 	if err != nil {
@@ -109,7 +110,10 @@ func uninstall(args []string) (ret error) {
 		return fmt.Errorf("failed to query service state: %v", err)
 	}
 	if st.State != svc.Stopped {
-		service.Control(svc.Stop)
+		if _, err := service.Control(svc.Stop); err != nil && !errors.Is(err, windows.ERROR_SERVICE_NOT_ACTIVE) {
+			_ = service.Close()
+			return fmt.Errorf("failed to stop service: %w", err)
+		}
 	}
 	err = service.Delete()
 	service.Close()
@@ -217,7 +221,7 @@ func stop(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	s, err := m.OpenService(version.AppName)
 	if err != nil {
@@ -257,7 +261,7 @@ func start(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
+	defer func() { _ = m.Disconnect() }()
 
 	s, err := m.OpenService(version.AppName)
 	if err != nil {

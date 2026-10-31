@@ -26,6 +26,7 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodeDelete, api.deleteNode)
 	addRPCRoute(handlers, v2NodeUse, api.useNode)
 	addRPCRoute(handlers, v2NodeLatency, api.nodeLatency)
+	addRPCRoute(handlers, v2NodeSpeed, api.nodeSpeed)
 	addRPCRoute(handlers, v2NodeClose, api.closeNode)
 	addRPCRoute(handlers, v2NodeExtraInfo, api.nodeExtraInfo)
 }
@@ -326,4 +327,23 @@ func (a v2API) clearResolverCache(ctx context.Context, request *resolverCacheDel
 		return nil, badRequest(err)
 	}
 	return &value, nil
+}
+
+type nodeSpeedRequest struct {
+	ID string `json:"id"`
+	contractnode.SpeedTestRequest
+}
+
+func (a v2API) nodeSpeed(ctx context.Context, request *nodeSpeedRequest) (*contractnode.ThroughputMeasurement, error) {
+	provider, ok := a.services.Node.(interface {
+		Speed(context.Context, string, contractnode.SpeedTestRequest) (contractnode.ThroughputMeasurement, error)
+	})
+	if !ok {
+		return nil, unavailable("node speed measurement is unavailable")
+	}
+	result, err := provider.Speed(ctx, request.ID, request.SpeedTestRequest)
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &result, nil
 }

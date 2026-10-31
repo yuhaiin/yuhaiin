@@ -1,0 +1,42 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/node
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkObservedPacketSend-12    	56336930	         4.042 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12    	59633358	         4.031 ns/op	       0 B/op	       0 allocs/op
+BenchmarkObservedPacketSend-12    	59477298	         4.159 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSelectorRanking/failover/100-12         	   15639	     15353 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/100-12         	   15513	     15415 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/100-12         	   15782	     15285 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12   	   16069	     14961 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12   	   16251	     14779 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/100-12   	   16202	     14796 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   16047	     14897 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   16188	     14804 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/100-12         	   16004	     14966 ns/op	   20480 B/op	       1 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   13167	     18262 ns/op	   25280 B/op	     101 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   13072	     18356 ns/op	   25280 B/op	     101 allocs/op
+BenchmarkSelectorRanking/balanced/100-12                   	   13154	     18390 ns/op	   25280 B/op	     101 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    1467	    156736 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    1546	    155480 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/failover/1000-12                  	    1561	    154774 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    1604	    149053 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    1622	    149385 ns/op	  204803 B/op	       1 allocs/op
+BenchmarkSelectorRanking/lowest_latency/1000-12            	    1623	    148927 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    1597	    149329 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    1604	    149675 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/highest_throughput/1000-12        	    1594	    150352 ns/op	  204800 B/op	       1 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    1282	    184872 ns/op	  252800 B/op	    1001 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    1340	    183180 ns/op	  252800 B/op	    1001 allocs/op
+BenchmarkSelectorRanking/balanced/1000-12                  	    1275	    184048 ns/op	  252800 B/op	    1001 allocs/op
+BenchmarkSelectorTarget/manual-12                          	  616864	       332.1 ns/op	     192 B/op	       4 allocs/op
+BenchmarkSelectorTarget/manual-12                          	  769560	       326.7 ns/op	     192 B/op	       4 allocs/op
+BenchmarkSelectorTarget/manual-12                          	  630841	       327.8 ns/op	     192 B/op	       4 allocs/op
+BenchmarkSelectorTarget/failover-12                        	 2423122	       100.5 ns/op	      56 B/op	       3 allocs/op
+BenchmarkSelectorTarget/failover-12                        	 2493525	        95.64 ns/op	      56 B/op	       3 allocs/op
+BenchmarkSelectorTarget/failover-12                        	 2376864	       102.3 ns/op	      56 B/op	       3 allocs/op
+BenchmarkSelectorTarget/weighted-12                        	 2504550	        95.69 ns/op	      56 B/op	       3 allocs/op
+BenchmarkSelectorTarget/weighted-12                        	 2389341	       101.2 ns/op	      56 B/op	       3 allocs/op
+BenchmarkSelectorTarget/weighted-12                        	 2488009	        95.90 ns/op	      56 B/op	       3 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/node	8.853s

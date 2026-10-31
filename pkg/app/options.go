@@ -3,8 +3,6 @@ package app
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -25,6 +23,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	certmanager "github.com/Asutorufa/yuhaiin/pkg/cert/manager"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
@@ -42,6 +42,7 @@ import (
 )
 
 type AppInstance struct {
+	Certificates  *certmanager.Manager
 	Gateway       httpapi.GatewayController
 	Node          httpapi.NodeController
 	NodeRuntime   *node.NodeRuntime
@@ -146,7 +147,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	var registryCatalogs httpapi.RegistryCatalogController
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeEditor *plainstore.RouteEditorStore
-	var selectors *plainstore.SelectorStore
+	var selectors httpapi.SelectorController
 	subscribeController := app.Subscribe
 	if sqlStore := app.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
@@ -177,16 +178,21 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			routeEditor = plainstore.NewRouteEditorStore(db)
 			selectors = plainstore.NewSelectorStore(db)
 			if app.NodeRuntime != nil {
+				selectors = node.NewSelectorService(app.NodeRuntime)
+			}
+			if app.NodeRuntime != nil {
 				subscribeController = node.NewSubscribe(app.NodeRuntime, subscriptionStore)
 			}
 		}
 	}
 
+	recoveryPoints, _ := app.Backup.(updatepkg.RecoveryPoints)
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		// The outer management gate covers all routes, including auxiliary
 		// registrations, and establishes a Principal before this handler runs.
 		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
 	}, httpapi.V2Services{
+		Certificates:     app.Certificates,
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,
 		Inbounds:         inboundStore,
@@ -201,7 +207,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Connections:      app.Connections,
 		Tools:            app.Tools,
 		Diagnostics:      app.Diagnostics,
-		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater}),
+		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
 		Backup:           app.Backup,
 		Lists:            app.Lists,
 		RouteSettings:    routeSettingsStore,
@@ -218,13 +224,19 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 }
 
 func (a *AppInstance) Close() error {
+	// Stop certificate work while its governed network path and SQLite owner
+	// remain available for bounded challenge cleanup and durable retry receipts.
+	var certificateErr error
+	if a.Certificates != nil {
+		certificateErr = a.Certificates.Close()
+	}
 	if a.profiler != nil {
 		a.profiler.stop()
 		activeProfiler.CompareAndSwap(a.profiler, nil)
 	}
 	sysproxy.Unset()
 
-	err := a.closers.CloseExcept("state_store")
+	err := errors.Join(certificateErr, a.closers.CloseExcept("state_store"))
 	if er := compactStateStore(context.Background(), a.StateStore); er != nil {
 		err = errors.Join(err, fmt.Errorf("compact state store failed: %w", er))
 	}
@@ -263,8 +275,15 @@ type StartOptions struct {
 	UpstreamCredentials credential.Resolver
 
 	ConfigPath string
+	// RecoveryStartupID authorizes one pending offline-restore startup attempt.
+	// Ordinary/embedded starts leave it empty and reject pending activation.
+	RecoveryStartupID string
+	// DelayCertificateStart lets the CLI verify its management listener before
+	// renewal can replace the certificate pinned by startup/update supervision.
+	DelayCertificateStart bool
 
-	Updater updatepkg.Installer
+	Updater             updatepkg.Installer
+	RecoveryMaintenance backupapp.RecoveryMaintainer
 }
 
 type SQLStore interface {
@@ -273,24 +292,6 @@ type SQLStore interface {
 
 type MigrationStore interface {
 	Migrate(context.Context) error
-}
-
-type Auth struct {
-	Username [32]byte
-	Password [32]byte
-}
-
-func NewAuth(username, password string) *Auth {
-	return &Auth{
-		Username: sha256.Sum256([]byte(username)),
-		Password: sha256.Sum256([]byte(password)),
-	}
-}
-
-func (a *Auth) Auth(password, username string) bool {
-	rSumUser := sha256.Sum256([]byte(username))
-	rSumPass := sha256.Sum256([]byte(password))
-	return subtle.ConstantTimeCompare(rSumUser[:], a.Username[:]) == 1 && subtle.ConstantTimeCompare(rSumPass[:], a.Password[:]) == 1
 }
 
 func HandleFunc(mux *http.ServeMux, auth *Auth, path string, b func(http.ResponseWriter, *http.Request) error) {
@@ -317,7 +318,7 @@ func handleFunc(mux *http.ServeMux, auth *Auth, policy *managementOriginPolicy, 
 
 		if auth != nil {
 			username, password, ok := r.BasicAuth()
-			if !ok || !auth.Auth(password, username) {
+			if !ok || !auth.authenticate(r.Context(), password, username) {
 				// ow.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -360,17 +361,34 @@ type wrapResponseWriter struct {
 }
 
 func (w *wrapResponseWriter) Write(b []byte) (int, error) {
-	w.writed = true
+	if !w.writed {
+		// Keep the body-write content type explicit for static analysis too;
+		// WriteHeader separately covers status-only and flushed responses.
+		if w.ResponseWriter.Header().Get("Content-Type") == "" {
+			w.ResponseWriter.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		}
+		w.WriteHeader(http.StatusOK)
+	}
 	return w.ResponseWriter.Write(b)
 }
 
 func (w *wrapResponseWriter) WriteHeader(s int) {
-	w.writed = true
+	if !w.writed && (s >= http.StatusOK || s == http.StatusSwitchingProtocols) {
+		// Management responses must opt into executable content. Set the default
+		// before committing headers, including handlers that flush before writing.
+		if w.Header().Get("Content-Type") == "" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.writed = true
+	}
 	w.ResponseWriter.WriteHeader(s)
 }
 
 func (w *wrapResponseWriter) Flush() {
-	w.writed = true
+	if !w.writed {
+		w.WriteHeader(http.StatusOK)
+	}
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 

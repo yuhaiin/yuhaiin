@@ -92,6 +92,11 @@ func TestLocalTailnet(t *testing.T) {
 			t.Fatal("started network server retained its bootstrap authentication key")
 		}
 	}
+	for _, node := range nodes {
+		if status := node.NodeRuntimeStatus(); status.State != "configured" {
+			t.Fatalf("ready native backend was not observed: %v", status)
+		}
+	}
 	a, b := nodes[0], nodes[1]
 	target, err := netapi.ParseAddress("tcp", "ADAPTER1.tail-scale.ts.net.:12345")
 	if err != nil {

@@ -19,7 +19,7 @@ type SelectorStore struct{ db *sql.DB }
 func NewSelectorStore(db *sql.DB) *SelectorStore { return &SelectorStore{db: db} }
 
 func (s *SelectorStore) List(ctx context.Context) ([]contractnode.Selector, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, node_id, revision FROM outbound_selectors ORDER BY name, id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, node_id, revision, policy_json FROM outbound_selectors ORDER BY name, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,11 @@ func (s *SelectorStore) List(ctx context.Context) ([]contractnode.Selector, erro
 	items := []contractnode.Selector{}
 	for rows.Next() {
 		var item contractnode.Selector
-		if err := rows.Scan(&item.ID, &item.Name, &item.NodeID, &item.Revision); err != nil {
+		var policy string
+		if err := rows.Scan(&item.ID, &item.Name, &item.NodeID, &item.Revision, &policy); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(policy), &item.Policy); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -37,10 +41,15 @@ func (s *SelectorStore) List(ctx context.Context) ([]contractnode.Selector, erro
 
 func (s *SelectorStore) Get(ctx context.Context, id string) (contractnode.Selector, error) {
 	var item contractnode.Selector
-	err := s.db.QueryRowContext(ctx, `SELECT id, name, node_id, revision FROM outbound_selectors WHERE id = ?`, id).Scan(&item.ID, &item.Name, &item.NodeID, &item.Revision)
+	var policy string
+	err := s.db.QueryRowContext(ctx, `SELECT id, name, node_id, revision, policy_json FROM outbound_selectors WHERE id = ?`, id).Scan(&item.ID, &item.Name, &item.NodeID, &item.Revision, &policy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return item, fmt.Errorf("%w: selector %s", ErrNotFound, id)
 	}
+	if err != nil {
+		return item, err
+	}
+	err = json.Unmarshal([]byte(policy), &item.Policy)
 	return item, err
 }
 
@@ -48,6 +57,15 @@ func (s *SelectorStore) Save(ctx context.Context, item contractnode.Selector) (c
 	item.Name = strings.TrimSpace(item.Name)
 	if item.Name == "" || item.NodeID == "" {
 		return item, fmt.Errorf("name and selected node are required")
+	}
+	if item.Policy != nil {
+		if err := item.Policy.Validate(); err != nil {
+			return item, err
+		}
+	}
+	policy, err := json.Marshal(item.Policy)
+	if err != nil {
+		return item, err
 	}
 	if item.ID == "" {
 		item.ID = uuid.New().String()
@@ -64,6 +82,13 @@ func (s *SelectorStore) Save(ctx context.Context, item contractnode.Selector) (c
 	if !node.Enabled {
 		return item, fmt.Errorf("selected node %q is disabled", node.Name)
 	}
+	if item.Policy != nil {
+		for _, candidate := range item.Policy.Candidates {
+			if _, err := getNodeContract(ctx, tx, candidate.NodeID); err != nil {
+				return item, err
+			}
+		}
+	}
 	var revision uint64
 	err = tx.QueryRowContext(ctx, `SELECT revision FROM outbound_selectors WHERE id = ?`, item.ID).Scan(&revision)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -73,8 +98,8 @@ func (s *SelectorStore) Save(ctx context.Context, item contractnode.Selector) (c
 		return item, ErrConflict
 	}
 	item.Revision++
-	_, err = tx.ExecContext(ctx, `INSERT INTO outbound_selectors(id, name, node_id, revision) VALUES (?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET name = excluded.name, node_id = excluded.node_id, revision = excluded.revision`, item.ID, item.Name, item.NodeID, item.Revision)
+	_, err = tx.ExecContext(ctx, `INSERT INTO outbound_selectors(id, name, node_id, revision, policy_json) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET name = excluded.name, node_id = excluded.node_id, revision = excluded.revision, policy_json = excluded.policy_json`, item.ID, item.Name, item.NodeID, item.Revision, string(policy))
 	if err != nil {
 		return item, err
 	}
@@ -145,7 +170,8 @@ func NodeReferences(ctx context.Context, q interface {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.QueryContext(ctx, `SELECT id, name FROM outbound_selectors WHERE node_id = ?`, id)
+	rows, err := q.QueryContext(ctx, `SELECT id, name FROM outbound_selectors WHERE node_id = ? OR EXISTS
+		(SELECT 1 FROM json_each(policy_json, '$.candidates') c WHERE json_extract(c.value, '$.nodeId') = ?)`, id, id)
 	if err != nil {
 		return nil, err
 	}

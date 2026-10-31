@@ -1,0 +1,130 @@
+package node
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"time"
+
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/net/latency"
+)
+
+var errSpeedBusy = errors.New("speed test concurrency limit reached")
+var errSpeedBudget = errors.New("daily speed test traffic budget exhausted")
+
+func (r *NodeRuntime) Speed(ctx context.Context, id string, request contract.SpeedTestRequest) (response contract.ThroughputMeasurement, resultErr error) {
+	defer func() {
+		if response.Direction == "" {
+			response.Direction = request.Effective().Direction
+		}
+		r.metrics.observeSpeed(response, resultErr)
+	}()
+	if !r.probePolicyReady() {
+		return contract.ThroughputMeasurement{}, errProbePolicyUnavailable
+	}
+	request, err := latency.ValidateSpeedTest(request)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	_, err = r.openNodes(ctx)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	lease, err := r.admitMeasurement(ctx, id)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	defer lease.release()
+	ctx = lease.ctx
+	select {
+	case r.speedSlots <- struct{}{}:
+		defer func() { <-r.speedSlots }()
+	default:
+		return contract.ThroughputMeasurement{}, errSpeedBusy
+	}
+	n, epoch, err := r.cachedNode(ctx, id)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	if !n.Enabled {
+		return contract.ThroughputMeasurement{}, errors.New("speed test node is disabled")
+	}
+	// Reserve the whole byte budget durably before touching the network. Failed
+	// and cancelled tests consume the reservation; restarting cannot reset it.
+	day := time.Now().UTC().Unix() / 86400
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return contract.ThroughputMeasurement{}, errors.New("node runtime is closed")
+	}
+	db := r.sqlite.DB()
+	r.mu.Unlock()
+	reservation := request.MaxBytes + contract.SpeedTransportAllowance
+	result, err := db.ExecContext(ctx, `INSERT INTO node_speed_budget(id,day,reserved_bytes,accounting_version) VALUES(1,?,?,2)
+	 ON CONFLICT(id) DO UPDATE SET day=excluded.day,
+	 reserved_bytes=CASE WHEN day=excluded.day THEN reserved_bytes+excluded.reserved_bytes ELSE excluded.reserved_bytes END,accounting_version=2
+	 WHERE NOT (day=excluded.day AND accounting_version<2 AND reserved_bytes>0)
+	 AND (CASE WHEN day=excluded.day THEN reserved_bytes ELSE 0 END)+excluded.reserved_bytes<=?`, day, reservation, request.DailyBudgetBytes)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return contract.ThroughputMeasurement{}, errSpeedBudget
+	}
+	proxy, err := r.probeDialer(ctx, id, n, epoch, false)
+	if err != nil {
+		return contract.ThroughputMeasurement{}, err
+	}
+	measure := latency.MeasureDownload
+	if request.Direction == "upload" {
+		measure = latency.MeasureUpload
+	}
+	measurement, err := measure(ctx, newByteBudgetProxy(proxy, reservation), request)
+	err = classifyProbeError(proxy, err)
+	measurement.At, measurement.Target, measurement.Direction = time.Now().UnixMilli(), request.URL, request.Direction
+	if err != nil {
+		measurement.OK = false
+		measurement.Error = "speed measurement failed"
+		if localProbeDenial(err) {
+			measurement.Error = "speed measurement limited by local routing or traffic policy"
+		}
+	}
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return measurement, ctx.Err()
+	}
+	c := r.observer.counter(id)
+	c.mu.Lock()
+	if c.generation.Load() != epoch {
+		c.mu.Unlock()
+		return measurement, errNodeReconfigured
+	}
+	c.recordThroughput(measurement)
+	c.mu.Unlock()
+	// Endpoint HTTP status, body budget and intentional duration truncation are
+	// not transport health failures. The observedProxy records real dial errors.
+	return measurement, err
+}
+
+// Caller owns c.mu. Each direction keeps independent target, freshness and EWMA.
+// The shared bounded history contains raw samples; business Bps never enters it.
+func (c *nodeCounters) recordThroughput(measurement contract.ThroughputMeasurement) {
+	c.throughputHistory = append(c.throughputHistory, measurement)
+	if len(c.throughputHistory) > 16 {
+		c.throughputHistory = slices.Delete(c.throughputHistory, 0, len(c.throughputHistory)-16)
+	}
+	latest := &c.throughput
+	if measurement.Direction == "upload" {
+		latest = &c.uploadThroughput
+	}
+	old := *latest
+	if measurement.OK && old.OK && old.Target == measurement.Target && measurement.At-old.At >= 0 && measurement.At-old.At < recentNodeObservation.Milliseconds() {
+		measurement.Samples = min(old.Samples+1, 64)
+		if measurement.Direction == "upload" {
+			measurement.UploadMbps = .8*old.UploadMbps + .2*measurement.UploadMbps
+		} else {
+			measurement.DownloadMbps = .8*old.DownloadMbps + .2*measurement.DownloadMbps
+		}
+	}
+	*latest = measurement
+}

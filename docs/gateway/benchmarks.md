@@ -136,3 +136,18 @@ HTTPS `/ok` returned the local backend body with HTTP/2, `/ads/banner` returned
 204 with HTTP/2, and an unmatched IP destination returned the unchanged backend
 body. Only the two selected requests incremented Gateway request counters; an
 untrusted client rejected its MITM certificate.
+
+An imported Gateway whose sensitive policy was redacted rejects selected
+connections while disabled. Its IDs are compiled into the immutable Gateway
+snapshot, and ordinary configurations use a nil-map fast path. On a Ryzen 5
+5600G, three warm local runs of `BenchmarkAdmissionBypass` with no guarded
+Gateway measured 151.6–152.5 ns/op for a known-domain miss before the guard,
+167.7–168.9 ns/op with a per-admission Gateway lookup, and 156.8–157.7 ns/op
+with the snapshot fast path. All measured zero allocations. The synthetic
+`BenchmarkAdmissionImportedGuard` measured 13.64–13.68 ns/op and zero
+allocations for the guard lookup and a no-op test connection close. These are
+in-process admission costs, not real network connection or close latency.
+
+```sh
+go test ./pkg/gateway -run '^$' -bench '^BenchmarkAdmission(Bypass|ImportedGuard)$' -benchmem -benchtime=1s -count=3
+```

@@ -61,6 +61,17 @@ func newController(root *Governor) *Controller {
 }
 func (c *Controller) DatagramBudget() Budget { return c.nat }
 
+// AdmitDatagram shares the existing NAT/root budget while honoring controller
+// shutdown. Probe adapters do not own a NAT table to enforce that lifetime.
+func (c *Controller) AdmitDatagram() (*Session, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil, false
+	}
+	return c.nat.AcquireSession()
+}
+
 func (c *Controller) AdmitStream(id string) (*StreamLease, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

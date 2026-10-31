@@ -624,4 +624,38 @@ var migrations = []Migration{
 		END`,
 	}},
 	userUsageMigration,
+	{Version: 18, Name: "intelligent_selectors", Statements: []string{
+		`ALTER TABLE outbound_selectors ADD COLUMN policy_json TEXT NOT NULL DEFAULT 'null' CHECK(json_valid(policy_json))`,
+		`CREATE TABLE node_speed_budget (id INTEGER PRIMARY KEY CHECK(id=1), day INTEGER NOT NULL, reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes>=0))`,
+	}},
+	{Version: 19, Name: "node_monitoring", Statements: []string{
+		`CREATE TABLE node_monitoring_settings(id INTEGER PRIMARY KEY CHECK(id=1), data_json TEXT NOT NULL CHECK(json_valid(data_json)))`,
+	}},
+	{Version: 20, Name: "measurement_transport_accounting", Statements: []string{
+		`ALTER TABLE node_speed_budget ADD COLUMN accounting_version INTEGER NOT NULL DEFAULT 1 CHECK(accounting_version IN(1,2))`,
+	}},
+	{Version: 21, Name: "backup_recovery_history", Statements: []string{
+		`CREATE TABLE backup_recovery_history (
+			id TEXT PRIMARY KEY,
+			created_at INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			data_json TEXT NOT NULL CHECK (json_valid(data_json))
+		)`,
+		`CREATE INDEX backup_recovery_history_created ON backup_recovery_history(created_at DESC, id)`,
+		`CREATE INDEX backup_recovery_history_state ON backup_recovery_history(state, created_at)`,
+		`CREATE UNIQUE INDEX backup_recovery_single_capture ON backup_recovery_history((1)) WHERE state IN ('queued','capturing')`,
+	}},
+	{Version: 22, Name: "backup_recovery_imports", Statements: []string{
+		`CREATE TABLE backup_recovery_imports (
+			id TEXT PRIMARY KEY,
+			expires_at INTEGER NOT NULL,
+			state TEXT NOT NULL,
+			data_json TEXT NOT NULL CHECK (json_valid(data_json))
+		)`,
+		`CREATE INDEX backup_recovery_imports_expiry ON backup_recovery_imports(expires_at,id)`,
+	}},
+	{Version: 23, Name: "backup_recovery_activation", Statements: []string{
+		`CREATE UNIQUE INDEX backup_recovery_single_activation ON backup_recovery_imports((1)) WHERE state='activating'`,
+	}},
+	managedCertificatesMigration,
 }

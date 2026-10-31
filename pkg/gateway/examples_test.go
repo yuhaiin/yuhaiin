@@ -39,7 +39,7 @@ func TestDocumentedConfigurationsCompile(t *testing.T) {
 				config.Gateways[n].Listen = ""
 			}
 			manager, _ := newTestManager(t, contract.Config{}, nil)
-			prepared, err := manager.prepare(config)
+			prepared, err := manager.prepare(t.Context(), config)
 			if err != nil {
 				t.Fatal(err)
 			}

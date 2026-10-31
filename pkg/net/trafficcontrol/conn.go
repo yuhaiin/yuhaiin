@@ -16,13 +16,25 @@ import (
 // identity; it must never perform another route match. Policy changes affect
 // subsequent operations on established connections as well as new streams.
 func WrapConn(ctx context.Context, conn net.Conn, resolve func() Policy) net.Conn {
+	return wrapConn(ctx, conn, resolve, Upload, nil)
+}
+
+// WrapOutboundConn uses the same live policy and deadline implementation as
+// inbound streams, with reads charged to download and writes to upload.
+func WrapOutboundConn(ctx context.Context, conn net.Conn, resolve func() Policy, onWait func()) net.Conn {
+	return wrapConn(ctx, conn, resolve, Download, onWait)
+}
+
+func wrapConn(ctx context.Context, conn net.Conn, resolve func() Policy, read Direction, onWait func()) net.Conn {
 	ctx, cancel := context.WithCancel(ctx)
-	c := &shapedConn{Conn: conn, ctx: ctx, resolve: resolve, cancel: cancel}
+	c := &shapedConn{Conn: conn, ctx: ctx, resolve: resolve, cancel: cancel, readDirection: read, onWait: onWait}
 	c.stop = context.AfterFunc(ctx, func() { _ = conn.Close() })
 	return c
 }
 
 type shapedConn struct {
+	onWait                      func()
+	readDirection               Direction
 	cancel                      context.CancelFunc
 	readMu                      sync.Mutex
 	pending                     []byte
@@ -46,7 +58,7 @@ func (c *shapedConn) read(p []byte) (int, error) {
 	if len(c.pending) > 0 {
 		return c.readPending(p)
 	}
-	if c.resolve().Enabled(Upload) {
+	if c.resolve().Enabled(c.readDirection) {
 		p = p[:min(len(p), 16<<10)]
 	}
 	n, err := c.Conn.Read(p)
@@ -80,11 +92,11 @@ func (c *shapedConn) readPending(p []byte) (int, error) {
 
 func (c *shapedConn) paceRead(data []byte, readErr error) (int, error) {
 	policy := c.resolve()
-	if !policy.Enabled(Upload) {
-		policy.admitted(Upload, len(data))
+	if !policy.Enabled(c.readDirection) {
+		policy.admitted(c.readDirection, len(data))
 		return len(data), readErr
 	}
-	n, err := (ShapedWriter{Writer: io.Discard, Context: c.ctx, Policy: policy, Direction: Upload, deadline: &c.readDeadline}).Write(data)
+	n, err := (ShapedWriter{Writer: io.Discard, Context: c.ctx, Policy: policy, Direction: c.readDirection, deadline: &c.readDeadline, localErrors: c.readDirection == Download, onWait: c.onWait}).Write(data)
 	if err != nil {
 		return n, err
 	}
@@ -105,7 +117,7 @@ func (c *shapedConn) ReadWithBuffer(getBuffer func() []byte) ([]byte, error) {
 		ReadWithBuffer(func() []byte) ([]byte, error)
 	}); ok {
 		get := getBuffer
-		if c.resolve().Enabled(Upload) {
+		if c.resolve().Enabled(c.readDirection) {
 			get = func() []byte { data := getBuffer(); return data[:min(len(data), 16<<10)] }
 		}
 		data, err := reader.ReadWithBuffer(get)
@@ -119,12 +131,16 @@ func (c *shapedConn) ReadWithBuffer(getBuffer func() []byte) ([]byte, error) {
 
 func (c *shapedConn) Write(p []byte) (int, error) {
 	policy := c.resolve()
-	if !policy.Enabled(Download) {
+	direction := Download
+	if c.readDirection == Download {
+		direction = Upload
+	}
+	if !policy.Enabled(direction) {
 		n, err := c.Conn.Write(p)
-		policy.admitted(Download, n)
+		policy.admitted(direction, n)
 		return n, err
 	}
-	return (ShapedWriter{Writer: c.Conn, Context: c.ctx, Policy: policy, Direction: Download, deadline: &c.writeDeadline}).Write(p)
+	return (ShapedWriter{Writer: c.Conn, Context: c.ctx, Policy: policy, Direction: direction, deadline: &c.writeDeadline, localErrors: c.readDirection == Download, onWait: c.onWait}).Write(p)
 }
 func (c *shapedConn) Close() error { c.stop(); c.cancel(); return c.Conn.Close() }
 func (c *shapedConn) CloseRead() error {

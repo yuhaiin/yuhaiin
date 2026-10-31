@@ -87,8 +87,8 @@ func TestOpenBootstrapsEmptyDatabase(t *testing.T) {
 		}
 	}
 
-	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "17" {
-		t.Fatalf("metadata schema_version = %q, want 17", got)
+	if got := queryString(t, store.DB(), `SELECT value FROM metadata WHERE key = 'schema_version'`); got != "24" {
+		t.Fatalf("metadata schema_version = %q, want 24", got)
 	}
 
 	if got := queryInt(t, store.DB(), `SELECT COUNT(*) FROM migrate`); got != int64(len(migrations)) {
@@ -279,4 +279,39 @@ func queryString(t *testing.T, db *sql.DB, query string, args ...any) string {
 	}
 
 	return value
+}
+
+func TestMeasurementTransportAccountingMigratesLegacyBudget(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.db")
+	db, err := sql.Open(driverName, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := bootstrapBase(t.Context(), db); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations {
+		if m.Version >= 20 {
+			break
+		}
+		if err := applyMigration(t.Context(), db, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.ExecContext(t.Context(), `INSERT INTO node_speed_budget(id,day,reserved_bytes) VALUES(1,123,456)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Bootstrap(t.Context(), db); err != nil {
+		t.Fatal(err)
+	}
+	if got := queryInt(t, db, `SELECT accounting_version FROM node_speed_budget`); got != 1 {
+		t.Fatal(got)
+	}
+	if got := queryInt(t, db, `SELECT reserved_bytes FROM node_speed_budget`); got != 456 {
+		t.Fatal(got)
+	}
+	if err := Bootstrap(t.Context(), db); err != nil {
+		t.Fatal("migration not idempotent", err)
+	}
 }

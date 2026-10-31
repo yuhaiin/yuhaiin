@@ -50,6 +50,9 @@ func TestFailedSettingsReadRetainsRulesAndExposesApplyError(t *testing.T) {
 	if err := rules.Apply(t.Context()); err == nil {
 		t.Fatal("settings error was hidden")
 	}
+	if rules.HasActiveSnapshot() {
+		t.Fatal("failed initial policy marked ready for probes")
+	}
 	if matchers.matchers[0].name != "running" || matchers.list.hostTrie != index || route.config.Load() != previousConfig {
 		t.Fatal("failed apply changed running state")
 	}
@@ -62,6 +65,9 @@ func TestFailedSettingsReadRetainsRulesAndExposesApplyError(t *testing.T) {
 		t.Fatal(err)
 	}
 	status, err = rules.ActivationStatus(t.Context())
+	if !rules.HasActiveSnapshot() {
+		t.Fatal("successful policy not ready for probes")
+	}
 	if err != nil || status.Error != "" || matchers.matchers[0].name != "saved" || route.config.Load().DirectResolver != "new" {
 		t.Fatalf("successful retry: %+v, %v", status, err)
 	}

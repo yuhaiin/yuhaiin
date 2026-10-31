@@ -120,6 +120,15 @@ type UDPPacketConn struct {
 }
 
 func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
+	return p.writeTo(context.Background(), b, addr)
+}
+func (p *UDPPacketConn) WriteToContext(ctx context.Context, b []byte, addr net.Addr) (int, error) {
+	return p.writeTo(ctx, b, addr)
+}
+func (p *UDPPacketConn) writeTo(ctx context.Context, b []byte, addr net.Addr) (_ int, err error) {
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
 	udpAddr, ok := addr.(*net.UDPAddr)
 	if !ok {
 		a, err := netapi.ParseSysAddr(addr)
@@ -128,7 +137,7 @@ func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {
 		}
 
 		if a.IsFqdn() {
-			store := netapi.WithContext(context.Background())
+			store := netapi.WithContext(ctx)
 			store.ConnOptions().SetResolver(*p.resolver)
 			ctx, cancel := context.WithTimeout(store, time.Second*5)
 			ips, err := netapi.ResolverIP(ctx, a.Hostname())

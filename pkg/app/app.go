@@ -2,10 +2,16 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 
+	dnswire "codeberg.org/miekg/dns"
+	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
+	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -18,20 +24,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/response"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
-	"github.com/Asutorufa/yuhaiin/pkg/node"
-	"github.com/Asutorufa/yuhaiin/pkg/paths"
-	"github.com/Asutorufa/yuhaiin/pkg/resolver"
-	"github.com/Asutorufa/yuhaiin/pkg/route"
-	"github.com/Asutorufa/yuhaiin/pkg/statistics"
-	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/amneziawg"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/anyconnect"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/drop"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
@@ -59,6 +55,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/softether"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/ssh"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/trojan"
@@ -69,6 +66,16 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/zerotier"
+	"github.com/Asutorufa/yuhaiin/pkg/node"
+	"github.com/Asutorufa/yuhaiin/pkg/paths"
+	"github.com/Asutorufa/yuhaiin/pkg/resolver"
+	"github.com/Asutorufa/yuhaiin/pkg/route"
+	"github.com/Asutorufa/yuhaiin/pkg/statistics"
+	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
+	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var operators = []func(*closers){}
@@ -80,6 +87,9 @@ func AddCloser[T io.Closer](a *closers, name string, t T) T {
 }
 
 func Start(so *StartOptions) (_ *AppInstance, err error) {
+	if err := recovery.CheckStartup(so.ConfigPath, so.RecoveryStartupID); err != nil {
+		return nil, err
+	}
 	configuration.DataDir.Store(so.ConfigPath)
 
 	ctx := so.Context
@@ -116,13 +126,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	var inboundConfigStore *plainstore.InboundStore
 	var settingsStore *plainstore.SettingsStore
-	var backupStore *plainstore.BackupStore
+	var backupStore *backupstore.Store
 	var resolverStore *plainstore.ResolverStore
 	var resolverConfigStore *plainstore.ResolverConfigStore
 	var routeSettingsStore *plainstore.RouteSettingsStore
 	var routeRuleStore *plainstore.RouteRuleStore
 	var routeListStore *plainstore.RouteListStore
 	var gatewayStore *plainstore.GatewayStore
+	var certificateStore *certificates.Store
 	if sqlStore := so.StateStore; sqlStore != nil {
 		db, err := sqlStore.SQLDB(ctx)
 		if err != nil {
@@ -134,13 +145,14 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		} else {
 			inboundConfigStore = plainstore.NewInboundStore(db)
 			settingsStore = plainstore.NewSettingsStore(db)
-			backupStore = plainstore.NewBackupStore(db)
+			backupStore = backupstore.New(db)
 			resolverStore = plainstore.NewResolverStore(db)
 			resolverConfigStore = plainstore.NewResolverConfigStore(db)
 			routeSettingsStore = plainstore.NewRouteSettingsStore(db)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeListStore = plainstore.NewRouteListStore(db)
 			gatewayStore = plainstore.NewGatewayStore(db)
+			certificateStore = certificates.New(db)
 		}
 	}
 	settingsController := NewSettingsController(settingsStore, so.ConfigPath, logController)
@@ -175,7 +187,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	configuration.ProxyChain.Set(direct.Default)
 	// Proxy and DNS runtime objects are created after SQLite state initialization.
-	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath)))
+	nodeRuntime := AddCloser(closers, "node_runtime", node.NewNodeRuntime(paths.PathGenerator.State(so.ConfigPath), node.RequireProbePolicy()))
 	dns := AddCloser(closers, "resolver", resolver.NewResolver(configuration.ProxyChain))
 	list := AddCloser(closers, "lists", route.NewLists(routeListStore, routeSettingsStore, so.ConfigPath))
 	// bypass dialer and dns request
@@ -229,6 +241,48 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 
 	// inbound server
 	var gatewayManager *gateway.Manager
+	var inbounds *inbound.Inbound
+	var certificateService *certificateRuntime
+	var certificateOptions []gateway.Option
+	if certificateStore != nil {
+		certificateService, err = newCertificateRuntime(ctx, certificateStore, func(ctx context.Context) (netapi.Proxy, error) {
+			if inbounds == nil || !inbounds.ProbePolicyReady() || !rules.HasActiveSnapshot() {
+				return nil, errors.New("certificate network policy is not ready")
+			}
+			return inbounds.ProbeProxy(ctx, fakedns, func(ctx context.Context, a netapi.Address) (netapi.Address, error) {
+				return router.PrepareProbe(ctx, hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, a)))
+			}), nil
+		}, func(ctx context.Context, name string) ([]string, error) {
+			state := netapi.WithContext(ctx)
+			target, err := netapi.ParseAddress("udp", net.JoinHostPort(name, "53"))
+			if err != nil {
+				return nil, err
+			}
+			if _, err := router.PrepareProbe(state, target); err != nil {
+				return nil, err
+			}
+			message, err := fakedns.Raw(state, netapi.DNSQuestion{Name: strings.TrimSuffix(name, ".") + ".", Qtype: dnswire.TypeTXT, Qclass: dnswire.ClassINET})
+			if err != nil {
+				return nil, err
+			}
+			if message == nil {
+				return nil, errors.New("empty DNS challenge response")
+			}
+			var values []string
+			for _, answer := range message.Answer {
+				if txt, ok := answer.(*dnswire.TXT); ok {
+					values = append(values, strings.Join(txt.Txt, ""))
+				}
+			}
+			return values, nil
+		}, func(id string) bool { return gatewayManager != nil && gatewayManager.HTTP01Available(id) })
+		if err != nil {
+			_ = closers.Close()
+			return nil, err
+		}
+		AddCloser(closers, "certificates", certificateService)
+		certificateOptions = append(certificateOptions, gateway.WithManagedCertificates(certificateService.TLSConfig), gateway.WithACMEHTTP01(certificateService.Challenges.Serve))
+	}
 	if gatewayStore != nil {
 		authority, err := gateway.NewAuthority(ctx, gatewayStore)
 		if err != nil {
@@ -246,7 +300,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 				label = netapi.GetContext(ctx).ConnOptions().RouteMode()
 			}
 			return gateway.Selection{Label: label, Identity: gateway.ProxyIdentity(proxy), Proxy: selectedGatewayProxy{Proxy: proxy, connections: stcs, fakeDNS: fakedns}, Destination: destination}, nil
-		}, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit))
+		}, append(certificateOptions, gateway.WithDestinationRecovery(fakedns.RecoverDestination), gateway.WithProcessLookup(router.PrepareGatewayContext), gateway.WithLocalAudit(localGatewayAudit))...)
 		if err != nil {
 			_ = closers.Close()
 			return nil, fmt.Errorf("initialize gateway: %w", err)
@@ -267,7 +321,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	if nodeRuntime != nil {
 		nodeRuntime.SetCredentialResolver(so.UpstreamCredentials)
 	}
-	inbounds := AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
+	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	if err := inbounds.RestoreStatistics(ctx); err != nil {
 		_ = closers.Close()
 		return nil, fmt.Errorf("restore inbound ingress statistics: %w", err)
@@ -277,11 +331,15 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	tools := NewTools(logController)
 	mux := http.NewServeMux()
 	metricsGatherer := prometheus.DefaultGatherer
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(nodeRuntime.Metrics())
 	if gatewayManager != nil {
-		registry := prometheus.NewRegistry()
 		registry.MustRegister(gatewayManager.Metrics())
-		metricsGatherer = prometheus.Gatherers{prometheus.DefaultGatherer, registry}
 	}
+	if certificateService != nil {
+		registry.MustRegister(certificateService.Metrics())
+	}
+	metricsGatherer = prometheus.Gatherers{metricsGatherer, registry}
 
 	mux.Handle("GET /metrics", promhttp.InstrumentMetricHandler(
 		prometheus.DefaultRegisterer, promhttp.HandlerFor(metricsGatherer, promhttp.HandlerOpts{
@@ -310,7 +368,12 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		closers:       closers,
 	}
 
-	app.Backup = AddCloser(closers, "backup", NewBackup(backupStore, so.ConfigPath, app, fakedns))
+	backup := backupapp.New(backupStore, so.ConfigPath, so.RecoveryMaintenance, fakedns)
+	if certificateService != nil {
+		app.Certificates = certificateService.Manager
+	}
+	app.Backup = AddCloser(closers, "backup", backup)
+	registry.MustRegister(backup.Metrics())
 
 	if err := ctx.Err(); err != nil {
 		_ = app.Close()
@@ -320,8 +383,26 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		_ = app.Close()
 		return nil, err
 	}
+	// RegisterServer hydrates route and traffic-control snapshots before probes
+	// may construct a client or issue any traffic. There is no startup gap with
+	// an unlimited default policy, even when persisted schedules are enabled.
+	nodeRuntime.SetProbePolicy(node.ProbePolicy{
+		Ready: func() bool { return inbounds.ProbePolicyReady() && rules.HasActiveSnapshot() },
+		Wrap: func(ctx context.Context, proxy netapi.Proxy) netapi.Proxy {
+			return inbounds.ProbeProxy(ctx, proxy, func(ctx context.Context, a netapi.Address) (netapi.Address, error) {
+				a = hosts.RecoverDestination(ctx, fakedns.RecoverDestination(ctx, a))
+				return router.PrepareProbe(ctx, a)
+			})
+		},
+	})
 
 	tailscale.Mux.Store(app.Mux)
+	if certificateService != nil && !so.DelayCertificateStart {
+		if err := certificateService.Start(ctx); err != nil {
+			_ = app.Close()
+			return nil, err
+		}
+	}
 
 	return app, nil
 }

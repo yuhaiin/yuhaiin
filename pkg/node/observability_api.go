@@ -38,18 +38,13 @@ func (r *NodeRuntime) Statuses(ctx context.Context, ids []string) ([]contract.Ru
 		}
 		// A native provider is optional; it supplements rather than replaces
 		// generic passive observations, and cannot wake an unused VPN client.
-		r.proxies.Range(func(key string, entry *ProxyEntry) bool {
-			if key != id || entry == nil {
-				return true
-			}
-			entry.mu.RLock()
+		if entry, ok := r.proxies.store.Load(id); ok && entry.mu.TryRLock() {
 			if provider, ok := entry.Proxy.(contract.NodeRuntimeStatusProvider); ok {
 				native := provider.NodeRuntimeStatus()
 				s.Protocol = &native
 			}
 			entry.mu.RUnlock()
-			return false
-		})
+		}
 		out = append(out, s)
 	}
 	return out, nil
