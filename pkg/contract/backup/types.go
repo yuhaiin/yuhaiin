@@ -12,11 +12,11 @@ type Option struct {
 
 type S3 struct {
 	Enabled      bool   `json:"enabled"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
+	AccessKey    string `json:"accessKey" secret:"true"`
+	SecretKey    string `json:"secretKey" secret:"true"`
 	Bucket       string `json:"bucket"`
 	Region       string `json:"region"`
-	EndpointURL  string `json:"endpointUrl"`
+	EndpointURL  string `json:"endpointUrl" secret:"url" privilege:"secrets:manage"`
 	UsePathStyle bool   `json:"usePathStyle"`
 	StorageClass string `json:"storageClass"`
 }

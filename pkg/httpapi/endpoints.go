@@ -119,6 +119,7 @@ const (
 	v2RouteRulesPriority        v2Endpoint = "route.rules.priority"
 	v2RouteRulesTest            v2Endpoint = "route.rules.test"
 	v2RouteRulesBlockHistory    v2Endpoint = "route.rules.block_history"
+	v2NodesImportCommit         v2Endpoint = "nodes.import.commit"
 
 	v2SettingsGet           v2Endpoint = "settings.get"
 	v2SettingsPut           v2Endpoint = "settings.put"
@@ -292,6 +293,7 @@ var v2Routes = []v2Route{
 	{v2NodesGroups, "GET /api/v2/nodes/groups"},
 	{v2NodesPost, "POST /api/v2/nodes"},
 	{v2NodesImportPreview, "POST /api/v2/nodes/import/preview"},
+	{v2NodesImportCommit, "POST /api/v2/nodes/import/commit"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
 	{v2NodesSelect, "PUT /api/v2/nodes/selected"},
 	{v2NodesActive, "GET /api/v2/nodes/active"},

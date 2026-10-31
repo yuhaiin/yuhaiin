@@ -12,10 +12,22 @@ import (
 type Permission = permission.Permission
 
 const (
+	ConfigurationRead         = permission.ConfigurationRead
+	ConfigurationWrite        = permission.ConfigurationWrite
+	ConfigurationRollback     = permission.ConfigurationRollback
 	NodesRead                 = permission.NodesRead
 	NodesWrite                = permission.NodesWrite
 	InboundsRead              = permission.InboundsRead
 	InboundsWrite             = permission.InboundsWrite
+	TrafficAccessRead         = permission.TrafficAccessRead
+	TrafficAccessWrite        = permission.TrafficAccessWrite
+	SecretsRead               = permission.SecretsRead
+	SecretsManage             = permission.SecretsManage
+	SystemExecute             = permission.SystemExecute
+	RolesRead                 = permission.RolesRead
+	RolesWrite                = permission.RolesWrite
+	ResourceRead              = permission.ResourceRead
+	ResourceWrite             = permission.ResourceWrite
 	RoutesRead                = permission.RoutesRead
 	RoutesWrite               = permission.RoutesWrite
 	ResolverRead              = permission.ResolverRead
@@ -34,6 +46,8 @@ const (
 	UsersManage               = permission.UsersManage
 	TokensManage              = permission.TokensManage
 	SecurityRead              = permission.SecurityRead
+	SecurityWrite             = permission.SecurityWrite
+	SecurityExport            = permission.SecurityExport
 	MetricsRead               = permission.MetricsRead
 	IdentityRead              = permission.IdentityRead
 	TokensOwn                 = permission.TokensOwn
@@ -53,8 +67,7 @@ const (
 var allPermissions = permission.Values()
 
 // RolePermissions returns a copy; callers cannot mutate the role registry.
-// Configuration reads can contain upstream secrets. Read-only users therefore
-// remain trusted operators, even though they cannot change configuration.
+// Custom roles extend these protected built-ins through the private store.
 func RolePermissions(role string) []Permission {
 	if role == Admin {
 		return slices.Clone(allPermissions)
@@ -64,7 +77,7 @@ func RolePermissions(role string) []Permission {
 	}
 	if role == ReadOnly {
 		return []Permission{NodesRead, InboundsRead, RoutesRead, ResolverRead,
-			ConnectionsRead, GatewayRead, CertificatesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
+			ConnectionsRead, GatewayRead, CertificatesRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
 	}
 	return nil
 }
@@ -73,6 +86,7 @@ type Principal struct {
 	CredentialID   string       `json:"credentialId"`
 	UserID         string       `json:"userId"`
 	CredentialType string       `json:"credentialType"`
+	AuthMethod     string       `json:"authMethod,omitempty"`
 	Permissions    []Permission `json:"permissions"`
 }
 

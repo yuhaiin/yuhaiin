@@ -1,7 +1,9 @@
 package backup
 
 import (
+	"errors"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -54,5 +56,43 @@ func TestLocalPointRetentionIsOptInBoundedAndCopied(t *testing.T) {
 		if _, err := NormalizePointRetention(p); err == nil {
 			t.Fatal("invalid point retention accepted", p)
 		}
+	}
+}
+
+func TestManagedBackupSettingsPreserveAndProtectSecrets(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := New(db.DB())
+	original := contractbackup.Option{InstanceName: "instance", Interval: 1, S3: contractbackup.S3{AccessKey: "access", SecretKey: "private", EndpointURL: "https://example.test/private?key=proof"}}
+	if err := store.Save(t.Context(), original); err != nil {
+		t.Fatal(err)
+	}
+	masked, err := secret.Redact(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	masked.Interval = 2
+	ctx := secret.WithCapabilities(t.Context(), secret.Capabilities{})
+	if err := store.Save(ctx, masked); err != nil {
+		t.Fatal("metadata save failed", err)
+	}
+	got, err := store.Get(t.Context())
+	if err != nil || got.Interval != 2 || got.S3 != original.S3 {
+		t.Fatal("metadata save lost backup secrets", err)
+	}
+	masked, err = secret.Redact(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	masked.S3.SecretKey = "replacement"
+	if err := store.Save(ctx, masked); !errors.Is(err, secret.ErrManage) {
+		t.Fatal("secret replacement accepted without authority", err)
+	}
+	got, err = store.Get(t.Context())
+	if err != nil || got.S3 != original.S3 {
+		t.Fatal("denied save changed persisted secrets", err)
 	}
 }

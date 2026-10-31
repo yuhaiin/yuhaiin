@@ -99,6 +99,8 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/coreos/go-iptables v0.8.0 h1:MPc2P89IhuVpLI7ETL/2tx3XZ61VeICZjYqDEgNsPRc=
 github.com/coreos/go-iptables v0.8.0/go.mod h1:Qe8Bv2Xik5FyTXwgIbLAnv2sWSBmvWdFETJConOQ//Q=
+github.com/coreos/go-oidc/v3 v3.21.0 h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=
+github.com/coreos/go-oidc/v3 v3.21.0/go.mod h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=
 github.com/creachadair/mds v0.31.0 h1:h4SXXgallvZfD8CFQnQNAOtBkUGpZjPwNBRQpHpHM/g=
 github.com/creachadair/mds v0.31.0/go.mod h1:IZ3oLffgVNZ4O5WXTPxx7EX5ilSl1ypdv5FekYyynyI=
 github.com/creachadair/msync v0.10.1 h1:14jT5Ujob64Zp2D3ZcUidayDMoXikhmYN8xBxEuPKPk=
@@ -133,6 +135,8 @@ github.com/gaissmai/bart v0.29.0 h1:wO6HGE8g9YE0Wm0bCpYxwRzfQ4+fbJKOhL64e5ACGCI=
 github.com/gaissmai/bart v0.29.0/go.mod h1:GREWQfTLRWz/c5FTOsIw+KkscuFkIV5t8Rp7Nd1Td5c=
 github.com/github/fakeca v0.1.0 h1:Km/MVOFvclqxPM9dZBC4+QE564nU4gz4iZ0D9pMw28I=
 github.com/github/fakeca v0.1.0/go.mod h1:+bormgoGMMuamOscx7N91aOuUST7wdaJ2rNjeohylyo=
+github.com/go-jose/go-jose/v4 v4.1.4 h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA=
+github.com/go-jose/go-jose/v4 v4.1.4/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
 github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3 h1:UADEEmDKgfXbtnGJZ97beY5XLo9ZechG1nlU4KnRrkE=
 github.com/go-json-experiment/json v0.0.0-20260820222146-c27c302e5fc3/go.mod h1:tphK2c80bpPhMOI4v6bIc2xWywPfbqi1Z06+RcrMkDg=
 github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=

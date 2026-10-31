@@ -6,6 +6,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"strings"
 	"time"
 
@@ -112,11 +113,12 @@ func (s *RouteListStore) SaveRouteList(ctx context.Context, detail contractroute
 		return errors.New("edit a private list through its owning rule")
 	}
 	detail = normalizeRouteListDetail(detail)
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "route-list")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	var before *contractroute.RouteListDetail
 	var owner sql.NullString
 	var data string
 	err = tx.QueryRowContext(ctx, `SELECT owner_rule_id, data_json FROM route_lists_v2 WHERE id = ?`, detail.ID).Scan(&owner, &data)
@@ -135,6 +137,7 @@ func (s *RouteListStore) SaveRouteList(ctx context.Context, detail contractroute
 			return ErrConflict
 		}
 		detail.ErrorMsgs = current.ErrorMsgs
+		before = &current
 	} else if detail.Revision != 0 {
 		return ErrConflict
 	}
@@ -142,10 +145,31 @@ func (s *RouteListStore) SaveRouteList(ctx context.Context, detail contractroute
 	if err := SaveRouteListContract(ctx, tx, detail, updatedAt); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if configchange.Managed(ctx) {
+		var actual string
+		if err := tx.QueryRowContext(ctx, `SELECT data_json FROM route_lists_v2 WHERE id=?`, detail.ID).Scan(&actual); err != nil {
+			return err
+		}
+		after, err := decodeRouteListDetail(actual)
+		if err != nil {
+			return err
+		}
+		if err = recordListChange(ctx, s.db, tx, detail.ID, before, &after, after.Revision); err != nil {
+			return err
+		}
+	}
+	return configchange.Commit(ctx, tx)
 }
 
 func SaveRouteListContract(ctx context.Context, execer RouteListExecer, detail contractroute.RouteListDetail, updatedAt int64) error {
+	if handled, err := protectedTransaction(ctx, execer, func(q any) error { return SaveRouteListContract(ctx, q.(RouteListExecer), detail, updatedAt) }); handled {
+		return err
+	}
+	var err error
+	detail, err = mergeProtected(ctx, execer, detail, `SELECT data_json FROM route_lists_v2 WHERE id=?`, detail.ID)
+	if err != nil {
+		return err
+	}
 	detail = normalizeRouteListDetail(detail)
 	if err := validateRouteListDetail(detail); err != nil {
 		return err
@@ -184,11 +208,23 @@ func (s *RouteListStore) DeleteRouteList(ctx context.Context, name string) error
 	if s == nil || s.db == nil {
 		return errors.New("route list store database is nil")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "route-list")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	var before *contractroute.RouteListDetail
+	if configchange.Managed(ctx) {
+		var raw string
+		if err := tx.QueryRowContext(ctx, `SELECT data_json FROM route_lists_v2 WHERE id=?`, name).Scan(&raw); err != nil {
+			return err
+		}
+		v, err := decodeRouteListDetail(raw)
+		if err != nil {
+			return err
+		}
+		before = &v
+	}
 	var owner sql.NullString
 	if err := tx.QueryRowContext(ctx, `SELECT owner_rule_id FROM route_lists_v2 WHERE id = ?`, name).Scan(&owner); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -213,7 +249,12 @@ func (s *RouteListStore) DeleteRouteList(ctx context.Context, name string) error
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("%w: route list %s not found", ErrNotFound, name)
 	}
-	return tx.Commit()
+	if before != nil {
+		if err := recordListChange(ctx, s.db, tx, name, before, nil, before.Revision+1); err != nil {
+			return err
+		}
+	}
+	return configchange.Commit(ctx, tx)
 }
 
 func decodeRouteListDetail(dataJSON string) (contractroute.RouteListDetail, error) {

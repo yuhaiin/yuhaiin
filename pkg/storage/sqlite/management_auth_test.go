@@ -32,7 +32,7 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if queryInt(t, db.DB(), `SELECT count(*) FROM management_users`) != 1 {
 		t.Fatal("migration replaced identities")
 	}
-	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != 7 {
+	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != int64(managementConfigurationChangesMigration.Version) {
 		t.Fatal("migration applied more than once")
 	}
 	info, err := os.Stat(path)
@@ -99,12 +99,12 @@ func TestManagementSSTPMigrationPreservesExistingCredentialsAndSnapshots(t *test
 	if err := upgraded.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != 7 || catalog[5].Name != "sstp_proxy_verifiers" || catalog[6].Name != "management_passkeys" {
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != managementConfigurationChangesMigration.Version || catalog[5].Name != "sstp_proxy_verifiers" || catalog[6].Name != "management_passkeys" {
 		t.Fatalf("upgraded management catalog = %v: %v", catalog, err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
 	version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30)
-	if err != nil || version != 7 {
+	if err != nil || version != managementConfigurationChangesMigration.Version {
 		t.Fatalf("snapshot of upgraded management store: version=%d err=%v", version, err)
 	}
 	reopened, err := OpenManagement(t.Context(), path)
@@ -148,11 +148,11 @@ func TestManagementPasskeyMigrationUpgradesVersionSix(t *testing.T) {
 	if err := upgraded.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != 7 || catalog[6].Name != "management_passkeys" {
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != managementConfigurationChangesMigration.Version || catalog[6].Name != "management_passkeys" {
 		t.Fatalf("catalog = %v: %v", catalog, err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
-	if version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30); err != nil || version != 7 {
+	if version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30); err != nil || version != managementConfigurationChangesMigration.Version {
 		t.Fatalf("snapshot version=%d err=%v", version, err)
 	}
 	reader, err := OpenSnapshotReader(t.Context(), snapshot)
@@ -258,5 +258,48 @@ func TestOAuthSessionMigrationPreservesExistingCredentials(t *testing.T) {
 	}
 	if !bytes.Equal(verifier, []byte{0x12, 0x34}) || method != "password" || agent != "" || address != "" || seen != 0 {
 		t.Fatal("migration changed existing credential or invented device metadata")
+	}
+}
+
+func TestEnterpriseUpgradePreservesPublishedPasskeysAndSSTPVerifiers(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "management.db")
+	old, err := open(t.Context(), path, "management", func(ctx context.Context, db *sql.DB) error {
+		if err := bootstrapBase(ctx, db); err != nil {
+			return err
+		}
+		for _, migration := range []Migration{managementAuthMigration, managementInitializationMigration, proxyCredentialsMigration, managementOAuthMigration, managementAuditMigration, managementSSTPMigration, managementPasskeyMigration} {
+			if err := applyMigration(ctx, db, migration); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),x'0102',1,1);
+		INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,sstp_nt_hash,generation,inbounds,protocols,created_at) VALUES('credential','owner','SSTP',x'0102',x'0304',zeroblob(16),1,'[]','["sstp"]',1);
+		INSERT INTO management_passkeys(credential_id,user_id,rp_id,data,name,created_at) VALUES(x'1234','owner','example.org',x'010203','key',1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		upgraded, err := OpenManagement(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if queryInt(t, upgraded.DB(), `SELECT count(*) FROM management_passkeys WHERE credential_id=x'1234' AND data=x'010203' AND user_id='owner'`) != 1 || queryInt(t, upgraded.DB(), `SELECT count(*) FROM proxy_credentials WHERE id='credential' AND verifier=x'0102' AND wire_verifier=x'0304' AND sstp_nt_hash=zeroblob(16)`) != 1 {
+			t.Fatal("enterprise upgrade or restart lost existing authentication")
+		}
+		for _, name := range []string{"traffic_groups", "traffic_access_config", "quota_windows", "management_roles", "configuration_changes"} {
+			if !schemaObjectExists(t, upgraded.DB(), name) {
+				t.Fatal("missing enterprise table", name)
+			}
+		}
+		if err := upgraded.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

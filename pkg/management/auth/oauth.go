@@ -18,6 +18,9 @@ import (
 // Pending grants are bounded, short-lived and lost on restart. Provider tokens
 // exist only for the userinfo request; they are never persisted or returned.
 type oauthFlow struct {
+	OIDC                                      *oidcRuntime
+	Nonce                                     string
+	Started                                   time.Time
 	Provider                                  OAuthProvider
 	Origin, Secret, PKCE, Owner, CredentialID string
 	Expires                                   time.Time
@@ -27,13 +30,16 @@ type oauthFlow struct {
 }
 
 type OAuthService struct {
-	mu     sync.Mutex
-	flows  map[string]oauthFlow
-	client *http.Client
+	mu        sync.Mutex
+	flows     map[string]oauthFlow
+	oidc      map[string]*oidcRuntime
+	oidcLoads map[string]*oidcLoad
+	oidcSlots chan struct{}
+	client    *http.Client
 }
 
 func newOAuthService() *OAuthService {
-	return &OAuthService{flows: make(map[string]oauthFlow), client: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	return &OAuthService{flows: make(map[string]oauthFlow), oidc: make(map[string]*oidcRuntime), oidcLoads: make(map[string]*oidcLoad), oidcSlots: make(chan struct{}, 8), client: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 func oauthRandom() string {
 	var b [32]byte
@@ -50,6 +56,8 @@ func (o *OAuthService) pruneLocked() {
 func (o *OAuthService) invalidate(provider string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	delete(o.oidc, provider)
+	delete(o.oidcLoads, provider)
 	for id, f := range o.flows {
 		if f.Provider.Provider == provider {
 			delete(o.flows, id)
@@ -77,17 +85,47 @@ type OAuthStart struct {
 }
 
 func (o *OAuthService) start(provider OAuthProvider, origin string, actor Principal) (OAuthStart, error) {
-	f := oauthFlow{Provider: provider, Origin: origin, Secret: oauthRandom(), PKCE: oauth2.GenerateVerifier(), Expires: time.Now().Add(5 * time.Minute), Owner: actor.UserID, CredentialID: actor.CredentialID}
+	return o.startContext(context.Background(), provider, origin, actor)
+}
+func (o *OAuthService) startContext(ctx context.Context, provider OAuthProvider, origin string, actor Principal) (OAuthStart, error) {
+	if !provider.enabled() {
+		return OAuthStart{}, ErrUnauthorized
+	}
+	f := oauthFlow{Provider: provider, Origin: origin, Secret: oauthRandom(), PKCE: oauth2.GenerateVerifier(), Expires: time.Now().Add(5 * time.Minute), Started: time.Now(), Owner: actor.UserID, CredentialID: actor.CredentialID}
+	if provider.isOIDC() {
+		f.Nonce = oauthRandom()
+	}
 	o.mu.Lock()
-	defer o.mu.Unlock()
 	o.pruneLocked()
 	if len(o.flows) >= 256 {
+		o.mu.Unlock()
 		return OAuthStart{}, ErrConflict
 	}
 	state := oauthRandom()
 	o.flows[state] = f
+	o.mu.Unlock()
 	config, _ := providerConfig(provider)
-	return OAuthStart{state, f.Secret, config.AuthCodeURL(state, oauth2.S256ChallengeOption(f.PKCE)), f.Expires.Unix()}, nil
+	options := []oauth2.AuthCodeOption{oauth2.S256ChallengeOption(f.PKCE)}
+	if provider.isOIDC() {
+		runtime, err := o.preparedOIDC(ctx, provider)
+		if err != nil {
+			o.mu.Lock()
+			delete(o.flows, state)
+			o.mu.Unlock()
+			return OAuthStart{}, err
+		}
+		f.OIDC = runtime
+		config = runtime.config
+		options = append(options, oauth2.SetAuthURLParam("nonce", f.Nonce))
+		o.mu.Lock()
+		if _, exists := o.flows[state]; !exists {
+			o.mu.Unlock()
+			return OAuthStart{}, ErrUnauthorized
+		}
+		o.flows[state] = f
+		o.mu.Unlock()
+	}
+	return OAuthStart{state, f.Secret, config.AuthCodeURL(state, options...), f.Expires.Unix()}, nil
 }
 
 func (o *OAuthService) claim(provider, state string) (oauthFlow, error) {
@@ -104,6 +142,9 @@ func (o *OAuthService) claim(provider, state string) (oauthFlow, error) {
 }
 
 func (o *OAuthService) identity(ctx context.Context, f oauthFlow, code string) (OAuthLink, error) {
+	if f.Provider.isOIDC() {
+		return o.oidcIdentity(ctx, f, code)
+	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, o.client)
@@ -133,7 +174,7 @@ func (o *OAuthService) identity(ctx context.Context, f oauthFlow, code string) (
 	if err != nil {
 		return OAuthLink{}, ErrUnauthorized
 	}
-	link := OAuthLink{Provider: f.Provider.Provider}
+	link := OAuthLink{Provider: f.Provider.Provider, Issuer: oauthIssuer(f.Provider)}
 	if f.Provider.Provider == "github" {
 		var user struct {
 			ID    int64  `json:"id"`
@@ -158,7 +199,16 @@ func (o *OAuthService) identity(ctx context.Context, f oauthFlow, code string) (
 	return link, nil
 }
 
-func (o *OAuthService) callback(ctx context.Context, state string, f oauthFlow, code string) (string, error) {
+func (o *OAuthService) callback(ctx context.Context, state string, f oauthFlow, code string) (completion string, err error) {
+	defer func() {
+		if err != nil {
+			o.mu.Lock()
+			if current, ok := o.flows[state]; ok && current.Secret == f.Secret && current.Claimed {
+				delete(o.flows, state)
+			}
+			o.mu.Unlock()
+		}
+	}()
 	if code == "" || len(code) > 4096 {
 		return "", ErrUnauthorized
 	}

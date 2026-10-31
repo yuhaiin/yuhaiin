@@ -8,10 +8,22 @@ import "slices"
 type Permission string
 
 const (
+	ConfigurationRead         Permission = "configuration:read"
+	ConfigurationWrite        Permission = "configuration:write"
+	ConfigurationRollback     Permission = "configuration:rollback"
 	NodesRead                 Permission = "nodes:read"
 	NodesWrite                Permission = "nodes:write"
 	InboundsRead              Permission = "inbounds:read"
 	InboundsWrite             Permission = "inbounds:write"
+	TrafficAccessRead         Permission = "traffic-access:read"
+	TrafficAccessWrite        Permission = "traffic-access:write"
+	SecretsRead               Permission = "secrets:read"
+	SecretsManage             Permission = "secrets:manage"
+	SystemExecute             Permission = "system:execute"
+	RolesRead                 Permission = "roles:read"
+	RolesWrite                Permission = "roles:write"
+	ResourceRead              Permission = "resources:read"
+	ResourceWrite             Permission = "resources:write"
 	RoutesRead                Permission = "routes:read"
 	RoutesWrite               Permission = "routes:write"
 	ResolverRead              Permission = "resolver:read"
@@ -30,6 +42,8 @@ const (
 	UsersManage               Permission = "users:manage"
 	TokensManage              Permission = "tokens:manage"
 	SecurityRead              Permission = "security:read"
+	SecurityWrite             Permission = "security:write"
+	SecurityExport            Permission = "security:export"
 	MetricsRead               Permission = "metrics:read"
 	IdentityRead              Permission = "identity:read"
 	TokensOwn                 Permission = "tokens:own"
@@ -48,6 +62,20 @@ type Definition struct {
 }
 
 var catalog = [...]Definition{
+	{ConfigurationRead, "security", "Inspect permission-filtered configuration stages, diffs and history."},
+	{ConfigurationWrite, "security", "Stage, validate and commit configuration changes within resource permissions."},
+	{ConfigurationRollback, "security", "Prepare configuration rollback within current resource permissions."},
+	{SecurityExport, "security", "Export structured management security audit pages."},
+	{SecurityWrite, "security", "Change management trust boundaries, identity providers and security audit settings."},
+	{SecretsRead, "security", "Explicitly retrieve reusable configuration secrets, backups and raw diagnostic data."},
+	{SecretsManage, "security", "Change inline configuration secrets and private keys."},
+	{SystemExecute, "security", "Change executable hooks or native library configuration, and restore executable backups."},
+	{RolesRead, "security", "Inspect custom management roles and effective permissions."},
+	{RolesWrite, "security", "Manage permission-bounded custom roles and assignments."},
+	{ResourceRead, "security", "Inspect identity resource policies and effective limits."},
+	{ResourceWrite, "security", "Validate and activate identity resource policies."},
+	{TrafficAccessRead, "security", "Inspect traffic access policies and preview effective authorization."},
+	{TrafficAccessWrite, "security", "Validate and activate traffic access policies."},
 	{CertificatesRead, "certificates", "View managed HTTPS certificates, renewal status and public DNS provider configuration."},
 	{CertificatesManage, "certificates", "Manage HTTPS certificates, DNS credentials and certificate issuance."},
 	{UsageOwn, "users", "View your own traffic usage and connection audit."},

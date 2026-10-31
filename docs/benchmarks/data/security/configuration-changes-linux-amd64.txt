@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/management/auth
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkConfigurationGroupChange/owner-only-12         	    3328	    331149 ns/op	    9383 B/op	     213 allocs/op
+BenchmarkConfigurationGroupChange/owner-only-12         	    3460	    334631 ns/op	    9381 B/op	     213 allocs/op
+BenchmarkConfigurationGroupChange/owner-only-12         	    3429	    335928 ns/op	    9343 B/op	     213 allocs/op
+BenchmarkConfigurationGroupChange/managed-history-12    	    2284	    602772 ns/op	   16938 B/op	     331 allocs/op
+BenchmarkConfigurationGroupChange/managed-history-12    	    2116	    601758 ns/op	   16939 B/op	     331 allocs/op
+BenchmarkConfigurationGroupChange/managed-history-12    	    2223	    604071 ns/op	   16939 B/op	     331 allocs/op
+BenchmarkConfigurationGroupChange/stage-validate-commit-12         	     672	   1888452 ns/op	   71180 B/op	    1397 allocs/op
+BenchmarkConfigurationGroupChange/stage-validate-commit-12         	     690	   1854753 ns/op	   71149 B/op	    1397 allocs/op
+BenchmarkConfigurationGroupChange/stage-validate-commit-12         	     673	   1854118 ns/op	   71107 B/op	    1397 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/management/auth	11.620s

@@ -14,6 +14,7 @@ import (
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	dnsresolver "github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 )
 
 // QueryTypes uses the wire library's registry, excluding message metadata and
@@ -31,7 +32,10 @@ func (c ContractController) Test(ctx context.Context, request contractresolver.T
 	if err := request.Validate(); err != nil {
 		return contractresolver.TestResponse{}, err
 	}
-	config := request.Resolver
+	config, err := c.resolver.mergeSecretDraft(ctx, request.Resolver)
+	if err != nil {
+		return contractresolver.TestResponse{}, err
+	}
 	config.ID = cmp.Or(config.ID, "resolver-test")
 	queryType := strings.ToUpper(cmp.Or(strings.TrimSpace(request.QueryType), "A"))
 	domain := dnsutil.Fqdn(strings.TrimSpace(request.Domain))
@@ -46,7 +50,7 @@ func (c ContractController) Test(ctx context.Context, request contractresolver.T
 	// and leaving the stored/active resolver and bootstrap configuration untouched.
 	probe, err := newContractResolver(config, dialer)
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = secret.RemoteError(err).Error()
 		result.ElapsedMS = float64(time.Since(start)) / float64(time.Millisecond)
 		return result, nil
 	}
@@ -56,7 +60,7 @@ func (c ContractController) Test(ctx context.Context, request contractresolver.T
 	message, err := probe.Raw(netapi.WithContext(ctx), netapi.DNSQuestion{Name: domain, Qtype: dns.StringToType[queryType], Qclass: dns.ClassINET})
 	result.ElapsedMS = float64(time.Since(start)) / float64(time.Millisecond)
 	if err != nil {
-		result.Error = err.Error()
+		result.Error = secret.RemoteError(err).Error()
 		return result, nil
 	}
 	if message == nil {

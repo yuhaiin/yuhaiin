@@ -32,8 +32,10 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	routepkg "github.com/Asutorufa/yuhaiin/pkg/route"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
@@ -42,25 +44,26 @@ import (
 )
 
 type AppInstance struct {
-	Certificates  *certmanager.Manager
-	Gateway       httpapi.GatewayController
-	Node          httpapi.NodeController
-	NodeRuntime   *node.NodeRuntime
-	Tools         httpapi.ToolsController
-	Diagnostics   httpapi.DiagnosticsController
-	Subscribe     httpapi.SubscriptionController
-	Connections   httpapi.ConnectionMonitor
-	UserUsage     httpapi.UserUsage
-	Resolver      httpapi.ResolverController
-	FakeIP        contractresolver.FakeIPEntries
-	ResolverCache httpapi.ResolverCacheController
-	ResolverCfg   httpapi.ResolverConfigController
-	Lists         httpapi.ListRuntimeController
-	Rules         httpapi.RouteRuntimeController
-	Backup        httpapi.BackupController
-	Setting       httpapi.SettingsController
-	Inbound       *inbound.Inbound
-	Mux           *http.ServeMux
+	Certificates         *certmanager.Manager
+	Gateway              httpapi.GatewayController
+	Node                 httpapi.NodeController
+	NodeRuntime          *node.NodeRuntime
+	Tools                httpapi.ToolsController
+	Diagnostics          httpapi.DiagnosticsController
+	Subscribe            httpapi.SubscriptionController
+	Connections          httpapi.ConnectionMonitor
+	UserUsage            httpapi.UserUsage
+	Resolver             httpapi.ResolverController
+	FakeIP               contractresolver.FakeIPEntries
+	ResolverCache        httpapi.ResolverCacheController
+	ResolverCfg          httpapi.ResolverConfigController
+	Lists                httpapi.ListRuntimeController
+	Rules                httpapi.RouteRuntimeController
+	Backup               httpapi.BackupController
+	Setting              httpapi.SettingsController
+	Inbound              *inbound.Inbound
+	Mux                  *http.ServeMux
+	ConfigurationChanges configchange.Backend
 	*StartOptions
 	closers  *closers
 	profiler *profilerService
@@ -176,6 +179,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			registryCatalogs = routepkg.NewRegistryCatalogService(routeRegistryStore)
 			routeRuleStore = plainstore.NewRouteRuleStore(db)
 			routeEditor = plainstore.NewRouteEditorStore(db)
+			if runtime, ok := app.Rules.(routepkg.ConfigurationRuntime); ok {
+				app.ConfigurationChanges = routepkg.NewConfigurationChanges(db, runtime)
+			}
 			selectors = plainstore.NewSelectorStore(db)
 			if app.NodeRuntime != nil {
 				selectors = node.NewSelectorService(app.NodeRuntime)
@@ -272,6 +278,8 @@ type StartOptions struct {
 	// access management routes; no identity database or auth routes are loaded.
 	HTTPMiddleware      httpapi.Middleware
 	ProxyAuthentication proxyauth.Provider
+	TrafficAccess       netapi.TrafficAccess
+	TrafficControl      *trafficcontrol.Controller
 	UpstreamCredentials credential.Resolver
 
 	ConfigPath string

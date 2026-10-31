@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 )
 
 type SettingsStore struct {
@@ -108,6 +109,23 @@ func (s *SettingsStore) Save(ctx context.Context, settings contractsettings.Sett
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if _, managed := secret.FromContext(ctx); managed {
+		var previous contractsettings.Settings
+		var encoded string
+		err := tx.QueryRowContext(ctx, `SELECT value_json FROM settings_kv WHERE section='security' AND key='trusted_origins'`).Scan(&encoded)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return contractsettings.Settings{}, err
+		}
+		if err == nil {
+			if err := json.Unmarshal([]byte(encoded), &previous.TrustedOrigins); err != nil {
+				return contractsettings.Settings{}, err
+			}
+		}
+		settings, err = secret.Merge(ctx, settings, previous)
+		if err != nil {
+			return contractsettings.Settings{}, err
+		}
+	}
 	now := time.Now().Unix()
 	values := []struct {
 		section string

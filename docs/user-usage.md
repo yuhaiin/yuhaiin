@@ -5,6 +5,11 @@ It uses the existing SQLite state store; it does not need DuckDB or an external
 metrics service. Core-only/native Android configurations leave the recorder off.
 The React companion exposes the reports under **Account & security**.
 
+Live enforcement counters and threshold history appear beside these historical
+reports. See [Identity resource governance](resource-governance.md) for byte
+reservation, recovery, privacy and UTC reset semantics. Historical sampling
+does not determine hard quota admission.
+
 ## What is counted
 
 - Upload/download payload bytes, lifetime and selected UTC period, plus hourly,
@@ -17,7 +22,8 @@ The React companion exposes the reports under **Account & security**.
   parallel sessions. It is not a measurement of a person's time online.
 - Period breakdowns by stable user, credential, inbound, node and TCP/UDP protocol.
   A credential can be named for a device, but does not prove a physical device's identity.
-- Independent session audits with source, target host:port, resolved IP, selected
+- Independent session audits with authenticated group IDs at connection observation,
+  source, target host:port, resolved IP, selected
   node/selector/rule IDs and names, timestamps, byte totals and end reason.
 
 These are payload counters at the proxy boundary, not NIC/WAN wire bytes. They

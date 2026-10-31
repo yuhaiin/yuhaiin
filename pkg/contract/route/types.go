@@ -76,7 +76,7 @@ type ActivationStatus struct {
 }
 
 type MaxMindDBGeoIP struct {
-	DownloadURL string `json:"downloadUrl"`
+	DownloadURL string `json:"downloadUrl" secret:"url"`
 	Error       string `json:"error"`
 }
 
@@ -129,17 +129,34 @@ type Reference struct {
 }
 
 type RuleExpr struct {
-	Type    string        `json:"type"`
-	Always  *MatchAllExpr `json:"always,omitzero"`
-	All     []RuleExpr    `json:"all,omitzero"`
-	Any     []RuleExpr    `json:"any,omitzero"`
-	Not     *RuleExpr     `json:"not,omitzero"`
-	Host    *ListRef      `json:"host,omitzero"`
-	Process *ListRef      `json:"process,omitzero"`
-	Inbound *SourceRef    `json:"inbound,omitzero"`
-	Network *NetworkExpr  `json:"network,omitzero"`
-	Port    *PortExpr     `json:"port,omitzero"`
-	GeoIP   *GeoIPExpr    `json:"geoip,omitzero"`
+	Type        string           `json:"type"`
+	Always      *MatchAllExpr    `json:"always,omitzero"`
+	All         []RuleExpr       `json:"all,omitzero"`
+	Any         []RuleExpr       `json:"any,omitzero"`
+	Not         *RuleExpr        `json:"not,omitzero"`
+	Host        *ListRef         `json:"host,omitzero"`
+	Process     *ListRef         `json:"process,omitzero"`
+	Inbound     *SourceRef       `json:"inbound,omitzero"`
+	Network     *NetworkExpr     `json:"network,omitzero"`
+	Port        *PortExpr        `json:"port,omitzero"`
+	GeoIP       *GeoIPExpr       `json:"geoip,omitzero"`
+	User        *IdentityExpr    `json:"user,omitzero"`
+	Group       *IdentityExpr    `json:"group,omitzero"`
+	Credential  *IdentityExpr    `json:"credential,omitzero"`
+	Destination *DestinationExpr `json:"destination,omitzero"`
+}
+
+// Domains and CIDRs within a destination leaf are ORed. Use separate leaves
+// within All to require both an original domain and a resolved address range.
+type DestinationExpr struct {
+	Domains []string `json:"domains"`
+	CIDRs   []string `json:"cidrs"`
+}
+
+// IDs are immutable traffic identity identifiers; values within a condition
+// are ORed. All/Any/Not compose them with the existing condition language.
+type IdentityExpr struct {
+	IDs []string `json:"ids"`
 }
 
 type MatchAllExpr struct{}
@@ -178,7 +195,12 @@ type ListItem struct {
 	Source      string `json:"source"`
 	ItemCount   uint32 `json:"itemCount"`
 	ErrorCount  uint32 `json:"errorCount"`
-	Preview     string `json:"preview"`
+	Preview     string `json:"preview" secret:"url"`
+}
+
+// SecretField treats remote source previews as opaque capabilities, including path-only URLs.
+func (item ListItem) SecretField(name string) bool {
+	return name == "Preview" && item.Source == "remote"
 }
 
 type RouteListDetail struct {
@@ -202,7 +224,7 @@ type LocalSource struct {
 }
 
 type RemoteSource struct {
-	URLs []string `json:"urls,omitzero"`
+	URLs []string `json:"urls,omitzero" secret:"true"`
 }
 
 type RouteList struct {
@@ -270,7 +292,7 @@ type BlockHistoryList struct {
 type Registry struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	URL       string `json:"url"`
+	URL       string `json:"url" secret:"url"`
 	Enabled   bool   `json:"enabled"`
 	Builtin   bool   `json:"builtin"`
 	UpdatedAt string `json:"updatedAt"`
@@ -289,8 +311,8 @@ type RegistryFile struct {
 	ListType   string `json:"listType,omitzero"`
 	Format     string `json:"format"`
 	Path       string `json:"path"`
-	URL        string `json:"url"`
-	SourceURL  string `json:"sourceUrl,omitzero"`
+	URL        string `json:"url" secret:"url"`
+	SourceURL  string `json:"sourceUrl,omitzero" secret:"url"`
 	Size       int64  `json:"size"`
 	SHA256     string `json:"sha256"`
 	Selectable bool   `json:"selectable"`
@@ -300,7 +322,7 @@ type RegistryManifest struct {
 	SchemaVersion int            `json:"schemaVersion"`
 	Repository    string         `json:"repository"`
 	Branch        string         `json:"branch"`
-	BaseURL       string         `json:"baseUrl"`
+	BaseURL       string         `json:"baseUrl" secret:"url"`
 	Files         []RegistryFile `json:"files"`
 }
 
@@ -309,7 +331,7 @@ type RegistryCatalog struct {
 	SchemaVersion int            `json:"schemaVersion"`
 	Repository    string         `json:"repository"`
 	Branch        string         `json:"branch"`
-	BaseURL       string         `json:"baseUrl"`
+	BaseURL       string         `json:"baseUrl" secret:"url"`
 	Files         []RegistryFile `json:"files"`
 	Error         string         `json:"error,omitzero"`
 }

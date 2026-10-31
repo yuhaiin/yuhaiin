@@ -3,6 +3,7 @@ package route
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -118,7 +119,9 @@ func (s *Port) Match(ctx context.Context, addr netapi.Address) bool {
 	store := netapi.GetContext(ctx)
 	port := uint16(addr.Port())
 	ok := s.set.Has(port)
-	recordMatch(store, fmt.Sprintf("Port %d", port), ok)
+	if store.RecordingMatchHistory() {
+		recordMatch(store, fmt.Sprintf("Port %d", port), ok)
+	}
 	return ok
 }
 
@@ -314,6 +317,9 @@ func (s *Matchers) UpdateSnapshot(ctx context.Context, snapshot plainstore.Route
 	for _, entry := range snapshot.Rules {
 		entries = s.appendPreparedRule(entries, entry.Rule, prepared.unavailable, prepared.incomplete, &skipped, &degraded)
 	}
+	if complete, _ := ctx.Value(completeCandidateKey{}).(bool); complete && (len(prepared.listIssues) > 0 || len(skipped) > 0 || len(degraded) > 0) {
+		return errors.New("candidate routing policy has unavailable or incomplete matching data")
+	}
 	return activate(ctx, snapshot.Revision, func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -442,6 +448,21 @@ func parseConditionWithUnavailable(expr contractroute.RuleExpr, unavailable map[
 
 func parseConditionWithDegraded(expr contractroute.RuleExpr, unavailable, incomplete map[string]bool) Matcher {
 	switch expr.Type {
+	case "destination":
+		if expr.Destination != nil {
+			return newDestinationMatcher(*expr.Destination)
+		}
+	case "user", "group", "credential":
+		value := expr.User
+		if expr.Type == "group" {
+			value = expr.Group
+		}
+		if expr.Type == "credential" {
+			value = expr.Credential
+		}
+		if value != nil {
+			return newIdentityMatcher(expr.Type, value.IDs)
+		}
 	case "always":
 		return constantMatcher(true)
 	case "all", "any":
@@ -519,7 +540,7 @@ func sortRule(rules []contractroute.RuleExpr) []contractroute.RuleExpr {
 			return 1
 		case "process":
 			return 2
-		case "inbound":
+		case "inbound", "user", "group", "credential":
 			return 3
 		case "geoip":
 			return 4

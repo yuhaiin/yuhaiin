@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/nat
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkAccessNATUDPRoundTrip/Absent-12         	   50602	     23579 ns/op	 114.51 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Absent-12         	   50595	     24196 ns/op	 111.59 MB/s	     253 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Absent-12         	   49999	     23785 ns/op	 113.52 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Disabled-12       	   46110	     25575 ns/op	 105.57 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Disabled-12       	   46981	     25313 ns/op	 106.66 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Disabled-12       	   47802	     25172 ns/op	 107.26 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Protected-12      	   47184	     25420 ns/op	 106.22 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Protected-12      	   47989	     25354 ns/op	 106.49 MB/s	     252 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Protected-12      	   47516	     25167 ns/op	 107.28 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Resources-12      	   43449	     27197 ns/op	  99.28 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Resources-12      	   44362	     27069 ns/op	  99.75 MB/s	     254 B/op	       8 allocs/op
+BenchmarkAccessNATUDPRoundTrip/Resources-12      	   44269	     27003 ns/op	  99.99 MB/s	     254 B/op	       8 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/nat	14.381s

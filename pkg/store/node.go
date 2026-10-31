@@ -142,6 +142,15 @@ func (s *NodeStore) ReplaceRemote(ctx context.Context, group string, nodes []con
 }
 
 func SaveNodeContract(ctx context.Context, execer NodeExecer, node contractnode.Node, updatedAt int64) error {
+	if handled, err := protectedTransaction(ctx, execer, func(tx any) error { return SaveNodeContract(ctx, tx.(NodeExecer), node, updatedAt) }); handled {
+		return err
+	}
+	merged, err := mergeProtected(ctx, execer, node, `SELECT data_json FROM nodes_v2 WHERE id=?`, node.ID)
+	if err != nil {
+		return err
+	}
+	node = merged
+
 	if err := node.Validate(); err != nil {
 		return err
 	}

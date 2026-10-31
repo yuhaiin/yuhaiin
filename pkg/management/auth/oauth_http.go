@@ -4,6 +4,9 @@ import (
 	"html/template"
 	"net/http"
 	"net/netip"
+	"net/url"
+	"strings"
+	"uuid"
 )
 
 // This page sends only a one-use completion proof to the initiating trusted UI.
@@ -33,11 +36,27 @@ func (s *Server) registerOAuth(mux *http.ServeMux, register func(string, Permiss
 		providers, err := s.Store.OAuthProviders(r.Context())
 		out := []string{}
 		for _, p := range providers {
-			out = append(out, p.Provider)
+			if p.enabled() {
+				out = append(out, p.Provider)
+			}
+		}
+		if r.URL.Query().Get("details") == "1" {
+			type publicProvider struct {
+				Provider string `json:"provider"`
+				Name     string `json:"name"`
+			}
+			details := []publicProvider{}
+			for _, p := range providers {
+				if p.enabled() {
+					details = append(details, publicProvider{p.Provider, p.Name})
+				}
+			}
+			respond(w, details, err)
+			return
 		}
 		respond(w, out, err)
 	})
-	register("GET /api/v2/auth/oauth/settings", UsersManage, func(w http.ResponseWriter, r *http.Request) {
+	register("GET /api/v2/auth/oauth/settings", SecurityRead, func(w http.ResponseWriter, r *http.Request) {
 		if _, err := sessionPrincipal(r); err != nil {
 			respond(w, nil, err)
 			return
@@ -45,7 +64,7 @@ func (s *Server) registerOAuth(mux *http.ServeMux, register func(string, Permiss
 		out, err := s.Store.OAuthProviders(r.Context())
 		respond(w, out, err)
 	})
-	register("PUT /api/v2/auth/oauth/settings/{provider}", UsersManage, func(w http.ResponseWriter, r *http.Request) {
+	register("PUT /api/v2/auth/oauth/settings/{provider}", SecurityWrite, func(w http.ResponseWriter, r *http.Request) {
 		actor, err := sessionPrincipal(r)
 		if err != nil {
 			respond(w, nil, err)
@@ -56,13 +75,23 @@ func (s *Server) registerOAuth(mux *http.ServeMux, register func(string, Permiss
 			return
 		}
 		p.Provider = r.PathValue("provider")
+		if !validOAuthProviderConfiguration(p) {
+			respond(w, nil, ErrInvalid)
+			return
+		}
+		if p.isOIDC() && p.enabled() {
+			if _, err := s.OAuth.discoverOIDC(r.Context(), p); err != nil {
+				respond(w, nil, err)
+				return
+			}
+		}
 		err = s.Store.SaveOAuthProvider(r.Context(), actor.UserID, p)
 		if err == nil {
 			s.OAuth.invalidate(p.Provider)
 		}
 		respond(w, struct{}{}, err)
 	})
-	register("DELETE /api/v2/auth/oauth/settings/{provider}", UsersManage, func(w http.ResponseWriter, r *http.Request) {
+	register("DELETE /api/v2/auth/oauth/settings/{provider}", SecurityWrite, func(w http.ResponseWriter, r *http.Request) {
 		actor, err := sessionPrincipal(r)
 		if err != nil {
 			respond(w, nil, err)
@@ -73,6 +102,65 @@ func (s *Server) registerOAuth(mux *http.ServeMux, register func(string, Permiss
 			s.OAuth.invalidate(r.PathValue("provider"))
 		}
 		respond(w, struct{}{}, err)
+	})
+	register("POST /api/v2/auth/oidc/settings", SecurityWrite, func(w http.ResponseWriter, r *http.Request) {
+		actor, err := sessionPrincipal(r)
+		if err != nil {
+			respond(w, nil, err)
+			return
+		}
+		var p OAuthProvider
+		if !decode(r, w, &p) {
+			return
+		}
+		if p.Provider == "" {
+			p.Provider = "oidc-" + uuid.New().String()
+			if callback, err := url.Parse(p.RedirectURL); err == nil && (callback.Path == "" || callback.Path == "/") {
+				callback.Path = "/api/v2/auth/oauth/" + p.Provider + "/callback"
+				p.RedirectURL = callback.String()
+			}
+		}
+		p.RedirectURL = strings.ReplaceAll(p.RedirectURL, "{provider}", p.Provider)
+		if !p.isOIDC() || !validProvider(p.Provider) {
+			respond(w, nil, ErrInvalid)
+			return
+		}
+		p.Revision = 0
+		if !validOAuthProviderConfiguration(p) {
+			respond(w, nil, ErrInvalid)
+			return
+		}
+		if p.enabled() {
+			if _, err := s.OAuth.discoverOIDC(r.Context(), p); err != nil {
+				respond(w, nil, err)
+				return
+			}
+		}
+		err = s.Store.SaveOAuthProvider(r.Context(), actor.UserID, p)
+		s.OAuth.invalidate(p.Provider)
+		if err != nil {
+			respond(w, nil, err)
+			return
+		}
+		saved, err := s.Store.oauthProvider(r.Context(), p.Provider)
+		respond(w, publicOAuthProvider(saved), err)
+	})
+	register("GET /api/v2/auth/oauth/settings/{provider}/status", SecurityRead, func(w http.ResponseWriter, r *http.Request) {
+		p, err := s.Store.oauthProvider(r.Context(), r.PathValue("provider"))
+		if err != nil {
+			respond(w, nil, err)
+			return
+		}
+		ready := p.enabled()
+		if ready && p.isOIDC() {
+			_, err = s.OAuth.discoverOIDC(r.Context(), p)
+			ready = err == nil
+		}
+		respond(w, struct {
+			Enabled  bool   `json:"enabled"`
+			Ready    bool   `json:"ready"`
+			Revision uint64 `json:"revision"`
+		}{p.enabled(), ready, p.Revision}, nil)
 	})
 	start := func(link bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +182,7 @@ func (s *Server) registerOAuth(mux *http.ServeMux, register func(string, Permiss
 				authError(w, http.StatusBadRequest)
 				return
 			}
-			out, err := s.OAuth.start(p, origin, actor)
+			out, err := s.OAuth.startContext(r.Context(), p, origin, actor)
 			respond(w, out, err)
 		}
 	}

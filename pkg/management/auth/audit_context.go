@@ -7,7 +7,8 @@ import (
 )
 
 type auditKey struct{}
-type auditInfo struct{ source, method, path, changes string }
+type auditInfo struct{ source, method, path, changes, policyRevision, reason string }
+type auditMonitorKey struct{}
 
 // Record actual socket peers and route templates. Query strings, credentials,
 // bodies, Origin/User-Agent and untrusted forwarding headers are not copied.

@@ -1,7 +1,10 @@
 // Package usage defines user traffic observations, independent of identity storage.
 package usage
 
-import "errors"
+import (
+	"errors"
+	access "github.com/Asutorufa/yuhaiin/pkg/contract/access"
+)
 
 var ErrQuery = errors.New("invalid user usage query")
 
@@ -84,30 +87,32 @@ type Query struct {
 // Audit stores connection metadata only. It never contains secrets, URLs,
 // headers, request bodies or full rule evaluation traces.
 type Audit struct {
-	ID             string `json:"id"`
-	UserID         string `json:"userId"`
-	CredentialID   string `json:"credentialId"`
-	InboundID      string `json:"inboundId"`
-	InboundName    string `json:"inboundName"`
-	NodeID         string `json:"nodeId"`
-	NodeName       string `json:"nodeName"`
-	SelectorID     string `json:"selectorId"`
-	SelectorName   string `json:"selectorName"`
-	RuleID         string `json:"ruleId"`
-	RuleName       string `json:"ruleName"`
-	Protocol       string `json:"protocol"`
-	Mode           string `json:"mode"`
-	Source         string `json:"source"`
-	Target         string `json:"target"`
-	IP             string `json:"ip"`
-	StartedAt      int64  `json:"startedAt"`
-	EndedAt        int64  `json:"endedAt"`
-	LastSeen       int64  `json:"lastSeen"`
-	DurationMillis string `json:"durationMillis"`
-	Upload         string `json:"upload"`
-	Download       string `json:"download"`
-	Result         string `json:"result"`
-	Reason         string `json:"reason"`
+	AccessDecision *access.Decision `json:"accessDecision,omitempty"`
+	ID             string           `json:"id"`
+	UserID         string           `json:"userId"`
+	CredentialID   string           `json:"credentialId"`
+	GroupIDs       []string         `json:"groupIds,omitempty"`
+	InboundID      string           `json:"inboundId"`
+	InboundName    string           `json:"inboundName"`
+	NodeID         string           `json:"nodeId"`
+	NodeName       string           `json:"nodeName"`
+	SelectorID     string           `json:"selectorId"`
+	SelectorName   string           `json:"selectorName"`
+	RuleID         string           `json:"ruleId"`
+	RuleName       string           `json:"ruleName"`
+	Protocol       string           `json:"protocol"`
+	Mode           string           `json:"mode"`
+	Source         string           `json:"source"`
+	Target         string           `json:"target"`
+	IP             string           `json:"ip"`
+	StartedAt      int64            `json:"startedAt"`
+	EndedAt        int64            `json:"endedAt"`
+	LastSeen       int64            `json:"lastSeen"`
+	DurationMillis string           `json:"durationMillis"`
+	Upload         string           `json:"upload"`
+	Download       string           `json:"download"`
+	Result         string           `json:"result"`
+	Reason         string           `json:"reason"`
 }
 
 type AuditPage struct {

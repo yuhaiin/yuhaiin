@@ -81,6 +81,15 @@ func (s *ResolverStore) Save(ctx context.Context, resolver contractresolver.Reso
 }
 
 func SaveResolverContract(ctx context.Context, execer ResolverExecer, resolver contractresolver.Resolver, updatedAt int64) error {
+	if handled, err := protectedTransaction(ctx, execer, func(tx any) error { return SaveResolverContract(ctx, tx.(ResolverExecer), resolver, updatedAt) }); handled {
+		return err
+	}
+	merged, err := mergeProtected(ctx, execer, resolver, `SELECT data_json FROM resolvers_v2 WHERE id=?`, resolver.ID)
+	if err != nil {
+		return err
+	}
+	resolver = merged
+
 	resolver = normalizeResolver(resolver)
 	if err := resolver.Validate(); err != nil {
 		return err

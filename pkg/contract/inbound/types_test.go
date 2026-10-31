@@ -159,3 +159,12 @@ func TestDarwinTunBatchJSONCompatibility(t *testing.T) {
 		}
 	}
 }
+
+func TestSSTPRejectsLegacyAuthentication(t *testing.T) {
+	for _, authentication := range []*Authentication{nil, {Mode: "legacy"}} {
+		inbound := Inbound{Protocol: Protocol{Type: ProtocolSSTP}, Authentication: authentication}
+		if err := inbound.Validate(); err == nil || !strings.Contains(err.Error(), "sstp inbound requires user authentication") {
+			t.Fatal("SSTP accepted a configuration without a scoped identity", err)
+		}
+	}
+}

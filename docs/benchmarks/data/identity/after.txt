@@ -1,0 +1,57 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/management/auth
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkProxyCredentialVerification-12    	 5183257	       115.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5218052	       115.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5221158	       114.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5226214	       114.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkProxyCredentialVerification-12    	 5234442	       114.5 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/management/auth	3.047s
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/route
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkHostMatcher-12                         	  944227	       550.9 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12                         	  967423	       551.1 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12                         	 1000000	       550.9 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12                         	 1000000	       556.2 ns/op	      48 B/op	       3 allocs/op
+BenchmarkHostMatcher-12                         	 1000000	       553.6 ns/op	      48 B/op	       3 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	23003485	        25.91 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	23119638	        26.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	23044540	        25.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	23166709	        25.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	23123514	        25.91 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	 1000000	       626.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	  976492	       624.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	  985032	       631.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	  953458	       625.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	 1000000	       626.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	24472177	        24.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	24619630	        24.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	24584704	        24.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	24561307	        24.43 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	24414729	        24.54 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1273656	       470.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1312218	       458.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1293178	       463.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1305639	       458.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1280698	       470.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	22728138	        26.28 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23748578	        25.32 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23698786	        25.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23311922	        25.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23703225	        25.37 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       511.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       529.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       541.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       514.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       547.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityMatch1024ConcurrentUsers-12              	151255920	         3.919 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityMatch1024ConcurrentUsers-12              	152323680	         4.049 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityMatch1024ConcurrentUsers-12              	148749000	         3.935 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityMatch1024ConcurrentUsers-12              	151303335	         3.922 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityMatch1024ConcurrentUsers-12              	152473964	         3.901 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/route	25.825s

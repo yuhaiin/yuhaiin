@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
@@ -27,15 +28,45 @@ func sameReplySource(a, b net.Addr) bool {
 	return a.Network() == b.Network() && a.String() == b.String()
 }
 
-func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr net.Addr) error {
+func (u *SourceControl) writeReply(ctx context.Context, data []byte, addr, real net.Addr) error {
+	_, err := u.writeReplyCount(ctx, data, addr, real, "")
+	return err
+}
+
+var errDatagramResources = errors.New("UDP reply resource budget exhausted")
+
+func (u *SourceControl) writeReplyCount(ctx context.Context, data []byte, addr, real net.Addr, routeID string) (written int, err error) {
+	if u.access != nil {
+		original, _ := addr.(netapi.Address)
+		if err := u.access.Authorize(original, real); err != nil {
+			return 0, err
+		}
+	}
+	var ticket quota.Reservation
+	metered := false
+	if u.trafficControl != nil {
+		binding := u.reply.Load()
+		metered, err = u.resolvePolicy(binding.inboundID, routeID).ReserveDatagram(trafficcontrol.Download, len(data), &ticket)
+		if err != nil {
+			return 0, errDatagramResources
+		}
+	}
+	defer func() {
+		if metered {
+			ticket.Commit(written)
+		}
+	}()
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return 0, err
 		}
 		binding := u.reply.Load()
-		_, err := binding.write(binding.ctx, data, addr)
-		if err == nil || binding == u.reply.Load() {
-			return err
+		n, err := binding.write(binding.ctx, data, addr)
+		if n < 0 || n > len(data) {
+			return 0, io.ErrShortWrite
+		}
+		if err == nil || n > 0 || binding == u.reply.Load() {
+			return n, err
 		}
 		// A reply to the old transport may fail after migration has installed
 		// a new one. Retry its still-owned data there instead of closing the
@@ -85,21 +116,13 @@ func (u *SourceControl) runReply() {
 				if !ok {
 					break
 				}
-				// Rate limits are enforced before invoking the potentially blocking
-				// inbound reply writer. Over-limit UDP packets are discarded;
-				// they never wait in an additional unbounded queue.
-				allowed := true
-				if u.trafficControl != nil {
-					routeID := ""
-					if pkt.conn != nil {
-						routeID = pkt.conn.routeID
-					}
-					allowed = u.trafficControl.Resolve(u.reply.Load().inboundID, routeID).AllowDatagram(trafficcontrol.Download, len(pkt.buf))
+				routeID := ""
+				if pkt.conn != nil {
+					routeID = pkt.conn.routeID
 				}
-				var err error
-				if allowed {
-					err = u.writeReply(u.ctx, pkt.buf, pkt.from)
-				} else {
+				_, err := u.writeReplyCount(u.ctx, pkt.buf, pkt.from, pkt.real, routeID)
+				allowed := !errors.Is(err, errDatagramResources)
+				if !allowed {
 					metrics.Counter.AddReceiveUDPDroppedPacket()
 				}
 				u.queueBudget.ReleaseQueueBytes(int64(len(pkt.buf)))

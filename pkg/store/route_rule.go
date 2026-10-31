@@ -6,6 +6,8 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
+	"slices"
 	"strings"
 	"time"
 
@@ -116,11 +118,19 @@ func (s *RouteRuleStore) DeleteRule(ctx context.Context, name string) error {
 	if s == nil || s.db == nil {
 		return errors.New("route rule store database is nil")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "route-rule")
 	if err != nil {
 		return fmt.Errorf("begin route rule delete transaction failed: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	var before *RouteRuleChange
+	if configchange.Managed(ctx) {
+		v, e := readRuleChange(ctx, tx, name)
+		if e != nil {
+			return e
+		}
+		before = &v
+	}
 	res, err := tx.ExecContext(ctx, `DELETE FROM route_rules_v2 WHERE id = ?`, name)
 	if err != nil {
 		return fmt.Errorf("delete route rule %q failed: %w", name, err)
@@ -131,7 +141,12 @@ func (s *RouteRuleStore) DeleteRule(ctx context.Context, name string) error {
 	if err := renumberRouteRulesTx(ctx, tx); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
+	if before != nil {
+		if err := configchange.RecordValues(ctx, s.db, tx, "route-rule", name, before.Draft.Rule.Revision+1, before, nil, before, nil); err != nil {
+			return err
+		}
+	}
+	if err := configchange.Commit(ctx, tx); err != nil {
 		return fmt.Errorf("commit route rule delete transaction failed: %w", err)
 	}
 	return nil
@@ -141,7 +156,7 @@ func (s *RouteRuleStore) ChangePriority(ctx context.Context, sourceName, targetN
 	if s == nil || s.db == nil {
 		return errors.New("route rule store database is nil")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "route-order")
 	if err != nil {
 		return fmt.Errorf("begin route priority transaction failed: %w", err)
 	}
@@ -151,6 +166,7 @@ func (s *RouteRuleStore) ChangePriority(ctx context.Context, sourceName, targetN
 	if err != nil {
 		return err
 	}
+	before := slices.Clone(entries)
 	sourceIndex, targetIndex := -1, -1
 	for i, entry := range entries {
 		if entry.Rule.ID == sourceName {
@@ -196,7 +212,10 @@ func (s *RouteRuleStore) ChangePriority(ctx context.Context, sourceName, targetN
 	if err := rewriteRouteRuleOrderTx(ctx, tx, entries); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
+	if err := recordRouteOrder(ctx, s.db, tx, before, entries); err != nil {
+		return err
+	}
+	if err := configchange.Commit(ctx, tx); err != nil {
 		return fmt.Errorf("commit route priority transaction failed: %w", err)
 	}
 	return nil

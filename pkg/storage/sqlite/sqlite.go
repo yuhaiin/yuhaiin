@@ -101,6 +101,14 @@ func open(ctx context.Context, path, schema string, bootstrap func(context.Conte
 		return nil, err
 	}
 
+	// Security mutations and their audit ledger require a synced local commit.
+	// Keep the configuration/traffic databases on their existing journal policy.
+	if schema == "management" {
+		if _, err := db.ExecContext(ctx, "PRAGMA synchronous = FULL"); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
 	if err := bootstrap(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err

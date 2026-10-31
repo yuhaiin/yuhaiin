@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"net/http"
 )
@@ -25,6 +26,12 @@ func addRPCRoute[Request, Response any](handlers *v2Handlers, endpoint v2Endpoin
 		if err != nil {
 			return writeRPCError(w, err)
 		}
+		if capabilities, managed := secret.FromContext(r.Context()); managed && !capabilities.Reveal {
+			response, err = secret.Redact(response)
+			if err != nil {
+				return writeError(w, http.StatusInternalServerError, "internal_error", "response redaction failed")
+			}
+		}
 		return writeJSON(w, http.StatusOK, response)
 	})
 }
@@ -38,6 +45,15 @@ type rpcError struct {
 func (e *rpcError) Error() string { return e.message }
 
 func badRequest(err error) error {
+	if errors.Is(err, secret.ErrAudit) {
+		return &rpcError{status: http.StatusServiceUnavailable, code: "audit_unavailable", message: err.Error()}
+	}
+	if errors.Is(err, secret.ErrManage) || errors.Is(err, secret.ErrSecurity) || errors.Is(err, secret.ErrExecute) || errors.Is(err, secret.ErrAuthorization) {
+		return &rpcError{status: http.StatusForbidden, code: "permission_denied", message: err.Error()}
+	}
+	if errors.Is(err, secret.ErrPreserved) {
+		return &rpcError{status: http.StatusConflict, code: "secret_reference_conflict", message: err.Error()}
+	}
 	if errors.Is(err, contractbackup.ErrBusy) {
 		return &rpcError{status: http.StatusConflict, code: "backup_busy", message: err.Error()}
 	}
@@ -56,6 +72,15 @@ func notFound(err error) error {
 }
 
 func writeRPCError(w http.ResponseWriter, err error) error {
+	if errors.Is(err, secret.ErrAudit) {
+		return writeError(w, http.StatusServiceUnavailable, "audit_unavailable", err.Error())
+	}
+	if errors.Is(err, secret.ErrManage) || errors.Is(err, secret.ErrSecurity) || errors.Is(err, secret.ErrExecute) || errors.Is(err, secret.ErrAuthorization) {
+		return writeError(w, http.StatusForbidden, "permission_denied", err.Error())
+	}
+	if errors.Is(err, secret.ErrPreserved) {
+		return writeError(w, http.StatusConflict, "secret_reference_conflict", err.Error())
+	}
 	if errors.Is(err, plainstore.ErrConflict) {
 		return writeError(w, http.StatusConflict, "conflict", err.Error())
 	}

@@ -13,9 +13,12 @@ var ErrUnauthorized = errors.New("proxy authentication failed")
 // Identity contains no authentication secret. Context is canceled on expiry,
 // revocation, user disablement, or module shutdown.
 type Identity struct {
-	UserID       string          `json:"userId"`
-	CredentialID string          `json:"credentialId"`
-	Context      context.Context `json:"-"`
+	UserID       string `json:"userId"`
+	CredentialID string `json:"credentialId"`
+	// GroupIDs is a sorted, immutable membership snapshot. Membership changes
+	// cancel this identity; callers must authenticate again for the new snapshot.
+	GroupIDs []string        `json:"groupIds,omitempty"`
+	Context  context.Context `json:"-"`
 }
 
 func (i *Identity) Valid() bool { return i == nil || (i.Context != nil && i.Context.Err() == nil) }

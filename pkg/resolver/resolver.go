@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"strings"
 	"sync"
 	"uuid"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dns/response"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -307,6 +309,7 @@ func (d *dnsDialer) PacketConn(c context.Context, addr netapi.Address) (net.Pack
 }
 
 type ResolverCtr struct {
+	configMu    sync.Mutex
 	hostsMu     sync.Mutex
 	responsesMu sync.Mutex
 	responses   *response.Resolver
@@ -412,11 +415,21 @@ func (r *ResolverCtr) ApplyStored(ctx context.Context) {
 }
 
 func (r *ResolverCtr) SaveContract(ctx context.Context, req contractresolver.Resolver) (contractresolver.Resolver, error) {
+	r.configMu.Lock()
+	defer r.configMu.Unlock()
 	if req.ID == "" {
 		req.ID = uuid.New().String()
 	}
+	var mergeErr error
+	req, mergeErr = r.mergeSecretDraft(ctx, req)
+	if mergeErr != nil {
+		return contractresolver.Resolver{}, mergeErr
+	}
 	if req.Name == "" {
 		req.Name = req.Host
+		if strings.ContainsAny(req.Host, "?@#") || strings.Contains(req.Host, "://") {
+			req.Name = secret.PublicURL(req.Host)
+		}
 	}
 	if req.Name == "" {
 		req.Name = req.ID
@@ -428,10 +441,20 @@ func (r *ResolverCtr) SaveContract(ctx context.Context, req contractresolver.Res
 	if r.resolvers == nil {
 		return contractresolver.Resolver{}, errors.New("resolver store is unavailable")
 	}
-	if err := r.resolvers.Save(ctx, req, 0); err != nil {
+	if err := r.resolvers.Save(secret.WithResolvedConfiguration(ctx), req, 0); err != nil {
 		return contractresolver.Resolver{}, err
 	}
 
+	// Apply the value that was actually committed, never an opaque editor marker.
+	if reader, ok := r.resolvers.(interface {
+		Get(context.Context, string) (contractresolver.Resolver, error)
+	}); ok {
+		stored, err := reader.Get(ctx, req.ID)
+		if err != nil {
+			return contractresolver.Resolver{}, err
+		}
+		req = stored
+	}
 	if req.ID == "bootstrap" {
 		r.r.ApplyBootstrap(req)
 	}
@@ -442,6 +465,8 @@ func (r *ResolverCtr) SaveContract(ctx context.Context, req contractresolver.Res
 }
 
 func (r *ResolverCtr) RemoveContract(ctx context.Context, id string) error {
+	r.configMu.Lock()
+	defer r.configMu.Unlock()
 	if id == "bootstrap" {
 		return nil
 	}
@@ -522,4 +547,25 @@ func (r *ResolverCtr) SaveContractServer(ctx context.Context, req contractresolv
 	}
 	r.server.SetServer(req.Server)
 	return req, err
+}
+
+func (r *ResolverCtr) mergeSecretDraft(ctx context.Context, next contractresolver.Resolver) (contractresolver.Resolver, error) {
+	if _, managed := secret.FromContext(ctx); !managed {
+		return next, nil
+	}
+	if r.resolvers == nil {
+		return contractresolver.Resolver{}, errors.New("resolver store is unavailable")
+	}
+	items, err := r.resolvers.List(ctx)
+	if err != nil {
+		return contractresolver.Resolver{}, err
+	}
+	var previous contractresolver.Resolver
+	for _, item := range items {
+		if item.ID == next.ID {
+			previous = item
+			break
+		}
+	}
+	return secret.Merge(ctx, next, previous)
 }

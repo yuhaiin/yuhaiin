@@ -154,6 +154,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2RouteRegistriesPost:       managementpermission.RoutesWrite,
 	v2RouteRegistryPut:          managementpermission.RoutesWrite,
 	v2RouteRegistryDelete:       managementpermission.RoutesWrite,
+	v2NodesImportCommit:         managementpermission.NodesWrite,
 	// Catalog refresh can initiate remote downloads.
 	v2RouteRegistryCatalogs: managementpermission.RoutesWrite,
 	v2RouteRulesPost:        managementpermission.RoutesWrite,

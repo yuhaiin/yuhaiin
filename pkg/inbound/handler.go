@@ -85,7 +85,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 	if id == "" {
 		id = meta.InboundName
 	}
-	lease, ok := s.control.AdmitStream(id)
+	lease, ok := s.admitStream(store, id)
 	if !ok {
 		_ = meta.Src.Close()
 		return ErrStreamAdmissionLimit
@@ -103,7 +103,7 @@ func (s *handler) stream(store *netapi.Context, meta *netapi.StreamMeta) error {
 	}
 	meta.Src = trafficcontrol.WrapConn(store, meta.Src, func() trafficcontrol.Policy {
 		ruleID, _ := store.MatchedRule()
-		return s.control.Resolve(inboundID, ruleID)
+		return s.resolvePolicy(store, inboundID, ruleID)
 	})
 	defer meta.Src.Close()
 	if s.interceptor != nil && s.interceptor.Intercept(store, meta) {

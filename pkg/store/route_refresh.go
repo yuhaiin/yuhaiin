@@ -7,6 +7,8 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
+	"strconv"
 	"time"
 )
 
@@ -78,6 +80,11 @@ func (s *RouteSettingsStore) SaveListConfig(ctx context.Context, config contract
 	}
 	defer func() { _ = tx.Rollback() }()
 	current, err := readRouteListSettings(ctx, tx)
+	if err != nil {
+		return current, err
+	}
+	previous := contractroute.ListConfig{Revision: current.Revision, RefreshInterval: strconv.FormatUint(current.RefreshInterval, 10), LastRefreshTime: strconv.FormatUint(current.LastRefreshTime, 10), Error: current.Error, HostIndexDisk: current.HostIndexDisk, MaxMindDBGeoIP: contractroute.MaxMindDBGeoIP{DownloadURL: current.MaxMindDBDownloadURL, Error: current.MaxMindDBError}}
+	config, err = secret.Merge(ctx, config, previous)
 	if err != nil {
 		return current, err
 	}

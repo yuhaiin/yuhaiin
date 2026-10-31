@@ -1,0 +1,24 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/route
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	22617336	        26.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	22756009	        26.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=1-12         	22857768	        26.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	14968278	        40.61 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	15022969	        40.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1/members=64-12        	14699366	        40.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	22956067	        25.97 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	23108259	        24.74 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=1-12        	24286153	        24.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1244900	       482.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1301552	       460.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=64/members=64-12       	 1262874	       476.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23293417	        25.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23538912	        25.72 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=1-12      	23502169	        25.59 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       525.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       517.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIdentityGroupMatch/policy=1024/members=64-12     	 1000000	       525.9 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/route	10.563s

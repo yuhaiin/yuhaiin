@@ -6,6 +6,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"net"
 	"net/http"
 	"net/netip"
@@ -50,6 +51,7 @@ func (s *snapshot) close() {
 // Manager serializes management changes, stages all listeners/policies, commits
 // SQLite, then publishes one immutable snapshot. No fallible work follows commit.
 type Manager struct {
+	access              netapi.TrafficAccess
 	mu                  sync.Mutex
 	store               ConfigStore
 	statisticsStore     StatisticsStore
@@ -74,6 +76,10 @@ type Manager struct {
 }
 
 type Option func(*Manager)
+
+func WithTrafficAccess(access netapi.TrafficAccess) Option {
+	return func(m *Manager) { m.access = access }
+}
 
 func WithDestinationRecovery(f func(context.Context, netapi.Address) netapi.Address) Option {
 	return func(m *Manager) { m.recoverDestination = f }
@@ -163,6 +169,13 @@ func (m *Manager) Save(ctx context.Context, config contract.Config) (contract.Co
 		return config, net.ErrClosed
 	}
 	var err error
+	config, err = secret.Merge(ctx, config, m.current.Load().config)
+	if err != nil {
+		return config, err
+	}
+	if err = authorizeUpstreamDestinations(ctx, m.current.Load().config, config); err != nil {
+		return config, err
+	}
 	config, err = reviseConfig(m.current.Load().config, config)
 	if err != nil {
 		return config, err
@@ -283,6 +296,7 @@ func (m *Manager) prepare(ctx context.Context, config contract.Config) (*snapsho
 		}
 		entry := &gatewayRuntime{engine: engine}
 		engine.localAudit = m.localAudit
+		engine.access = m.access
 		restored, shouldRestore := m.restoredStatistics[g.ID]
 		if previous := m.current.Load(); previous != nil {
 			if old := previous.gateways[g.ID]; old != nil {

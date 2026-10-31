@@ -17,6 +17,7 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodesGroups, api.nodeGroups)
 	addRPCRoute(handlers, v2NodesPost, api.saveNode)
 	addRPCRoute(handlers, v2NodesImportPreview, api.previewNodeImport)
+	addRPCRoute(handlers, v2NodesImportCommit, api.commitNodeImport)
 	addRPCRoute(handlers, v2NodesSelected, api.selectedNodes)
 	addRPCRoute(handlers, v2NodesSelect, api.selectNodes)
 	addRPCRoute(handlers, v2NodesActive, api.activeNodes)

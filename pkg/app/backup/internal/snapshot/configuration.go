@@ -16,7 +16,7 @@ import (
 var excludedTables = []string{
 	"backup_recovery_history", "backup_recovery_imports", "certificate_acme_accounts",
 	"certificate_dns_cleanup", "certificate_dns_providers", "certificate_references",
-	"connection_history", "connection_sessions", "failed_connection_history",
+	"configuration_changes", "connection_history", "connection_sessions", "failed_connection_history",
 	"failure_dimension_daily", "failure_dimension_hourly", "fakeip_cursors", "fakeip_entries", "fakeip_pool_counts",
 	"gateway_ca", "gateway_statistics", "inbound_statistics", "managed_certificate_material", "managed_certificates",
 	"node_runtime_stats", "node_speed_budget", "statistics_kv", "telemetry_dimension_values",

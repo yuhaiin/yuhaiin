@@ -3,6 +3,8 @@
 package trafficcontrol
 
 import (
+	"errors"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,7 +33,7 @@ type Counters struct {
 
 type Governor struct {
 	parent                   *Governor
-	limits                   Limits
+	limits                   atomic.Pointer[Limits]
 	sessions, bytes, pending atomic.Int64
 	deniedSessions           atomic.Uint64
 	deniedRateSessions       atomic.Uint64
@@ -45,25 +47,74 @@ type Governor struct {
 	sessionLast              time.Time
 }
 
-func NewGovernor(l Limits, parent *Governor) *Governor {
-	if l.MaxSessions < 0 || l.MaxQueueBytes < 0 || l.MaxPendingTasks < 0 || l.SessionsPerSec < 0 || l.SessionBurst < 0 || l.PacketsPerSec < 0 || l.PacketBurst < 0 {
-		panic("trafficcontrol: negative resource limit")
+func normalizeLimits(l Limits) (Limits, error) {
+	if l.MaxSessions < 0 || l.MaxQueueBytes < 0 || l.MaxPendingTasks < 0 {
+		return l, errors.New("trafficcontrol: negative resource limit")
+	}
+	for _, n := range []float64{l.SessionsPerSec, l.SessionBurst, l.PacketsPerSec, l.PacketBurst} {
+		if n < 0 || math.IsNaN(n) || math.IsInf(n, 0) {
+			return l, errors.New("trafficcontrol: invalid resource rate")
+		}
 	}
 	if l.SessionsPerSec > 0 && l.SessionBurst == 0 {
-		l.SessionBurst = l.SessionsPerSec
+		l.SessionBurst = max(1, l.SessionsPerSec)
 	}
 	if l.PacketsPerSec > 0 && l.PacketBurst == 0 {
-		l.PacketBurst = l.PacketsPerSec
+		l.PacketBurst = max(1, l.PacketsPerSec)
 	}
-	return &Governor{parent: parent, limits: l, tokens: l.PacketBurst, sessionTokens: l.SessionBurst}
+	return l, nil
+}
+
+func NewGovernor(l Limits, parent *Governor) *Governor {
+	l, err := normalizeLimits(l)
+	if err != nil {
+		panic(err)
+	}
+	g := &Governor{parent: parent, tokens: l.PacketBurst, sessionTokens: l.SessionBurst}
+	g.limits.Store(new(l))
+	return g
+}
+
+// UpdateLimits preserves live reservations and earned rate credits. Lowering a
+// concurrency limit blocks new admissions until old leases drain; it never
+// resets counters or creates fresh bursts for reconnecting clients.
+func (g *Governor) UpdateLimits(l Limits) error {
+	l, err := normalizeLimits(l)
+	if err != nil {
+		return err
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	old := g.limits.Load()
+	now := time.Now()
+	refill(&g.sessionTokens, &g.sessionLast, old.SessionsPerSec, old.SessionBurst, now)
+	refill(&g.tokens, &g.last, old.PacketsPerSec, old.PacketBurst, now)
+	g.sessionTokens = min(g.sessionTokens, l.SessionBurst)
+	g.tokens = min(g.tokens, l.PacketBurst)
+	if old.SessionsPerSec == 0 && l.SessionsPerSec > 0 {
+		g.sessionTokens = l.SessionBurst
+	}
+	if old.PacketsPerSec == 0 && l.PacketsPerSec > 0 {
+		g.tokens = l.PacketBurst
+	}
+	g.limits.Store(new(l))
+	return nil
+}
+
+func refill(tokens *float64, last *time.Time, rate, burst float64, now time.Time) {
+	if !last.IsZero() && now.After(*last) {
+		*tokens = min(burst, *tokens+now.Sub(*last).Seconds()*rate)
+	}
+	*last = now
 }
 
 // Session is a single owned reservation; Release may be called concurrently
 // or repeatedly, including on failure and shutdown paths.
 type Session struct {
-	owner  *Governor
-	parent *Session
-	once   sync.Once
+	owner     *Governor
+	parent    *Session
+	once      sync.Once
+	resources *ResourceSession
 }
 
 func reserve(counter *atomic.Int64, n, limit int64) bool {
@@ -82,53 +133,57 @@ func reserve(counter *atomic.Int64, n, limit int64) bool {
 }
 
 func (g *Governor) AcquireSession() (*Session, bool) {
+	session, reason, _ := g.acquireSession()
+	return session, reason == rejectNone
+}
+
+func (g *Governor) acquireSession() (*Session, rejection, *Governor) {
 	if g == nil {
-		return nil, true
+		return nil, rejectNone, nil
 	}
 	// Always evaluate the local concurrency and CPS budget before touching
 	// the parent governor. Otherwise an abusive over-quota child could drain
 	// the parent's token bucket and deny unrelated healthy peers.
-	if !reserve(&g.sessions, 1, g.limits.MaxSessions) {
+	g.mu.Lock()
+	limits := g.limits.Load()
+	if !reserve(&g.sessions, 1, limits.MaxSessions) {
+		g.mu.Unlock()
 		g.deniedSessions.Add(1)
-		return nil, false
+		return nil, rejectSessionLimit, g
 	}
-	if !g.admitSession(time.Now()) {
+	if !g.admitSession(limits, time.Now()) {
 		g.sessions.Add(-1)
+		g.mu.Unlock()
 		g.deniedSessions.Add(1)
 		g.deniedRateSessions.Add(1)
-		return nil, false
+		return nil, rejectConnectionRate, g
 	}
+	g.mu.Unlock()
 	var parent *Session
 	if g.parent != nil {
-		var ok bool
-		parent, ok = g.parent.AcquireSession()
-		if !ok {
+		var reason rejection
+		var scope *Governor
+		parent, reason, scope = g.parent.acquireSession()
+		if reason != rejectNone {
 			g.sessions.Add(-1)
 			g.deniedSessions.Add(1)
-			return nil, false
+			return nil, reason, scope
 		}
 	}
-	return &Session{owner: g, parent: parent}, true
+	return &Session{owner: g, parent: parent}, rejectNone, nil
 }
 
 // admitSession uses a separate token bucket, so an existing active session
 // never loses progress merely because another peer floods new handshakes.
-func (g *Governor) admitSession(now time.Time) bool {
-	if g.limits.SessionsPerSec == 0 {
+func (g *Governor) admitSession(limits *Limits, now time.Time) bool {
+	if limits.SessionsPerSec == 0 {
 		return true
 	}
-	g.mu.Lock()
-	if g.sessionLast.IsZero() {
-		g.sessionLast = now
-	} else if elapsed := now.Sub(g.sessionLast).Seconds(); elapsed > 0 {
-		g.sessionTokens = min(g.limits.SessionBurst, g.sessionTokens+elapsed*g.limits.SessionsPerSec)
-		g.sessionLast = now
-	}
+	refill(&g.sessionTokens, &g.sessionLast, limits.SessionsPerSec, limits.SessionBurst, now)
 	ok := g.sessionTokens >= 1
 	if ok {
 		g.sessionTokens--
 	}
-	g.mu.Unlock()
 	return ok
 }
 
@@ -137,9 +192,35 @@ func (l *Session) Release() {
 		return
 	}
 	l.once.Do(func() {
-		l.owner.sessions.Add(-1)
+		if l.owner != nil {
+			l.owner.sessions.Add(-1)
+		}
 		l.parent.Release()
+		l.resources.Release()
 	})
+}
+
+// BindSessionResources transfers an identity lease to the existing transport
+// lease before it becomes visible to workers. Normal/failure/shutdown cleanup
+// then releases both through the same idempotent ownership boundary.
+func BindSessionResources(session *Session, resources *ResourceSession) *Session {
+	if resources == nil {
+		return session
+	}
+	if session == nil {
+		return &Session{resources: resources}
+	}
+	session.resources = resources
+	return session
+}
+
+func (g *Governor) reclaimable(now time.Time) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	l := g.limits.Load()
+	refill(&g.sessionTokens, &g.sessionLast, l.SessionsPerSec, l.SessionBurst, now)
+	refill(&g.tokens, &g.last, l.PacketsPerSec, l.PacketBurst, now)
+	return g.sessions.Load() == 0 && g.bytes.Load() == 0 && g.pending.Load() == 0 && (l.SessionsPerSec == 0 || g.sessionTokens >= l.SessionBurst) && (l.PacketsPerSec == 0 || g.tokens >= l.PacketBurst)
 }
 
 // ReserveQueueBytes charges the entire hierarchy, rolling back if any scope
@@ -155,7 +236,7 @@ func (g *Governor) ReserveQueueBytes(n int64) bool {
 		g.deniedBytes.Add(1)
 		return false
 	}
-	if !reserve(&g.bytes, n, g.limits.MaxQueueBytes) {
+	if !reserve(&g.bytes, n, g.limits.Load().MaxQueueBytes) {
 		if g.parent != nil {
 			g.parent.ReleaseQueueBytes(n)
 		}
@@ -188,7 +269,7 @@ func (g *Governor) ReservePendingTask() bool {
 		g.deniedPending.Add(1)
 		return false
 	}
-	if !reserve(&g.pending, 1, g.limits.MaxPendingTasks) {
+	if !reserve(&g.pending, 1, g.limits.Load().MaxPendingTasks) {
 		if g.parent != nil {
 			g.parent.ReleasePendingTask()
 		}
@@ -214,7 +295,7 @@ func (g *Governor) AdmitPacket(now time.Time) bool {
 	if g == nil {
 		return true
 	}
-	if g.limits.PacketsPerSec == 0 {
+	if g.limits.Load().PacketsPerSec == 0 {
 		if g.parent != nil {
 			if !g.parent.AdmitPacket(now) {
 				g.deniedPackets.Add(1)
@@ -224,14 +305,10 @@ func (g *Governor) AdmitPacket(now time.Time) bool {
 		return true
 	}
 	g.mu.Lock()
-	if g.last.IsZero() {
-		g.last = now
-	} else if elapsed := now.Sub(g.last).Seconds(); elapsed > 0 {
-		g.tokens = min(g.limits.PacketBurst, g.tokens+elapsed*g.limits.PacketsPerSec)
-		g.last = now
-	}
-	ok := g.tokens >= 1
-	if ok {
+	limits := g.limits.Load()
+	refill(&g.tokens, &g.last, limits.PacketsPerSec, limits.PacketBurst, now)
+	ok := limits.PacketsPerSec == 0 || g.tokens >= 1
+	if ok && limits.PacketsPerSec != 0 {
 		g.tokens--
 	}
 	g.mu.Unlock()

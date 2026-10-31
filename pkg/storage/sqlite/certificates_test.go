@@ -44,7 +44,7 @@ func TestManagedCertificatesUpgradeExisting23(t *testing.T) {
 	if err := upgraded.DB().QueryRowContext(t.Context(), `SELECT private_key_pem FROM gateway_ca WHERE id=1`).Scan(&oldKey); err != nil || oldKey != "existing MITM key" {
 		t.Fatal("site certificate migration modified MITM CA", err)
 	}
-	if version := queryString(t, upgraded.DB(), `SELECT value FROM metadata WHERE key='schema_version'`); version != "24" {
+	if version := queryString(t, upgraded.DB(), `SELECT value FROM metadata WHERE key='schema_version'`); version != "25" {
 		t.Fatal(version)
 	}
 }

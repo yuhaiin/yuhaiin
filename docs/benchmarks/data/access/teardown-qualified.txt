@@ -1,0 +1,27 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkAccessPolicyEvaluation-12          	 4021938	       149.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessPolicyEvaluation-12          	 3960783	       151.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessPolicyEvaluation-12          	 4000492	       150.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessCachedDatagram-12            	 7257134	        82.86 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessCachedDatagram-12            	 7200373	        83.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessCachedDatagram-12            	 7219477	        83.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessAdmission-12                 	  960938	       590.3 ns/op	     496 B/op	       6 allocs/op
+BenchmarkAccessAdmission-12                 	 1000000	       592.1 ns/op	     496 B/op	       6 allocs/op
+BenchmarkAccessAdmission-12                 	  965428	       593.8 ns/op	     496 B/op	       6 allocs/op
+BenchmarkAccessIdleMemory1024-12            	     483	   1236865 ns/op	       498.3 heap-B/session	  625286 B/op	   10244 allocs/op
+BenchmarkAccessIdleMemory1024-12            	     483	   1236725 ns/op	       498.3 heap-B/session	  625264 B/op	   10244 allocs/op
+BenchmarkAccessIdleMemory1024-12            	     488	   1230863 ns/op	       498.3 heap-B/session	  625257 B/op	   10244 allocs/op
+BenchmarkAccessUpdate1024-12                	    4816	    123455 ns/op	   11391 B/op	      25 allocs/op
+BenchmarkAccessUpdate1024-12                	    4366	    125088 ns/op	   11397 B/op	      25 allocs/op
+BenchmarkAccessUpdate1024-12                	    4903	    125525 ns/op	   11408 B/op	      25 allocs/op
+BenchmarkAccessLargePolicy1024-12           	   10000	     53666 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessLargePolicy1024-12           	   10000	     53891 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessLargePolicy1024-12           	   10000	     53909 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAccessUpdateUnderTraffic1024-12    	    4051	    150558 ns/op	  37425106 concurrent-checks/s	   11422 B/op	      25 allocs/op
+BenchmarkAccessUpdateUnderTraffic1024-12    	    4119	    153098 ns/op	  37827643 concurrent-checks/s	   11427 B/op	      25 allocs/op
+BenchmarkAccessUpdateUnderTraffic1024-12    	    3775	    157951 ns/op	  37716124 concurrent-checks/s	   11440 B/op	      25 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/accesscontrol	12.373s

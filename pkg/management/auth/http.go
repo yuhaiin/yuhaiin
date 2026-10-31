@@ -12,12 +12,16 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 )
 
 // Server wraps the application's actual ServeMux, including metrics, profiling,
 // streaming and future registrations. No protected handler can bypass this gate
 // by registering outside the v2 RPC adapter.
 type Server struct {
+	Changes      *ConfigurationChanges
+	Resources    *ResourcePolicies
+	Access       *AccessPolicies
 	OAuth        *OAuthService
 	Passkeys     *PasskeyService
 	Proxy        *ProxyCredentials
@@ -89,13 +93,14 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Yuhaiin-Secret-Access")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		r = r.WithContext(context.WithValue(r.Context(), auditMonitorKey{}, s.Store))
 		r = r.WithContext(withAuditRequest(r, pattern))
 		if s.public[pattern] {
 			mux.ServeHTTP(w, r)
@@ -116,11 +121,20 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		permission := s.Permissions[pattern]
 		r = r.WithContext(WithPrincipal(r.Context(), p))
 		if !p.Allows(permission) {
-			s.Store.audit(r.Context(), "permission.denied", p.UserID, "")
+			info, _ := r.Context().Value(auditKey{}).(auditInfo)
+			info.reason = "missing_permission"
+			s.Store.audit(context.WithValue(r.Context(), auditKey{}, info), "permission.denied", p.UserID, string(permission))
 			authError(w, http.StatusForbidden)
 			return
 		}
-		ctx, cancel := context.WithCancel(WithPrincipal(r.Context(), p))
+		protected, ok := s.secretCapabilities(w, r, pattern, p)
+		if !ok {
+			return
+		}
+		if s.Changes != nil {
+			protected = s.Changes.actorContext(protected, p)
+		}
+		ctx, cancel := context.WithCancel(WithPrincipal(protected, p))
 		defer cancel()
 		// Streams and long-running diagnostics cannot retain permissions after
 		// revocation. Every ordinary request also re-reads owner status/role.
@@ -137,7 +151,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 					return
 				case <-ticker.C:
 					current, err := s.Store.Authenticate(ctx, secret, kind)
-					if err != nil || !current.Allows(permission) {
+					if err != nil || !current.Allows(permission) || (r.Header.Get(secretAccessHeader) == "reveal" || rawSecretAccess(r, pattern)) && !current.Allows(SecretsRead) {
 						cancel()
 						return
 					}
@@ -178,7 +192,7 @@ func respond(w http.ResponseWriter, value any, err error) {
 }
 
 func decode(r *http.Request, w http.ResponseWriter, out any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
 	if json.UnmarshalRead(r.Body, out, json.RejectUnknownMembers(true)) != nil {
 		authError(w, http.StatusBadRequest)
 		return false
@@ -198,10 +212,18 @@ func (s *Server) Register(mux *http.ServeMux) {
 		mux.HandleFunc(pattern, handler)
 	}
 	s.registerProxyCredentials(register)
+	s.registerGroups(register)
+	s.registerTrafficAccess(register)
+	s.registerResources(register)
 	s.registerUsage(register)
 	s.registerSessions(register)
+	s.registerRoles(register)
 	s.registerSessionRestore(register)
 	s.registerOAuth(mux, register)
+	if s.Changes == nil {
+		s.Changes = &ConfigurationChanges{server: s, identity: configchange.New(s.Store.db)}
+	}
+	s.registerConfigurationChanges(register)
 	s.registerPasskeys(mux, register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
@@ -309,6 +331,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		out, err := s.Store.RotateToken(r.Context(), p, r.PathValue("id"))
 		respond(w, out, err)
 	})
+	s.registerSecurityAudit(register)
 	register("GET /api/v2/auth/events", SecurityRead, func(w http.ResponseWriter, r *http.Request) {
 		events, err := s.Store.Events(r.Context())
 		respond(w, events, err)
@@ -319,7 +342,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 			authError(w, http.StatusForbidden)
 			return
 		}
-		out, err := s.Store.ResetEnrollment(r.Context(), p.UserID, p.UserID)
+		out, err := s.Store.StartPasswordChange(r.Context(), p)
 		if s.Proxy != nil {
 			if reloadErr := s.Proxy.Reload(); err == nil {
 				err = reloadErr

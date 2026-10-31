@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	json "encoding/json/v2"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	"maps"
 	"slices"
 )
@@ -25,6 +26,17 @@ func (s *RouteRuleStore) Snapshot(ctx context.Context) (RouteSnapshot, error) {
 		return RouteSnapshot{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	snapshot, err := ReadRouteSnapshot(ctx, tx)
+	if err != nil {
+		return snapshot, err
+	}
+	return snapshot, tx.Commit()
+}
+
+// ReadRouteSnapshot also reads an uncommitted, validated candidate for atomic
+// configuration activation. It never opens another database connection.
+func ReadRouteSnapshot(ctx context.Context, tx *sql.Tx) (RouteSnapshot, error) {
+	var err error
 	var snapshot RouteSnapshot
 	if err := tx.QueryRowContext(ctx, `SELECT saved_revision FROM route_configuration_state WHERE id = 1`).Scan(&snapshot.Revision); err != nil {
 		return snapshot, err
@@ -73,7 +85,7 @@ func (s *RouteRuleStore) Snapshot(ctx context.Context) (RouteSnapshot, error) {
 	if err := rows.Close(); err != nil {
 		return snapshot, err
 	}
-	return snapshot, tx.Commit()
+	return snapshot, nil
 }
 
 func (s *RouteRuleStore) ConfigurationRevision(ctx context.Context) (uint64, error) {
@@ -90,6 +102,19 @@ func (s *RouteRuleStore) ActivateSnapshot(ctx context.Context, revision uint64, 
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := MarkRouteSnapshot(ctx, tx, revision); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	install()
+	return nil
+}
+
+// MarkRouteSnapshot is part of the same target/history transaction when the
+// configuration workflow prepares a candidate before committing it.
+func MarkRouteSnapshot(ctx context.Context, tx *sql.Tx, revision uint64) error {
 	result, err := tx.ExecContext(ctx, `UPDATE route_configuration_state SET applied_revision = ? WHERE id = 1 AND saved_revision = ?`, revision, revision)
 	if err != nil {
 		return err
@@ -126,10 +151,6 @@ func (s *RouteRuleStore) ActivateSnapshot(ctx context.Context, revision uint64, 
 	if _, err := tx.ExecContext(ctx, `UPDATE route_configuration_state SET applied_rules_json = ?, applied_config_json = ? WHERE id = 1`, string(rulesJSON), string(configJSON)); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	install()
 	return nil
 }
 
@@ -139,7 +160,7 @@ func (s *RouteRuleStore) ResetActivation(ctx context.Context) error {
 }
 
 func (s *RouteSettingsStore) SaveConfig(ctx context.Context, config contractroute.Config) (RouteSettings, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := configchange.Begin(ctx, s.db, "route-defaults")
 	if err != nil {
 		return RouteSettings{}, err
 	}
@@ -183,5 +204,8 @@ func (s *RouteSettingsStore) SaveConfig(ctx context.Context, config contractrout
 	if err != nil {
 		return value, err
 	}
-	return value, tx.Commit()
+	if err := configchange.RecordValues(ctx, s.db, tx, "route-defaults", "route-defaults", value.Revision, current, value, routeSettingsPolicy(current), routeSettingsPolicy(value)); err != nil {
+		return value, err
+	}
+	return value, configchange.Commit(ctx, tx)
 }

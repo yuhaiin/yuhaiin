@@ -323,8 +323,9 @@ type AddrInfo struct {
 type Context struct {
 	context.Context
 
-	Source      net.Addr `metrics:"Source"`
-	Destination net.Addr `metrics:"Destination"`
+	Source        net.Addr `metrics:"Source"`
+	Destination   net.Addr `metrics:"Destination"`
+	authorization *TrafficAuthorization
 
 	inbound       *net.Addr              `metrics:"Inbound"`
 	inboundName   *string                `metrics:"InboundName"`
@@ -394,6 +395,8 @@ func (c *Context) NewRuleMatch(id, name string) {
 func (c *Context) AddMatchHistory(listName string, matched bool) {
 	c.AddConditionHistory("", "", listName, matched)
 }
+
+func (c *Context) RecordingMatchHistory() bool { return len(c.ruleChain) > 0 }
 
 func (c *Context) AddConditionHistory(kind, id, name string, matched bool) {
 	if len(c.ruleChain) == 0 {
@@ -771,6 +774,11 @@ func (c *Context) SniffHost() string {
 
 func (c *Context) Value(key any) any {
 	switch key {
+	case trafficAuthorizationKey{}:
+		if c.authorization != nil {
+			return c.authorization
+		}
+		return c.Context.Value(key)
 	case contextKey{}:
 		return c
 	default:

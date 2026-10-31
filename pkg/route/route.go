@@ -20,6 +20,7 @@ import (
 
 type Route struct {
 	ProcessDumper netapi.ProcessDumper
+	access        netapi.TrafficAccess
 
 	r Resolver
 	d Dialer
@@ -86,6 +87,11 @@ func (s *Route) Conn(ctx context.Context, host netapi.Address) (net.Conn, error)
 // HTTP transport looks up a reusable connection. An explicit HTTP target may
 // override the destination selection, but never an existing L4 block decision.
 func (s *Route) ResolveTCP(ctx context.Context, host netapi.Address, target contractroute.Target) (netapi.Proxy, netapi.Address, error) {
+	if s.access != nil {
+		if err := s.access.Preflight(netapi.TrafficSubjectFromContext(ctx)); err != nil {
+			return nil, nil, err
+		}
+	}
 	result := s.dispatch(ctx, host)
 	if result.Mode.Mode() == ModeGateway {
 		result = s.dispatch(WithoutGateway(ctx), host)
@@ -111,10 +117,28 @@ func (s *Route) ResolveTCP(ctx context.Context, host netapi.Address, target cont
 	if err != nil {
 		return nil, nil, netapi.NewDialError("tcp", err, result.Addr)
 	}
+	if s.access != nil && result.Mode.Mode() != ModeBlock {
+		original := host
+		actual, err := netapi.PinTrafficTarget(ctx, s.access, original, result.Addr)
+		if err != nil {
+			return nil, nil, err
+		}
+		p = &authorizedProxy{Proxy: p, access: s.access, subject: netapi.TrafficSubjectFromContext(ctx), original: original, actual: actual}
+		return p, actual, nil
+	}
 	return p, result.Addr, nil
 }
 
 func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.PacketConn, error) {
+	if s.access != nil {
+		subject := netapi.TrafficSubjectFromContext(ctx)
+		if err := s.access.Preflight(subject); err != nil {
+			return nil, err
+		}
+		if subject.External && netapi.TrafficAccessSessionFromContext(ctx) == nil {
+			return nil, netapi.ErrTrafficAccessDenied
+		}
+	}
 	if s.ms.hasGateway.Load() {
 		ctx = WithoutGateway(ctx)
 	}
@@ -132,6 +156,19 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 	if err != nil {
 		return nil, netapi.NewDialError("udp", err, result.Addr)
 	}
+	if s.access != nil && result.Mode.Mode() != ModeBlock {
+		original := host
+		actual, err := netapi.PinTrafficTarget(ctx, s.access, original, result.Addr)
+		if err != nil {
+			return nil, err
+		}
+		if session := netapi.TrafficAccessSessionFromContext(ctx); session != nil && netapi.TrafficSubjectFromContext(ctx).External {
+			if err := session.Authorize(original, actual); err != nil {
+				return nil, err
+			}
+		}
+		result.Addr = actual
+	}
 
 	conn, err := p.PacketConn(ctx, result.Addr)
 	if err != nil {
@@ -142,6 +179,15 @@ func (s *Route) PacketConn(ctx context.Context, host netapi.Address) (net.Packet
 }
 
 func (s *Route) Ping(ctx context.Context, host netapi.Address) (uint64, error) {
+	if s.access != nil {
+		subject := netapi.TrafficSubjectFromContext(ctx)
+		if err := s.access.Preflight(subject); err != nil {
+			return 0, err
+		}
+		if s.access.Managed(subject) {
+			return 0, netapi.ErrTrafficAccessDenied
+		}
+	}
 	if s.ms.hasGateway.Load() {
 		ctx = WithoutGateway(ctx)
 	}
@@ -167,9 +213,14 @@ func (s *Route) Dispatch(ctx context.Context, host netapi.Address) (netapi.Addre
 		return nil, errors.New("route: unmapped synthetic destination")
 	}
 	if netapi.GetContext(ctx).ConnOptions().SkipRoute() {
-		return host, nil
+		return s.authorizeDispatch(ctx, host, host)
 	}
-	return s.dispatch(ctx, host).Addr, nil
+	if s.access != nil {
+		if err := s.access.Preflight(netapi.TrafficSubjectFromContext(ctx)); err != nil {
+			return nil, err
+		}
+	}
+	return s.authorizeDispatch(ctx, host, s.dispatch(ctx, host).Addr)
 }
 
 func (s *Route) skipResolve(mode ModeEnum) bool {

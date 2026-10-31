@@ -31,6 +31,7 @@ type authenticatedSourceKey struct {
 	source                  uint64
 }
 type Table struct {
+	access               netapi.TrafficAccess
 	authenticatedSources syncmap.SyncMap[authenticatedSourceKey, *SourceControl]
 	dialer               netapi.Proxy
 	sniffer              netapi.PacketSniffer
@@ -47,6 +48,19 @@ type Table struct {
 }
 
 var ErrNATSessionLimit = errors.New("udp nat: session limit")
+
+// SetTrafficAccess is called during ingress construction, before packet
+// admission starts. Runtime updates publish through this same capability.
+func (t *Table) SetTrafficAccess(access netapi.TrafficAccess) { t.access = access }
+
+// SetTrafficControl injects the optional server-owned controller during ingress
+// construction, before any packets or resource queries are admitted.
+func (t *Table) SetTrafficControl(control trafficcontrol.PolicyResolver, budget trafficcontrol.Budget) {
+	t.trafficControl = control
+	if budget != nil {
+		t.budget = budget
+	}
+}
 
 // ResourceStats exposes live NAT sessions and charged queue bytes.
 func (t *Table) ResourceStats() trafficcontrol.Counters { return t.budget.Snapshot() }
@@ -156,8 +170,12 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return u.sourceControl.LoadOrCreate(key, create)
 	}
 	remove := func(source *SourceControl) { u.sourceControl.CompareAndDelete(key, source) }
-	if identity := pkt.Identity; identity != nil {
-		scoped := authenticatedSourceKey{identity.CredentialID, pkt.InboundID(), key}
+	if identity := pkt.Identity; identity != nil || u.access != nil {
+		credential := ""
+		if identity != nil {
+			credential = identity.CredentialID
+		}
+		scoped := authenticatedSourceKey{credential, pkt.InboundID(), key}
 		load = func(create func() (*SourceControl, error)) (*SourceControl, bool, error) {
 			return u.authenticatedSources.LoadOrCreate(scoped, create)
 		}
@@ -173,11 +191,24 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 			return context.Canceled
 		}
 		r, loaded, err := load(func() (*SourceControl, error) {
+			var resources *trafficcontrol.ResourceSession
+			if identity := pkt.Identity; identity != nil {
+				var ok bool
+				resources, ok = trafficcontrol.AcquireIdentityResources(u.trafficControl, identity.UserID, identity.CredentialID, true)
+				if !ok {
+					return nil, ErrNATSessionLimit
+				}
+			}
 			lease, ok := u.budget.AcquireSession()
 			if !ok {
+				resources.Release()
 				return nil, ErrNATSessionLimit
 			}
-			source := newSourceChan(u.sniffer, u.dialer, lease, u.budget, u.trafficControl)
+			lease = trafficcontrol.BindSessionResources(lease, resources)
+			source, err := newSourceChanWithAccess(u.sniffer, u.dialer, lease, u.budget, u.trafficControl, u.access, netapi.TrafficSubject{Identity: pkt.Identity, InboundID: pkt.InboundID(), External: true})
+			if err != nil {
+				return nil, err
+			}
 			if pkt.Identity != nil {
 				source.bindIdentity(pkt.Identity)
 			}

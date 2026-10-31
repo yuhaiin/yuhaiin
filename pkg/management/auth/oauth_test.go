@@ -302,3 +302,42 @@ func TestOAuthPendingGrantBoundsAndOrigin(t *testing.T) {
 		t.Fatal("expired grants not pruned")
 	}
 }
+
+func TestSuspendingBuiltInProviderKeepsLinksAndDeletingRemovesThem(t *testing.T) {
+	s := testStore(t)
+	admin := testUser(t, s, "admin", Admin)
+	if _, err := s.db.ExecContext(t.Context(), `INSERT INTO management_oauth_links(provider,subject,user_id,display_name,created_at,issuer) VALUES('github','42',?,'name',1,'https://github.com')`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	config := OAuthProvider{Provider: "github", ClientID: "client", ClientSecret: "keep-secret", RedirectURL: "https://controller.example/api/v2/auth/oauth/github/callback"}
+	if err := s.SaveOAuthProvider(t.Context(), admin.ID, config); err != nil {
+		t.Fatal(err)
+	}
+	disabled := false
+	config.ClientSecret, config.Enabled = "", &disabled
+	if err := s.SaveOAuthProvider(t.Context(), admin.ID, config); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := s.oauthProvider(t.Context(), "github")
+	if err != nil || saved.enabled() || saved.ClientSecret != "keep-secret" {
+		t.Fatal("suspension did not keep the provider", saved.enabled(), err)
+	}
+	if _, err := newOAuthService().startContext(t.Context(), saved, "https://controller.example", Principal{}); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("suspended provider started a flow", err)
+	}
+	links, err := s.OAuthLinks(t.Context(), admin.ID)
+	if err != nil || len(links) != 1 {
+		t.Fatal("suspension removed account links", links, err)
+	}
+	if err := s.DeleteOAuthProvider(t.Context(), admin.ID, "github"); err != nil {
+		t.Fatal(err)
+	}
+	links, err = s.OAuthLinks(t.Context(), admin.ID)
+	if err != nil || len(links) != 0 {
+		t.Fatal("deletion retained account links", links, err)
+	}
+	var event string
+	if err := s.db.QueryRowContext(t.Context(), `SELECT event FROM management_security_events WHERE subject_id='github' ORDER BY id DESC LIMIT 1`).Scan(&event); err != nil || event != "oauth.provider_deleted" {
+		t.Fatal("deletion audit event", event, err)
+	}
+}

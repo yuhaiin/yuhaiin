@@ -296,6 +296,8 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 		INSERT INTO user_usage_activity(user_id,minute) VALUES ('user',1);
 		INSERT INTO user_usage_users(user_id,active_minutes) VALUES ('user',1);
 		INSERT INTO user_usage_flush(id,batch_id) VALUES (1,'batch-1');
+		INSERT INTO configuration_changes(id,kind,resource_id,state,origin,created_by,committed_by,created_at,committed_at,expires_at,revision,rollback_of,before_json,after_json,diff_json)
+		VALUES ('change-1','node','node-1','committed','direct','user','user',1,2,0,'1','','{"password":"journal-private-marker"}','{}','{}');
 		INSERT INTO gateway_statistics(gateway_id,requests,blocked,forwarded,errors,tls_failures,protocol_failures,duration_ns,updated_at)
 		VALUES ('gateway',1,0,1,0,0,0,10,1);
 		INSERT INTO inbound_statistics(inbound_id,accepted_streams,received_packets,received_pings,updated_at)
@@ -315,6 +317,9 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 	if !bytes.Equal(first, second) {
 		t.Fatal("identical configuration snapshots differ")
+	}
+	if bytes.Contains(first, []byte("journal-private-marker")) {
+		t.Fatal("configuration backup retained private change journal")
 	}
 	firstHash := calculateBytesHash(first, contractbackup.S3{})
 	secondHash := calculateBytesHash(second, contractbackup.S3{})
@@ -350,7 +355,7 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 	defer snapshotStore.Close()
 
-	for _, table := range []string{"statistics_kv", "traffic_hourly", "connection_history", "fakeip_entries", "telemetry_dimension_values", "traffic_dimension_hourly", "traffic_dimension_daily", "failure_dimension_hourly", "failure_dimension_daily", "user_usage_audit", "user_usage_totals", "user_usage_buckets", "user_usage_activity", "user_usage_users", "user_usage_flush", "gateway_statistics", "inbound_statistics"} {
+	for _, table := range []string{"configuration_changes", "statistics_kv", "traffic_hourly", "connection_history", "fakeip_entries", "telemetry_dimension_values", "traffic_dimension_hourly", "traffic_dimension_daily", "failure_dimension_hourly", "failure_dimension_daily", "user_usage_audit", "user_usage_totals", "user_usage_buckets", "user_usage_activity", "user_usage_users", "user_usage_flush", "gateway_statistics", "inbound_statistics"} {
 		var count int
 		if err := snapshotStore.DB().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil {
 			t.Fatalf("count sanitized table %s failed: %v", table, err)

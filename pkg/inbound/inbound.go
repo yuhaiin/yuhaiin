@@ -17,6 +17,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 	"github.com/Asutorufa/yuhaiin/pkg/statistics"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -31,6 +32,7 @@ type entry struct {
 var _ netapi.Handler = (*Inbound)(nil)
 
 type Inbound struct {
+	access              netapi.TrafficAccess
 	trafficPolicyReady  atomic.Bool
 	authentication      proxyauth.Provider
 	usage               *statistics.UserUsage
@@ -98,6 +100,24 @@ type Option func(*Inbound)
 
 func WithAuthentication(provider proxyauth.Provider) Option {
 	return func(l *Inbound) { l.authentication = provider }
+}
+
+func WithTrafficAccess(access netapi.TrafficAccess) Option {
+	return func(l *Inbound) {
+		l.access = access
+		l.handler.table.SetTrafficAccess(access)
+	}
+}
+
+func WithTrafficControl(control *trafficcontrol.Controller) Option {
+	return func(l *Inbound) {
+		if control == nil || control == l.handler.control {
+			return
+		}
+		l.handler.control.Close()
+		l.handler.control = control
+		l.handler.table.SetTrafficControl(control, control.DatagramBudget())
+	}
 }
 
 // WithInterceptor installs one optional hook shared by every TCP inbound.
@@ -212,24 +232,44 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		return
 	}
 	metrics.Counter.AddStreamRequest()
+	store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, meta.Identity))
+	store.Source = meta.Source
+	store.Destination = meta.Destination
+	if meta.Inbound != nil {
+		store.SetInbound(meta.Inbound)
+	}
+	store.SetInboundName(meta.InboundName)
+	store.SetInboundID(meta.InboundID)
 
 	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.dnsHandler == nil {
-		store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, meta.Identity))
-		store.Source = meta.Source
-		store.Destination = meta.Destination
-		if meta.Inbound != nil {
-			store.SetInbound(meta.Inbound)
-		}
-		store.SetInboundName(meta.InboundName)
-		store.SetInboundID(meta.InboundID)
 		l.handler.Stream(store, meta)
 		return
 	}
 
-	observation := l.localDNSUsage(meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp")
-	observed := observation.Conn(meta.Src)
+	lease, ok := l.handler.admitStream(store, meta.InboundID)
+	if !ok {
+		_ = meta.Src.Close()
+		return
+	}
+	defer lease.Release()
+	meta.Src = trafficcontrol.WrapConn(store, meta.Src, func() trafficcontrol.Policy { return l.handler.resolvePolicy(store, meta.InboundID, "") })
+	actual, err := netapi.PinTrafficDestination(store, l.access, meta.Address)
+	if err != nil {
+		l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp").Finish(err)
+		_ = meta.Src.Close()
+		return
+	}
+	authorized, err := netapi.BindTrafficConn(store, l.access, meta.Address, actual, meta.Src)
+	if err != nil {
+		l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp").Finish(err)
+		_ = meta.Src.Close()
+		return
+	}
+	defer authorized.Close()
+	observation := l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp")
+	observed := observation.Conn(authorized)
 	defer observed.Close()
-	err := l.dnsHandler.DoStream(netapi.WithTrafficIdentity(l.ctx, meta.Identity), &netapi.DNSStreamRequest{
+	err = l.dnsHandler.DoStream(store, &netapi.DNSStreamRequest{
 		Conn:        observed,
 		ForceFakeIP: l.fakeip.Load(),
 	})
@@ -289,24 +329,82 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 		return
 	}
 
-	observation := l.localDNSUsage(packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp")
+	store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, packet.Identity))
+	store.Source = packet.Src()
+	store.SetInboundID(packet.InboundID()).SetInboundName(packet.InboundName())
+	var resourceLease *trafficcontrol.ResourceSession
+	if identity := packet.Identity; identity != nil {
+		var ok bool
+		resourceLease, ok = l.handler.control.AcquireResourceSession(identity.UserID, identity.CredentialID, true)
+		if !ok {
+			l.localDNSUsage(store, identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(ErrStreamAdmissionLimit)
+			return
+		}
+	}
+	actual, err := netapi.PinTrafficDestination(store, l.access, packet.Dst())
+	if err != nil {
+		resourceLease.Release()
+		l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(err)
+		return
+	}
+	ctx, release, err := netapi.AuthorizeTrafficRequest(store, l.access, packet.Dst(), actual)
+	if err != nil {
+		resourceLease.Release()
+		l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(err)
+		return
+	}
+	observation := l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp")
+	resolvePolicy := func() trafficcontrol.Policy { return l.handler.resolvePolicy(store, packet.InboundID(), "") }
+	var uploadTicket quota.Reservation
+	uploadMetered, err := resolvePolicy().ReserveDatagram(trafficcontrol.Upload, len(packet.GetPayload()), &uploadTicket)
+	if err != nil {
+		observation.Finish(err)
+		resourceLease.Release()
+		release()
+		return
+	}
 	observation.AddUpload(len(packet.GetPayload()))
 	dnsReq := &netapi.DNSRawRequest{
 		Question: packet,
 		WriteBack: func(b []byte) error {
-			n, err := packet.WriteBack(b, packet.Dst())
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if session := netapi.TrafficAccessSessionFromContext(ctx); session != nil {
+				if err := session.Authorize(packet.Dst(), actual); err != nil {
+					return err
+				}
+			}
+			var ticket quota.Reservation
+			metered, err := resolvePolicy().ReserveDatagram(trafficcontrol.Download, len(b), &ticket)
+			if err != nil {
+				return err
+			}
+			n, err := packet.WriteBackContext(ctx, b, packet.Dst())
+			if n < 0 || n > len(b) {
+				n = 0
+				err = errors.New("invalid DNS reply write count")
+			}
+			if metered {
+				ticket.Commit(n)
+			}
 			observation.AddDownload(n)
 			return err
 		},
 		ForceFakeIP: l.fakeip.Load(),
 	}
-	if observation != nil {
-		dnsReq.Done = observation.Finish
-	}
+	dnsReq.Done = func(err error) { observation.Finish(err); resourceLease.Release(); release() }
 
-	if err := l.dnsHandler.DoDatagram(l.ctx, dnsReq); err != nil {
+	if err := l.dnsHandler.DoDatagram(ctx, dnsReq); err != nil {
+		if uploadMetered {
+			uploadTicket.Commit(0)
+		}
 		observation.Finish(err)
+		resourceLease.Release()
+		release()
 		log.Select(netapi.LogLevel(err)).Print("udp server handle DnsHijacking", "msg", err)
+	} else if uploadMetered {
+		uploadTicket.Commit(len(packet.GetPayload()))
 	}
 }
 

@@ -1,11 +1,44 @@
 package trafficcontrol
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+)
 
 // PolicyResolver is the only policy capability required by datagram adapters.
 // Implementations resolve existing identities, never match packets again.
 type PolicyResolver interface {
 	Resolve(inboundID, routeID string) Policy
+}
+
+func ResolveAuthenticatedPolicy(resolver PolicyResolver, inboundID, routeID string, identity *proxyauth.Identity) Policy {
+	if resolver == nil {
+		return Policy{}
+	}
+	if identity == nil {
+		return resolver.Resolve(inboundID, routeID)
+	}
+	if scoped, ok := resolver.(interface {
+		ResolveAuthenticated(string, string, *proxyauth.Identity) Policy
+	}); ok {
+		return scoped.ResolveAuthenticated(inboundID, routeID, identity)
+	}
+	return ResolveIdentityPolicy(resolver, inboundID, routeID, identity.UserID, identity.CredentialID)
+}
+
+// ResolveIdentityPolicy preserves adapters with a basic resolver while allowing
+// the shared controller to select precompiled authenticated identity scopes.
+func ResolveIdentityPolicy(resolver PolicyResolver, inboundID, routeID, userID, credentialID string) Policy {
+	if resolver == nil {
+		return Policy{}
+	}
+	if scoped, ok := resolver.(interface {
+		ResolveIdentity(string, string, string, string) Policy
+	}); ok && (userID != "" || credentialID != "") {
+		return scoped.ResolveIdentity(inboundID, routeID, userID, credentialID)
+	}
+	return resolver.Resolve(inboundID, routeID)
 }
 
 // BufferedResources charges memory and work at the protocol's ownership
@@ -60,6 +93,29 @@ func newController(root *Governor) *Controller {
 	return &Controller{Manager: NewManager(), root: root, nat: NewDatagramBudget(root), scopes: make(map[string]*streamScope)}
 }
 func (c *Controller) DatagramBudget() Budget { return c.nat }
+
+func (c *Controller) AdmitIdentityStream(id, userID, credentialID string) (*StreamLease, bool) {
+	resources, ok := c.AcquireResourceSession(userID, credentialID, false)
+	if !ok {
+		return nil, false
+	}
+	lease, ok := c.AdmitStream(id)
+	if !ok {
+		resources.Release()
+		return nil, false
+	}
+	lease.session = BindSessionResources(lease.session, resources)
+	return lease, true
+}
+
+func AcquireIdentityResources(resolver PolicyResolver, userID, credentialID string, udp bool) (*ResourceSession, bool) {
+	if capability, ok := resolver.(interface {
+		AcquireResourceSession(string, string, bool) (*ResourceSession, bool)
+	}); ok {
+		return capability.AcquireResourceSession(userID, credentialID, udp)
+	}
+	return nil, true
+}
 
 // AdmitDatagram shares the existing NAT/root budget while honoring controller
 // shutdown. Probe adapters do not own a NAT table to enforce that lifetime.

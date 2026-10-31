@@ -11,11 +11,13 @@ import (
 	"testing"
 	"time"
 
+	accesscontract "github.com/Asutorufa/yuhaiin/pkg/contract/access"
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	usage "github.com/Asutorufa/yuhaiin/pkg/contract/usage"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
+	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -426,5 +428,68 @@ func TestUserUsageProductionConnectionSamplesExistingCounter(t *testing.T) {
 	got := usageReport(t, r, "alice")
 	if got.Summary.Lifetime.Download != "5" || got.Summary.Lifetime.Opened != "1" {
 		t.Fatalf("summary=%+v", got.Summary)
+	}
+}
+
+func TestUserUsageAuditRetainsHistoricalGroupIDs(t *testing.T) {
+	r := usageTestRecorder(t)
+	info := usageInfo("alice", "phone", "one")
+	info.GroupIDs = []string{"finance", "engineering"}
+	reader := new(usageTestCounter)
+	session := r.register(info, reader, nil)
+	// Audit metadata must own its historical snapshot independently of callers.
+	info.GroupIDs[0] = "later-membership"
+	session.end()
+	r.sample(time.Now())
+	if err := r.Flush(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	page, err := r.Audit(t.Context(), usage.Query{UserID: "alice"})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("audit=%+v err=%v", page, err)
+	}
+	if got := page.Items[0].GroupIDs; len(got) != 2 || got[0] != "finance" || got[1] != "engineering" {
+		t.Fatalf("historical groups lost: %v", got)
+	}
+}
+
+func TestAuthorizationAuditDistinguishesNormalCloseAndPolicyRevocation(t *testing.T) {
+	for _, cause := range []error{netapi.ErrTrafficSessionClosed, netapi.ErrTrafficAccessDenied} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			r := usageTestRecorder(t)
+			ctx, cancel := context.WithCancelCause(t.Context())
+			info := usageInfo("alice", "phone", "one")
+			decision := accesscontract.Decision{Revision: 7, Managed: true, Allowed: true, RuleID: "finance", Reason: "rule"}
+			info.AccessDecision = &decision
+			s := r.register(info, new(usageTestCounter), ctx)
+			decision.Revision = 8
+			cancel(cause)
+			s.end()
+			_ = usageReport(t, r, "alice")
+			page, err := r.Audit(t.Context(), usage.Query{UserID: "alice"})
+			want := "closed"
+			if errors.Is(cause, netapi.ErrTrafficAccessDenied) {
+				want = "access_policy_revoked"
+			}
+			if err != nil || len(page.Items) != 1 || page.Items[0].Reason != want || page.Items[0].AccessDecision == nil || page.Items[0].AccessDecision.Revision != 7 {
+				t.Fatalf("historical audit=%+v err=%v", page, err)
+			}
+		})
+	}
+}
+
+func TestUserUsageQuotaFailuresAndTermination(t *testing.T) {
+	r := usageTestRecorder(t)
+	r.failure(usageInfo("alice", "phone", "one"), fmt.Errorf("admission: %w", quota.ErrExhausted))
+	ctx, cancel := context.WithCancelCause(t.Context())
+	s := r.register(usageInfo("alice", "phone", "one"), new(usageTestCounter), ctx)
+	cancel(quota.ErrExhausted)
+	s.end()
+	usageReport(t, r, "alice")
+	for _, result := range []string{"rejected", "closed"} {
+		page, err := r.Audit(t.Context(), usage.Query{UserID: "alice", Result: result})
+		if err != nil || len(page.Items) != 1 || page.Items[0].Reason != "quota_exhausted" {
+			t.Fatalf("%s quota audit=%+v err=%v", result, page, err)
+		}
 	}
 }

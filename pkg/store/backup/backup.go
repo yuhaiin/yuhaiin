@@ -10,6 +10,7 @@ import (
 	"uuid"
 
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 )
 
 type Store struct {
@@ -67,11 +68,43 @@ func (s *Store) Save(ctx context.Context, opt contractbackup.Option) error {
 	if s == nil || s.db == nil {
 		return errors.New("backup store database is nil")
 	}
+	if _, managed := secret.FromContext(ctx); !managed {
+		return saveBackup(ctx, s.db, opt)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var encoded string
+	var previous contractbackup.Option
+	err = tx.QueryRowContext(ctx, `SELECT data_json FROM backup_settings WHERE id=1`).Scan(&encoded)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil {
+		if err := json.Unmarshal([]byte(encoded), &previous); err != nil {
+			return err
+		}
+	}
+	merged, err := secret.Merge(ctx, opt, previous)
+	if err != nil {
+		return err
+	}
+	if err := saveBackup(ctx, tx, merged); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func saveBackup(ctx context.Context, execer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}, opt contractbackup.Option) error {
 	data, err := json.Marshal(opt)
 	if err != nil {
 		return fmt.Errorf("encode backup settings failed: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `
+	if _, err := execer.ExecContext(ctx, `
 		INSERT INTO backup_settings(id, updated_at, data_json)
 		VALUES (1, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET

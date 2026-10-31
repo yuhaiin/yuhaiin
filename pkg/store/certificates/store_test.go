@@ -191,7 +191,8 @@ func TestWALSnapshotIncludesPrivateCertificateAccounts(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "snapshot.db")
 	version, err := sqlite.SnapshotRecoveryDatabase(t.Context(), db.Path(), path, "configuration", 64<<20)
-	if err != nil || version != 24 {
+	latest, versionErr := sqlite.SupportedSchemaVersion("configuration")
+	if err != nil || versionErr != nil || version != latest {
 		t.Fatal(version, err)
 	}
 	reader, err := sqlite.OpenSnapshotReader(t.Context(), path)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
 
@@ -19,6 +20,9 @@ import (
 // Only server executables opt in; native Android does not import this package.
 // Runtime shares one private identity store between management and traffic.
 type Runtime struct {
+	Audit     *AuditForwarder
+	Resources *ResourcePolicies
+	Access    *AccessPolicies
 	store     *Store
 	passwords *PasswordService
 	Proxy     *ProxyCredentials
@@ -72,20 +76,48 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 	if err != nil {
 		return nil, err
 	}
-	upstream := &UpstreamCredentials{store: store}
-	if _, err := upstream.snapshot(ctx); err != nil {
+	access, err := NewAccessPolicies(ctx, store)
+	if err != nil {
 		_ = proxy.Close()
 		return nil, err
 	}
-	return &Runtime{store: store, passwords: passwords, Proxy: proxy, Upstream: upstream, db: db}, nil
+	resources, err := NewResourcePolicies(ctx, store, proxy, access.Controller)
+	if err != nil {
+		_ = access.Controller.Close()
+		_ = proxy.Close()
+		return nil, err
+	}
+	audit, err := newAuditForwarder(ctx, store, nil)
+	if err != nil {
+		_ = resources.Close()
+		_ = access.Controller.Close()
+		_ = proxy.Close()
+		return nil, err
+	}
+	upstream := &UpstreamCredentials{store: store}
+	if _, err := upstream.snapshot(ctx); err != nil {
+		_ = audit.Close()
+		_ = resources.Close()
+		_ = access.Controller.Close()
+		_ = proxy.Close()
+		return nil, err
+	}
+	return &Runtime{Audit: audit, Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: upstream, db: db}, nil
 }
 
 func (r *Runtime) Close() error {
 	r.Upstream.close()
-	return errors.Join(r.Proxy.Close(), r.db.Close())
+	var resourceErr, auditErr error
+	if r.Audit != nil {
+		auditErr = r.Audit.Close()
+	}
+	if r.Resources != nil {
+		resourceErr = r.Resources.Close()
+	}
+	return errors.Join(auditErr, resourceErr, r.Access.Controller.Close(), r.Proxy.Close(), r.db.Close())
 }
 
-func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
+func (r *Runtime) Middleware(ctx context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
 	permissions := make(map[string]Permission)
 	maps.Copy(permissions, httpapi.ManagementPermissions())
 	maps.Copy(permissions, map[string]Permission{
@@ -100,7 +132,13 @@ func (r *Runtime) Middleware(_ context.Context, mux *http.ServeMux, options http
 		"POST /api/v2/profiler/sessions":        Diagnostics,
 		"DELETE /api/v2/profiler/sessions/{id}": Diagnostics,
 	})
-	server := &Server{Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	server := &Server{Resources: r.Resources, Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	server.Changes = &ConfigurationChanges{server: server, identity: configchange.New(r.store.db), configuration: options.ConfigurationChanges}
+	if options.ConfigurationChanges != nil {
+		if err := options.ConfigurationChanges.Enable(ctx); err != nil {
+			return nil, nil, err
+		}
+	}
 	server.Register(mux)
 	return server.Wrap(mux), nil, nil
 }
