@@ -107,7 +107,7 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 					t.Fatal("space rejection changed source state", name, err)
 				}
 			}
-			source, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+			source, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 			if err != nil {
 				t.Fatal("source no longer opens after failed capture", err)
 			}
@@ -211,7 +211,7 @@ func TestFullRecoveryExcludesActiveOwnersAndHonorsCancellation(t *testing.T) {
 	if err := owner.Close(); err != nil {
 		t.Fatal(err)
 	}
-	db, err := sqlite.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
+	db, err := testfixture.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestFullRecoveryCapturesExternalDependenciesAndRejectsMissingOnes(t *testin
 	if err := os.WriteFile(outside, []byte("external certificate fixture"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +290,7 @@ func TestFullRecoveryRefusesIncompleteInventoryAndUnsafeWebRoot(t *testing.T) {
 					t.Fatal(err)
 				}
 			default:
-				db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+				db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 				if err != nil {
 					t.Fatal(err)
 				}

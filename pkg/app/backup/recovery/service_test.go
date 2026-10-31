@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
@@ -22,7 +23,7 @@ func (s importServiceTest) Start(ctx context.Context) error { return s.start(ctx
 
 func admitImportFixture(t *testing.T, directory string, item backupstore.RecoveryImportRecord, request contractrecovery.ImportActivateRequest) {
 	t.Helper()
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func completeImportStartup(t *testing.T, directory string, abort bool) error {
 	if abort {
 		return startup.Abort()
 	}
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		return err
 	}
@@ -139,7 +140,7 @@ func TestRestoreImportFailureRestartsOriginalAndRetainsOnlyCiphertext(t *testing
 			if err != nil || id != item.Preview.TargetInstanceID {
 				t.Fatal("failed restore lost the original identity", err)
 			}
-			db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+			db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -249,7 +250,7 @@ func TestRestoreImportCleanupFailureCannotPreventSafeServiceRestart(t *testing.T
 				t.Fatal("cleanup failure stopped a committed healthy deployment", stops)
 			}
 			if !commit {
-				db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+				db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -15,9 +15,9 @@ import (
 	"time"
 	"uuid"
 
+	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	gatewaycontract "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
-	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
@@ -227,7 +227,7 @@ func TestPointRetentionProtectsOpenSQLiteCopy(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	db, err := sqlite.Open(t.Context(), path)
+	db, err := testfixture.OpenState(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestPointRetentionPreservesConfiguredCertificateAliases(t *testing.T) {
 	if err := os.Symlink(filepath.Join(directory, referenced.point(), "state.db"), alias); err != nil {
 		t.Fatal(err)
 	}
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

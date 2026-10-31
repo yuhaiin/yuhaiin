@@ -17,7 +17,6 @@ import (
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
@@ -64,7 +63,7 @@ func TestRecoveryPendingWorkRechecksAfterBusyWithoutAnotherConfigEvent(t *testin
 
 func TestConfigurationScheduleStopsAndResetsWhenChanged(t *testing.T) {
 	directory := t.TempDir()
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +125,7 @@ func TestRecoveryScheduleUsesPersistedDueTimeAndRejectsInvalidImportedPolicy(t *
 	for _, invalid := range []bool{false, true} {
 		t.Run(map[bool]string{false: "due", true: "invalid-import"}[invalid], func(t *testing.T) {
 			directory, key := testfixture.Deployment(t)
-			db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+			db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 			if err != nil {
 				t.Fatal(err)
 			}

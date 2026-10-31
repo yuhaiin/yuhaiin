@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -35,7 +36,7 @@ func TestConfigurationBackupsRemoveAuthenticationMaterial(t *testing.T) {
 				}
 				_, _ = w.Write(object)
 			})
-			db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+			db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +67,7 @@ func TestConfigurationBackupsRemoveAuthenticationMaterial(t *testing.T) {
 			if bytes.Contains(data, []byte(tc.private)) {
 				t.Fatal("Authentication material entered plaintext JSON export")
 			}
-			target, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
+			target, err := testfixture.OpenState(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -85,7 +86,7 @@ func TestConfigurationBackupsRemoveAuthenticationMaterial(t *testing.T) {
 			if err := os.WriteFile(path, object, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			snapshot, err := storagesqlite.Open(t.Context(), path)
+			snapshot, err := testfixture.OpenState(t.Context(), path)
 			if err != nil {
 				t.Fatal(err)
 			}

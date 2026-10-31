@@ -45,12 +45,12 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 	for _, fault := range []string{"none", "stop", "cancel", "existing-archive", "restart"} {
 		t.Run(fault, func(t *testing.T) {
 			directory, key := testfixture.Deployment(t)
-			db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+			db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
-			identity, err := sqlite.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
+			identity, err := testfixture.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +144,7 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 			if !started {
 				t.Fatal("service restart was not attempted")
 			}
-			recorded, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+			recorded, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -187,7 +187,7 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 
 func TestManagedRecoveryVerificationDoesNotPersistDecryptionMaterial(t *testing.T) {
 	directory, key := testfixture.Deployment(t)
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestManagedRecoveryVerificationDoesNotPersistDecryptionMaterial(t *testing.
 	if err := recovery.Capture(t.Context(), directory, queued.ID, recoveryServiceTest{stop: func(context.Context) error { return nil }, start: func(context.Context) error { return nil }}); err != nil {
 		t.Fatal(err)
 	}
-	db, err = sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err = testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

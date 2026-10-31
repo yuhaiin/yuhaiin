@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contractbackup "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
@@ -46,7 +47,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := store.Save(t.Context(), config); err != nil {
 		t.Fatal(err)
 	}
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +129,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 			t.Fatalf("JSON configuration export contains %s", marker)
 		}
 	}
-	importTarget, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "import.db"))
+	importTarget, err := testfixture.OpenState(t.Context(), filepath.Join(t.TempDir(), "import.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if _, err := storagesqlite.InspectBackupSnapshot(t.Context(), path, "configuration"); err != nil {
 		t.Fatal("sanitized snapshot cannot be inspected", err)
 	}
-	snapshot, err := storagesqlite.Open(t.Context(), path)
+	snapshot, err := testfixture.OpenState(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +264,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 func TestConfigurationS3SnapshotRejectsUnknownVirtualTables(t *testing.T) {
 	var calls atomic.Int32
 	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +286,7 @@ func TestConfigurationS3SnapshotRejectsUnknownVirtualTables(t *testing.T) {
 func TestConfigurationS3SnapshotRejectsUnknownTables(t *testing.T) {
 	var calls atomic.Int32
 	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +305,7 @@ func TestConfigurationS3SnapshotRejectsUnknownTables(t *testing.T) {
 func TestConfigurationS3SnapshotRejectsUnknownGatewayFields(t *testing.T) {
 	var calls atomic.Int32
 	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +332,7 @@ func TestConfigurationS3SnapshotRejectsUnknownEndpointFields(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls atomic.Int32
 			b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
-			db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+			db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -360,7 +361,7 @@ func TestConfigurationBackupsOmitRouteRefreshErrors(t *testing.T) {
 		}
 		_, _ = w.Write(object)
 	})
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +397,7 @@ func TestConfigurationBackupsOmitRouteRefreshErrors(t *testing.T) {
 			}
 		}
 	}
-	jsonTarget, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "json.db"))
+	jsonTarget, err := testfixture.OpenState(t.Context(), filepath.Join(t.TempDir(), "json.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +409,7 @@ func TestConfigurationBackupsOmitRouteRefreshErrors(t *testing.T) {
 	if err := os.WriteFile(path, object, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := storagesqlite.Open(t.Context(), path)
+	snapshot, err := testfixture.OpenState(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,7 +459,7 @@ func TestConfigurationBackupsOmitRouteRefreshErrors(t *testing.T) {
 func TestConfigurationBackupsRejectAmbiguousRouteRefreshErrors(t *testing.T) {
 	var calls atomic.Int32
 	b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +501,7 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls atomic.Int32
 			b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
-			db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+			db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -532,7 +533,7 @@ func TestConfigurationBackupsRejectCredentialBearingSourceURLs(t *testing.T) {
 			if err != nil || !bytes.Contains(local, []byte("private-source-marker")) {
 				t.Fatal("refusing a public backup changed the live source or broke local restoration", err)
 			}
-			target, err := storagesqlite.Open(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
+			target, err := testfixture.OpenState(t.Context(), filepath.Join(t.TempDir(), "restored.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -558,7 +559,7 @@ func TestConfigurationS3SnapshotRedactsHTTPMockPayloads(t *testing.T) {
 		}
 		_, _ = w.Write(object)
 	})
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -581,7 +582,7 @@ func TestConfigurationS3SnapshotRedactsHTTPMockPayloads(t *testing.T) {
 	if err := os.WriteFile(path, object, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := storagesqlite.Open(t.Context(), path)
+	snapshot, err := testfixture.OpenState(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -610,7 +611,7 @@ func TestConfigurationS3SnapshotRedactsShadowsocksRParameters(t *testing.T) {
 		}
 		_, _ = w.Write(object)
 	})
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -631,7 +632,7 @@ func TestConfigurationS3SnapshotRedactsShadowsocksRParameters(t *testing.T) {
 	if err := os.WriteFile(path, object, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := storagesqlite.Open(t.Context(), path)
+	snapshot, err := testfixture.OpenState(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -658,7 +659,7 @@ func TestConfigurationS3SnapshotRedactsGatewayURLCredentials(t *testing.T) {
 		}
 		_, _ = w.Write(object)
 	})
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -684,7 +685,7 @@ func TestConfigurationS3SnapshotRedactsGatewayURLCredentials(t *testing.T) {
 	if err := os.WriteFile(path, object, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := storagesqlite.Open(t.Context(), path)
+	snapshot, err := testfixture.OpenState(t.Context(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -705,7 +706,7 @@ func TestConfigurationS3SnapshotRedactsGatewayURLCredentials(t *testing.T) {
 func streamingBackup(t *testing.T, handler http.HandlerFunc) (*Backup, *backupstore.Store) {
 	t.Helper()
 	directory := t.TempDir()
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(directory))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(directory))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -740,7 +741,7 @@ func TestBackupDownloadVerificationAndSkipUnchanged(t *testing.T) {
 		}
 		_, _ = w.Write(data)
 	})
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(b.dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -851,7 +852,7 @@ func TestBackupCloseCancelsManualTransfer(t *testing.T) {
 
 func TestBackupRepeatedScheduleChangesDoNotLeak(t *testing.T) {
 	dir := t.TempDir()
-	db, err := storagesqlite.Open(t.Context(), paths.PathGenerator.State(dir))
+	db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(dir))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,9 +25,11 @@ import (
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 )
 
+// Import/admission tests need real encrypted databases, not native VPN state.
+// Inventory tests retain Deployment's Tailscale and ZeroTier profiles separately.
 func recoveryImportFixture(t *testing.T) (*Backup, []byte, *age.X25519Identity, *sqlite.Store) {
 	t.Helper()
-	directory, key := testfixture.Deployment(t)
+	directory, key := testfixture.BasicDeployment(t)
 	archive := filepath.Join(t.TempDir(), "deployment.yhb")
 	if _, err := recovery.Create(t.Context(), directory, archive, backuparchive.Encryption{Recipient: key.Recipient().String()}, recovery.CreateOptions{ConfirmedMaintenance: true}); err != nil {
 		t.Fatal(err)
@@ -36,7 +38,7 @@ func recoveryImportFixture(t *testing.T) (*Backup, []byte, *age.X25519Identity, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +258,7 @@ func TestRecoveryFailedUploadFreesFilesWhenRegistryWritesAreUnavailable(t *testi
 	if err != nil || len(entries) != 1 || entries[0].Name() != "unrelated.keep" {
 		t.Fatal("unpublished ciphertext survived a registry failure or unrelated data was removed", err)
 	}
-	reopened, err := sqlite.Open(t.Context(), filepath.Join(b.dir, "state.db"))
+	reopened, err := testfixture.OpenState(t.Context(), filepath.Join(b.dir, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +340,7 @@ func TestRecoveryIdleRetentionDoesNotCompeteWithManualControlWork(t *testing.T) 
 
 func TestFullRecoveryNeverCarriesEphemeralImportsEvenWithHistory(t *testing.T) {
 	directory, key := testfixture.Deployment(t)
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,6 @@ import (
 	gateway "github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	node "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
-	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
@@ -32,7 +31,7 @@ func BasicDeployment(t *testing.T) (string, *age.X25519Identity) {
 func deployment(t *testing.T, native bool) (string, *age.X25519Identity) {
 	t.Helper()
 	directory := t.TempDir()
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +86,7 @@ func deployment(t *testing.T, native bool) (string, *age.X25519Identity) {
 	if _, err := db.DB().ExecContext(t.Context(), "INSERT INTO traffic_hourly(bucket_start_utc,upload_bytes,download_bytes,updated_at) VALUES(1,100,200,1)"); err != nil {
 		t.Fatal(err)
 	}
-	identities, err := sqlite.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
+	identities, err := OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

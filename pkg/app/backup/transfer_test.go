@@ -17,10 +17,10 @@ import (
 
 	"filippo.io/age"
 	backupfs "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
+	testfixture "github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/backup"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
-	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 )
 
@@ -30,7 +30,7 @@ import (
 func recoveryTransferBackup(t *testing.T, handler http.HandlerFunc) (*Backup, *backupstore.Store) {
 	t.Helper()
 	directory := t.TempDir()
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

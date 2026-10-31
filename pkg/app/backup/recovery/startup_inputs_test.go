@@ -16,7 +16,7 @@ import (
 
 func TestRecoveryManagedStartupCommitRestartAndRollback(t *testing.T) {
 	directory, tx := recoveryTransactionFixture(t)
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

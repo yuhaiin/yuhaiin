@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"filippo.io/age"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"time"
 	"uuid"
 
+	"filippo.io/age"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/testfixture"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
@@ -87,7 +87,7 @@ func (source *preparedImportSource) prepare(t *testing.T, mode string, online bo
 	var err error
 	var live *sqlite.Store
 	if online {
-		live, err = sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+		live, err = testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -293,7 +293,7 @@ func TestPreparedImportRequiresStoppedOwnersAndHandlesClosedWAL(t *testing.T) {
 func TestPreparedImportRefusesChangedTargetIdentity(t *testing.T) {
 	directory, item, request, _ := preparedImportFixture(t, "original", false)
 	replacement := uuid.New().String()
-	db, err := sqlite.Open(t.Context(), filepath.Join(directory, "state.db"))
+	db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
