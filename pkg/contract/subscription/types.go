@@ -21,8 +21,8 @@ type Publish struct {
 	Points   []string `json:"points"`
 	Path     string   `json:"path" secret:"true"`
 	Password string   `json:"password" secret:"true"`
-	Address  string   `json:"address"`
-	Insecure bool     `json:"insecure"`
+	Address  string   `json:"address" privilege:"secrets:bound"`
+	Insecure bool     `json:"insecure" privilege:"secrets:bound"`
 }
 
 type PublishList struct {

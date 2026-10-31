@@ -63,8 +63,8 @@ type Condition struct {
 
 type Action struct {
 	Type            string              `json:"type"`
-	Upstream        string              `json:"upstream,omitempty"`
-	Outbound        route.Target        `json:"outbound"`
+	Upstream        string              `json:"upstream,omitempty" privilege:"secrets:bound"`
+	Outbound        route.Target        `json:"outbound" privilege:"secrets:bound"`
 	Status          int                 `json:"status,omitzero"`
 	Body            string              `json:"body,omitempty" secret:"true"`
 	Location        string              `json:"location,omitempty" secret:"url"`
@@ -74,8 +74,8 @@ type Action struct {
 }
 
 type Rewrite struct {
-	Scheme  string              `json:"scheme,omitempty"`
-	Host    string              `json:"host,omitempty"`
+	Scheme  string              `json:"scheme,omitempty" privilege:"secrets:bound"`
+	Host    string              `json:"host,omitempty" privilege:"secrets:bound"`
 	Path    string              `json:"path,omitempty"`
 	Query   *string             `json:"query,omitzero" secret:"true"`
 	Headers map[string][]string `json:"headers,omitempty" secret:"values"`

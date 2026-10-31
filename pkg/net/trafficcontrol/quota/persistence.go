@@ -200,9 +200,12 @@ func (l *Ledger) prune(now time.Time) {
 	}
 }
 
-// The funding worker serializes checkpoint, reclaim and grant writes. Retired
-// windows remain locked until the durable return of unused credit succeeds, so
+// The funding worker serializes checkpoint, reclaim and grant writes. A window
+// selected here is retired with no reservations, so traffic can no longer change
+// its counters. l.mu stays held until the durable return of unused credit, so
 // reactivation cannot load a second live copy with an independent byte balance.
+// Window locks are never held across storage or while taking another window's
+// lock: Plan.lock acquires several of them in key order.
 func (l *Ledger) reclaim(ctx context.Context, now time.Time, shutdown bool) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -213,15 +216,16 @@ func (l *Ledger) reclaim(ctx context.Context, now time.Time, shutdown bool) erro
 			return nil
 		}
 		err := l.store.Reclaim(ctx, requests)
-		for i, w := range windows {
-			if err == nil {
+		if err == nil {
+			for i, w := range windows {
+				w.mu.Lock()
 				w.record.Charged = requests[i].Record.Charged
 				w.wanted = w.record.Charged
+				w.mu.Unlock()
 				if !shutdown {
 					delete(l.windows, w.record.Key)
 				}
 			}
-			w.mu.Unlock()
 		}
 		requests, windows = requests[:0], windows[:0]
 		return err
@@ -236,9 +240,7 @@ func (l *Ledger) reclaim(ctx context.Context, now time.Time, shutdown bool) erro
 			continue
 		}
 		w.mu.Lock()
-		if !shutdown {
-			w.retired.Store(true)
-		}
+		w.retired.Store(true)
 		if w.pending || w.inflight != (Amounts{}) || !shutdown && w.version != w.savedVersion {
 			w.mu.Unlock()
 			continue
@@ -250,12 +252,13 @@ func (l *Ledger) reclaim(ctx context.Context, now time.Time, shutdown bool) erro
 			maximum[i] = max(maximum[i], w.wanted[i])
 		}
 		if after.Charged == w.record.Charged && maximum == w.record.Charged {
+			w.mu.Unlock()
 			if !shutdown {
 				delete(l.windows, key)
 			}
-			w.mu.Unlock()
 			continue
 		}
+		w.mu.Unlock()
 		requests = append(requests, Reclaim{Record: after, MaxCharged: maximum})
 		windows = append(windows, w)
 		if len(requests) == cap(requests) {

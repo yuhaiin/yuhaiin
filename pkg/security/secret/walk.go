@@ -104,6 +104,16 @@ func walk(next, old reflect.Value, redact bool, c Capabilities) (reflect.Value, 
 			if !redact && field.Tag.Get("privilege") == "security:write" && !c.Security && !reflect.DeepEqual(v.Interface(), old.Field(i).Interface()) {
 				return reflect.Value{}, ErrSecurity
 			}
+			// Preserving a credential while redirecting it would disclose it to
+			// whoever controls the new destination, without any secret permission.
+			if !redact && field.Tag.Get("privilege") == "secrets:bound" && !reflect.DeepEqual(v.Interface(), old.Field(i).Interface()) && holdsSecret(old) {
+				if !c.Manage {
+					return reflect.Value{}, ErrManage
+				}
+				if c.change != nil {
+					c.change.Secrets = true
+				}
+			}
 			if !redact && c.change != nil && !reflect.DeepEqual(v.Interface(), old.Field(i).Interface()) {
 				if field.Tag.Get("privilege") == "system:execute" {
 					c.change.Execute = true
@@ -187,6 +197,13 @@ func walk(next, old reflect.Value, redact bool, c Capabilities) (reflect.Value, 
 	default:
 		return next, nil
 	}
+}
+
+// holdsSecret reports whether redaction would change the value. An unsupported
+// schema fails closed.
+func holdsSecret(value reflect.Value) bool {
+	redacted, err := walk(value, reflect.Value{}, true, Capabilities{})
+	return err != nil || !reflect.DeepEqual(redacted.Interface(), value.Interface())
 }
 
 // Match repeated objects by stable ID/name/public key, never another resource's

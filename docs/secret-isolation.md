@@ -37,7 +37,11 @@ Clients must return it unchanged when saving unrelated settings. Server-side
 merging occurs against the current resource within the existing configuration
 write transaction (or Gateway's revision-checked configuration lock). It resolves
 before validation and before runtime publication. Removing or replacing a private
-field requires secret management permission.
+field requires secret management permission. So does changing where a preserved
+credential is sent while the object holds one: a node's protocol chain, a
+publication's address or TLS verification, and a Gateway action's upstream,
+outbound or rewrite destination. Upstream backend URLs are configured separately
+and are not covered by this check.
 
 References bind the resource type/ID, source field path and an opaque keyed
 revision of its current configuration. Reordering repeated protocol layers with

@@ -23,7 +23,7 @@ type Node struct {
 	Origin    string         `json:"origin"`
 	Enabled   bool           `json:"enabled"`
 	IPVersion IPVersion      `json:"ip_version,omitempty"`
-	Chain     []Protocol     `json:"chain"`
+	Chain     []Protocol     `json:"chain" privilege:"secrets:bound"`
 	Latency   *LatencyConfig `json:"latency,omitzero"`
 }
 
