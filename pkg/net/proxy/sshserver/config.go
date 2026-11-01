@@ -86,22 +86,32 @@ func (c Config) resolveAddresses() (sessionnet.AddressConfig, error) {
 	var err error
 	if c.GatewayIPv4 != "" {
 		addr.GatewayIPv4, err = netip.ParseAddr(c.GatewayIPv4)
-		if err != nil { return addr, fmt.Errorf("ssh inbound gatewayIPv4: %w", err) }
+		if err != nil {
+			return addr, fmt.Errorf("ssh inbound gatewayIPv4: %w", err)
+		}
 	}
 	if c.SessionIPv4 != "" {
 		addr.SessionIPv4, err = netip.ParsePrefix(c.SessionIPv4)
-		if err != nil { return addr, fmt.Errorf("ssh inbound sessionIPv4: %w", err) }
+		if err != nil {
+			return addr, fmt.Errorf("ssh inbound sessionIPv4: %w", err)
+		}
 	}
 	if c.GatewayIPv6 != "" {
 		addr.GatewayIPv6, err = netip.ParseAddr(c.GatewayIPv6)
-		if err != nil { return addr, fmt.Errorf("ssh inbound gatewayIPv6: %w", err) }
+		if err != nil {
+			return addr, fmt.Errorf("ssh inbound gatewayIPv6: %w", err)
+		}
 	}
 	if c.SessionIPv6 != "" {
 		addr.SessionIPv6, err = netip.ParsePrefix(c.SessionIPv6)
-		if err != nil { return addr, fmt.Errorf("ssh inbound sessionIPv6: %w", err) }
+		if err != nil {
+			return addr, fmt.Errorf("ssh inbound sessionIPv6: %w", err)
+		}
 	}
 	addr, err = addr.Resolve(c.IPv6)
-	if err != nil { return addr, err }
+	if err != nil {
+		return addr, err
+	}
 	if err := checkFakeIPOverlap(addr, c.FakeIPRanges, c.IPv6); err != nil {
 		return sessionnet.AddressConfig{}, err
 	}

@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
-	"net/netip"
 	"github.com/yuhaiin/sessionnet"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -47,9 +47,9 @@ func TestValidate(t *testing.T) {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
 	tests := []struct {
-		name string
+		name   string
 		modify func(*Config)
-		want string
+		want   string
 	}{
 		{"unsafe disabled", func(c *Config) { c.AllowUnsafeShell = false }, "allowUnsafeShell"},
 		{"root uid", func(c *Config) { c.UID = 0 }, "non-root"},
@@ -75,7 +75,9 @@ func TestValidate(t *testing.T) {
 func TestResolveAddresses(t *testing.T) {
 	c := testConfig(t)
 	a, err := c.resolveAddresses()
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if a.GatewayIPv4.String() != sessionnet.GatewayIPv4 {
 		t.Fatalf("unexpected default gateway %s", a.GatewayIPv4)
 	}
@@ -84,7 +86,9 @@ func TestResolveAddresses(t *testing.T) {
 		t.Fatalf("expected fakeip collision, got %v", err)
 	}
 	c.GatewayIPv4, c.SessionIPv4 = "10.250.253.1", "10.250.253.2/30"
-	if _, err = c.resolveAddresses(); err != nil { t.Fatal(err) }
+	if _, err = c.resolveAddresses(); err != nil {
+		t.Fatal(err)
+	}
 	c.GatewayIPv4 = "198.18.0.1"
 	c.SessionIPv4 = "198.18.0.2/30"
 	c.FakeIPRanges[0] = netip.MustParsePrefix("198.18.0.0/16")

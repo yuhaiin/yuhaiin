@@ -28,8 +28,8 @@ import (
 	redirserver "github.com/Asutorufa/yuhaiin/pkg/net/proxy/redir/server"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sshserver"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -100,7 +100,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			GatewayIPv4: p.GatewayIPv4, SessionIPv4: p.SessionIPv4,
 			GatewayIPv6: p.GatewayIPv6, SessionIPv6: p.SessionIPv6,
 			FakeIPRanges: ranges,
-			IPv6: p.IPv6, MaxSessions: p.MaxSessions,
+			IPv6:         p.IPv6, MaxSessions: p.MaxSessions,
 			AllowUnsafeShell: p.AllowUnsafeShell,
 		}, handler)
 	}

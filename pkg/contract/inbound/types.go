@@ -319,20 +319,20 @@ func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
 // It requires explicit opt-in because network namespaces do not restrict the
 // host filesystem or Unix-domain sockets.
 type SSHProtocol struct {
-	HostKey            string `json:"hostKey" secret:"true"`
-	Username           string `json:"username"`
-	AuthorizedKey      string `json:"authorizedKey"`
-	UID                uint32 `json:"uid"`
-	GID                uint32 `json:"gid"`
-	Shell              string `json:"shell,omitzero"`
-	MTU                int    `json:"mtu,omitzero"`
-	GatewayIPv4        string `json:"gatewayIPv4,omitzero"`
-	SessionIPv4        string `json:"sessionIPv4,omitzero"`
-	GatewayIPv6        string `json:"gatewayIPv6,omitzero"`
-	SessionIPv6        string `json:"sessionIPv6,omitzero"`
-	IPv6               bool   `json:"ipv6"`
-	MaxSessions        int    `json:"maxSessions,omitzero"`
-	AllowUnsafeShell   bool   `json:"allowUnsafeShell"`
+	HostKey          string `json:"hostKey" secret:"true"`
+	Username         string `json:"username"`
+	AuthorizedKey    string `json:"authorizedKey"`
+	UID              uint32 `json:"uid"`
+	GID              uint32 `json:"gid"`
+	Shell            string `json:"shell,omitzero"`
+	MTU              int    `json:"mtu,omitzero"`
+	GatewayIPv4      string `json:"gatewayIPv4,omitzero"`
+	SessionIPv4      string `json:"sessionIPv4,omitzero"`
+	GatewayIPv6      string `json:"gatewayIPv6,omitzero"`
+	SessionIPv6      string `json:"sessionIPv6,omitzero"`
+	IPv6             bool   `json:"ipv6"`
+	MaxSessions      int    `json:"maxSessions,omitzero"`
+	AllowUnsafeShell bool   `json:"allowUnsafeShell"`
 }
 
 func (SSHProtocol) ProtocolType() string { return ProtocolSSH }

@@ -26,18 +26,18 @@ import (
 
 type Server struct {
 	netapi.EmptyInterface
-	listener net.Listener
+	listener  net.Listener
 	addresses sessionnet.AddressConfig
-	config   Config
-	ssh      gossh.ServerConfig
-	handler  netapi.Handler
-	slots    chan struct{}
-	clients  map[net.Conn]struct{}
-	mu       sync.Mutex
-	wg       sync.WaitGroup
+	config    Config
+	ssh       gossh.ServerConfig
+	handler   netapi.Handler
+	slots     chan struct{}
+	clients   map[net.Conn]struct{}
+	mu        sync.Mutex
+	wg        sync.WaitGroup
 	closeOnce sync.Once
-	ctx      context.Context
-	cancel   context.CancelFunc
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 var _ netapi.Accepter = (*Server)(nil)
@@ -49,9 +49,13 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 		return nil, errors.New("ssh inbound: nil handler")
 	}
 	signer, key, err := config.validate()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	addresses, err := config.resolveAddresses()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	listener, err := net.Listen("tcp", config.Listen)
 	if err != nil {
 		return nil, fmt.Errorf("ssh inbound listen: %w", err)
@@ -149,15 +153,25 @@ type ptyPair struct {
 
 func openPTY(columns, rows uint32) (*ptyPair, error) {
 	fd, err := unix.Open("/dev/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer func() {
-		if fd >= 0 { _ = unix.Close(fd) }
+		if fd >= 0 {
+			_ = unix.Close(fd)
+		}
 	}()
-	if err = unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0); err != nil { return nil, err }
+	if err = unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0); err != nil {
+		return nil, err
+	}
 	n, err := unix.IoctlGetInt(fd, unix.TIOCGPTN)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	slave, err := os.OpenFile("/dev/pts/"+strconv.Itoa(n), os.O_RDWR, 0)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	master := os.NewFile(uintptr(fd), "ssh-pty")
 	fd = -1
 	p := &ptyPair{master: master, slave: slave}
@@ -166,17 +180,23 @@ func openPTY(columns, rows uint32) (*ptyPair, error) {
 }
 
 func (p *ptyPair) resize(cols, rows uint32) {
-	if p == nil || p.master == nil { return }
-	if cols == 0 { cols = 80 }
-	if rows == 0 { rows = 24 }
+	if p == nil || p.master == nil {
+		return
+	}
+	if cols == 0 {
+		cols = 80
+	}
+	if rows == 0 {
+		rows = 24
+	}
 	_ = unix.IoctlSetWinsize(int(p.master.Fd()), unix.TIOCSWINSZ,
 		&unix.Winsize{Col: uint16(min(cols, 65535)), Row: uint16(min(rows, 65535))})
 }
 
 type ptyRequest struct {
-	Term string
+	Term                         string
 	Columns, Rows, Width, Height uint32
-	Modes string
+	Modes                        string
 }
 type execRequest struct{ Command string }
 type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
@@ -200,7 +220,9 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 		case <-done:
 			return
 		case req, ok := <-requests:
-			if !ok { return }
+			if !ok {
+				return
+			}
 			switch req.Type {
 			case "pty-req":
 				if done != nil || pty != nil {
@@ -261,10 +283,10 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 
 func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair) {
 	config := sessionnet.Config{
-		Command: argv,
-		Env: []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "USER=" + s.config.Username, "LOGNAME=" + s.config.Username, "TERM=xterm"},
+		Command:    argv,
+		Env:        []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "USER=" + s.config.Username, "LOGNAME=" + s.config.Username, "TERM=xterm"},
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
-		MTU: s.config.MTU, IPv6: s.config.IPv6, Addresses: s.addresses,
+		MTU:        s.config.MTU, IPv6: s.config.IPv6, Addresses: s.addresses,
 	}
 	if pty != nil {
 		config.PTYSlave = pty.slave
@@ -335,10 +357,13 @@ func sendExitStatus(ch gossh.Channel, code uint32) error {
 }
 
 type tunPackets struct{ *os.File }
+
 func (t *tunPackets) ReadPacket(b []byte) (int, error) { return t.Read(b) }
 func (t *tunPackets) WritePacket(b []byte) error {
 	n, err := t.Write(b)
-	if err == nil && n != len(b) { return io.ErrShortWrite }
+	if err == nil && n != len(b) {
+		return io.ErrShortWrite
+	}
 	return err
 }
 
@@ -358,7 +383,9 @@ func (s *Server) Close() error {
 		s.cancel()
 		err = s.listener.Close()
 		s.mu.Lock()
-		for c := range s.clients { _ = c.Close() }
+		for c := range s.clients {
+			_ = c.Close()
+		}
 		s.mu.Unlock()
 		s.wg.Wait()
 	})
