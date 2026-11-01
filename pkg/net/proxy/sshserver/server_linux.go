@@ -137,11 +137,9 @@ func (s *Server) serveConn(raw net.Conn) {
 			if err != nil {
 				continue
 			}
-			s.wg.Add(1)
-			go func() {
-				defer s.wg.Done()
+			s.wg.Go(func() {
 				s.handleSession(ctx, ch, requests)
-			}()
+			})
 		}
 	}
 }
@@ -343,8 +341,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	code := uint32(0)
 	if err != nil {
 		code = 255
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			code = uint32(exitErr.ExitCode())
 		}
 	}
