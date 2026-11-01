@@ -14,13 +14,12 @@ or on multi-tenant hosts before adding filesystem isolation and cgroup cleanup.
 - Linux host (not Android) with `CAP_SYS_ADMIN`, `CAP_NET_ADMIN` and `/dev/net/tun`.
 - A dedicated, unprivileged Linux UID and GID with filesystem permissions
   suitable for the intended commands.
-- An authorized SSH public key. The server creates and persists an Ed25519\n  host key automatically when the SSH inbound is first saved.
+- An authorized SSH public key. The server creates and persists an Ed25519  host key automatically when the SSH inbound is first saved.
 - An explicit `allowUnsafeShell: true` acknowledging that filesystem and
   Unix-domain socket access is not isolated.
 
 No networking CLI is executed. The dependency
-[sessionnet](https://github.com/yuhaiin/sessionnet) configures the per-command
-network namespace, resolver, TUN, routes and lifecycle through Netlink/syscalls.
+[sessionnet](https://github.com/yuhaiin/sessionnet) configures a private per-connection network namespace, resolver, TUN, routes and lifecycle through Netlink/syscalls.
 
 ## Inbound configuration
 
@@ -54,7 +53,7 @@ and no transports:
 }
 ```
 
-Replace the sample authorized public key and account IDs. The server\ngenerates an Ed25519 host key on the first save and preserves it across\nsubsequent edits and restarts. A supplied `hostKey` overrides automatic\ngeneration. Keep SSH host private keys out of public logs and exports. Use a restricted listening address
+Replace the sample authorized public key and account IDs. The server generates an Ed25519 host key on the first save and preserves it across subsequent edits and restarts. A supplied `hostKey` overrides automatic generation. Keep SSH host private keys out of public logs and exports. Use a restricted listening address
 or a suitable firewall; exposing arbitrary remote shell access is sensitive.
 
 ## Session addressing and FakeIP
@@ -72,11 +71,18 @@ The SSH protocol configuration can override `gatewayIPv4`, `sessionIPv4`,
   port forwarding, SSH agent forwarding, and remote TCP listening are disabled.
 - Supports SSH `session` channels with `shell`, `exec`, PTY allocation and
   terminal resize. No SFTP subsystem.
-- Each command receives a separate network namespace and TUN. The host routing
-  table is not changed. IPv4/IPv6 and DNS queries are delivered to the same
-  Yuhaiin inbound handler used by TUN and WireGuard listeners.
-- The session must successfully create and connect its TUN and lightweight
-  stack before a command can start. On failure, execution is rejected rather
+- The first shell or exec channel in an authenticated SSH transport creates one
+  namespace, TUN, and lightweight stack. Concurrent channels on that SSH
+  transport reuse them, including the isolated loopback network. Separate SSH
+  transports never share a namespace, even when using the same SSH identity.
+- Each running shell/exec command retains its own process group, PTY, standard
+  I/O, and exit status. A lease keeps the shared network alive; the last
+  command releasing its lease closes the namespace owner, TUN, and stack.
+  A later command on the same SSH transport creates a fresh shared network.
+- The host routing table is not changed. IPv4/IPv6 and DNS queries are delivered
+  to the same Yuhaiin inbound handler used by TUN and WireGuard listeners.
+- The first command must successfully create and connect the shared TUN and
+  lightweight stack before any command can start. On failure, execution is rejected rather
   than falling back to ordinary host routing.
 - Cancelling the SSH connection shuts down its session. The underlying
   sessionnet library currently kills the process group, not escaped daemonized
