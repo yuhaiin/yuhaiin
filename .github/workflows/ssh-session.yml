@@ -27,6 +27,6 @@ jobs:
         run: |
           go mod download -json github.com/yuhaiin/sessionnet
           grep 'github.com/yuhaiin/sessionnet' go.sum
-          gofmt -d pkg/net/proxy/sshserver/*.go pkg/inbound/capabilities.go pkg/inbound/contract_listener.go pkg/contract/inbound/types.go
+          gofmt -d pkg/inbound/contract_store.go pkg/inbound/ssh_hostkey_test.go pkg/net/proxy/sshserver/*.go pkg/inbound/capabilities.go pkg/inbound/contract_listener.go pkg/contract/inbound/types.go
       - name: Test SSH and inbound contracts
         run: go test -count=1 -timeout=180s ./pkg/net/proxy/sshserver ./pkg/inbound ./pkg/contract/inbound
