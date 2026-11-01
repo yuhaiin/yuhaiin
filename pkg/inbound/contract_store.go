@@ -2,8 +2,8 @@ package inbound
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -236,7 +236,6 @@ func fillContractTLSAuto(config *contract.TLSAutoTransport) error {
 	config.CAKeyBase64 = keyBytes
 	return nil
 }
-
 
 // fillContractSSHHostKey creates the server identity once before persisting
 // the inbound. Secret merging preserves an existing key on subsequent saves.
