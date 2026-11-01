@@ -2,7 +2,10 @@ package inbound
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"sync"
@@ -152,6 +155,11 @@ func (s *ContractStore) applySettings(settings plainstore.InboundSettings) {
 }
 
 func fillGeneratedContractFields(inbound *contract.Inbound) error {
+	if inbound.Protocol.Type == contract.ProtocolSSH && inbound.Protocol.SSH != nil {
+		if err := fillContractSSHHostKey(inbound.Protocol.SSH); err != nil {
+			return err
+		}
+	}
 	for i := range inbound.Transports {
 		transport := &inbound.Transports[i]
 		switch transport.Type {
@@ -226,5 +234,23 @@ func fillContractTLSAuto(config *contract.TLSAutoTransport) error {
 
 	config.CACertBase64 = certBytes
 	config.CAKeyBase64 = keyBytes
+	return nil
+}
+
+// fillContractSSHHostKey creates the server identity once before persisting
+// the inbound. Secret merging preserves an existing key on subsequent saves.
+func fillContractSSHHostKey(config *contract.SSHProtocol) error {
+	if config.HostKey != "" {
+		return nil
+	}
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return fmt.Errorf("generate SSH host key: %w", err)
+	}
+	bytes, err := x509.MarshalPKCS8PrivateKey(private)
+	if err != nil {
+		return fmt.Errorf("encode SSH host key: %w", err)
+	}
+	config.HostKey = string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: bytes}))
 	return nil
 }

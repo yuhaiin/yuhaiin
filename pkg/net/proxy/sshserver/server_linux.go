@@ -1,0 +1,390 @@
+//go:build linux && !android
+
+package sshserver
+
+import (
+	"context"
+	"crypto/subtle"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/netip"
+	"os"
+	"os/exec"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
+	"github.com/yuhaiin/sessionnet"
+	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/sys/unix"
+)
+
+type Server struct {
+	netapi.EmptyInterface
+	listener  net.Listener
+	addresses sessionnet.AddressConfig
+	config    Config
+	ssh       gossh.ServerConfig
+	handler   netapi.Handler
+	slots     chan struct{}
+	clients   map[net.Conn]struct{}
+	mu        sync.Mutex
+	wg        sync.WaitGroup
+	closeOnce sync.Once
+	ctx       context.Context
+	cancel    context.CancelFunc
+}
+
+var _ netapi.Accepter = (*Server)(nil)
+
+// NewServer starts an SSH transport, but does not start any shell until its
+// per-session network stack is ready. No host-routing fallback is permitted.
+func NewServer(config Config, handler netapi.Handler) (*Server, error) {
+	if handler == nil {
+		return nil, errors.New("ssh inbound: nil handler")
+	}
+	signer, key, err := config.validate()
+	if err != nil {
+		return nil, err
+	}
+	addresses, err := config.resolveAddresses()
+	if err != nil {
+		return nil, err
+	}
+	listener, err := net.Listen("tcp", config.Listen)
+	if err != nil {
+		return nil, fmt.Errorf("ssh inbound listen: %w", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	server := &Server{
+		listener: listener, config: config, handler: handler, addresses: addresses,
+		slots: make(chan struct{}, config.MaxSessions), clients: make(map[net.Conn]struct{}),
+		ctx: ctx, cancel: cancel,
+	}
+	server.ssh.PublicKeyCallback = func(metadata gossh.ConnMetadata, supplied gossh.PublicKey) (*gossh.Permissions, error) {
+		if metadata.User() != config.Username ||
+			subtle.ConstantTimeCompare(supplied.Marshal(), key.Marshal()) != 1 {
+			return nil, errors.New("ssh inbound: unauthorized public key")
+		}
+		return &gossh.Permissions{}, nil
+	}
+	server.ssh.MaxAuthTries = 3
+	server.ssh.AddHostKey(signer)
+	server.wg.Add(1)
+	go server.acceptLoop()
+	return server, nil
+}
+
+func (s *Server) Interface() string { return "ssh" }
+
+func (s *Server) acceptLoop() {
+	defer s.wg.Done()
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			return
+		}
+		s.mu.Lock()
+		if s.ctx.Err() != nil || len(s.clients) >= 32 {
+			s.mu.Unlock()
+			_ = conn.Close()
+			continue
+		}
+		s.clients[conn] = struct{}{}
+		s.wg.Add(1)
+		s.mu.Unlock()
+		go s.serveConn(conn)
+	}
+}
+
+func (s *Server) serveConn(raw net.Conn) {
+	defer s.wg.Done()
+	defer func() {
+		_ = raw.Close()
+		s.mu.Lock()
+		delete(s.clients, raw)
+		s.mu.Unlock()
+	}()
+	_ = raw.SetDeadline(time.Now().Add(15 * time.Second))
+	sshConn, chans, requests, err := gossh.NewServerConn(raw, &s.ssh)
+	if err != nil {
+		return
+	}
+	_ = raw.SetDeadline(time.Time{})
+	defer sshConn.Close()
+	ctx, cancel := context.WithCancel(s.ctx)
+	defer cancel()
+	go func() { _ = sshConn.Wait(); cancel() }()
+	go gossh.DiscardRequests(requests)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case nc, ok := <-chans:
+			if !ok {
+				return
+			}
+			if nc.ChannelType() != "session" {
+				_ = nc.Reject(gossh.UnknownChannelType, "only session channels are supported")
+				continue
+			}
+			ch, requests, err := nc.Accept()
+			if err != nil {
+				continue
+			}
+			s.wg.Go(func() {
+				s.handleSession(ctx, ch, requests)
+			})
+		}
+	}
+}
+
+type ptyPair struct {
+	master *os.File
+	slave  *os.File
+}
+
+func openPTY(columns, rows uint32) (*ptyPair, error) {
+	fd, err := unix.Open("/dev/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if fd >= 0 {
+			_ = unix.Close(fd)
+		}
+	}()
+	if err = unix.IoctlSetPointerInt(fd, unix.TIOCSPTLCK, 0); err != nil {
+		return nil, err
+	}
+	n, err := unix.IoctlGetInt(fd, unix.TIOCGPTN)
+	if err != nil {
+		return nil, err
+	}
+	slave, err := os.OpenFile("/dev/pts/"+strconv.Itoa(n), os.O_RDWR, 0)
+	if err != nil {
+		return nil, err
+	}
+	master := os.NewFile(uintptr(fd), "ssh-pty")
+	fd = -1
+	p := &ptyPair{master: master, slave: slave}
+	p.resize(columns, rows)
+	return p, nil
+}
+
+func (p *ptyPair) resize(cols, rows uint32) {
+	if p == nil || p.master == nil {
+		return
+	}
+	if cols == 0 {
+		cols = 80
+	}
+	if rows == 0 {
+		rows = 24
+	}
+	_ = unix.IoctlSetWinsize(int(p.master.Fd()), unix.TIOCSWINSZ,
+		&unix.Winsize{Col: uint16(min(cols, 65535)), Row: uint16(min(rows, 65535))})
+}
+
+type ptyRequest struct {
+	Term                         string
+	Columns, Rows, Width, Height uint32
+	Modes                        string
+}
+type execRequest struct{ Command string }
+type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
+
+func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request) {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	defer ch.Close()
+	var pty *ptyPair
+	defer func() {
+		if pty != nil {
+			_ = pty.master.Close()
+			_ = pty.slave.Close()
+		}
+	}()
+	var done <-chan struct{}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			return
+		case req, ok := <-requests:
+			if !ok {
+				return
+			}
+			switch req.Type {
+			case "pty-req":
+				if done != nil || pty != nil {
+					_ = req.Reply(false, nil)
+					continue
+				}
+				var r ptyRequest
+				if gossh.Unmarshal(req.Payload, &r) != nil || len(r.Term) > 128 {
+					_ = req.Reply(false, nil)
+					continue
+				}
+				var err error
+				pty, err = openPTY(r.Columns, r.Rows)
+				_ = req.Reply(err == nil, nil)
+			case "window-change":
+				var r resizeRequest
+				if gossh.Unmarshal(req.Payload, &r) == nil && pty != nil {
+					pty.resize(r.Columns, r.Rows)
+				}
+				_ = req.Reply(true, nil)
+			case "shell", "exec":
+				if done != nil {
+					_ = req.Reply(false, nil)
+					continue
+				}
+				args := []string{s.config.Shell, "-l"}
+				if req.Type == "exec" {
+					var r execRequest
+					if gossh.Unmarshal(req.Payload, &r) != nil || len(r.Command) > 16384 {
+						_ = req.Reply(false, nil)
+						continue
+					}
+					args = []string{s.config.Shell, "-c", r.Command}
+				} else if len(req.Payload) != 0 {
+					_ = req.Reply(false, nil)
+					continue
+				}
+				select {
+				case s.slots <- struct{}{}:
+				default:
+					_ = req.Reply(false, nil)
+					continue
+				}
+				doneCh := make(chan struct{})
+				done = doneCh
+				_ = req.Reply(true, nil)
+				go func() {
+					defer close(doneCh)
+					defer func() { <-s.slots }()
+					s.execute(ctx, ch, args, pty)
+				}()
+			default:
+				_ = req.Reply(false, nil)
+			}
+		}
+	}
+}
+
+func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair) {
+	config := sessionnet.Config{
+		Command:    argv,
+		Env:        []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "USER=" + s.config.Username, "LOGNAME=" + s.config.Username, "TERM=xterm"},
+		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
+		MTU:        s.config.MTU, IPv6: s.config.IPv6, Addresses: s.addresses,
+	}
+	if pty != nil {
+		config.PTYSlave = pty.slave
+	} else {
+		config.Stdin, config.Stdout, config.Stderr = channel, channel, channel.Stderr()
+	}
+	session, err := sessionnet.Open(ctx, config)
+	if err != nil {
+		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to create isolated session\n")
+		_ = sendExitStatus(channel, 255)
+		return
+	}
+	defer session.Close()
+	// sessionnet transfers no ownership: the duplicated FD is exclusively
+	// owned by the lightweight IP stack after construction succeeds.
+	fd, err := session.DupTun()
+	if err != nil {
+		_ = sendExitStatus(channel, 255)
+		return
+	}
+	addresses := []netip.Prefix{netip.PrefixFrom(s.addresses.GatewayIPv4, 32)}
+	ips := []netip.Addr{s.addresses.GatewayIPv4}
+	if s.config.IPv6 {
+		addresses = append(addresses, netip.PrefixFrom(s.addresses.GatewayIPv6, 128))
+		ips = append(ips, s.addresses.GatewayIPv6)
+	}
+	stack, err := lightweight.New(lightweight.Config{
+		Addresses: ips, MTU: s.config.MTU,
+		Promiscuous: true, ForwardUDP: true, Profile: lightweight.LocalTun,
+	}, &tunPackets{File: fd})
+	if err != nil {
+		_ = fd.Close()
+		_ = sendExitStatus(channel, 255)
+		return
+	}
+	flows, err := lightweighttun.NewFromStack(stack, s.handler, addresses, "ssh")
+	if err != nil {
+		_ = stack.Close()
+		_ = sendExitStatus(channel, 255)
+		return
+	}
+	defer flows.Close()
+	if pty != nil {
+		// The SSH channel is the terminal's bidirectional byte stream.
+		go func() { _, _ = io.Copy(pty.master, channel) }()
+		go func() { _, _ = io.Copy(channel, pty.master) }()
+		_ = pty.slave.Close()
+	}
+	if err = session.Release(); err != nil {
+		_ = sendExitStatus(channel, 255)
+		return
+	}
+	err = session.Wait()
+	code := uint32(0)
+	if err != nil {
+		code = 255
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			code = uint32(exitErr.ExitCode())
+		}
+	}
+	_ = sendExitStatus(channel, code)
+}
+
+func sendExitStatus(ch gossh.Channel, code uint32) error {
+	_, err := ch.SendRequest("exit-status", false, gossh.Marshal(struct{ Status uint32 }{code}))
+	return err
+}
+
+type tunPackets struct{ *os.File }
+
+func (t *tunPackets) ReadPacket(b []byte) (int, error) { return t.Read(b) }
+func (t *tunPackets) WritePacket(b []byte) error {
+	n, err := t.Write(b)
+	if err == nil && n != len(b) {
+		return io.ErrShortWrite
+	}
+	return err
+}
+
+// UpdateFakeIPRanges fails closed if a newly active pool would shadow the
+// session gateway. Existing sessions are terminated before returning an error.
+func (s *Server) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {
+	if err := checkFakeIPOverlap(s.addresses, ranges, s.config.IPv6); err != nil {
+		_ = s.Close()
+		return err
+	}
+	return nil
+}
+
+func (s *Server) Close() error {
+	var err error
+	s.closeOnce.Do(func() {
+		s.cancel()
+		err = s.listener.Close()
+		s.mu.Lock()
+		for c := range s.clients {
+			_ = c.Close()
+		}
+		s.mu.Unlock()
+		s.wg.Wait()
+	})
+	return err
+}
