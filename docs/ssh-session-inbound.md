@@ -14,7 +14,7 @@ or on multi-tenant hosts before adding filesystem isolation and cgroup cleanup.
 - Linux host (not Android) with `CAP_SYS_ADMIN`, `CAP_NET_ADMIN` and `/dev/net/tun`.
 - A dedicated, unprivileged Linux UID and GID with filesystem permissions
   suitable for the intended commands.
-- A valid SSH host private key and an authorized SSH public key.
+- An authorized SSH public key. The server creates and persists an Ed25519\n  host key automatically when the SSH inbound is first saved.
 - An explicit `allowUnsafeShell: true` acknowledging that filesystem and
   Unix-domain socket access is not isolated.
 
@@ -41,7 +41,6 @@ and no transports:
     "type": "ssh",
     "ssh": {
       "username": "alice",
-      "hostKey": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",
       "authorizedKey": "ssh-ed25519 AAAA... alice@host",
       "uid": 65534,
       "gid": 65534,
@@ -55,8 +54,7 @@ and no transports:
 }
 ```
 
-Replace the sample keys and account IDs. Keep the private key out of
-public logs, exports, and shared config. Use a restricted listening address
+Replace the sample authorized public key and account IDs. The server\ngenerates an Ed25519 host key on the first save and preserves it across\nsubsequent edits and restarts. A supplied `hostKey` overrides automatic\ngeneration. Keep SSH host private keys out of public logs and exports. Use a restricted listening address
 or a suitable firewall; exposing arbitrary remote shell access is sensitive.
 
 ## Session addressing and FakeIP
