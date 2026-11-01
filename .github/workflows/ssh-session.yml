@@ -1,0 +1,32 @@
+name: SSH Session Inbound
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ssh-session.yml'
+      - 'pkg/net/proxy/sshserver/**'
+      - 'pkg/contract/inbound/**'
+      - 'pkg/inbound/**'
+      - 'go.mod'
+      - 'go.sum'
+
+permissions:
+  contents: read
+
+jobs:
+  ssh-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Show module checksums and formatting differences
+        run: |
+          go mod download -json github.com/yuhaiin/sessionnet
+          grep 'github.com/yuhaiin/sessionnet' go.sum
+          gofmt -d pkg/net/proxy/sshserver/*.go pkg/inbound/capabilities.go pkg/inbound/contract_listener.go pkg/contract/inbound/types.go
+      - name: Test SSH and inbound contracts
+        run: go test -count=1 -timeout=180s ./pkg/net/proxy/sshserver ./pkg/inbound ./pkg/contract/inbound
