@@ -6,6 +6,7 @@ import (
 	"net"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,55 @@ func (s *routeSettingsStub) Settings(context.Context) (plainstore.RouteSettings,
 func (s *routeSettingsStub) SaveSettings(_ context.Context, value plainstore.RouteSettings) error {
 	s.value = value
 	return s.err
+}
+
+type recoveringStartupSettings struct {
+	available atomic.Bool
+}
+
+func (s *recoveringStartupSettings) Settings(context.Context) (plainstore.RouteSettings, error) {
+	if !s.available.Load() {
+		return plainstore.RouteSettings{}, errors.New("startup dependencies unavailable")
+	}
+	return plainstore.RouteSettings{DefaultMode: "direct"}, nil
+}
+
+func TestInitialRouteActivationRecoversWithoutManualApply(t *testing.T) {
+	matchers := newTestMatchers(t)
+	router := NewRoute(nil, nil, matchers.list, nil)
+	router.ms = matchers
+	settings := &recoveringStartupSettings{}
+	rules := NewRules(staticRuleBook{{Rule: contractroute.RouteRule{Name: "recovered", Mode: "direct"}}}, settings, router)
+	t.Cleanup(func() { _ = rules.Close() })
+
+	if rules.HasActiveSnapshot() {
+		t.Fatal("failed cold-start activation was incorrectly marked ready")
+	}
+	status, err := rules.ActivationStatus(t.Context())
+	if err != nil || status.Error != "startup dependencies unavailable" {
+		t.Fatalf("missing initial failure diagnostics: %+v, %v", status, err)
+	}
+
+	// The application starts background recovery only after completing its
+	// initialization. Make the stored dependencies ready without calling Apply.
+	rules.RecoverInitialActivation()
+	settings.available.Store(true)
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for !rules.HasActiveSnapshot() {
+		select {
+		case <-deadline.C:
+			t.Fatal("initial route activation did not recover automatically")
+		case <-ticker.C:
+		}
+	}
+	status, err = rules.ActivationStatus(t.Context())
+	if err != nil || status.Error != "" || len(matchers.matchers) != 1 ||
+		matchers.matchers[0].name != "recovered" {
+		t.Fatalf("recovered routing state: %+v, %v", status, err)
+	}
 }
 
 func TestFailedSettingsReadRetainsRulesAndExposesApplyError(t *testing.T) {
