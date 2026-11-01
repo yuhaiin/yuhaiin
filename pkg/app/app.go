@@ -396,6 +396,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 			})
 		},
 	})
+	// A failed cold-start route activation leaves probes in "waiting" even
+	// though ordinary forwarding can still use the default route. Retry after
+	// the inbound/QoS runtime and management services have finished loading.
+	rules.RecoverInitialActivation()
 
 	tailscale.Mux.Store(app.Mux)
 	if certificateService != nil && !so.DelayCertificateStart {

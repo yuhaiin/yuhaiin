@@ -13,6 +13,7 @@ import (
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
@@ -22,6 +23,9 @@ type Rules struct {
 	rules    RouteRuleBook
 	settings RouteSettingsBook
 	route    *Route
+
+	initialRetryMu    sync.Mutex
+	initialRetryTimer *time.Timer
 
 	applyTimer   *time.Timer
 	applyTimerMu sync.Mutex
@@ -53,11 +57,61 @@ func NewRules(rules RouteRuleBook, settings RouteSettingsBook, route *Route) *Ru
 	if book, ok := rules.(interface{ ResetActivation(context.Context) error }); ok {
 		if err := book.ResetActivation(context.Background()); err != nil {
 			r.applyError.Store(new(err.Error()))
+			log.Warn("reset initial route activation failed", "err", err)
 			return r
 		}
 	}
-	r.ApplyStored(context.Background())
+	if err := r.applyStored(context.Background()); err != nil {
+		log.Warn("initial route activation failed", "err", err)
+	}
 	return r
+}
+
+// RecoverInitialActivation retries a failed cold-start apply only after the
+// application finishes wiring its routing and traffic-policy dependencies.
+// A missing active snapshot must never make probes bypass routing policy.
+func (r *Rules) RecoverInitialActivation() {
+	if r == nil || r.HasActiveSnapshot() || r.closed.Load() {
+		return
+	}
+	log.Warn("routing policy is not ready after startup; scheduling recovery")
+	r.scheduleInitialRetry(0)
+}
+
+const maxInitialRouteRetries = 6
+
+func (r *Rules) scheduleInitialRetry(attempt int) {
+	if r.closed.Load() || r.HasActiveSnapshot() {
+		return
+	}
+	if attempt >= maxInitialRouteRetries {
+		log.Error("initial routing policy remains unavailable after retries")
+		return
+	}
+
+	r.initialRetryMu.Lock()
+	defer r.initialRetryMu.Unlock()
+	if r.closed.Load() || r.HasActiveSnapshot() {
+		return
+	}
+	r.initialRetryTimer = time.AfterFunc(time.Second<<attempt, func() {
+		if r.closed.Load() || r.HasActiveSnapshot() {
+			return
+		}
+		// Android's startup context is canceled as Start returns. Retry work
+		// must own a bounded context instead of inheriting that startup context.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := r.applyStored(ctx); err != nil {
+			if r.closed.Load() {
+				return
+			}
+			log.Warn("initial routing policy recovery failed", "attempt", attempt+1, "err", err)
+			r.scheduleInitialRetry(attempt + 1)
+			return
+		}
+		log.Info("initial routing policy recovered", "attempt", attempt+1)
+	})
 }
 
 func (r *Rules) ApplyStored(ctx context.Context) {
@@ -193,6 +247,11 @@ func (r *Rules) Apply(ctx context.Context) error {
 
 func (r *Rules) Close() error {
 	r.closed.Store(true)
+	r.initialRetryMu.Lock()
+	if r.initialRetryTimer != nil {
+		r.initialRetryTimer.Stop()
+	}
+	r.initialRetryMu.Unlock()
 	r.applyVersion.Add(1)
 	r.applyTimerMu.Lock()
 	if r.applyTimer != nil {
