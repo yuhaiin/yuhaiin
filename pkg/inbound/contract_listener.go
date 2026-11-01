@@ -29,6 +29,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks4a"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/socks5"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sstp"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sshserver"
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -81,6 +82,27 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			return nil, errors.New("masque: use authToken; user-scoped authentication is not supported yet")
 		}
 		return listenMasque(config, handler)
+	}
+	if config.Protocol.Type == contract.ProtocolSSH {
+		if config.Authentication != nil {
+			return nil, errors.New("ssh inbound requires dedicated SSH public-key authentication")
+		}
+		if config.Network.Type != contract.NetworkTCPUDP || config.Network.TCPUDP == nil ||
+			(config.Network.TCPUDP.UDP != contract.UDPTCPOnly && config.Network.TCPUDP.UDP != contract.UDPDisabled) ||
+			len(config.Transports) != 0 {
+			return nil, errors.New("ssh inbound requires TCP-only networking without transports")
+		}
+		p := config.Protocol.SSH
+		return sshserver.NewServer(sshserver.Config{
+			Listen: config.Network.TCPUDP.Host, HostKey: p.HostKey,
+			Username: p.Username, AuthorizedKey: p.AuthorizedKey,
+			UID: p.UID, GID: p.GID, Shell: p.Shell, MTU: p.MTU,
+			GatewayIPv4: p.GatewayIPv4, SessionIPv4: p.SessionIPv4,
+			GatewayIPv6: p.GatewayIPv6, SessionIPv6: p.SessionIPv6,
+			FakeIPRanges: ranges,
+			IPv6: p.IPv6, MaxSessions: p.MaxSessions,
+			AllowUnsafeShell: p.AllowUnsafeShell,
+		}, handler)
 	}
 	if config.Protocol.Type == contract.ProtocolWireguard {
 		if config.Network.Type != contract.NetworkEmpty || len(config.Transports) != 0 {

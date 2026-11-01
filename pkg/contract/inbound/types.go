@@ -28,6 +28,7 @@ const (
 	ProtocolTun        = "tun"
 	ProtocolWireguard  = "wireguard"
 	ProtocolSSTP       = "sstp"
+	ProtocolSSH        = "ssh"
 	ProtocolKrunlet    = "krunlet"
 	ProtocolReverseTCP = "reverse_tcp"
 	ProtocolNone       = "none"
@@ -171,6 +172,7 @@ type Protocol struct {
 	Tun        *TunProtocol        `json:"tun,omitzero"`
 	Wireguard  *WireguardProtocol  `json:"wireguard,omitzero"`
 	SSTP       *SSTPProtocol       `json:"sstp,omitzero"`
+	SSH        *SSHProtocol        `json:"ssh,omitzero"`
 	Krunlet    *KrunletProtocol    `json:"krunlet,omitzero"`
 	ReverseTCP *ReverseTCPProtocol `json:"reverse_tcp,omitzero"`
 	None       *NoneProtocol       `json:"none,omitzero"`
@@ -313,6 +315,28 @@ type SSTPProtocol struct {
 
 func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
 
+// SSHProtocol runs a Linux session command in an isolated network namespace.
+// It requires explicit opt-in because network namespaces do not restrict the
+// host filesystem or Unix-domain sockets.
+type SSHProtocol struct {
+	HostKey            string `json:"hostKey" secret:"true"`
+	Username           string `json:"username"`
+	AuthorizedKey      string `json:"authorizedKey"`
+	UID                uint32 `json:"uid"`
+	GID                uint32 `json:"gid"`
+	Shell              string `json:"shell,omitzero"`
+	MTU                int    `json:"mtu,omitzero"`
+	GatewayIPv4        string `json:"gatewayIPv4,omitzero"`
+	SessionIPv4        string `json:"sessionIPv4,omitzero"`
+	GatewayIPv6        string `json:"gatewayIPv6,omitzero"`
+	SessionIPv6        string `json:"sessionIPv6,omitzero"`
+	IPv6               bool   `json:"ipv6"`
+	MaxSessions        int    `json:"maxSessions,omitzero"`
+	AllowUnsafeShell   bool   `json:"allowUnsafeShell"`
+}
+
+func (SSHProtocol) ProtocolType() string { return ProtocolSSH }
+
 // KrunletProtocol listens for native Krunlet virtual NIC flows on a local
 // Unix socket. It feeds TCP/UDP directly to yuhaiin's normal inbound handler.
 type KrunletProtocol struct {
@@ -385,6 +409,11 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing %s field", p.Type, ProtocolRedir)
 		}
 		return p.Redir, nil
+	case ProtocolSSH:
+		if p.SSH == nil {
+			return nil, fmt.Errorf("protocol %s missing ssh field", p.Type)
+		}
+		return p.SSH, nil
 	case ProtocolSSTP:
 		if p.SSTP == nil {
 			return nil, fmt.Errorf("protocol %s missing sstp field", p.Type)
@@ -466,6 +495,9 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.SSTP != nil {
+		count++
+	}
+	if p.SSH != nil {
 		count++
 	}
 	if p.Krunlet != nil {
