@@ -93,6 +93,38 @@ The SSH protocol configuration can override `gatewayIPv4`, `sessionIPv4`,
 
 ## Validation
 
-Run `go test ./pkg/net/proxy/sshserver ./pkg/contract/inbound ./pkg/inbound`.
-A privileged end-to-end SSH/TUN/DNS integration job is still required before
-promoting the feature from experimental status.
+Run the regular package checks with:
+
+```sh
+go test -race -count=1 -timeout=180s ./pkg/net/proxy/sshserver ./pkg/contract/inbound ./pkg/inbound
+```
+
+The privileged Linux integration tests are opt-in. They exercise an actual SSH
+exec through the network namespace, verify IPv4/IPv6 TCP and UDP routing, query
+the configured DNS gateway over UDP and TCP, and check that concurrent channels
+share a namespace only within one SSH transport:
+
+```sh
+YUH_SSH_SERVER_INTEGRATION=1 go test -race -count=1 -timeout=120s ./pkg/net/proxy/sshserver
+```
+
+Compare fresh SSH transports, a new namespace on a reused transport, and an
+extra concurrent channel sharing a live namespace with:
+
+```sh
+YUH_SSH_SERVER_INTEGRATION=1 go test -run '^$' -bench '^BenchmarkSSHServerNetworkReuse$' -benchmem -benchtime=1s -count=3 -cpu=1 ./pkg/net/proxy/sshserver
+```
+
+Measured locally on Go 1.27.3, Linux amd64, and an AMD Ryzen 5 5600G. Each
+row is the median of three one-second runs; all SSH traffic stays on loopback.
+These are command and namespace lifecycle costs, not proxy throughput.
+
+| Scenario | Time/op | B/op | Allocs/op |
+| --- | ---: | ---: | ---: |
+| New SSH transport and namespace | 34.78 ms | 364,827 | 1,343 |
+| Reused transport, new namespace | 33.65 ms | 267,200 | 662 |
+| Concurrent command, shared namespace | 1.06 ms | 108,951 | 232 |
+
+The end-to-end checks need a Linux runner with TUN and namespace privileges.
+They are available for local qualification; CI still needs a privileged job
+before the feature can leave experimental status.
