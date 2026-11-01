@@ -50,7 +50,7 @@ func TestProtectedRouteSourcesPreserveSecretsInsideWriteTransaction(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(redacted.Source.Remote.URLs) != 1 || !strings.HasPrefix(redacted.Source.Remote.URLs[0], "__yuhaiin_secret_preserved_v1__.") {
+	if urls := redacted.Source.Remote.URLs; len(urls) != 2 || urls[0] != list.Source.Remote.URLs[0] || !strings.HasPrefix(urls[1], "__yuhaiin_secret_preserved_v1__.") {
 		t.Fatal("URL sensitivity mismatch")
 	}
 	redacted.Name = "Renamed remote"
@@ -107,15 +107,47 @@ func TestTrustedOriginsRequireSeparateSecurityAuthority(t *testing.T) {
 	}
 }
 
-func TestRemoteListPreviewIsPrivate(t *testing.T) {
-	for _, source := range []string{"remote", "local"} {
-		value := contractroute.ListItem{ID: "list", Source: source, Preview: "https://example.test/path-only-capability"}
+func TestRemoteListPreviewHidesOnlyCredentials(t *testing.T) {
+	for preview, visible := range map[string]bool{
+		"https://example.test/list.txt":         true,
+		"https://example.test/list.txt?key=abc": false,
+		"https://user:pass@example.test/list":   false,
+	} {
+		value := contractroute.ListItem{ID: "list", Source: "remote", Preview: preview}
 		masked, err := secret.Redact(value)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if (masked.Preview == value.Preview) != (source == "local") {
-			t.Fatal("preview sensitivity mismatch", source)
+		if (masked.Preview == preview) != visible {
+			t.Fatal("preview sensitivity mismatch", preview)
 		}
+	}
+}
+
+func TestRemoteListHidesOnlyCredentialURLs(t *testing.T) {
+	plain, private := "https://example.test/list.txt", "https://example.test/list.txt?key=abc"
+	list := contractroute.RouteListDetail{ID: "remote", Name: "Remote", Type: "host", Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{plain, private}}}}
+	redacted, err := secret.Redact(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	urls := redacted.Source.Remote.URLs
+	if urls[0] != plain || !strings.HasPrefix(urls[1], "__yuhaiin_secret_preserved_v1__.") {
+		t.Fatal("URL sensitivity mismatch", urls)
+	}
+}
+
+func TestRemoteListURLChangesRequireManage(t *testing.T) {
+	plain := func(url string) contractroute.RouteListDetail {
+		return contractroute.RouteListDetail{ID: "remote", Name: "Remote", Type: "host", Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{url}}}}
+	}
+	restricted := secret.WithCapabilities(t.Context(), secret.Capabilities{})
+	if _, err := secret.Merge(restricted, plain("https://example.test/new"), plain("https://example.test/old")); !errors.Is(err, secret.ErrManage) {
+		t.Fatal("URL changed without authority", err)
+	}
+	renamed := plain("https://example.test/old")
+	renamed.Name = "Renamed"
+	if _, err := secret.Merge(restricted, renamed, plain("https://example.test/old")); err != nil {
+		t.Fatal("metadata change denied", err)
 	}
 }

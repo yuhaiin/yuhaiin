@@ -218,10 +218,13 @@ func TestConfigurationRemotePrefetchReleasesDatabaseAndMasksProofs(t *testing.T)
 		t.Fatal(err)
 	}
 	encoded, _ := json.Marshal(redacted)
-	for _, proof := range []string{"private-password", "private-path", "private-query", "private-path-only"} {
+	for _, proof := range []string{"private-password", "private-path?", "private-query"} {
 		if strings.Contains(string(encoded), proof) {
 			t.Fatalf("default read leaked %s", proof)
 		}
+	}
+	if !strings.Contains(string(encoded), "private-path-only") {
+		t.Fatal("URL without credentials was hidden")
 	}
 }
 func TestConfigurationRejectsIncompleteCandidateButCanRemoveBrokenRule(t *testing.T) {
