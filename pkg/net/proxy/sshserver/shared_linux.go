@@ -72,9 +72,9 @@ func (g *connectionNetwork) openLocked() (err error) {
 
 	s := g.server
 	owner, err := sessionnet.Open(g.ctx, sessionnet.Config{
-		Command: []string{"/bin/sh", "-c", "read -r keepalive"},
+		Command:    []string{"/bin/sh", "-c", "read -r keepalive"},
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
-		Stdin: read, MTU: s.config.MTU, IPv6: s.config.IPv6,
+		Stdin:      read, MTU: s.config.MTU, IPv6: s.config.IPv6,
 		Addresses: s.addresses,
 	})
 	if err != nil {
