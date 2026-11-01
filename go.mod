@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.127
+	codeberg.org/miekg/dns v0.6.128
 	filippo.io/age v1.3.2
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
@@ -34,7 +34,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/sessionnet v0.0.0-20261101151625-d65b5a9e18ff
+	github.com/yuhaiin/sessionnet v0.0.0-20261101160017-18bdbc1146f1
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261101144637-503f1228936c
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0

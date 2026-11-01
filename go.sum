@@ -9,6 +9,8 @@ codeberg.org/miekg/dns v0.6.126 h1:0jJTvW9x5XeC7i7pjgC53cCEHN9/K3/IxAXqnRgRB0k=
 codeberg.org/miekg/dns v0.6.126/go.mod h1:CRdTEkDK9YPcVEH7sq/bwnnSz7syhHqbxfvY3IO0xlo=
 codeberg.org/miekg/dns v0.6.127 h1:S/Yv6K/IR+QZsm65SiFBoWondbu+h5BPjPzhvR1hPDI=
 codeberg.org/miekg/dns v0.6.127/go.mod h1:CRdTEkDK9YPcVEH7sq/bwnnSz7syhHqbxfvY3IO0xlo=
+codeberg.org/miekg/dns v0.6.128 h1:Zz0HdjD0+1qcwaxri0+NlRP5wf7MyE/OQCl/Im8ynZc=
+codeberg.org/miekg/dns v0.6.128/go.mod h1:CRdTEkDK9YPcVEH7sq/bwnnSz7syhHqbxfvY3IO0xlo=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 filippo.io/age v1.3.2 h1:r6RSZLFSMm6rzKepZ7ZAYkKCu14f3/Me8c7uKYh7C8c=
@@ -435,6 +437,8 @@ github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZ
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yuhaiin/sessionnet v0.0.0-20261101151625-d65b5a9e18ff h1:/xFDheSoVINK9rG4QB//upY+lJFvCpzXZPYq32MOIu4=
 github.com/yuhaiin/sessionnet v0.0.0-20261101151625-d65b5a9e18ff/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
+github.com/yuhaiin/sessionnet v0.0.0-20261101160017-18bdbc1146f1 h1:/aoBEcT6O1jyVx+d5ywn3VuEoy+0yX9QMt+ITU1hbLA=
+github.com/yuhaiin/sessionnet v0.0.0-20261101160017-18bdbc1146f1/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746 h1:kWUWcIyli3BIwDjoIK6yqyQldAtMnH/+uyIkgMHnAMI=
