@@ -17,8 +17,6 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
@@ -119,6 +117,8 @@ func (s *Server) serveConn(raw net.Conn) {
 	defer sshConn.Close()
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
+	network := &connectionNetwork{server: s, ctx: ctx}
+	defer network.Close()
 	go func() { _ = sshConn.Wait(); cancel() }()
 	go gossh.DiscardRequests(requests)
 	for {
@@ -138,7 +138,7 @@ func (s *Server) serveConn(raw net.Conn) {
 				continue
 			}
 			s.wg.Go(func() {
-				s.handleSession(ctx, ch, requests)
+				s.handleSession(ctx, ch, requests, network)
 			})
 		}
 	}
@@ -199,7 +199,7 @@ type ptyRequest struct {
 type execRequest struct{ Command string }
 type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
 
-func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request) {
+func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request, network *connectionNetwork) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	defer ch.Close()
@@ -270,7 +270,7 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 				go func() {
 					defer close(doneCh)
 					defer func() { <-s.slots }()
-					s.execute(ctx, ch, args, pty)
+					s.execute(ctx, ch, args, pty, network)
 				}()
 			default:
 				_ = req.Reply(false, nil)
@@ -279,65 +279,42 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 	}
 }
 
-func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair) {
+func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair, network *connectionNetwork) {
+	owner, err := network.acquire()
+	if err != nil {
+		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to create shared network\n")
+		_ = sendExitStatus(channel, 255)
+		return
+	}
+	defer network.release()
+
 	config := sessionnet.Config{
-		Command:    argv,
-		Env:        []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp", "USER=" + s.config.Username, "LOGNAME=" + s.config.Username, "TERM=xterm"},
+		Command: argv,
+		Env: []string{
+			"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp",
+			"USER=" + s.config.Username, "LOGNAME=" + s.config.Username,
+			"TERM=xterm",
+		},
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
-		MTU:        s.config.MTU, IPv6: s.config.IPv6, Addresses: s.addresses,
 	}
 	if pty != nil {
 		config.PTYSlave = pty.slave
 	} else {
 		config.Stdin, config.Stdout, config.Stderr = channel, channel, channel.Stderr()
 	}
-	session, err := sessionnet.Open(ctx, config)
+	process, err := owner.Spawn(ctx, config)
 	if err != nil {
-		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to create isolated session\n")
+		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to start isolated command\n")
 		_ = sendExitStatus(channel, 255)
 		return
 	}
-	defer session.Close()
-	// sessionnet transfers no ownership: the duplicated FD is exclusively
-	// owned by the lightweight IP stack after construction succeeds.
-	fd, err := session.DupTun()
-	if err != nil {
-		_ = sendExitStatus(channel, 255)
-		return
-	}
-	addresses := []netip.Prefix{netip.PrefixFrom(s.addresses.GatewayIPv4, 32)}
-	ips := []netip.Addr{s.addresses.GatewayIPv4}
-	if s.config.IPv6 {
-		addresses = append(addresses, netip.PrefixFrom(s.addresses.GatewayIPv6, 128))
-		ips = append(ips, s.addresses.GatewayIPv6)
-	}
-	stack, err := lightweight.New(lightweight.Config{
-		Addresses: ips, MTU: s.config.MTU,
-		Promiscuous: true, ForwardUDP: true, Profile: lightweight.LocalTun,
-	}, &tunPackets{File: fd})
-	if err != nil {
-		_ = fd.Close()
-		_ = sendExitStatus(channel, 255)
-		return
-	}
-	flows, err := lightweighttun.NewFromStack(stack, s.handler, addresses, "ssh")
-	if err != nil {
-		_ = stack.Close()
-		_ = sendExitStatus(channel, 255)
-		return
-	}
-	defer flows.Close()
+	defer process.Close()
 	if pty != nil {
-		// The SSH channel is the terminal's bidirectional byte stream.
 		go func() { _, _ = io.Copy(pty.master, channel) }()
 		go func() { _, _ = io.Copy(channel, pty.master) }()
 		_ = pty.slave.Close()
 	}
-	if err = session.Release(); err != nil {
-		_ = sendExitStatus(channel, 255)
-		return
-	}
-	err = session.Wait()
+	err = process.Wait()
 	code := uint32(0)
 	if err != nil {
 		code = 255
@@ -347,7 +324,6 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	}
 	_ = sendExitStatus(channel, code)
 }
-
 func sendExitStatus(ch gossh.Channel, code uint32) error {
 	_, err := ch.SendRequest("exit-status", false, gossh.Marshal(struct{ Status uint32 }{code}))
 	return err
