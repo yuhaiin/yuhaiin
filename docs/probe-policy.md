@@ -44,9 +44,14 @@ UDP session semantics.
   direct Node API behavior remains available; the UI makes that scope explicit.
 
 The full app requires policy attachment. A failed initial route activation is not
-reported as ready. A later failed edit that retains a previously active routing
-snapshot continues using that last good snapshot. Fixing stored QoS and applying
-it through the existing API resumes readiness without restarting the runtime.
+reported as ready. If that first activation fails, the app schedules up to six
+bounded, exponential-backoff attempts after its other services and traffic policy
+have loaded. Successful recovery makes probes available without manually applying
+the unchanged rules. A permanent error remains visible in route activation status,
+and probes stay gated rather than bypassing routing policy. A later failed edit
+that retains a previously active routing snapshot continues using that last good
+snapshot. Fixing stored QoS and applying it through the existing API resumes
+readiness without restarting the runtime.
 The UI polls this status while its monitoring dialog is open; backend decisions
 and schedules do not depend on that dialog.
 
