@@ -5,12 +5,13 @@ package sshserver
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 )
 
 func TestConnectionNetworkClosedRejectsAcquire(t *testing.T) {
 	group := &connectionNetwork{ctx: context.Background(), closed: true}
-	if _, err := group.acquire(); !errors.Is(err, context.Canceled) && err == nil {
+	if _, err := group.acquire(); !errors.Is(err, os.ErrClosed) {
 		t.Fatal("closed SSH connection must reject new shared sessions")
 	}
 }
