@@ -10,7 +10,7 @@ import (
 )
 
 func TestUnionCommonFieldsAndRecursiveTrees(t *testing.T) {
-	source := "package contract\ntype Protocol struct { Type string `json:\"type\"`; CredentialRef string `json:\"credentialRef,omitempty\"`; HTTP *HTTP `json:\"http,omitzero\"`; Socks5 *Socks5 `json:\"socks5,omitzero\"` }\ntype MatchTrace struct { Type string `json:\"type\"`; State string `json:\"state\"`; Children []MatchTrace `json:\"children,omitempty\"` }"
+	source := "package contract\ntype Protocol struct { Type string `json:\"type\"`; CredentialRef string `json:\"credentialRef,omitempty\"`; Lite *Lite `json:\"tailscale-lite,omitzero\"`; HTTP *HTTP `json:\"http,omitzero\"`; Socks5 *Socks5 `json:\"socks5,omitzero\"` }\ntype MatchTrace struct { Type string `json:\"type\"`; State string `json:\"state\"`; Children []MatchTrace `json:\"children,omitempty\"` }"
 	file, err := parser.ParseFile(token.NewFileSet(), "contract.go", source, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -24,6 +24,9 @@ func TestUnionCommonFieldsAndRecursiveTrees(t *testing.T) {
 		}
 	}
 	result := out.String()
+	if !strings.Contains(result, `type: "tailscale-lite"; credentialRef?: string; "tailscale-lite": Lite`) {
+		t.Fatalf("invalid hyphenated variant:\n%s", result)
+	}
 	if !strings.Contains(result, `type: "http"; credentialRef?: string; http: HTTP`) || !strings.Contains(result, `type: "socks5"; credentialRef?: string; socks5: Socks5`) {
 		t.Fatalf("lost common field:\n%s", result)
 	}

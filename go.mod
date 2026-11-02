@@ -36,6 +36,7 @@ require (
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
 	github.com/yuhaiin/sessionnet v0.0.0-20261102141811-d3b90c541398
+	github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102095609-a2769dc029bc
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0

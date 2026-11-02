@@ -147,6 +147,7 @@ type Protocol struct {
 	Vless                *Vless                `json:"vless,omitzero"`
 	BootstrapDNSWarp     *BootstrapDNSWarp     `json:"bootstrap_dns_warp,omitzero"`
 	Tailscale            *Tailscale            `json:"tailscale,omitzero"`
+	TailscaleLite        *TailscaleLite        `json:"tailscale-lite,omitzero"`
 	Set                  *Set                  `json:"set,omitzero"`
 	TLSTermination       *TLSTermination       `json:"tls_termination,omitzero"`
 	HTTPMock             *HTTPMock             `json:"http_mock,omitzero"`
@@ -577,6 +578,9 @@ type Tailscale struct {
 	Debug      bool   `json:"debug,omitzero"`
 }
 
+// TailscaleLite is an opt-in Tailnet client with its own persistent identity.
+type TailscaleLite Tailscale
+
 type Set struct {
 	Nodes    []string `json:"nodes,omitzero"`
 	Strategy string   `json:"strategy,omitzero"`
@@ -666,6 +670,7 @@ func (Drop) ProtocolType() string                 { return "drop" }
 func (Vless) ProtocolType() string                { return "vless" }
 func (BootstrapDNSWarp) ProtocolType() string     { return "bootstrap_dns_warp" }
 func (Tailscale) ProtocolType() string            { return "tailscale" }
+func (TailscaleLite) ProtocolType() string        { return "tailscale-lite" }
 func (Set) ProtocolType() string                  { return "set" }
 func (TLSTermination) ProtocolType() string       { return "tls_termination" }
 func (HTTPMock) ProtocolType() string             { return "http_mock" }
@@ -878,6 +883,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"vless":                  x.Vless != nil,
 		"bootstrap_dns_warp":     x.BootstrapDNSWarp != nil,
 		"tailscale":              x.Tailscale != nil,
+		"tailscale-lite":         x.TailscaleLite != nil,
 		"set":                    x.Set != nil,
 		"tls_termination":        x.TLSTermination != nil,
 		"http_mock":              x.HTTPMock != nil,

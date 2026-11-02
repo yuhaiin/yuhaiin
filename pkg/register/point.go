@@ -200,6 +200,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.BootstrapDNSWarp, nil
 	case "tailscale":
 		return *protocol.Tailscale, nil
+	case "tailscale-lite":
+		return *protocol.TailscaleLite, nil
 	case "set":
 		return *protocol.Set, nil
 	case "tls_termination":

@@ -8,6 +8,8 @@ import (
 )
 
 func TestVPNProtocolJSONRoundTrip(t *testing.T) {
+	tailscale := Tailscale{AuthKey: "tskey-test", Hostname: "same-host", ControlURL: "https://control.example"}
+	tailscaleLite := TailscaleLite(tailscale)
 	ssh := SSH{User: "alice", Password: "secret", HostKey: "SHA256:abc"}
 	nebula := Nebula{ConfigYAML: "pki:\n  ca: embedded\n  cert: embedded\n  key: embedded\n"}
 	zerotier := ZeroTier{
@@ -49,6 +51,8 @@ func TestVPNProtocolJSONRoundTrip(t *testing.T) {
 		want    Protocol
 	}{
 		{ssh, Protocol{Type: "ssh", SSH: &ssh}},
+		{tailscale, Protocol{Type: "tailscale", Tailscale: &tailscale}},
+		{tailscaleLite, Protocol{Type: "tailscale-lite", TailscaleLite: &tailscaleLite}},
 		{nebula, Protocol{Type: "nebula", Nebula: &nebula}},
 		{zerotier, Protocol{Type: "zerotier", ZeroTier: &zerotier}},
 		{masque, Protocol{Type: "masque", Masque: &masque}},

@@ -312,7 +312,7 @@ func (s *selectorRuntime) probeCanStart(n contract.Node, policy string) bool {
 
 func requiresEstablishedClient(chain []contract.Protocol) bool {
 	for _, p := range chain {
-		if slices.Contains([]string{"openvpn", "ikev2", "anyconnect", "sstp", "fortinet", "globalprotect", "softether", "l2tp", "l2tpv3", "tailscale", "nebula", "zerotier", "set", "point_as_endpoint"}, p.Type) {
+		if slices.Contains([]string{"openvpn", "ikev2", "anyconnect", "sstp", "fortinet", "globalprotect", "softether", "l2tp", "l2tpv3", "tailscale", "tailscale-lite", "nebula", "zerotier", "set", "point_as_endpoint"}, p.Type) {
 			return true
 		}
 		if p.NetworkSplit != nil {
