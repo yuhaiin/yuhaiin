@@ -292,12 +292,9 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 						_ = req.Reply(false, nil)
 						continue
 					}
-					executable, err := os.Executable()
-					if err != nil {
-						_ = req.Reply(false, nil)
-						continue
-					}
-					args = append([]string{executable, "internal-sftp"}, s.config.SFTPReadOnlyPaths...)
+					// Re-exec the running inode even if its installation directory
+					// is private or the binary has been replaced by an update.
+					args = append([]string{"/proc/self/exe", "internal-sftp"}, s.config.SFTPReadOnlyPaths...)
 				} else if req.Type == "exec" {
 					var r execRequest
 					if gossh.Unmarshal(req.Payload, &r) != nil || len(r.Command) > 16384 {

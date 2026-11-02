@@ -2,7 +2,7 @@ package sshserver
 
 import (
 	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -25,7 +25,7 @@ func passwdLoginShell(passwd, uid string) string {
 			continue
 		}
 		shell := fields[6]
-		if filepath.IsAbs(shell) && filepath.Base(shell) != "nologin" && filepath.Base(shell) != "false" {
+		if path.IsAbs(shell) && path.Base(shell) != "nologin" && path.Base(shell) != "false" {
 			return shell
 		}
 	}
