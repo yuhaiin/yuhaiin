@@ -29,11 +29,11 @@ import (
 
 type Wireguard struct {
 	netapi.EmptyDispatch
-	net    *LightweightNetTun
+	net             *LightweightNetTun
 	diagnosticStack *lightweight.Stack
-	bind   *netBindClient
-	conf   Config
-	device *device.Device
+	bind            *netBindClient
+	conf            Config
+	device          *device.Device
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once        sync.Once
@@ -97,11 +97,11 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 	}
 
 	w := &Wireguard{
-		conf: conf,
-		net:  tun,
+		conf:            conf,
+		net:             tun,
 		diagnosticStack: tun.Stack(),
-		bind: newNetBindClient(conf.Reserved),
-		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
+		bind:            newNetBindClient(conf.Reserved),
+		happyDialer:     dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}, dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewEmptySemaphore())),
 	}
