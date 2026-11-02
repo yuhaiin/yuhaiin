@@ -35,6 +35,8 @@ type TCPDiagnostics struct {
 	Recovering        bool                    `json:"recovering"`
 	RepairPending     bool                    `json:"repair_pending"`
 	LostBytes         uint64                  `json:"lost_bytes"`
+	Retransmissions   uint64                  `json:"retransmissions"`
+	PathMSS           int                     `json:"path_mss"`
 	OutputWaiting     bool                    `json:"output_waiting"`
 	BBR               *congestion.BBRSnapshot `json:"bbr,omitempty"`
 }
@@ -78,6 +80,8 @@ func (c *TCPConn) DiagnosticSnapshot() TCPDiagnostics {
 		Recovering:        c.recovering,
 		RepairPending:     c.repairPending,
 		LostBytes:         c.lost,
+		Retransmissions:   c.retransmitted,
+		PathMSS:           c.pathMSS,
 		OutputWaiting:     c.outputWaiting,
 	}
 	if bbr, ok := c.controller.(interface{ Snapshot() congestion.BBRSnapshot }); ok {
