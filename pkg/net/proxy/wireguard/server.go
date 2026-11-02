@@ -12,6 +12,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/tailscale/wireguard-go/conn"
 	"github.com/tailscale/wireguard-go/device"
@@ -42,6 +43,12 @@ type inboundServer struct {
 }
 
 var _ netapi.Accepter = (*inboundServer)(nil)
+
+// StackDiagnostic exposes the lightweight IP stack behind this WireGuard
+// inbound without collecting decrypted payloads or probing peers.
+func (s *inboundServer) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	return s.tunnel.Stack().DiagnosticSnapshot(limit)
+}
 
 func (s *inboundServer) Interface() string { return "wireguard" }
 

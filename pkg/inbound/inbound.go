@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol/quota"
@@ -94,6 +95,34 @@ func (l *Inbound) TrafficControlStatus() trafficcontrol.Status {
 		}
 	}
 	return status
+}
+
+// TCPStackState identifies a live lightweight stack independently of its flows.
+type TCPStackState struct {
+	InboundID string
+	Snapshot  lightweight.StackDiagnostics
+}
+
+// TCPStackDiagnostics is intentionally on-demand and bounded. Stacks without
+// a diagnostic reporter are skipped instead of claiming they have zero errors.
+func (l *Inbound) TCPStackDiagnostics(limit int) []TCPStackState {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.closed {
+		return nil
+	}
+	var states []TCPStackState
+	for id, entry := range l.store.Range {
+		if reporter, ok := entry.server.(interface {
+			StackDiagnostic(int) lightweight.StackDiagnostics
+		}); ok {
+			states = append(states, TCPStackState{InboundID: id, Snapshot: reporter.StackDiagnostic(limit)})
+			if len(states) == 16 {
+				break
+			}
+		}
+	}
+	return states
 }
 
 type Option func(*Inbound)

@@ -11,6 +11,7 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 )
 
 const (
@@ -243,6 +244,17 @@ func (c *reconnectingClient) PacketConn(ctx context.Context, address netapi.Addr
 
 func (c *reconnectingClient) Ping(context.Context, netapi.Address) (uint64, error) {
 	return 0, errors.ErrUnsupported
+}
+
+// StackDiagnostic is passive: it never wakes an idle VPN or reconnects it.
+func (c *reconnectingClient) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	c.mu.Lock()
+	client := c.client
+	c.mu.Unlock()
+	if client == nil || client.stateError() != nil {
+		return lightweight.StackDiagnostics{}
+	}
+	return client.StackDiagnostic(limit)
 }
 
 func (c *reconnectingClient) NodeExtraInfo() contractnode.NodeExtraInfo {

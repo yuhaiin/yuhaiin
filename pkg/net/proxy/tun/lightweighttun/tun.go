@@ -120,6 +120,11 @@ func NewFromStack(stack *lightweight.Stack, handler netapi.Handler, addresses []
 	return s, nil
 }
 
+// StackDiagnostic takes a bounded TCP snapshot only on explicit request.
+func (s *server) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	return s.stack.DiagnosticSnapshot(limit)
+}
+
 func (s *server) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
 	return s.stack.TrafficControlQueue()
 }
