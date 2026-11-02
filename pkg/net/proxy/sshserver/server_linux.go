@@ -195,7 +195,10 @@ func openPTY(columns, rows uint32) (*ptyPair, error) {
 	if err != nil {
 		return nil, err
 	}
-	slave, err := os.OpenFile("/dev/pts/"+strconv.Itoa(n), os.O_RDWR, 0)
+	// A service may be a session leader without a controlling terminal.
+	// Only the child should acquire this PTY; acquiring it here would prevent
+	// the child from doing so and send SIGHUP to the server on PTY teardown.
+	slave, err := os.OpenFile("/dev/pts/"+strconv.Itoa(n), os.O_RDWR|unix.O_NOCTTY, 0)
 	if err != nil {
 		return nil, err
 	}
