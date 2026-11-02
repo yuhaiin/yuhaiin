@@ -11,6 +11,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/node"
 	"github.com/Asutorufa/yuhaiin/pkg/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
@@ -55,43 +56,14 @@ func newDiagnostics(inboundConfigStore *plainstore.InboundStore, inbounds *inbou
 			if ctx.Err() != nil {
 				return nil
 			}
-			var result []contracttools.TCPStackDiagnostic
-			for _, item := range inbounds.TCPStackDiagnostics(32) {
-				stack := item.Snapshot
-				stats := stack.Stats
-				report := contracttools.TCPStackDiagnostic{
-					InboundID: item.InboundID,
-					MTU:       stack.MTU,
-					Statistics: contracttools.TCPStackStatistics{
-						Connections: stats.Connections, MemoryBytes: stats.MemoryBytes,
-						PacketsIn: stats.PacketsIn, PacketsOut: stats.PacketsOut,
-						Drops: stats.Drops, Retransmissions: stats.Retransmissions,
-						RSTSent: stats.RSTSent, RSTReceived: stats.RSTReceived,
-						InvalidInputDrops: stats.InvalidInputDrops, RateLimitedDrops: stats.RateLimitedDrops,
-						OutputAQMDrops: stats.OutputAQMDrops, OutputRejected: stats.OutputRejected,
-						OutputOverloadDrops: stats.OutputOverloadDrops,
-						OutputQueuedPackets: stats.OutputQueuedPackets, OutputQueuedBytes: stats.OutputQueuedBytes,
-					},
-					Flows: make([]contracttools.TCPFlowDiagnostic, 0, len(stack.Flows)),
-				}
-				for _, flow := range stack.Flows {
-					f := contracttools.TCPFlowDiagnostic{
-						State: string(flow.State), Local: flow.Local, Remote: flow.Remote,
-						CongestionWindow: flow.CongestionWindow, BytesInFlight: flow.BytesInFlight,
-						SRTTMilliseconds: flow.SRTTMilliseconds, RTOMilliseconds: flow.RTOMilliseconds,
-						PacingRate: flow.PacingRate, LostBytes: flow.LostBytes,
-						Retransmissions: flow.Retransmissions, DuplicateACKs: flow.DuplicateACKs,
-						PathMSS: flow.PathMSS, Retries: flow.Retries, Recovering: flow.Recovering,
-					}
-					if flow.BBR != nil {
-						f.BBRMode = string(flow.BBR.Mode)
-						f.BBRPhase = string(flow.BBR.Phase)
-					}
-					report.Flows = append(report.Flows, f)
-				}
-				result = append(result, report)
+			var results []contracttools.TCPStackDiagnostic
+			for _, inbound := range inbounds.TCPStackDiagnostics(32) {
+				results = append(results, stackDiagnostic("inbound", inbound.InboundID, inbound.Snapshot))
 			}
-			return result
+			for _, outbound := range nodeRuntime.ActiveTCPStackSnapshots(32) {
+				results = append(results, stackDiagnostic("outbound", outbound.NodeID, outbound.Snapshot))
+			}
+			return results
 		},
 		TUN: func(ctx context.Context) ([]diagnostics.TUNState, error) {
 			if inboundConfigStore == nil {
@@ -116,4 +88,49 @@ func newDiagnostics(inboundConfigStore *plainstore.InboundStore, inbounds *inbou
 			return states, nil
 		},
 	})
+}
+
+
+// stackDiagnostic adapts the shared protocol stack's in-memory counters to the
+// diagnostics contract. The scope specifies which layer owns these counters:
+// the same payload may cross an inbound and an outbound, so only like-scope,
+// non-overlapping stacks should be compared (never summed as global traffic).
+func stackDiagnostic(scope, id string, stack lightweight.StackDiagnostics) contracttools.TCPStackDiagnostic {
+	stats := stack.Stats
+	report := contracttools.TCPStackDiagnostic{
+		Scope: scope,
+		MTU: stack.MTU,
+		Statistics: contracttools.TCPStackStatistics{
+			Connections: stats.Connections, MemoryBytes: stats.MemoryBytes,
+			PacketsIn: stats.PacketsIn, PacketsOut: stats.PacketsOut,
+			Drops: stats.Drops, Retransmissions: stats.Retransmissions,
+			RSTSent: stats.RSTSent, RSTReceived: stats.RSTReceived,
+			InvalidInputDrops: stats.InvalidInputDrops, RateLimitedDrops: stats.RateLimitedDrops,
+			OutputAQMDrops: stats.OutputAQMDrops, OutputRejected: stats.OutputRejected,
+			OutputOverloadDrops: stats.OutputOverloadDrops,
+			OutputQueuedPackets: stats.OutputQueuedPackets, OutputQueuedBytes: stats.OutputQueuedBytes,
+		},
+		Flows: make([]contracttools.TCPFlowDiagnostic, 0, len(stack.Flows)),
+	}
+	if scope == "outbound" {
+		report.NodeID = id
+	} else {
+		report.InboundID = id
+	}
+	for _, flow := range stack.Flows {
+		item := contracttools.TCPFlowDiagnostic{
+			State: string(flow.State), Local: flow.Local, Remote: flow.Remote,
+			CongestionWindow: flow.CongestionWindow, BytesInFlight: flow.BytesInFlight,
+			SRTTMilliseconds: flow.SRTTMilliseconds, RTOMilliseconds: flow.RTOMilliseconds,
+			PacingRate: flow.PacingRate, LostBytes: flow.LostBytes,
+			Retransmissions: flow.Retransmissions, DuplicateACKs: flow.DuplicateACKs,
+			PathMSS: flow.PathMSS, Retries: flow.Retries, Recovering: flow.Recovering,
+		}
+		if flow.BBR != nil {
+			item.BBRMode = string(flow.BBR.Mode)
+			item.BBRPhase = string(flow.BBR.Phase)
+		}
+		report.Flows = append(report.Flows, item)
+	}
+	return report
 }
