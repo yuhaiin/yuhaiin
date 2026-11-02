@@ -54,4 +54,6 @@ jobs:
             -test.run '^TestSSHServer(NetworkIntegration|SharesOnlyWithinConnection)$'
       - name: Remove test cgroup parent
         if: always()
-        run: sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration || true
+        run: |
+          sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration/ssh-integration || true
+          sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration || true
