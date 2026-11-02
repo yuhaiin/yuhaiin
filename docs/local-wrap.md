@@ -85,9 +85,19 @@ checks. The host filesystem, processes, setuid executables and inherited stdio
 FDs are not a general security sandbox. Service filesystem restrictions must
 allow access to the caller's executable, working directory and required files.
 
-This is a CLI-only service option; no frontend configuration or schema change
-is required. See [the design notes](research-cli-netns-wrap.md) for sources and
-alternatives.
+The web UI now exposes **Settings → Local wrap** defaults for the service
+socket, authorized non-root UID/GID, cgroup root and maximum sessions. These
+values are stored in the server settings database, and applied only when the
+daemon restarts. Saving the form does **not** start or stop a running socket.
+The option is opt-in and disabled on existing installations. The UI is not a
+sandbox boundary: only a trusted administrator should enable process launching.
+
+Explicit `-wrap-socket`, `-wrap-uid`, `-wrap-gid`, `-wrap-cgroup-root` and
+`-wrap-max-sessions` flags override the corresponding saved values at startup.
+An explicitly empty `-wrap-socket=` disables a saved enabled configuration.
+Run `yuhaiin wrap -socket /your/socket.sock -- <program> [args...]` when using
+a nondefault socket path. See [the design notes](research-cli-netns-wrap.md)
+for sources and alternatives.
 
 ## Validation and benchmarks
 
