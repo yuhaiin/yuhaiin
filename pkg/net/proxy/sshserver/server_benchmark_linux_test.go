@@ -38,10 +38,11 @@ func BenchmarkSSHServerNetworkReuse(b *testing.B) {
 				b.Cleanup(func() { _ = client.Close() })
 			}
 			if scenario.keepNetwork {
-				keeper, _ := startSSHNamespaceKeeper(b, client)
+				keeper, _, stopKeeper := startSSHNamespaceKeeper(b, client)
 				b.Cleanup(func() {
-					_ = keeper.Close()
+					stopKeeper()
 					_ = keeper.Wait()
+					_ = keeper.Close()
 				})
 			}
 
