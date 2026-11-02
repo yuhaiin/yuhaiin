@@ -179,7 +179,11 @@ func (c *TCPConn) sendACK() {
 		c.schedule(time.Now())
 	}
 }
-func (c *TCPConn) sendReset()     { c.output(c.sndNxt, flagRST|flagACK, nil) }
+func (c *TCPConn) sendReset() {
+	if c.output(c.sndNxt, flagRST|flagACK, nil) {
+		c.stack.rstSent.Add(1)
+	}
+}
 func (c *TCPConn) flight() uint64 { return c.bytesInFlight }
 
 func (c *TCPConn) setSACK(v *sendSegment, sacked bool) {
@@ -250,6 +254,7 @@ func (c *TCPConn) recordTransmission(v *sendSegment, now time.Time, retrans bool
 	v.resend = false
 	v.transmissions++
 	if retrans {
+		c.retransmitted++
 		c.stack.retransmissions.Add(1)
 	} else {
 		c.sndNxt = v.seq + v.length()
