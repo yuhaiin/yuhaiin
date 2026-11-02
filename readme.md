@@ -153,21 +153,45 @@ Traffic control shares one policy and resource-governor implementation across in
 
 See the [traffic-control architecture and configuration](docs/traffic-control/README.md) and [qualification and benchmark results](docs/traffic-control/benchmarks.md) for implementation details, overhead measurements, and remaining platform/latency validation limits.
 
+## Operations & Reliability
+
+### Intelligent outbound selection
+
+Selectors support manual choice (the existing default), priority failover, fresh RTT, measured throughput, balanced scoring and weighted new-flow distribution. Candidate settings include priority and weight, independent TCP/UDP health evidence, circuit recovery, hold/cooldown, budgeted probes and explicit fallback. New flows use current selection decisions; established TCP/UDP flows are not silently moved or replayed. Observed application throughput is not a measured link capacity, and active speed tests use bounded, explicitly configured targets.
+
+See [selector policies](docs/intelligent-selectors.md), [probe policies](docs/probe-policy.md), and [measurement limits](docs/measurement-bounds.md).
+
+### Encrypted recovery and guarded updates
+
+Full disaster recovery is distinct from sanitized configuration export. Coherent snapshots of owned databases and identities can be encrypted with age to externally held keys, scheduled to local/S3 storage, verified and restored through staged original-instance/clone workflows. Protected software updates verify package/schema compatibility, create recovery points and check actual startup. The updater retains the two previous executables; an older binary alone **cannot undo a database migration**.
+
+Automatic disruptive recovery/update supervision is qualified for supported Linux systemd system and lingering user services. Other hosts require the documented offline procedures and have separate durability and privileges limits. Keep archive decryption keys and administrative credentials outside the deployment being protected.
+
+See [backup and recovery](docs/backup-recovery.md), [encrypted archives](docs/recovery-archive.md), [managed backups](docs/managed-recovery-backups.md), and [update/rollback](docs/update-rollback.md).
+
+### Managed HTTPS certificates
+
+Site certificates support ACME HTTP-01 via an explicitly enabled port-80 Gateway and Cloudflare DNS-01, persisted renewal/backoff, certificate validation and hot replacement for new TLS handshakes. Management HTTPS can explicitly reference a managed certificate; Gateway termination can select a managed certificate resource. Site certificates remain separate from Gateway interception and private CAs, and existing file/self-signed TLS stays available.
+
+See [managed certificates](docs/managed-certificates.md) and [enterprise reliability qualification](docs/enterprise-reliability-audit.md).
+
 ## Typical Use Cases
 
 **Enterprise network access.** Connect to a corporate VPN endpoint while retaining application-aware routing, local DNS behavior, and rules for other traffic.
 
-**Shared proxy gateway.** Give users separate proxy credentials for their devices, revoke access without rotating everyone's credentials, and review attributed connection history.
+**Shared proxy gateway.** Give users separate proxy credentials, configure traffic groups and default-deny destination access, apply user/group quotas, and review attributed connection and management event history.
 
-**Private service connectivity.** Reach resources through WireGuard or an overlay network such as Tailscale, Nebula, or ZeroTier, using the same outbound selection model as other proxies.
+**Private service connectivity.** Reach resources through WireGuard, Tailscale, Nebula, or ZeroTier while using the same manual or health-based outbound selection as other proxies.
 
 **Application gateway.** Expose an HTTP/HTTPS service, select backend pools and outbound paths, apply Host/Path/Header policies, and optionally block unwanted URLs.
 
-**Transparent traffic control.** Send selected system or application connections through TUN/TProxy/Redir, enforce L4 policies, and optionally apply per-inbound or per-route bandwidth limits. On lightweight TUN, opt into FQ-CoDel when competing flows need fairer output scheduling.
+**Transparent traffic control.** Send selected system or application connections through TUN/TProxy/Redir, enforce L4 policies, and optionally apply per-inbound or per-route bandwidth limits. On lightweight TUN, opt into FQ-CoDel for competing flows.
+
+**Linux command and microVM egress.** Send experimental SSH shell/exec networking through a per-connection namespace or route local Krunlet microVM TCP/UDP through a protected Unix socket. The SSH feature is not a general-purpose security sandbox.
 
 ## Platforms
 
-- **Linux**, **macOS**, and **Windows** for desktop and server-oriented deployment.
+- **Linux**, **macOS**, and **Windows** for desktop and server-oriented deployment. The experimental SSH shell/exec inbound requires Linux namespace and TUN privileges.
 - **Android** via the [Yuhaiin Android client](https://github.com/yuhaiin/yuhaiin-android).
 
 Availability of specific inbound modes, native VPN libraries, and platform integrations differs across builds.
@@ -203,7 +227,7 @@ yuhaiin -host="127.0.0.1:50051" -path="$HOME/.config/yuhaiin"
 
 Open **http://127.0.0.1:50051** to configure your inbounds, nodes, routing policies, traffic control, and HTTP Gateway. On the first start of the server executable, find the **Initialization code** in the local startup output (valid for 15 minutes), then use **Create administrator** in the Web UI to enroll the first account. The code is not published through an unauthenticated HTTP endpoint.
 
-After signing in, open **Account & Security** to manage users, API tokens, linked OAuth accounts, active sessions, proxy credentials, and user traffic/audit reports. To attribute proxy traffic to a user, create a device credential and explicitly authorize that user on a supported inbound. A management account alone does not enable proxy authentication on an inbound.
+After signing in, open **Account & Security** to manage users, traffic groups, custom roles, API tokens, OAuth/OIDC account links, Passkeys, browser sessions, proxy credentials, and security/audit reports. Configure identity resource policies under **Traffic Control**. To attribute proxy traffic to a user, create a device credential and explicitly authorize that user on a supported inbound. A management account alone does not enable proxy authentication on an inbound.
 
 The management endpoint above is local by default. **Use HTTPS with a trusted certificate for remote management**; local loopback HTTP remains supported for development and local use.
 
@@ -221,16 +245,22 @@ The current web UI:
 
 - [HTTP Gateway architecture](docs/gateway/architecture.md) · [Configuration](docs/gateway/configuration.md) · [HTTPS interception](docs/gateway/interception.md)
 - [Gateway reverse proxy](docs/gateway/reverse-proxy.md) · [Benchmarks](docs/gateway/benchmarks.md)
-- [Management authentication & account setup](docs/MANAGEMENT_AUTH.md) · [Proxy/user credentials & shared upstream secrets](docs/proxy-credentials.md)
-- [User traffic reports & audits](docs/user-usage.md) · [User usage benchmarks](docs/benchmarks/user-usage.md)
-- [Traffic control](docs/traffic-control/README.md) · [Traffic-control benchmarks](docs/traffic-control/benchmarks.md)
-- [WireGuard inbound](docs/wireguard-inbound.md) · [Hysteria 2](docs/hysteria2.md)
+- [Management authentication](docs/MANAGEMENT_AUTH.md) · [Proxy and shared upstream credentials](docs/proxy-credentials.md) · [OIDC](docs/oidc.md)
+- [User usage reports](docs/user-usage.md) · [Traffic groups](docs/enterprise-identity.md) · [Traffic access policies](docs/traffic-access.md) · [Resource governance](docs/resource-governance.md)
+- [Traffic control](docs/traffic-control/README.md) · [Traffic-control benchmarks](docs/traffic-control/benchmarks.md) · [Intelligent selectors](docs/intelligent-selectors.md)
+- [WireGuard inbound](docs/wireguard-inbound.md) · [Hysteria 2](docs/hysteria2.md) · [MASQUE](docs/masque.md) · [Linux SSH inbound](docs/ssh-session-inbound.md) · [Krunlet inbound](docs/krunlet-inbound.md)
 - [OpenVPN](pkg/net/proxy/openvpn/README.md) · [GlobalProtect](pkg/net/proxy/globalprotect/README.md) · [Nebula](pkg/net/proxy/nebula/README.md) · [ZeroTier](pkg/net/proxy/zerotier/README.md)
+- [Custom roles](docs/management-roles.md) · [Management audits](docs/security-audit.md) · [Secret isolation](docs/secret-isolation.md) · [Configuration changes](docs/configuration-changes.md)
+- [Backup and recovery](docs/backup-recovery.md) · [Updates](docs/update-rollback.md) · [Managed certificates](docs/managed-certificates.md)
 - [SSH outbound](pkg/net/proxy/ssh/README.md) · [Rules](https://github.com/yuhaiin/kitte) · [Android client](https://github.com/yuhaiin/yuhaiin-android)
 
 ## Security Boundaries
 
-Yuhaiin's routing rules and traffic-control limits apply to traffic entering its configured inbounds; they do not automatically replace the operating system's firewall or guarantee physical-link shaping. The current management roles and API permissions are **not** user/group-based authorization for network destinations. Some legacy shared inbound credentials remain accepted even when user credentials are configured and their traffic is unattributed. Remote management requires HTTPS, and upstream credentials in the private management database are **not encrypted at rest**. Gateway TLS interception is disabled by default and requires explicit configuration and client trust. Enterprise VPN support refers to interoperability with supported protocols; GitHub/Google OAuth is available, but generic enterprise SSO (OIDC/SAML), SCIM, device posture assessment, centralized policy distribution, high availability, and compliance certification are not provided.
+Yuhaiin enforces rules for traffic entering its configured inbounds; it does not automatically replace an operating system firewall, endpoint posture enforcement or physical-link shaping. Traffic Access Policy must be explicitly enabled and scoped, and excluded inbounds can continue through ordinary L4 routing. Protected scopes require valid authenticated user/device identities. Management RBAC and network traffic-group authorization are separate. Legacy and mixed shared passwords remain capable of unauthenticated-to-user proxy traffic outside protected scopes.
+
+Application-payload quotas and usage reports are not billing-grade WAN byte accounting. Connection audits can lose records under overload, while remote management-event delivery has documented retry/deduplication limits. Remote management requires trusted HTTPS (local loopback HTTP is supported). Privileged operators must protect private storage: certain upstream/provider credentials are not encrypted at rest, despite redaction from routine settings responses. Passkeys and OIDC are supported, but SAML, SCIM provisioning, endpoint posture assessment, centralized Controller/Agent distribution, high availability, and compliance certification are not provided.
+
+Gateway TLS interception is disabled by default and requires explicit CA trust and allowlisting; ECH and certificate pinning still limit inspection. The experimental Linux SSH inbound shares the host filesystem and process namespace and **must not be offered to untrusted shell users** without stronger isolation. SSTP relies on legacy MS-CHAPv2 and sensitive NT-hash verifier material. Review each protocol's security and platform restrictions.
 
 ## Community & Acknowledgements
 
@@ -250,59 +280,3 @@ References: [tun2socks](https://github.com/xjasonlyu/tun2socks), [shadowsocksR](
 </details>
 
 Contributions, bug reports, and reproducible interoperability tests are welcome.
-
-### Enterprise reliability
-
-The reliability changes are reviewed in one [backend PR](https://github.com/yuhaiin/yuhaiin/pull/622)
-and one [frontend PR](https://github.com/yuhaiin/yuhaiin-react/pull/535), both targeting
-main. See the [delivery overview](docs/enterprise-reliability.md) and
-[requirement evidence](docs/enterprise-reliability-audit.md) for the implementation,
-validation and supported-host boundaries.
-
-**Intelligent outbound selection.** Existing Selectors support manual, priority
-failover, fresh RTT, measured throughput, normalized balanced scoring and weighted
-new flows. Manual selection remains the upgrade default. Candidates, independent
-TCP/UDP evidence, circuit recovery, preferred return, hold/cooldown and explicit
-fallback explain each selection. Existing sessions retain their chosen runtime.
-Shared cancellable probes and optional download/upload tests enforce concurrency,
-byte/time and durable daily budgets, with conservative mobile/network-cost policy.
-Observed business traffic remains distinct from measured target-specific capacity.
-See [selection and benchmarks](docs/intelligent-selectors.md),
-[probe policy](docs/probe-policy.md) and [measurement bounds](docs/measurement-bounds.md).
-
-**Backup, recovery and updates.** Configuration migration excludes managed
-identity material by default; arbitrary custom strings and private URL paths still
-need protection. Full disaster recovery uses an explicit owned inventory,
-WAL-safe SQLite snapshots during stopped-writer maintenance, streaming age
-encryption and external backup keys. Local/S3 scheduling, verified transfer,
-retrieval, retention, authenticated original/clone previews and controlled
-startup/rollback share the existing backup owners. The offline CLI remains
-available when the Web UI cannot start. Plaintext pre-restore copies have separate,
-default-off cleanup consent. Protected updates validate package/schema metadata,
-create a recovery point and verify actual startup; migrated databases require
-reviewed paired binary/database restoration.
-See [configuration and data ownership](docs/backup-recovery.md),
-[archive/CLI](docs/recovery-archive.md), [managed backups](docs/managed-recovery-backups.md)
-and [safe updates](docs/update-rollback.md).
-
-Automatic disruptive maintenance is qualified for root-owned Linux systemd and
-lingering user services. Windows offline restore, validation/finalization and
-rollback require elevated local NTFS access. Other hosts/storage retain the
-explicit capability and durability limits in the guides. Optional unattended
-restore drills are separate from the implemented deterministic and real-service
-fault-injection tests.
-
-**Managed HTTPS certificates.** Stable site resources support ACME HTTP-01 and
-Cloudflare DNS-01, private account/provider storage, persisted renewal/ARI advice,
-bounded retries and verified hot replacement. Management HTTPS explicitly selects
-`-https-certificate-id`; Gateway TLS termination references managed IDs. Existing
-file/self-signed TLS and separate MITM/TLS Auto CAs retain their ownership.
-See [certificate lifecycle](docs/managed-certificates.md).
-
-Scheduling/transfers live in `pkg/app/backup`; coherent deployment snapshots,
-activation and startup rollback in `pkg/app/backup/recovery`; SQLite metadata in
-`pkg/store/backup`; and the encrypted format in `pkg/store/backup/archive`.
-Tests follow these owners. The guides retain reproducible ranking/admission,
-shared-Selector heap/goroutine, streaming-backup and
-[actual maintenance/RSS measurements](docs/managed-recovery-backups.md#capture-space-and-real-maintenance-measurements),
-with fixture limits rather than production-capacity guarantees.
