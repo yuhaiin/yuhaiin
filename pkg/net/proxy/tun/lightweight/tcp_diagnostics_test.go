@@ -17,7 +17,6 @@ func TestTCPDiagnosticSnapshot(t *testing.T) {
 	})
 }
 
-
 func TestStackDiagnosticSnapshotBounded(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, c, _, _ := passiveWire(t, 100, 10000, "bbr")
