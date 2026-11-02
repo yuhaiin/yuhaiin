@@ -99,7 +99,7 @@ type TCPConn struct {
 	recovering                                               bool
 	recover                                                  uint32
 	delivered                                                uint64
-	lost, appLimitedUntil                                    uint64
+	lost, appLimitedUntil, retransmitted                     uint64
 	lossAtACK                                                uint64
 	writePending                                             bool
 	cwndLimited                                              bool
