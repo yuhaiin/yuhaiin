@@ -358,15 +358,28 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	if info, err := os.Stat(home); err != nil || !info.IsDir() {
 		config.Dir = "/"
 	}
+	var stdin, stdinWriter *os.File
 	if pty != nil {
 		config.PTYSlave = pty.slave
 		if pty.term != "" {
 			config.Env = append(config.Env, "TERM="+pty.term)
 		}
 	} else {
-		config.Stdin, config.Stdout, config.Stderr = channel, channel, channel.Stderr()
+		// Pass stdin as a pipe so Wait does not depend on the client sending
+		// EOF; interactive clients keep stdin open after the command exits.
+		if stdin, stdinWriter, err = os.Pipe(); err != nil {
+			_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to start isolated command\n")
+			release()
+			_ = sendExitStatus(channel, 255)
+			return
+		}
+		defer stdinWriter.Close()
+		config.Stdin, config.Stdout, config.Stderr = stdin, channel, channel.Stderr()
 	}
 	process, err := owner.Spawn(ctx, config)
+	if stdin != nil {
+		_ = stdin.Close()
+	}
 	if err != nil {
 		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to start isolated command\n")
 		release()
@@ -374,12 +387,25 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		return
 	}
 	defer process.Close()
+	var output chan struct{}
 	if pty != nil {
+		output = make(chan struct{})
 		go func() { _, _ = io.Copy(pty.master, channel) }()
-		go func() { _, _ = io.Copy(channel, pty.master) }()
+		go func() { defer close(output); _, _ = io.Copy(channel, pty.master) }()
 		_ = pty.slave.Close()
+	} else {
+		go func() { _, _ = io.Copy(stdinWriter, channel); _ = stdinWriter.Close() }()
 	}
 	err = process.Wait()
+	if output != nil {
+		// Drain buffered terminal output until the last slave descriptor
+		// closes (EIO). Background jobs may hold the slave open, so bound it.
+		select {
+		case <-output:
+		case <-ctx.Done():
+		case <-time.After(2 * time.Second):
+		}
+	}
 	code := uint32(0)
 	if err != nil {
 		code = 255

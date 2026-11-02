@@ -5,6 +5,7 @@ package sshserver
 import (
 	"strings"
 	"testing"
+	"time"
 
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -69,5 +70,55 @@ func TestSSHServerExecDoesNotInventTerminal(t *testing.T) {
 		if strings.HasPrefix(line, "TERM=") {
 			t.Fatalf("non-PTY exec advertised terminal capabilities: %s", line)
 		}
+	}
+}
+
+func TestSSHServerPTYDrainsOutputBeforeExit(t *testing.T) {
+	requireSSHSessionIntegration(t)
+	config, signer := newSSHServerTestIdentity(t)
+	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
+	client := dialSSHServer(t, server, config.Username, signer)
+	session, err := client.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if err := session.RequestPty("xterm", 24, 80, gossh.TerminalModes{}); err != nil {
+		t.Fatal(err)
+	}
+	output, err := session.Output("seq 1 50000")
+	if err != nil {
+		t.Fatalf("seq: %v", err)
+	}
+	if got := strings.TrimSpace(string(output)); !strings.HasSuffix(got, "\n50000") {
+		t.Fatalf("PTY output truncated: %d bytes, tail %q", len(output), got[max(0, len(got)-32):])
+	}
+}
+
+func TestSSHServerExecExitsWithStdinOpen(t *testing.T) {
+	requireSSHSessionIntegration(t)
+	config, signer := newSSHServerTestIdentity(t)
+	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
+	client := dialSSHServer(t, server, config.Username, signer)
+	session, err := client.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	// Like an interactive OpenSSH client, never send EOF on stdin.
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stdin.Close()
+	done := make(chan error, 1)
+	go func() { done <- session.Run("true") }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("exec with open stdin: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("exec did not complete while client stdin was open")
 	}
 }
