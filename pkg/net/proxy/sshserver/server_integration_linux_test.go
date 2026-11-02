@@ -531,23 +531,24 @@ func TestSSHServerSharesOnlyWithinConnection(t *testing.T) {
 	first := dialSSHServer(t, server, config.Username, userSigner)
 	second := dialSSHServer(t, server, config.Username, userSigner)
 
-	firstKeeper, firstNS := startSSHNamespaceKeeper(t, first)
+	firstKeeper, firstNS, stopFirst := startSSHNamespaceKeeper(t, first)
 	defer firstKeeper.Close()
-	secondKeeper, secondNS := startSSHNamespaceKeeper(t, first)
+	secondKeeper, secondNS, stopSecond := startSSHNamespaceKeeper(t, first)
 	defer secondKeeper.Close()
 	if firstNS != secondNS {
 		t.Fatalf("concurrent commands on one SSH connection used different namespaces: %s != %s", firstNS, secondNS)
 	}
-	otherKeeper, otherNS := startSSHNamespaceKeeper(t, second)
+	otherKeeper, otherNS, stopOther := startSSHNamespaceKeeper(t, second)
 	defer otherKeeper.Close()
+	defer stopOther()
 	if firstNS == otherNS {
 		t.Fatalf("separate SSH connections shared network namespace %s", firstNS)
 	}
 
-	if err := firstKeeper.Close(); err != nil {
-		t.Fatalf("close first shared command: %v", err)
+	stopFirst()
+	if err := firstKeeper.Wait(); err != nil {
+		t.Fatalf("finish first shared command: %v", err)
 	}
-	_ = firstKeeper.Wait()
 	client, err := first.NewSession()
 	if err != nil {
 		t.Fatal(err)
@@ -561,17 +562,17 @@ func TestSSHServerSharesOnlyWithinConnection(t *testing.T) {
 		t.Fatalf("namespace closed while another command still held a lease: got %q, want %q", strings.TrimSpace(string(output)), firstNS)
 	}
 
-	if err := secondKeeper.Close(); err != nil {
-		t.Fatalf("close last shared command: %v", err)
+	stopSecond()
+	if err := secondKeeper.Wait(); err != nil {
+		t.Fatalf("finish last shared command: %v", err)
 	}
-	_ = secondKeeper.Wait()
 	restarted := runSSHCommand(t, first, "readlink /proc/self/ns/net")
 	if strings.TrimSpace(string(restarted)) == firstNS {
 		t.Fatalf("a later command reused a namespace after the final lease closed: %q", restarted)
 	}
 }
 
-func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session, string) {
+func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session, string, func()) {
 	t.Helper()
 	session, err := client.NewSession()
 	if err != nil {
@@ -582,7 +583,14 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 		_ = session.Close()
 		t.Fatal(err)
 	}
-	if err := session.Start("readlink /proc/self/ns/net; echo $$; exec sleep 30"); err != nil {
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		_ = session.Close()
+		t.Fatal(err)
+	}
+	// A controlled EOF/line lets Wait observe the server's exit status,
+	// which is only sent after the shared network lease is released.
+	if err := session.Start("readlink /proc/self/ns/net; echo $$; read -r done"); err != nil {
 		_ = session.Close()
 		t.Fatal(err)
 	}
@@ -639,11 +647,14 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 			_ = session.Close()
 			t.Fatalf("network namespace changed while pinning: %q vs %q: %v", actual, result.namespace, err)
 		}
-		return session, result.namespace
+		return session, result.namespace, func() {
+			_, _ = io.WriteString(stdin, "done\n")
+			_ = stdin.Close()
+		}
 	case <-time.After(5 * time.Second):
 		_ = session.Close()
 		t.Fatal("SSH command did not start in its network namespace")
-		return nil, ""
+		return nil, "", nil
 	}
 }
 
