@@ -13,7 +13,7 @@ import (
 
 func TestSSHStartupErrorReasonDoesNotExposeErrorText(t *testing.T) {
 	for _, tc := range []struct {
-		err error
+		err  error
 		want string
 	}{
 		{fmt.Errorf("credential leakage risk: %w", unix.EPERM), "permission_denied"},
