@@ -128,7 +128,7 @@ func TestSettingsStoreWrapDefaultsPersistence(t *testing.T) {
 	initial, err := store.Load(ctx)
 	if err != nil { t.Fatal(err) }
 	if initial.Wrap.Enabled { t.Fatal("wrap must default to disabled") }
-	initial.Wrap = contractsettings.WrapSettings{Enabled: true, Socket: "/run/yuhaiin/custom.sock", UID: 1000, GID: 1000, CgroupRoot: "/sys/fs/cgroup/delegated/wrap", MaxSessions: 12}
+	initial.Wrap = contractsettings.WrapSettings{Enabled: true, Socket: "/run/yuhaiin/custom.sock", UID: 1000, GID: 1000, CgroupRoot: "/sys/fs/cgroup/delegated/wrap", Timezone: "Asia/Tokyo", MaxSessions: 12}
 	if _, err := store.Save(ctx, initial); err != nil { t.Fatal(err) }
 	fresh, err := store.Load(ctx)
 	if err != nil { t.Fatal(err) }
