@@ -32,6 +32,8 @@ type DiagnosticReport struct {
 // TCPStackDiagnostic is a bounded, read-only sample of a running lightweight
 // IP stack. It is deliberately omitted when the inbound uses another engine.
 type TCPStackDiagnostic struct {
+	Scope      string             `json:"scope"`
+	NodeID     string             `json:"nodeId,omitempty"`
 	InboundID  string              `json:"inboundId"`
 	MTU        int                 `json:"mtu"`
 	Statistics TCPStackStatistics  `json:"statistics"`
