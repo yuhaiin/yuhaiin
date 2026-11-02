@@ -59,6 +59,7 @@ func run(args []string) (resultErr error) {
 	wrapUID := flag.Uint("wrap-uid", 0, "non-root Unix UID allowed to use local wrap")
 	wrapGID := flag.Uint("wrap-gid", 0, "non-root Unix GID owning the local wrap socket")
 	wrapCgroup := flag.String("wrap-cgroup-root", "", "dedicated stable cgroup v2 root for local wrap")
+	wrapTimezone := flag.String("wrap-timezone", "", "IANA timezone for wrapped child processes")
 	wrapMaxSessions := flag.Int("wrap-max-sessions", 0, "maximum concurrent local wrap sessions (default 8)")
 	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	restoredStartup := flag.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
@@ -246,6 +247,9 @@ func run(args []string) (resultErr error) {
 	if wrapFlagOverrides["wrap-cgroup-root"] {
 		wrapConfig.CgroupRoot = *wrapCgroup
 	}
+	if wrapFlagOverrides["wrap-timezone"] {
+		wrapConfig.Timezone = *wrapTimezone
+	}
 	if wrapFlagOverrides["wrap-max-sessions"] {
 		wrapConfig.MaxSessions = *wrapMaxSessions
 	}
@@ -258,7 +262,7 @@ func run(args []string) (resultErr error) {
 		}
 		wrap, err := app.Inbound.StartLocalWrap(localwrap.Config{
 			Socket: wrapConfig.Socket, UID: wrapConfig.UID, GID: wrapConfig.GID,
-			CgroupRoot: wrapConfig.CgroupRoot, MaxSessions: wrapConfig.MaxSessions,
+			CgroupRoot: wrapConfig.CgroupRoot, Timezone: wrapConfig.Timezone, MaxSessions: wrapConfig.MaxSessions,
 			IPv6: configuration.IPv6.Load(),
 		})
 		if err != nil {
@@ -446,6 +450,14 @@ func validateLocalWrapCLIConfig(cfg contractsettings.WrapSettings) error {
 	}
 	if cfg.MaxSessions < 0 || cfg.MaxSessions > 128 {
 		return errors.New("wrap: max sessions must be 0..128")
+	}
+	if cfg.Timezone != "" {
+		if len(cfg.Timezone) > 128 || strings.ContainsAny(cfg.Timezone, "\x00\r\n") {
+			return errors.New("wrap: invalid timezone")
+		}
+		if _, err := time.LoadLocation(cfg.Timezone); err != nil {
+			return fmt.Errorf("wrap: invalid timezone %q: %w", cfg.Timezone, err)
+		}
 	}
 	return nil
 }
