@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
-	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
