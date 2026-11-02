@@ -26,6 +26,7 @@ import (
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
@@ -42,28 +43,36 @@ import (
 var recoveryStartupCheckpoint func(string)
 
 func run(args []string) (resultErr error) {
-	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
-	initialization := initializationOptions(flag)
-	host := flag.String("host", "0.0.0.0:50051", "http listen host")
-	https := flag.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
-	httpsCert := flag.String("https-cert", "", "TLS certificate PEM file (use with -https-key)")
-	httpsKey := flag.String("https-key", "", "TLS private key PEM file (use with -https-cert)")
-	httpsManaged := flag.String("https-certificate-id", "", "already issued managed HTTPS certificate ID (exclusive with -https-cert/-https-key/-https-names)")
-	httpsNames := flag.String("https-names", "", "comma-separated hostnames or IPs for the generated TLS certificate")
-	username := flag.String("u", "", "username")
-	password := flag.String("p", "", "password")
-	path := flag.String("path", configuration.DataDir.Load(), "save data path")
-	webdir := flag.String("eweb", "", "external web page")
-	wrapSocket := flag.String("wrap-socket", "", "enable the Linux local wrap service on this Unix socket")
-	wrapUID := flag.Uint("wrap-uid", 0, "non-root Unix UID allowed to use local wrap")
-	wrapGID := flag.Uint("wrap-gid", 0, "non-root Unix GID owning the local wrap socket")
-	wrapCgroup := flag.String("wrap-cgroup-root", "", "dedicated stable cgroup v2 root for local wrap")
-	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
-	restoredStartup := flag.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
-	// pprof := flag.Bool("pgo", false, "enables CPU profiling")
-	if err := flag.Parse(args); err != nil {
+	flags := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
+	initialization := initializationOptions(flags)
+	host := flags.String("host", "0.0.0.0:50051", "http listen host")
+	https := flags.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
+	httpsCert := flags.String("https-cert", "", "TLS certificate PEM file (use with -https-key)")
+	httpsKey := flags.String("https-key", "", "TLS private key PEM file (use with -https-cert)")
+	httpsManaged := flags.String("https-certificate-id", "", "already issued managed HTTPS certificate ID (exclusive with -https-cert/-https-key/-https-names)")
+	httpsNames := flags.String("https-names", "", "comma-separated hostnames or IPs for the generated TLS certificate")
+	username := flags.String("u", "", "username")
+	password := flags.String("p", "", "password")
+	path := flags.String("path", configuration.DataDir.Load(), "save data path")
+	webdir := flags.String("eweb", "", "external web page")
+	wrapSocket := flags.String("wrap-socket", "", "enable the Linux local wrap service on this Unix socket")
+	wrapUID := flags.Uint("wrap-uid", 0, "non-root Unix UID allowed to use local wrap")
+	wrapGID := flags.Uint("wrap-gid", 0, "non-root Unix GID owning the local wrap socket")
+	wrapCgroup := flags.String("wrap-cgroup-root", "", "dedicated stable cgroup v2 root for local wrap")
+	wrapTimezone := flags.String("wrap-timezone", "", "IANA timezone for wrapped child processes")
+	wrapMaxSessions := flags.Int("wrap-max-sessions", 0, "maximum concurrent local wrap sessions (default 8)")
+	nfsMode := flags.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
+	restoredStartup := flags.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
+	// pprof := flags.Bool("pgo", false, "enables CPU profiling")
+	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	wrapFlagOverrides := make(map[string]bool)
+	flags.Visit(func(value *flag.Flag) {
+		if strings.HasPrefix(value.Name, "wrap-") {
+			wrapFlagOverrides[value.Name] = true
+		}
+	})
 	if *httpsManaged != "" && (!*https || *httpsCert != "" || *httpsKey != "" || *httpsNames != "") {
 		return errors.New("-https-certificate-id requires HTTPS and excludes certificate file/generated-name flags")
 	}
@@ -211,11 +220,51 @@ func run(args []string) (resultErr error) {
 			log.Error("close app error", "err", err)
 		}
 	}()
-	if *wrapSocket != "" {
-		if *wrapUID > 1<<32-1 || *wrapGID > 1<<32-1 {
-			return errors.New("wrap: UID/GID exceed uint32")
+	// Persisted UI defaults are read at daemon startup only. Explicit CLI flags
+	// override their corresponding values, including an empty -wrap-socket to
+	// disable a previously enabled wrap service.
+	wrapSettings, err := app.Setting.Load(context.Background())
+	if err != nil {
+		return fmt.Errorf("load local wrap defaults: %w", err)
+	}
+	wrapConfig := wrapSettings.Wrap
+	if wrapFlagOverrides["wrap-socket"] {
+		wrapConfig.Socket = *wrapSocket
+		wrapConfig.Enabled = *wrapSocket != ""
+	}
+	if wrapFlagOverrides["wrap-uid"] {
+		if *wrapUID > 1<<32-1 {
+			return errors.New("wrap: UID exceeds uint32")
 		}
-		wrap, err := app.Inbound.StartLocalWrap(localwrap.Config{Socket: *wrapSocket, UID: uint32(*wrapUID), GID: uint32(*wrapGID), CgroupRoot: *wrapCgroup, IPv6: configuration.IPv6.Load()})
+		wrapConfig.UID = uint32(*wrapUID)
+	}
+	if wrapFlagOverrides["wrap-gid"] {
+		if *wrapGID > 1<<32-1 {
+			return errors.New("wrap: GID exceeds uint32")
+		}
+		wrapConfig.GID = uint32(*wrapGID)
+	}
+	if wrapFlagOverrides["wrap-cgroup-root"] {
+		wrapConfig.CgroupRoot = *wrapCgroup
+	}
+	if wrapFlagOverrides["wrap-timezone"] {
+		wrapConfig.Timezone = *wrapTimezone
+	}
+	if wrapFlagOverrides["wrap-max-sessions"] {
+		wrapConfig.MaxSessions = *wrapMaxSessions
+	}
+	if wrapConfig.Enabled {
+		if wrapConfig.Socket == "" {
+			wrapConfig.Socket = localwrap.DefaultSocket
+		}
+		if err := validateLocalWrapCLIConfig(wrapConfig); err != nil {
+			return err
+		}
+		wrap, err := app.Inbound.StartLocalWrap(localwrap.Config{
+			Socket: wrapConfig.Socket, UID: wrapConfig.UID, GID: wrapConfig.GID,
+			CgroupRoot: wrapConfig.CgroupRoot, Timezone: wrapConfig.Timezone, MaxSessions: wrapConfig.MaxSessions,
+			IPv6: configuration.IPv6.Load(),
+		})
 		if err != nil {
 			return err
 		}
@@ -387,4 +436,28 @@ func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (n
 		return netapi.Process{}, err
 	}
 	return netlink.FindProcessName(network, ip, to)
+}
+
+func validateLocalWrapCLIConfig(cfg contractsettings.WrapSettings) error {
+	if cfg.UID == 0 || cfg.GID == 0 {
+		return errors.New("wrap: non-root UID and GID are required")
+	}
+	if !filepath.IsAbs(cfg.Socket) {
+		return errors.New("wrap: socket must be an absolute path")
+	}
+	if cfg.CgroupRoot != "" && !filepath.IsAbs(cfg.CgroupRoot) {
+		return errors.New("wrap: cgroup root must be an absolute path")
+	}
+	if cfg.MaxSessions < 0 || cfg.MaxSessions > 128 {
+		return errors.New("wrap: max sessions must be 0..128")
+	}
+	if cfg.Timezone != "" {
+		if len(cfg.Timezone) > 128 || strings.ContainsAny(cfg.Timezone, "\x00\r\n") {
+			return errors.New("wrap: invalid timezone")
+		}
+		if _, err := time.LoadLocation(cfg.Timezone); err != nil {
+			return fmt.Errorf("wrap: invalid timezone %q: %w", cfg.Timezone, err)
+		}
+	}
+	return nil
 }

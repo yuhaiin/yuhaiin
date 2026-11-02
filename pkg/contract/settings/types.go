@@ -10,6 +10,19 @@ type Settings struct {
 	Advanced            AdvancedConfig  `json:"advanced"`
 	Backup              BackupReference `json:"backup"`
 	TrustedOrigins      []string        `json:"trustedOrigins" privilege:"security:write"`
+	Wrap                WrapSettings    `json:"wrap" privilege:"security:write"`
+}
+
+// WrapSettings contains opt-in defaults for the local Linux wrap service.
+// Changes take effect after restarting the Yuhaiin daemon.
+type WrapSettings struct {
+	Enabled     bool   `json:"enabled"`
+	Socket      string `json:"socket"`
+	UID         uint32 `json:"uid"`
+	GID         uint32 `json:"gid"`
+	CgroupRoot  string `json:"cgroupRoot"`
+	Timezone    string `json:"timezone"`
+	MaxSessions int    `json:"maxSessions"`
 }
 
 type SystemProxy struct {

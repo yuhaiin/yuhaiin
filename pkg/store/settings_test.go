@@ -117,3 +117,42 @@ func TestSettingsStoreTrustedOriginsPersistence(t *testing.T) {
 		t.Fatalf("custom origins not cleared: %v", cleared.TrustedOrigins)
 	}
 }
+
+func TestSettingsStoreWrapDefaultsPersistence(t *testing.T) {
+	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), "state.db")
+	db, err := sqlite.Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	store := NewSettingsStore(db.DB())
+	initial, err := store.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial.Wrap.Enabled {
+		t.Fatal("wrap must default to disabled")
+	}
+
+	initial.Wrap = contractsettings.WrapSettings{
+		Enabled:     true,
+		Socket:      "/run/yuhaiin/custom.sock",
+		UID:         1000,
+		GID:         1000,
+		CgroupRoot:  "/sys/fs/cgroup/delegated/wrap",
+		Timezone:    "Asia/Tokyo",
+		MaxSessions: 12,
+	}
+	if _, err := store.Save(ctx, initial); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := store.Load(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Wrap != initial.Wrap {
+		t.Fatalf("wrap configuration lost: got %+v want %+v", fresh.Wrap, initial.Wrap)
+	}
+}
