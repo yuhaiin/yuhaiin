@@ -230,16 +230,21 @@ type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
 
 func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request, network *connectionNetwork) {
 	ctx, cancel := context.WithCancel(parent)
-	defer cancel()
-	defer ch.Close()
 	var pty *ptyPair
+	var done <-chan struct{}
 	defer func() {
+		// The SSH channel must not finish until the launched process has
+		// released its connection-scoped network and cgroup lease.
+		cancel()
+		if done != nil {
+			<-done
+		}
 		if pty != nil {
 			_ = pty.master.Close()
 			_ = pty.slave.Close()
 		}
+		_ = ch.Close()
 	}()
-	var done <-chan struct{}
 	for {
 		select {
 		case <-ctx.Done():
