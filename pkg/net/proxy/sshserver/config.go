@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"path/filepath"
 	"strings"
 
 	"github.com/yuhaiin/sessionnet"
@@ -17,24 +18,25 @@ import (
 // filesystem isolation are separate features and must not be inferred from
 // authenticating a public key.
 type Config struct {
-	Listen           string
-	InboundID        string
-	CgroupRoot       string
-	HostKey          string
-	Username         string
-	AuthorizedKey    string
-	UID              uint32
-	GID              uint32
-	Shell            string
-	MTU              int
-	GatewayIPv4      string
-	SessionIPv4      string
-	GatewayIPv6      string
-	SessionIPv6      string
-	FakeIPRanges     [2]netip.Prefix
-	IPv6             bool
-	MaxSessions      int
-	AllowUnsafeShell bool
+	Listen            string
+	InboundID         string
+	CgroupRoot        string
+	HostKey           string
+	Username          string
+	AuthorizedKey     string
+	UID               uint32
+	GID               uint32
+	Shell             string
+	SFTPReadOnlyPaths []string
+	MTU               int
+	GatewayIPv4       string
+	SessionIPv4       string
+	GatewayIPv6       string
+	SessionIPv6       string
+	FakeIPRanges      [2]netip.Prefix
+	IPv6              bool
+	MaxSessions       int
+	AllowUnsafeShell  bool
 }
 
 func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
@@ -54,10 +56,15 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 		return nil, nil, errors.New("ssh inbound: non-root UID and GID are required")
 	}
 	if c.Shell == "" {
-		c.Shell = "/bin/sh"
+		c.Shell = loginShell(c.UID)
 	}
 	if !strings.HasPrefix(c.Shell, "/") {
 		return nil, nil, errors.New("ssh inbound: shell must be an absolute path")
+	}
+	for _, path := range c.SFTPReadOnlyPaths {
+		if !filepath.IsAbs(path) || strings.ContainsRune(path, '\x00') {
+			return nil, nil, errors.New("ssh inbound: sftpReadOnlyPaths must contain absolute paths")
+		}
 	}
 	if c.MTU == 0 {
 		c.MTU = 1500

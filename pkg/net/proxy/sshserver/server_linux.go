@@ -14,6 +14,7 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -79,7 +80,7 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 }
 
 // newServerWithManager binds and runs the SSH listener. Production callers
-// always pass a verified manager; nil is reserved for auth-only unit tests.
+// always pass a verified manager; nil is reserved for isolated test fixtures.
 func newServerWithManager(config Config, handler netapi.Handler, signer gossh.Signer, key gossh.PublicKey,
 	addresses sessionnet.AddressConfig, cgroups *sessionnet.CgroupManager,
 ) (*Server, error) {
@@ -229,6 +230,7 @@ type ptyRequest struct {
 	Modes                        string
 }
 type execRequest struct{ Command string }
+type subsystemRequest struct{ Name string }
 type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
 
 func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request, network *connectionNetwork) {
@@ -278,13 +280,22 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 					pty.resize(r.Columns, r.Rows)
 				}
 				_ = req.Reply(true, nil)
-			case "shell", "exec":
+			case "shell", "exec", "subsystem":
 				if done != nil {
 					_ = req.Reply(false, nil)
 					continue
 				}
 				args := []string{s.config.Shell, "-l"}
-				if req.Type == "exec" {
+				if req.Type == "subsystem" {
+					var r subsystemRequest
+					if gossh.Unmarshal(req.Payload, &r) != nil || r.Name != "sftp" || pty != nil {
+						_ = req.Reply(false, nil)
+						continue
+					}
+					// Re-exec the running inode even if its installation directory
+					// is private or the binary has been replaced by an update.
+					args = append([]string{"/proc/self/exe", "internal-sftp"}, s.config.SFTPReadOnlyPaths...)
+				} else if req.Type == "exec" {
 					var r execRequest
 					if gossh.Unmarshal(req.Payload, &r) != nil || len(r.Command) > 16384 {
 						_ = req.Reply(false, nil)
@@ -327,14 +338,21 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	release := sync.OnceFunc(network.release)
 	defer release()
 
+	home, username := sessionUser(s.config.UID, s.config.Username)
 	config := sessionnet.Config{
 		Command: argv,
+		Dir:     home,
 		Env: []string{
-			"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=/tmp",
-			"USER=" + s.config.Username, "LOGNAME=" + s.config.Username,
+			"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + home,
+			"USER=" + username, "LOGNAME=" + username,
+			"SHELL=" + s.config.Shell,
 			"TERM=xterm",
 		},
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
+	}
+	// Match sshd's fallback when an account has no usable home directory.
+	if info, err := os.Stat(home); err != nil || !info.IsDir() {
+		config.Dir = "/"
 	}
 	if pty != nil {
 		config.PTYSlave = pty.slave
@@ -365,6 +383,18 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	_ = process.Close()
 	release()
 	_ = sendExitStatus(channel, code)
+}
+
+func sessionUser(uid uint32, fallbackName string) (home, username string) {
+	account, err := user.LookupId(strconv.FormatUint(uint64(uid), 10))
+	if err != nil {
+		return "/", fallbackName
+	}
+	home = account.HomeDir
+	if !filepath.IsAbs(home) {
+		home = "/"
+	}
+	return home, account.Username
 }
 func sendExitStatus(ch gossh.Channel, code uint32) error {
 	_, err := ch.SendRequest("exit-status", false, gossh.Marshal(struct{ Status uint32 }{code}))

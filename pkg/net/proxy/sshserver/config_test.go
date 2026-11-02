@@ -55,6 +55,8 @@ func TestValidate(t *testing.T) {
 		{"root uid", func(c *Config) { c.UID = 0 }, "non-root"},
 		{"root gid", func(c *Config) { c.GID = 0 }, "non-root"},
 		{"relative shell", func(c *Config) { c.Shell = "sh" }, "absolute"},
+		{"relative SFTP directory", func(c *Config) { c.SFTPReadOnlyPaths = []string{"archive"} }, "sftpReadOnlyPaths"},
+		{"invalid SFTP directory", func(c *Config) { c.SFTPReadOnlyPaths = []string{"/archive\x00"} }, "sftpReadOnlyPaths"},
 		{"no auth key", func(c *Config) { c.AuthorizedKey = "" }, "authorizedKey"},
 		{"no host key", func(c *Config) { c.HostKey = "" }, "hostKey"},
 		{"bad mtu", func(c *Config) { c.MTU = 1000 }, "MTU"},

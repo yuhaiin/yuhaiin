@@ -2,9 +2,32 @@ package inbound
 
 import (
 	json "encoding/json/v2"
+	"slices"
 	"strings"
 	"testing"
 )
+
+func TestSSHSFTPPolicyJSONCompatibility(t *testing.T) {
+	var old SSHProtocol
+	if err := json.Unmarshal([]byte(`{"username":"alice","uid":1000,"gid":1000}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if len(old.SFTPReadOnlyPaths) != 0 {
+		t.Fatal("legacy SSH config unexpectedly restricted SFTP")
+	}
+	configured := SSHProtocol{Username: "alice", UID: 1000, GID: 1000, SFTPReadOnlyPaths: []string{"/srv/archive", "/srv/backups"}}
+	data, err := json.Marshal(configured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored SSHProtocol
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(restored.SFTPReadOnlyPaths, configured.SFTPReadOnlyPaths) {
+		t.Fatalf("SFTP policy lost during JSON roundtrip: %s", data)
+	}
+}
 
 func TestTunStackJSONCompatibility(t *testing.T) {
 	var old TunProtocol

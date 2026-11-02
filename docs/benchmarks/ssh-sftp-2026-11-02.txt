@@ -1,0 +1,18 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/sshserver
+cpu: AMD Ryzen 5 5600G with Radeon Graphics         
+BenchmarkSFTPRead/SystemPermissions         	  133615	     17984 ns/op	1822.03 MB/s	   82336 B/op	      15 allocs/op
+BenchmarkSFTPRead/SystemPermissions         	  131848	     18226 ns/op	1797.86 MB/s	   82336 B/op	      15 allocs/op
+BenchmarkSFTPRead/SystemPermissions         	  131980	     18045 ns/op	1815.89 MB/s	   82336 B/op	      15 allocs/op
+BenchmarkSFTPRead/ReadOnlyPolicy            	  133417	     17935 ns/op	1827.00 MB/s	   82336 B/op	      15 allocs/op
+BenchmarkSFTPRead/ReadOnlyPolicy            	  129858	     18269 ns/op	1793.62 MB/s	   82336 B/op	      15 allocs/op
+BenchmarkSFTPRead/ReadOnlyPolicy            	  132336	     18187 ns/op	1801.73 MB/s	   82336 B/op	      15 allocs/op
+BenchmarkSFTPTransfer/SystemPermissions     	  180279	     13250 ns/op	2472.99 MB/s	   41528 B/op	      16 allocs/op
+BenchmarkSFTPTransfer/SystemPermissions     	  179341	     13353 ns/op	2453.92 MB/s	   41528 B/op	      16 allocs/op
+BenchmarkSFTPTransfer/SystemPermissions     	  180303	     13363 ns/op	2452.12 MB/s	   41528 B/op	      16 allocs/op
+BenchmarkSFTPTransfer/ReadOnlyPolicy        	  136488	     17646 ns/op	1856.95 MB/s	   41880 B/op	      22 allocs/op
+BenchmarkSFTPTransfer/ReadOnlyPolicy        	  135393	     17786 ns/op	1842.40 MB/s	   41912 B/op	      22 allocs/op
+BenchmarkSFTPTransfer/ReadOnlyPolicy        	  130428	     17909 ns/op	1829.66 MB/s	   41912 B/op	      22 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/sshserver	28.715s
