@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -56,6 +57,14 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 	}
 	if config.MaxSessions < 1 || config.MaxSessions > 128 {
 		return nil, errors.New("wrap: max sessions must be 1..128")
+	}
+	if config.Timezone != "" {
+		if len(config.Timezone) > 128 || strings.ContainsAny(config.Timezone, "\x00\r\n") {
+			return nil, errors.New("wrap: invalid timezone")
+		}
+		if _, err := time.LoadLocation(config.Timezone); err != nil {
+			return nil, fmt.Errorf("wrap: invalid timezone %q: %w", config.Timezone, err)
+		}
 	}
 	if config.CgroupRoot == "" {
 		config.CgroupRoot = fmt.Sprintf("/sys/fs/cgroup/yuhaiin/wrap/%x", sha256.Sum256([]byte(config.Socket)))
@@ -278,7 +287,7 @@ func (s *Server) startCommand(ctx context.Context, req request, files []*os.File
 	if err := processnet.CheckFakeIPOverlap(sessionnet.AddressConfig{}, s.pools, s.config.IPv6); err != nil {
 		return nil, err
 	}
-	cfg := sessionnet.Config{Command: req.Argv, Env: append([]string{}, req.Env...), Dir: req.Dir, Credential: credential, IPv6: s.config.IPv6, Cgroup: s.cgroups, IsolateDNS: true}
+	cfg := sessionnet.Config{Command: req.Argv, Env: wrapEnvironment(req.Env, s.config.Timezone), Dir: req.Dir, Credential: credential, IPv6: s.config.IPv6, Cgroup: s.cgroups, IsolateDNS: true}
 	if req.TTY {
 		cfg.PTYSlave = files[0]
 	} else {
@@ -299,6 +308,22 @@ func (s *Server) startCommand(ctx context.Context, req request, files []*os.File
 		return nil, err
 	}
 	return process, nil
+}
+
+// wrapEnvironment only overrides a wrapped process's environment. A blank
+// timezone preserves the caller environment without affecting the host.
+func wrapEnvironment(env []string, timezone string) []string {
+	result := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if timezone != "" && strings.HasPrefix(entry, "TZ=") {
+			continue
+		}
+		result = append(result, entry)
+	}
+	if timezone != "" {
+		result = append(result, "TZ="+timezone)
+	}
+	return result
 }
 
 // UpdateFakeIPRanges blocks incompatible new sessions and terminates active
