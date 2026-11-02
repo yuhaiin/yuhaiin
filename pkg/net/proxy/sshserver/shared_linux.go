@@ -142,18 +142,22 @@ func (g *connectionNetwork) detachLocked() (*sessionnet.Session, io.Closer, *os.
 }
 
 func closeConnectionNetwork(owner *sessionnet.Session, flows io.Closer, keepalive *os.File) {
-	var err error
+	// Cleanup errors may contain credentials from the underlying transport or
+	// routing stack. Only log a fixed component label, never the raw error.
 	if keepalive != nil {
-		err = errors.Join(err, keepalive.Close())
+		if err := keepalive.Close(); err != nil {
+			slog.Error("ssh inbound: isolated session cleanup failed", "component", "keepalive")
+		}
 	}
 	if owner != nil {
-		err = errors.Join(err, owner.Close())
+		if err := owner.Close(); err != nil {
+			slog.Error("ssh inbound: isolated session cleanup failed", "component", "namespace")
+		}
 	}
 	if flows != nil {
-		err = errors.Join(err, flows.Close())
-	}
-	if err != nil {
-		slog.Error("ssh inbound: failed to clean up isolated session networking", "error", err)
+		if err := flows.Close(); err != nil {
+			slog.Error("ssh inbound: isolated session cleanup failed", "component", "packet stack")
+		}
 	}
 }
 
