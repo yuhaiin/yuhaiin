@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -309,6 +310,37 @@ func (r *NodeRuntime) Active(context.Context) ([]contractnode.Node, error) {
 	})
 	slices.SortFunc(items, func(a, b contractnode.Node) int { return cmp.Compare(a.ID, b.ID) })
 	return items, nil
+}
+
+// TCPStackSnapshot describes an already instantiated outbound TCP/IP stack.
+// Node IDs must not be summed with inbound stack counters as global bytes.
+type TCPStackSnapshot struct {
+	NodeID string
+	Snapshot lightweight.StackDiagnostics
+}
+
+// ActiveTCPStackSnapshots does not construct proxies, perform network I/O,
+// or start any VPN. Only top-level providers in the existing proxy cache appear.
+func (r *NodeRuntime) ActiveTCPStackSnapshots(limit int) []TCPStackSnapshot {
+	if r.proxies == nil {
+		return nil
+	}
+	var items []TCPStackSnapshot
+	r.proxies.Range(func(id string, entry *ProxyEntry) bool {
+		if entry == nil {
+			return true
+		}
+		entry.mu.RLock()
+		if provider, ok := entry.Proxy.(interface{ StackDiagnostic(int) lightweight.StackDiagnostics }); ok {
+			snapshot := provider.StackDiagnostic(limit)
+			if snapshot.MTU > 0 {
+				items = append(items, TCPStackSnapshot{NodeID: id, Snapshot: snapshot})
+			}
+		}
+		entry.mu.RUnlock()
+		return len(items) < 16
+	})
+	return items
 }
 
 func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.NodeExtraInfo, error) {
