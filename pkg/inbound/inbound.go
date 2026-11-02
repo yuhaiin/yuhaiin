@@ -100,7 +100,7 @@ func (l *Inbound) TrafficControlStatus() trafficcontrol.Status {
 // TCPStackState identifies a live lightweight stack independently of its flows.
 type TCPStackState struct {
 	InboundID string
-	Snapshot lightweight.StackDiagnostics
+	Snapshot  lightweight.StackDiagnostics
 }
 
 // TCPStackDiagnostics is intentionally on-demand and bounded. Stacks without
