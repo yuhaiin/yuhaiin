@@ -212,3 +212,24 @@ func TestFindingsDoNotOverclaim(t *testing.T) {
 		}
 	}
 }
+
+
+func TestTCPOnlyDiagnosticsSkipNetworkProbes(t *testing.T) {
+	var probes atomic.Int32
+	service := New(Dependencies{
+		TUN: func(context.Context) ([]TUNState, error) {
+			probes.Add(1)
+			return nil, nil
+		},
+		TCP: func(context.Context) []tools.TCPStackDiagnostic {
+			return []tools.TCPStackDiagnostic{{InboundID: "tun-1", MTU: 1500}}
+		},
+	})
+	report, err := service.Run(context.Background(), tools.DiagnosticRequest{TCPOnly: true})
+	if err != nil || len(report.TCPStacks) != 1 || report.TCPStacks[0].InboundID != "tun-1" {
+		t.Fatalf("snapshot failed: %+v, %v", report, err)
+	}
+	if probes.Load() != 0 || len(report.Checks) != 0 {
+		t.Fatalf("unexpected network probes: %+v", report)
+	}
+}
