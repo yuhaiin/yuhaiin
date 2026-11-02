@@ -18,7 +18,7 @@
 
 **One engine. Many networks. Consistent traffic policies.**
 
-Yuhaiin is an open-source, cross-platform networking toolkit that brings enterprise VPN connectivity, encrypted overlay networks, policy-based routing, traffic control, and HTTP application gateways into one extensible engine. Connect to different networks and services, control where traffic goes, and apply L4/L7 policies and optional bandwidth limits without maintaining a separate proxy stack for each protocol.
+Yuhaiin is an open-source, cross-platform networking toolkit bringing enterprise VPN connectivity, encrypted overlays, identity-aware traffic access, policy routing, traffic control and HTTP application gateways into one extensible engine. It also offers per-user resource governance, intelligent outbound selection, managed certificates and recovery tools for shared deployments.
 
 > **Scope:** Yuhaiin provides building blocks for Zero Trust-style network access. It is **not** a complete ZTNA platform, identity provider, endpoint security product, or host-wide firewall.
 
@@ -29,28 +29,36 @@ Yuhaiin is an open-source, cross-platform networking toolkit that brings enterpr
 - **Handle application traffic with HTTP Gateway.** Apply request-level policies, reverse proxy to backends, and choose existing outbound nodes per request.
 - **Keep networking flexible.** Use a single lightweight userspace TCP/IP stack for TUN and VPN/overlay packet processing, without alternative gVisor or tun2socket TUN backends.
 - **Control congestion and resource use.** Apply optional upload/download rate profiles, bound connection and NAT resources, and choose FIFO or fair output scheduling for the lightweight TUN stack.
-- **Manage identities and trace proxy usage.** Protect management APIs with local accounts and scoped tokens, authenticate supported proxy inbounds with per-user device credentials, and inspect user traffic reports and connection audits.
+- **Manage identities and trace proxy usage.** Use local accounts, custom roles, scoped tokens, Passkeys and optional OIDC; authenticate supported proxy inbounds with revocable per-device credentials, and inspect user traffic and security audits.
+- **Enforce optional access and resource policy.** Manage user groups, explicit traffic allow/deny rules, identity-based bandwidth and byte quotas, and admission limits without conflating routing with authorization.
+- **Operate resiliently.** Select healthy outbounds using latency/throughput/failover policies, back up deployment state in encrypted archives, and manage TLS certificates with ACME.
 
 ## Core Capabilities
 
 | Capability | Highlights |
 | --- | --- |
 | **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process, and inbound-based rules; DNS and FakeIP integration |
-| **Management Identity & API Security** | Local administrator/read-only/proxy-only accounts, permission-scoped API tokens, revocable browser sessions, GitHub/Google OAuth sign-in and account linking |
-| **Proxy User Authentication & Credentials** | Independently revocable credentials for supported HTTP, SOCKS5, Mixed, Hysteria 2, and Yuubinsya inbounds; optional per-inbound user selection; shared outbound credential references |
+| **Management Identity & API Security** | Local and custom RBAC roles, scoped API tokens, revocable sessions, WebAuthn Passkeys, GitHub/Google OAuth, generic OIDC, management security audit |
+| **Proxy User Authentication & Credentials** | Independently revocable device credentials for HTTP, SOCKS5, Mixed, Hysteria 2, Yuubinsya and SSTP inbounds; explicit legacy/users/mixed modes; shared outbound credential references |
 | **Per-user Usage & Session Audits** | Lifetime and UTC-period traffic reports, credential/inbound/node/protocol breakdowns, rates and concurrency, filterable connection metadata audits, configurable retention |
+| **Traffic Identity & Access Policy** | Stable user groups, identity-aware routing, separately enforced ordered allow/deny access policies, protected inbound scopes, deny-by-default options |
+| **Identity Resource Governance** | User, group, shared-group and credential shaping, UTC-window byte quotas, sessions, connection/packet rate admission, diagnostics and bounded alerts |
 | **Traffic Control & QoS** | Optional hierarchical upload/download limits with burst allowances; global/inbound/route profiles; connection and NAT resource budgets; lightweight TUN FIFO or FQ-CoDel scheduling; diagnostics |
 | **Enterprise VPN & Overlay Networking** | Corporate SSL/IPsec VPN clients, WireGuard, Tailscale, Nebula, ZeroTier, and related encrypted networking protocols |
 | **HTTP Gateway & Application Proxy** | HTTP/HTTPS reverse proxy, Host/Path/Header conditions, rewrites, redirects, URL filtering, upstream health checks and balancing, optional TLS interception |
 | **Unified Proxy Engine** | TCP/UDP handling, transparent proxy, proxy chains, selectable outbounds, connection visibility, cross-platform clients |
+| **Automatic Outbound Selection** | Manual, failover, fresh latency, measured throughput, balanced scoring and weighted new-flow distribution; bounded probing and circuit recovery |
+| **Recovery & Managed Certificates** | Encrypted complete backups, verified local/S3 restore, protected updates and rollback, ACME HTTP-01 / Cloudflare DNS-01 with automated renewal |
 
 ### How traffic flows
 
 ```mermaid
 flowchart TD
   A[Applications / Devices / Networks] --> B[Inbound: TUN / Mixed / SOCKS / HTTP / WireGuard]
-  B --> C{L4 Policy Routing}
-  C -->|Block| D[Reject traffic]
+  B --> P{Traffic Access Policy}
+  P -->|Denied| D[Reject traffic]
+  P -->|Allowed or disabled| C{L4 Policy Routing}
+  C -->|Block| D
   C -->|Direct / Proxy| E[Outbound Selection]
   C -->|Gateway action for TCP| F[HTTP Gateway]
   F --> G{HTTP Request Policies}
@@ -59,7 +67,7 @@ flowchart TD
   E --> I[Enterprise VPN / Overlay / Proxy / Direct]
 ```
 
-The HTTP Gateway is **optional**: ordinary connections continue through L4 routing without HTTP inspection. HTTPS interception is opt-in and requires an explicitly configured CA, target allowlist, and client trust. GREASE ECH can be inspected as ordinary TLS; real ECH inner traffic and HTTP/3 are not decrypted. The Gateway does not bypass certificate pinning.
+The Traffic Access Policy is **optional** and acts before the ordinary L4 forwarding decision where enabled. Protected scopes require valid authenticated traffic identities. The HTTP Gateway is **optional**: ordinary connections continue through L4 routing without HTTP inspection. HTTPS interception is opt-in and requires an explicitly configured CA, target allowlist, and client trust. GREASE ECH can be inspected as ordinary TLS; real ECH inner traffic and HTTP/3 are not decrypted. The Gateway does not bypass certificate pinning.
 
 ## Supported Connectivity
 
@@ -68,14 +76,17 @@ The HTTP Gateway is **optional**: ordinary connections continue through L4 routi
 | **Enterprise VPN clients** | OpenVPN, GlobalProtect, AnyConnect, Fortinet SSL VPN, IKEv2/IPsec, SSTP, SoftEther |
 | **Mesh & overlay networking** | WireGuard, AmneziaWG, Tailscale (tsnet), Nebula, ZeroTier, Cloudflare WARP |
 | **Modern proxies & tunnels** | Shadowsocks, ShadowsocksR, VMess, VLESS, Trojan, Hysteria 2, standard MASQUE CONNECT-IP client, SSH |
-| **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound, MASQUE HTTP/3 CONNECT-IP inbound |
+| **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound, MASQUE HTTP/3 CONNECT-IP inbound, authenticated SSTP server (IPv4) |
+| **Additional inbounds** | Experimental Linux SSH shell/exec with isolated per-connection networking; Krunlet microVM TCP/UDP over a local Unix socket |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
 
-**MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the authenticated server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
+**MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the bearer-token-protected server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
+
+**SSTP server:** rootless TLS/PPP/MS-CHAPv2 termination uses existing per-user device credentials and the lightweight stack without a host TUN/TAP device or route changes. It supports IPv4 only, stores password-equivalent NT-hash verifier material and needs a newly issued/rotated credential to support SSTP.
 
 **Tailnet:** Tailscale connectivity uses the proven embedded `tsnet.Server` integration with Yuhaiin's configured outbound as its per-node network Underlay. TCP/UDP application traffic still runs through the shared lightweight userspace stack rather than an OS TUN. The previous `tailscaled.state` identity is reused when available; a node created only with `tailscale-lite` may need explicit enrollment or state recovery. See [Tailnet compatibility and rollback](docs/tailscale-rollback.md).
 
-**Support varies by protocol and platform.** Some integrations remain experimental or have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
+**Support varies by protocol and platform.** The Linux-only SSH inbound is experimental and its network namespace does not provide filesystem or process isolation. The Krunlet inbound is a local Unix-socket integration, not a remote proxy listener. Some integrations have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
 
 ## Identity, Credentials & Auditing
 
