@@ -20,6 +20,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -29,6 +30,7 @@ import (
 type Wireguard struct {
 	netapi.EmptyDispatch
 	net    *LightweightNetTun
+	diagnosticStack *lightweight.Stack
 	bind   *netBindClient
 	conf   Config
 	device *device.Device
@@ -97,6 +99,7 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 	w := &Wireguard{
 		conf: conf,
 		net:  tun,
+		diagnosticStack: tun.Stack(),
 		bind: newNetBindClient(conf.Reserved),
 		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
@@ -116,6 +119,15 @@ func (w *Wireguard) init() {
 
 		w.device = dev
 	})
+}
+
+// StackDiagnostic reads an existing userspace TCP stack without a peer probe.
+// The stable pointer is retained across shutdown to avoid racing mutable device fields.
+func (w *Wireguard) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	if w.diagnosticStack == nil {
+		return lightweight.StackDiagnostics{}
+	}
+	return w.diagnosticStack.DiagnosticSnapshot(limit)
 }
 
 func (w *Wireguard) Close() error {
