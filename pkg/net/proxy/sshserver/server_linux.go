@@ -17,6 +17,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -177,6 +178,7 @@ func (s *Server) serveConn(raw net.Conn) {
 type ptyPair struct {
 	master *os.File
 	slave  *os.File
+	term   string
 }
 
 func openPTY(columns, rows uint32) (*ptyPair, error) {
@@ -267,12 +269,15 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 					continue
 				}
 				var r ptyRequest
-				if gossh.Unmarshal(req.Payload, &r) != nil || len(r.Term) > 128 {
+				if gossh.Unmarshal(req.Payload, &r) != nil || len(r.Term) > 128 || strings.ContainsAny(r.Term, "\x00\r\n") {
 					_ = req.Reply(false, nil)
 					continue
 				}
 				var err error
 				pty, err = openPTY(r.Columns, r.Rows)
+				if err == nil {
+					pty.term = r.Term
+				}
 				_ = req.Reply(err == nil, nil)
 			case "window-change":
 				var r resizeRequest
@@ -346,7 +351,6 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 			"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + home,
 			"USER=" + username, "LOGNAME=" + username,
 			"SHELL=" + s.config.Shell,
-			"TERM=xterm",
 		},
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
 	}
@@ -356,6 +360,9 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	}
 	if pty != nil {
 		config.PTYSlave = pty.slave
+		if pty.term != "" {
+			config.Env = append(config.Env, "TERM="+pty.term)
+		}
 	} else {
 		config.Stdin, config.Stdout, config.Stderr = channel, channel, channel.Stderr()
 	}
