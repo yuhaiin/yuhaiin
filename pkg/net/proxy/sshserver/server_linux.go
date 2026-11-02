@@ -345,8 +345,8 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 
 	home, username := sessionUser(s.config.UID, s.config.Username)
 	config := sessionnet.Config{
-		Command: argv,
-		Dir:     home,
+		Command:    argv,
+		Dir:        home,
 		Env:        sessionEnvironment(s.config, home, username),
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
 	}
