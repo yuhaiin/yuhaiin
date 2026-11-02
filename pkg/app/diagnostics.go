@@ -6,6 +6,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	"github.com/Asutorufa/yuhaiin/pkg/diagnostics"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -49,6 +50,48 @@ func newDiagnostics(inboundConfigStore *plainstore.InboundStore, inbounds *inbou
 				return nil, err
 			}
 			return nodeRuntime.GetDialerByID(ctx, selected.TCP.ID)
+		},
+		TCP: func(ctx context.Context) []contracttools.TCPStackDiagnostic {
+			if ctx.Err() != nil {
+				return nil
+			}
+			var result []contracttools.TCPStackDiagnostic
+			for _, item := range inbounds.TCPStackDiagnostics(32) {
+				stack := item.Snapshot
+				stats := stack.Stats
+				report := contracttools.TCPStackDiagnostic{
+					InboundID: item.InboundID,
+					MTU: stack.MTU,
+					Statistics: contracttools.TCPStackStatistics{
+						Connections: stats.Connections, MemoryBytes: stats.MemoryBytes,
+						PacketsIn: stats.PacketsIn, PacketsOut: stats.PacketsOut,
+						Drops: stats.Drops, Retransmissions: stats.Retransmissions,
+						RSTSent: stats.RSTSent, RSTReceived: stats.RSTReceived,
+						InvalidInputDrops: stats.InvalidInputDrops, RateLimitedDrops: stats.RateLimitedDrops,
+						OutputAQMDrops: stats.OutputAQMDrops, OutputRejected: stats.OutputRejected,
+						OutputOverloadDrops: stats.OutputOverloadDrops,
+						OutputQueuedPackets: stats.OutputQueuedPackets, OutputQueuedBytes: stats.OutputQueuedBytes,
+					},
+					Flows: make([]contracttools.TCPFlowDiagnostic, 0, len(stack.Flows)),
+				}
+				for _, flow := range stack.Flows {
+					f := contracttools.TCPFlowDiagnostic{
+						State: string(flow.State), Local: flow.Local, Remote: flow.Remote,
+						CongestionWindow: flow.CongestionWindow, BytesInFlight: flow.BytesInFlight,
+						SRTTMilliseconds: flow.SRTTMilliseconds, RTOMilliseconds: flow.RTOMilliseconds,
+						PacingRate: flow.PacingRate, LostBytes: flow.LostBytes,
+						Retransmissions: flow.Retransmissions, DuplicateACKs: flow.DuplicateACKs,
+						PathMSS: flow.PathMSS, Retries: flow.Retries, Recovering: flow.Recovering,
+					}
+					if flow.BBR != nil {
+						f.BBRMode = string(flow.BBR.Mode)
+						f.BBRPhase = string(flow.BBR.Phase)
+					}
+					report.Flows = append(report.Flows, f)
+				}
+				result = append(result, report)
+			}
+			return result
 		},
 		TUN: func(ctx context.Context) ([]diagnostics.TUNState, error) {
 			if inboundConfigStore == nil {
