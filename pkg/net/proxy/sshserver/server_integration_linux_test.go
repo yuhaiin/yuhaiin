@@ -582,7 +582,7 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 		_ = session.Close()
 		t.Fatal(err)
 	}
-	if err := session.Start("readlink /proc/self/ns/net; echo $; exec sleep 30"); err != nil {
+	if err := session.Start("readlink /proc/self/ns/net; echo $$; exec sleep 30"); err != nil {
 		_ = session.Close()
 		t.Fatal(err)
 	}
