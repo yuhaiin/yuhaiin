@@ -3,6 +3,11 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "go.mod"
+      - "go.sum"
+      - ".github/actions/setup-go/**"
+      - "pkg/net/netapi/**"
+      - "pkg/net/proxy/internal/testutil/**"
       - "pkg/net/proxy/wireguard/**"
       - "pkg/net/proxy/tun/lightweight/**"
       - "pkg/net/proxy/softether/**"

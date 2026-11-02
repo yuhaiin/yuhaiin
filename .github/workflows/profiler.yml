@@ -26,13 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            race: '-race'
-          - os: macos-latest
-            race: ''
-          - os: windows-latest
-            race: ''
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -42,4 +36,4 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Verify profiler capture and official viewer
-        run: go test ${{ matrix.race }} -count=1 ./pkg/app -run '^TestProfiler'
+        run: go test -count=1 ./pkg/app -run '^TestProfiler'

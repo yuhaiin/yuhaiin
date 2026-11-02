@@ -1,0 +1,150 @@
+name: Unit tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'pkg/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - go.mod
+      - go.sum
+      - example/management-auth/**
+      - .github/workflows/tests.yml
+      - .github/actions/setup-go/**
+  push:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'pkg/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - go.mod
+      - go.sum
+      - example/management-auth/**
+      - .github/workflows/tests.yml
+      - .github/actions/setup-go/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      # Each default-build package belongs to exactly one group. Specialized
+      # tags, native platforms and real-server fixtures run in separate jobs.
+      matrix:
+        include:
+          - group: network
+            packages: >-
+              ./pkg/net/proxy/shadowsocksr/... ./pkg/net/proxy/ssh/...
+              ./pkg/net/proxy/wireguard/... ./pkg/net/proxy/amneziawg/...
+              ./pkg/net/proxy/nebula/... ./pkg/net/proxy/zerotier/...
+              ./pkg/net/proxy/ikev2/... ./pkg/net/proxy/anyconnect/...
+              ./pkg/net/proxy/sstp/... ./pkg/net/proxy/fortinet/...
+              ./pkg/net/proxy/vpnkit/... ./pkg/net/proxy/globalprotect
+              ./pkg/net/proxy/softether/... ./pkg/net/proxy/openvpn/...
+              ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/tailscale/...
+              ./pkg/net/proxy/direct ./pkg/net/proxy/hysteria2/...
+              ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/...
+              ./pkg/net/proxy/tun/... ./pkg/net/dns/resolver
+          - group: gateway
+            packages: >-
+              ./pkg/gateway ./pkg/cert ./pkg/cert/manager/...
+              ./pkg/management/tls ./pkg/net/proxy/http ./pkg/net/proxy/tls
+              ./pkg/net/proxy/sshserver ./pkg/inbound/... ./pkg/httpapi/...
+              ./pkg/store/... ./pkg/storage/sqlite ./pkg/route
+              ./pkg/contract/connection ./pkg/contract/inbound
+              ./pkg/contract/node ./pkg/contract/certificate ./pkg/register
+              ./pkg/resolver ./pkg/statistics
+          - group: application
+            packages: >-
+              ./pkg/node ./pkg/net/latency ./cmd/speed-test-server
+              ./pkg/s3 ./pkg/update/... ./cmd/update-metadata
+              ./pkg/management/auth ./cmd/android ./cmd/yuhaiin/...
+              ./pkg/utils/lockfile ./pkg/app ./pkg/app/backup/...
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: unit-${{ matrix.group }}
+      - uses: actions/setup-node@v7
+        if: matrix.group == 'application'
+        with:
+          node-version: '26'
+      - name: Test each package once with the race detector
+        env:
+          TEST_PACKAGES: ${{ matrix.packages }}
+        run: |
+          read -r -a packages <<< "$TEST_PACKAGES"
+          go test -race -count=1 -timeout=10m "${packages[@]}"
+      - name: Test MASQUE independently of concurrent network tests
+        if: matrix.group == 'network'
+        # PMTU timing depends on acknowledgements; retain serial package execution.
+        run: go test -race -count=1 -p 1 -timeout=10m ./pkg/net/proxy/masque/...
+      - name: Test default-build nil connection contracts
+        if: matrix.group == 'network'
+        run: |
+          pattern='^(TestIsNilConn|TestIsNilPacketConn|TestHappyEyeballsDirectDialReturnsTrueNilOnFailure|TestHappyEyeballsV2GenericRejectsNilSuccess|TestHappyEyeballsParallelDoesNotReturnTypedNil|TestUnderlayNormalizesTypedNilTCP|TestUnderlayNormalizesTCPConnectionCleanup|TestUnderlayNormalizesTypedNilUDP)$'
+          go test -race -count=1 -run "$pattern" ./pkg/net/netapi ./pkg/net/dialer
+
+  release-configuration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: release-configuration-tests
+      - name: Check release feature tags and native lightweight stack
+        run: |
+          go test ./cmd/buildtags
+          tags="$(go run ./cmd/buildtags/...)"
+          if [[ ",$tags," == *",ts_omit_dns,"* || ",$tags," == *",ts_omit_netstack,"* ]]; then
+            echo "tsnet build disables required DNS or netstack feature" >&2
+            exit 1
+          fi
+          go list -deps -tags="$tags" ./cmd/yuhaiin ./cmd/android > "$RUNNER_TEMP/deps"
+          if grep -E '^github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/(gvisor|tun2socket)(/|$)' "$RUNNER_TEMP/deps"; then
+            echo "removed Yuhaiin global TUN backend unexpectedly linked" >&2
+            exit 1
+          fi
+          go test -count=1 -tags="$tags" \
+            -run '^(TestDNSPacket.*|TestTailscaleDNSManagerMissing|TestUnavailableTailscaleDialer)$' ./pkg/net/proxy/tailscale
+          pattern='^(TestIsNilConn|TestIsNilPacketConn|TestHappyEyeballsDirectDialReturnsTrueNilOnFailure|TestHappyEyeballsV2GenericRejectsNilSuccess|TestHappyEyeballsParallelDoesNotReturnTypedNil|TestUnderlayNormalizesTypedNilTCP|TestUnderlayNormalizesTCPConnectionCleanup|TestUnderlayNormalizesTypedNilUDP)$'
+          go test -race -count=1 -tags="$tags" -run "$pattern" \
+            ./pkg/net/netapi ./pkg/net/dialer ./pkg/net/proxy/tailscale
+      - name: Keep offline recovery independent of unsupported native bridges
+        run: |
+          for target in android/arm64/0 android/amd64/0 android/amd64/1 freebsd/amd64/0 openbsd/amd64/0; do
+            IFS=/ read -r target_os target_arch target_cgo <<< "$target"
+            GOOS="$target_os" GOARCH="$target_arch" CGO_ENABLED="$target_cgo" \
+              go list -deps ./pkg/app > "$RUNNER_TEMP/recovery-dependencies"
+            if grep -E '^(github.com/yuhaiin/zerotier-go|github.com/ebitengine/purego)(/|$)' "$RUNNER_TEMP/recovery-dependencies"; then
+              echo "offline recovery bypasses the native bridge platform boundary on $target" >&2
+              exit 1
+            fi
+          done
+      - name: Verify QUIC import consolidation
+        run: |
+          if grep -R -nE '^[[:space:]]*(import[[:space:]]+)?"github.com/quic-go/(connect-ip-go|quic-go)(/[^"]*)?"' pkg --include='*.go'; then
+            echo "Separate quic-go modules are still imported" >&2
+            exit 1
+          fi
+          if grep -E '^\s*github.com/quic-go/(quic-go|connect-ip-go) ' go.mod; then
+            echo "Separate quic-go modules still in direct go.mod" >&2
+            exit 1
+          fi

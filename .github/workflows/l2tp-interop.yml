@@ -2,6 +2,11 @@ name: L2TP server interop
 on:
   pull_request:
     paths:
+      - "go.mod"
+      - "go.sum"
+      - ".github/actions/setup-go/**"
+      - "pkg/net/netapi/**"
+      - "pkg/net/proxy/internal/testutil/**"
       - "pkg/net/proxy/wireguard/**"
       - "pkg/net/proxy/tun/lightweight/**"
       - "pkg/net/proxy/l2tp/**"
@@ -26,18 +31,12 @@ permissions:
 jobs:
   linux-peers:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        congestion: [bbr, cubic]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
         with:
-          cache-scope: l2tp-interop-${{ matrix.congestion }}
-      - name: Test protocol and contract with race detector
-        run: go test -race ./pkg/net/proxy/l2tp/... ./pkg/net/proxy/wireguard ./pkg/net/proxy/tun/lightweighttun ./pkg/contract/node ./pkg/register
+          cache-scope: l2tp-interop
       - name: Prepare captures and check each peer's kernel support
         id: kernel-support
         run: |
@@ -66,23 +65,39 @@ jobs:
       - name: Test xl2tpd and pppd over IPv4 and IPv6
         if: ${{ !cancelled() && steps.kernel-support.outputs.ppp == 'true' }}
         env:
-          L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
-          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}
+          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics
           L2TP_CAPTURE_PCAP: '1'
-        run: python3 scripts/bench/l2tp/run.py --runtime docker --ppp
+        run: |
+          result=0
+          for congestion in bbr cubic; do
+            if ! L2TP_TEST_CONGESTION_CONTROL="$congestion" \
+              L2TP_DIAGNOSTICS_DIR="$L2TP_DIAGNOSTICS_DIR/$congestion" \
+              python3 scripts/bench/l2tp/run.py --runtime docker --ppp; then
+              result=1
+            fi
+          done
+          exit "$result"
       - name: Test Linux L2TPv3 over IPv4 and IPv6
         if: ${{ !cancelled() && steps.kernel-support.outputs.l2tpv3 == 'true' }}
         env:
-          L2TP_TEST_CONGESTION_CONTROL: ${{ matrix.congestion }}
-          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}
+          L2TP_DIAGNOSTICS_DIR: ${{ runner.temp }}/l2tp-diagnostics
           L2TP_CAPTURE_PCAP: '1'
-        run: python3 scripts/bench/l2tp/run.py --runtime docker --l2tpv3
+        run: |
+          result=0
+          for congestion in bbr cubic; do
+            if ! L2TP_TEST_CONGESTION_CONTROL="$congestion" \
+              L2TP_DIAGNOSTICS_DIR="$L2TP_DIAGNOSTICS_DIR/$congestion" \
+              python3 scripts/bench/l2tp/run.py --runtime docker --l2tpv3; then
+              result=1
+            fi
+          done
+          exit "$result"
       - name: Upload L2TP diagnostics and BBR/CUBIC results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: l2tp-diagnostics-${{ matrix.congestion }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/l2tp-diagnostics/${{ matrix.congestion }}/
+          name: l2tp-diagnostics-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/l2tp-diagnostics/
           retention-days: 7
           if-no-files-found: warn
 
