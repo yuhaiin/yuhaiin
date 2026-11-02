@@ -347,7 +347,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	config := sessionnet.Config{
 		Command: argv,
 		Dir:     home,
-		Env:     sessionEnvironment(s.config, home, username),
+		Env:        sessionEnvironment(s.config, home, username),
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
 	}
 	// Match sshd's fallback when an account has no usable home directory.
