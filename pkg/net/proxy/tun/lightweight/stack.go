@@ -48,7 +48,7 @@ type Stack struct {
 	link                                                      PacketIO
 	packetWriter                                              PacketBufferWriter
 	headroom, gsoMax                                          int
-	done                                          chan struct{}
+	done                                                      chan struct{}
 	once                                                      sync.Once
 	txMu                                                      sync.RWMutex
 	wg                                                        sync.WaitGroup
@@ -56,8 +56,8 @@ type Stack struct {
 	scheduler                                                 *scheduler
 	output                                                    trafficcontrol.OutputQueue[*ownedBuffer]
 	inputGovernor                                             *trafficcontrol.Governor
-	forwarded                                     chan Datagram
-	pings                                         chan *PingRequest
+	forwarded                                                 chan Datagram
+	pings                                                     chan *PingRequest
 	shards                                                    [32]flowShard
 	mu                                                        sync.Mutex
 	listeners                                                 map[netip.AddrPort]*TCPListener
