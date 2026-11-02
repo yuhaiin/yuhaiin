@@ -41,6 +41,42 @@ type TCPDiagnostics struct {
 	BBR               *congestion.BBRSnapshot `json:"bbr,omitempty"`
 }
 
+// StackDiagnostics is a bounded, on-demand snapshot; it never retains TCP connections.
+type StackDiagnostics struct {
+	MTU   int
+	Stats Statistics
+	Flows []TCPDiagnostics
+}
+
+// DiagnosticSnapshot obtains a bounded sample without holding a shard lock
+// while acquiring a connection lock (connection teardown takes them in reverse).
+func (s *Stack) DiagnosticSnapshot(maxFlows int) StackDiagnostics {
+	maxFlows = max(0, min(maxFlows, 64))
+	snapshot := StackDiagnostics{MTU: s.config.MTU, Stats: s.Stats(), Flows: make([]TCPDiagnostics, 0, maxFlows)}
+	conns := make([]*TCPConn, 0, maxFlows)
+	for i := range s.shards {
+		shard := &s.shards[i]
+		shard.Lock()
+		for _, conn := range shard.flows {
+			if len(conns) >= maxFlows {
+				break
+			}
+			conns = append(conns, conn)
+		}
+		shard.Unlock()
+		if len(conns) >= maxFlows {
+			break
+		}
+	}
+	for _, conn := range conns {
+		flow := conn.DiagnosticSnapshot()
+		if flow.State != Closed {
+			snapshot.Flows = append(snapshot.Flows, flow)
+		}
+	}
+	return snapshot
+}
+
 // DiagnosticSnapshot can be called from a test after a deadline or while the
 // connection is active. Scheduling and connection state share c.mu.
 func (c *TCPConn) DiagnosticSnapshot() TCPDiagnostics {
