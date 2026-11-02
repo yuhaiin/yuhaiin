@@ -15,6 +15,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
@@ -111,6 +112,15 @@ type routeAccepter struct {
 	userRoutes []netip.Prefix
 	autoFakeIP bool
 	closed     bool
+}
+
+// StackDiagnostic forwards the optional lightweight statistics through the
+// route-management wrapper. The underlying stack is sampled only on request.
+func (t *routeAccepter) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	if reporter, ok := t.Accepter.(interface{ StackDiagnostic(int) lightweight.StackDiagnostics }); ok {
+		return reporter.StackDiagnostic(limit)
+	}
+	return lightweight.StackDiagnostics{}
 }
 
 func (t *routeAccepter) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
