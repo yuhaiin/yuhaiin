@@ -334,9 +334,22 @@ func run(args []string) (resultErr error) {
 		}
 	}
 
-	// listen system signal
-	ctx, ncancel := signal.NotifyContext(ctx, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	defer ncancel()
+	// Capture the actual shutdown signal before canceling the application.
+	// A bare context.Canceled does not distinguish SIGTERM/SIGHUP from a
+	// management listener failure, especially during SSH session cleanup.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer signal.Stop(signals)
+	signalDone := make(chan struct{})
+	defer close(signalDone)
+	go func() {
+		select {
+		case sig := <-signals:
+			log.Warn("yuhaiin shutdown signal received", "signal", sig.String())
+			cancel(fmt.Errorf("shutdown signal: %s", sig))
+		case <-signalDone:
+		}
+	}()
 
 	return wait(ctx, serverListener)
 }

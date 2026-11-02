@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
@@ -316,6 +317,7 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair, network *connectionNetwork) {
 	owner, err := network.acquire()
 	if err != nil {
+		slog.Error("ssh inbound: isolated network setup failed", "reason", sshStartupErrorReason(err))
 		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to create shared network\n")
 		_ = sendExitStatus(channel, 255)
 		return
@@ -340,6 +342,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	}
 	process, err := owner.Spawn(ctx, config)
 	if err != nil {
+		slog.Error("ssh inbound: isolated command start failed", "reason", sshStartupErrorReason(err))
 		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to start isolated command\n")
 		release()
 		_ = sendExitStatus(channel, 255)
@@ -405,4 +408,27 @@ func (s *Server) Close() error {
 		}
 	})
 	return err
+}
+
+// sshStartupErrorReason deliberately logs only stable, non-sensitive
+// classifications: subprocess errors can carry environment or credentials.
+func sshStartupErrorReason(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.Is(err, unix.EPERM), errors.Is(err, unix.EACCES):
+		return "permission_denied"
+	case errors.Is(err, unix.ENOSYS), errors.Is(err, unix.EOPNOTSUPP):
+		return "unsupported"
+	case errors.Is(err, unix.EINVAL):
+		return "invalid_argument"
+	case errors.Is(err, unix.ENOENT):
+		return "not_found"
+	case errors.Is(err, unix.ENOMEM), errors.Is(err, unix.EAGAIN):
+		return "resource_unavailable"
+	default:
+		return "unknown"
+	}
 }

@@ -671,3 +671,33 @@ func runSSHCommand(tb testing.TB, client *gossh.Client, command string) []byte {
 	}
 	return output
 }
+
+func TestSSHServerPTYSessionDoesNotStopServer(t *testing.T) {
+	if os.Getenv(sshIntegrationEnv) != "1" {
+		t.Skip("requires privileged SSH integration environment")
+	}
+	config, signer := newSSHServerTestIdentity(t)
+	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
+	client := dialSSHServer(t, server, config.Username, signer)
+	session, err := client.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if err := session.RequestPty("xterm", 80, 24, gossh.TerminalModes{}); err != nil {
+		t.Fatalf("request SSH PTY: %v", err)
+	}
+	output, err := session.CombinedOutput("printf 'pty-ok\\n'")
+	if err != nil {
+		t.Fatalf("run PTY command: %v (%q)", err, output)
+	}
+	if !bytes.Contains(output, []byte("pty-ok")) {
+		t.Fatalf("PTY output is missing: %q", output)
+	}
+	if err := server.ctx.Err(); err != nil {
+		t.Fatalf("PTY command unexpectedly canceled SSH server: %v", err)
+	}
+	if output := runSSHCommand(t, client, "printf 'alive\\n'"); !bytes.Contains(output, []byte("alive")) {
+		t.Fatalf("SSH server stopped serving after PTY command: %q", output)
+	}
+}
