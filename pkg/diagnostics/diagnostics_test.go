@@ -213,7 +213,6 @@ func TestFindingsDoNotOverclaim(t *testing.T) {
 	}
 }
 
-
 func TestTCPOnlyDiagnosticsSkipNetworkProbes(t *testing.T) {
 	var probes atomic.Int32
 	service := New(Dependencies{
