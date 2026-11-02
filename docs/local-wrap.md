@@ -86,15 +86,22 @@ FDs are not a general security sandbox. Service filesystem restrictions must
 allow access to the caller's executable, working directory and required files.
 
 The web UI now exposes **Settings → Local wrap** defaults for the service
-socket, authorized non-root UID/GID, cgroup root and maximum sessions. These
+socket, authorized non-root UID/GID, cgroup root, maximum sessions and an optional IANA time zone. These
 values are stored in the server settings database, and applied only when the
 daemon restarts. Saving the form does **not** start or stop a running socket.
 The option is opt-in and disabled on existing installations. The UI is not a
 sandbox boundary: only a trusted administrator should enable process launching.
 
 Explicit `-wrap-socket`, `-wrap-uid`, `-wrap-gid`, `-wrap-cgroup-root` and
-`-wrap-max-sessions` flags override the corresponding saved values at startup.
+`-wrap-max-sessions` and `-wrap-timezone` flags override the corresponding saved values at startup.
 An explicitly empty `-wrap-socket=` disables a saved enabled configuration.
+If `timezone` is configured (for example `Asia/Tokyo`), each launched
+wrap command and its descendants receive `TZ=Asia/Tokyo`, replacing any
+inherited `TZ` variable. When unset, the caller's original environment is
+preserved. This changes local time formatting, not the kernel clock or host
+process environment. Install IANA zoneinfo data (usually `tzdata`) to support
+regional time zones and daylight saving transitions.
+
 Run `yuhaiin wrap -socket /your/socket.sock -- <program> [args...]` when using
 a nondefault socket path. See [the design notes](research-cli-netns-wrap.md)
 for sources and alternatives.
