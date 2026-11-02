@@ -69,7 +69,7 @@ SAN/chain/expiry/cache coalescing, SQLite revision/reference transactions,
 configuration rollback/concurrent updates, loop rejection and
 pipelined CONNECT bytes, hot admission revocation, physical/upgraded listener
 cleanup (including same-address owner replacement), no-SNI/IP, unsupported ALPN,
-probe timeout/replay, and upstream client-certificate rejection without fallback. The workflow has an `http-gateway-tests` race job.
+probe timeout/replay, and upstream client-certificate rejection without fallback. The `gateway` race group in `.github/workflows/tests.yml` owns this coverage.
 
 Actual process testing used a temporary database and local HTTP application:
 reverse proxy, Path block 204, Rule tester, conflict 409, public-only CA status,

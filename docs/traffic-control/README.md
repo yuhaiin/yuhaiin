@@ -60,7 +60,7 @@ Packet timestamps are relative to one monotonic epoch, excluding wall-clock read
 
 Status exposes global/NAT resource counters, admitted bytes/pacing waits, up to 64 inbound scopes and up to 64 output queues. Queue counters distinguish AQM, overload eviction and admission rejection. IDs come from configured inbounds; no per-flow/IP/user metric labels are exported. Unsupported stacks omit queue reports. `truncated` signals bounded output.
 
-Run `go test ./...`, `go vet ./...`, workflow-pinned golangci-lint, focused race/fuzz and cross-build jobs in `.github/workflows/traffic-control.yml`. Linux native tests require a working isolated user/network namespace and `/dev/net/tun`:
+Run `go test ./...`, `go vet ./...` and workflow-pinned golangci-lint. CI race coverage lives in `.github/workflows/tests.yml`; native kernel checks and cross-platform test builds live in `.github/workflows/lightweight-stack.yml`. Active fuzzing and benchmarks run weekly or manually through `.github/workflows/performance.yml`. Linux native tests require a working isolated user/network namespace and `/dev/net/tun`:
 
 ```sh
 unshare -Urn go test -tags=lightweight_kernel ./pkg/net/proxy/tun/lightweight -run '^TestLinuxKernel' -count=1 -timeout=120s

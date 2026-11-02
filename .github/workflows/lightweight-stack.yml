@@ -3,9 +3,17 @@ name: Lightweight TCP/IP stack
 on:
   pull_request:
     branches: [main]
+    paths:
+      # Portable test files also import shared application packages.
+      - 'pkg/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'scripts/benchmarks/checksum_portable.py'
+      - '.github/actions/setup-go/**'
+      - '.github/workflows/lightweight-stack.yml'
   workflow_dispatch:
 
-# Drop superseded automatic checks; preserve explicitly dispatched runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
@@ -13,54 +21,23 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  protocol:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: lightweight-race
-      - name: Protocol, independent peers, race and resource bounds
-        env:
-          CGO_ENABLED: '1'
-        run: go test -race -count=1 -timeout=180s ./pkg/net/proxy/tun/...
-      - name: SACK lost-retransmission stability (100 race runs)
-        run: go test -race -count=100 -timeout=300s -run '^TestTCPSACKRepairsLostReplacementWithNewEvidence$' ./pkg/net/proxy/tun/lightweight
-      - name: Parser fuzzing
-        run: |
-          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzParsePacket$' -fuzztime=10s -parallel=4
-          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzTCPOptions$' -fuzztime=10s -parallel=4
-          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzChecksum$' -fuzztime=10s -parallel=4
-          go test ./pkg/net/proxy/tun/device -run '^$' -fuzz '^FuzzVirtioPacket$' -fuzztime=10s -parallel=4
-      - name: Portable checksum fallback
-        run: python3 scripts/benchmarks/checksum_portable.py test ./pkg/net/proxy/tun/lightweight -run '^TestChecksum' -count=1
-      - name: Benchmark smoke test
-        run: go test ./pkg/net/proxy/tun/lightweight/... -run '^$' -bench . -benchtime=1x -benchmem -timeout=180s
-
-  qualification:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
-        with:
-          cache-scope: lightweight-qualification
-      - name: Sustained BBR v3 coexistence and changing bandwidth
-        env:
-          CGO_ENABLED: '1'
-        run: >-
-          go test -race -tags lightweight_qualification
-          ./pkg/net/proxy/tun/lightweight
-          -run '^TestBBR(SharedBottleneck|BandwidthChanges)$'
-          -count=1 -v -timeout=600s
-
   kernel:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: lightweight-kernel
+      # Default race coverage is in tests.yml; exercise only the alternate
+      # checksum implementation and privileged fixtures here.
+      - name: Portable checksum fallback
+        run: python3 scripts/benchmarks/checksum_portable.py test ./pkg/net/proxy/tun/lightweight -run '^TestChecksum' -count=1
       - name: Build independent Linux kernel interoperability suite
         env:
           CGO_ENABLED: '1'
@@ -73,38 +50,49 @@ jobs:
         run: sudo unshare --net /tmp/lightweight-kernel.test -test.run '^TestLinuxKernel' -test.v -test.timeout=90s
       - name: Migrate IPv4 TUN with legacy MTU
         run: sudo unshare --net /tmp/lightweight-tun.test -test.run '^TestLegacyIPv4MTU1200$' -test.v -test.timeout=30s
-      - name: Native TUN event and buffer cleanup after repeated shutdown
-        run: sudo unshare --net /tmp/lightweight-device.test -test.run TestLinuxKernelDeviceLifecycle -test.count=25 -test.v -test.timeout=60s
+      - name: Native TUN event and buffer cleanup after shutdown
+        run: sudo unshare --net /tmp/lightweight-device.test -test.run TestLinuxKernelDeviceLifecycle -test.count=1 -test.v -test.timeout=60s
       - name: TCP checksum and segmentation offloads with kernel peers and loss
         run: sudo unshare --net /tmp/lightweight-offload.test -test.run '^TestLinuxOffload' -test.v -test.timeout=90s
 
   portable-core:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - {os: linux, arch: amd64}
-          - {os: linux, arch: arm64}
-          - {os: linux, arch: '386'}
-          - {os: linux, arch: mipsle}
-          - {os: darwin, arch: arm64}
-          - {os: windows, arch: amd64}
-          - {os: android, arch: arm64}
-          - {os: ios, arch: arm64}
+        include:
+          # Share setup and compiler caches instead of eight core builds and
+          # three overlapping Traffic Control test-compilation jobs.
+          - group: platform-tests
+            targets: darwin/arm64 windows/amd64 android/arm64
+          - group: core
+            targets: linux/amd64 linux/arm64 linux/386 linux/mipsle ios/arm64
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
         with:
-          cache-scope: lightweight-${{ matrix.target.os }}-${{ matrix.target.arch }}
-      - name: Compile the independent core
+          cache-scope: portable-${{ matrix.group }}
+      - name: Compile the independent core and portable tests
         env:
           CGO_ENABLED: '0'
-          GOOS: ${{ matrix.target.os }}
-          GOARCH: ${{ matrix.target.arch }}
-        run: go build ./pkg/net/proxy/tun/lightweight/...
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          read -r -a targets <<< "$TARGETS"
+          for target in "${targets[@]}"; do
+            IFS=/ read -r GOOS GOARCH <<< "$target"
+            export GOOS GOARCH
+            go build ./pkg/net/proxy/tun/lightweight/...
+            case "$GOOS" in
+              darwin|windows|android)
+                go test -exec=true -run '^$' \
+                  ./pkg/net/trafficcontrol/... ./pkg/net/relay/... ./pkg/net/nat/... \
+                  ./pkg/net/proxy/tun/... ./pkg/inbound/... ./pkg/net/proxy/hysteria2/...
+                ;;
+            esac
+          done
       - name: Execute ARM64 checksum and guard-page tests
-        if: matrix.target.os == 'linux' && matrix.target.arch == 'arm64'
+        if: matrix.group == 'core'
         env:
           CGO_ENABLED: '0'
           GOOS: linux

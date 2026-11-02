@@ -4,41 +4,31 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/actions/setup-go/**'
+      - 'pkg/net/netapi/**'
+      - 'pkg/net/proxy/internal/testutil/**'
       - '.github/workflows/ssh-session.yml'
       - 'pkg/net/proxy/sshserver/**'
       - 'pkg/contract/inbound/**'
       - 'pkg/inbound/**'
-      - 'go.mod'
-      - 'go.sum'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  ssh-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: Show module checksums and formatting differences
-        run: |
-          go mod download -json github.com/yuhaiin/sessionnet
-          grep 'github.com/yuhaiin/sessionnet' go.sum
-          gofmt -d pkg/inbound/contract_store.go pkg/inbound/ssh_hostkey_test.go pkg/net/proxy/sshserver/*.go pkg/inbound/capabilities.go pkg/inbound/contract_listener.go pkg/contract/inbound/types.go
-      - name: Test SSH and inbound contracts
-        run: go test -count=1 -timeout=180s ./pkg/net/proxy/sshserver ./pkg/inbound ./pkg/contract/inbound
-
   ssh-linux-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          cache: false
+          cache-scope: ssh-linux-integration
       - name: Verify TUN and cgroup v2 availability
         run: |
           if [ ! -c /dev/net/tun ]; then sudo modprobe tun; fi

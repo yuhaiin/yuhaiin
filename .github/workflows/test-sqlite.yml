@@ -4,7 +4,17 @@ on:
   push:
     branches: [main]
     paths:
-      - '**.go'
+      - 'pkg/storage/**'
+      - 'pkg/store/**'
+      - 'pkg/net/dns/fakeip/**'
+      - 'pkg/statistics/**'
+      - 'pkg/migrate/**'
+      - 'pkg/node/**'
+      - 'pkg/app/backup/**'
+      - 'pkg/management/auth/**'
+      - 'pkg/contract/**'
+      - 'pkg/utils/**'
+      - 'example/management-auth/**'
       - go.mod
       - go.sum
       - .github/workflows/test-sqlite.yml
@@ -12,7 +22,17 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '**.go'
+      - 'pkg/storage/**'
+      - 'pkg/store/**'
+      - 'pkg/net/dns/fakeip/**'
+      - 'pkg/statistics/**'
+      - 'pkg/migrate/**'
+      - 'pkg/node/**'
+      - 'pkg/app/backup/**'
+      - 'pkg/management/auth/**'
+      - 'pkg/contract/**'
+      - 'pkg/utils/**'
+      - 'example/management-auth/**'
       - go.mod
       - go.sum
       - .github/workflows/test-sqlite.yml
@@ -57,6 +77,16 @@ jobs:
         run: |
           go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
             -run '^TestBackup' ./pkg/app/backup
+
+      - uses: actions/setup-node@v7
+        if: matrix.backend == 'mattn'
+        with:
+          node-version: '26'
+      - name: Test management authentication with the alternate SQLite backend
+        if: matrix.backend == 'mattn'
+        run: |
+          go test -count=1 -tags=sqlite_mattn,fts5 -timeout=180s \
+            ./pkg/storage/sqlite ./pkg/management/auth
 
   benchmark-compile:
     if: github.event_name == 'workflow_dispatch' && inputs.windows_benchmarks

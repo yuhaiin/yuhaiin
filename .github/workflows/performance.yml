@@ -1,0 +1,115 @@
+name: Performance and stability
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: performance-benchmarks
+      - name: Scheduler, stack and resource benchmarks
+        env:
+          OUTPUT_DIR: ${{ runner.temp }}/benchmarks/traffic-control
+        run: scripts/traffic-control/benchmark.sh
+      - name: Selection, measurement, update and recovery benchmarks
+        run: |
+          {
+            go test ./pkg/node ./pkg/net/latency -run '^$' -bench 'BenchmarkSelector|BenchmarkPassiveRateSampling|BenchmarkUploadBalancedRanking|BenchmarkUploadStreamingBody|BenchmarkProbeScheduler|BenchmarkObservedPacketSend|BenchmarkNativeSelectionAvailability' \
+              -benchmem -benchtime=300ms -count=2
+            go test ./pkg/update/compatibility -run '^$' -bench '^BenchmarkObservedSchemaCompatibility$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/update/maintenance -run '^$' -bench '^BenchmarkProtectedUpdateCoordinator$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/s3 -run '^$' -bench '^BenchmarkS3Upload$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/store/backup/archive -run '^$' -bench '^BenchmarkRecoveryArchiveExternalRecipient$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryCreateExternalRecipient$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/app/backup/recovery -run '^$' -bench '^BenchmarkFullRecoveryRestoreExternalRecipient$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryArchiveRetrieval$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/app/backup -run '^$' -bench '^BenchmarkRecoveryImportStaging$' -benchmem -benchtime=300ms -count=2
+            go test ./pkg/net/proxy/tun/lightweight/... -run '^$' -bench . -benchtime=1x -benchmem -timeout=180s
+          } | tee "$RUNNER_TEMP/benchmarks/application.txt"
+      - name: Retain benchmark results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-benchmarks-${{ github.sha }}
+          path: ${{ runner.temp }}/benchmarks/
+          retention-days: 14
+
+  stack-stability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: lightweight-stability
+      - name: Sustained BBR v3 coexistence and changing bandwidth
+        run: >-
+          go test -race -tags lightweight_qualification
+          ./pkg/net/proxy/tun/lightweight
+          -run '^TestBBR(SharedBottleneck|BandwidthChanges)$'
+          -count=1 -v -timeout=600s
+      - name: SACK lost-retransmission stability (100 race runs)
+        run: go test -race -count=100 -timeout=300s -run '^TestTCPSACKRepairsLostReplacementWithNewEvidence$' ./pkg/net/proxy/tun/lightweight
+      - name: Parser and classifier fuzzing
+        env:
+          GOMAXPROCS: 2
+        run: |
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzParsePacket$' -fuzztime=10s -parallel=4
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzTCPOptions$' -fuzztime=10s -parallel=4
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzChecksum$' -fuzztime=10s -parallel=4
+          go test ./pkg/net/proxy/tun/device -run '^$' -fuzz '^FuzzVirtioPacket$' -fuzztime=10s -parallel=4
+          go test ./pkg/net/proxy/tun/lightweight -run '^$' -fuzz '^FuzzOutputClassificationBounded$' -fuzztime=5s
+      - name: Build kernel device lifecycle stability test
+        run: go test -race -c -tags lightweight_kernel -o /tmp/lightweight-device.test ./pkg/net/proxy/tun/device
+      - name: Repeated shutdown in an isolated network namespace
+        run: sudo unshare --net /tmp/lightweight-device.test -test.run TestLinuxKernelDeviceLifecycle -test.count=25 -test.v -test.timeout=60s
+
+  windows-recovery-benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: windows-2025}
+          - {arch: arm64, runner: windows-11-arm}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: windows-recovery-acl
+      - name: Measure native recovery volume-flush overhead
+        env:
+          YUH_WINDOWS_RECOVERY_REQUIRE: '1'
+        run: |
+          go test -run '^$' -bench '^BenchmarkWindowsRecoveryDirectorySync$' -benchmem -benchtime=300ms -count=2 -timeout=180s ./pkg/app/backup/internal/backupfs |
+            Tee-Object -FilePath windows-recovery-sync-benchmark.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain native recovery volume-flush measurements
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-recovery-durability-${{ matrix.arch }}-${{ github.sha }}
+          path: windows-recovery-sync-benchmark.txt
+          retention-days: 14
