@@ -315,7 +315,7 @@ func (r *NodeRuntime) Active(context.Context) ([]contractnode.Node, error) {
 // TCPStackSnapshot describes an already instantiated outbound TCP/IP stack.
 // Node IDs must not be summed with inbound stack counters as global bytes.
 type TCPStackSnapshot struct {
-	NodeID string
+	NodeID   string
 	Snapshot lightweight.StackDiagnostics
 }
 
