@@ -342,16 +342,22 @@ func run(args []string) (resultErr error) {
 	defer signal.Stop(signals)
 	signalDone := make(chan struct{})
 	defer close(signalDone)
+	normalShutdown := errors.New("shutdown requested by OS signal")
 	go func() {
 		select {
 		case sig := <-signals:
-			log.Warn("yuhaiin shutdown signal received", "signal", sig.String())
-			cancel(fmt.Errorf("shutdown signal: %s", sig))
+			log.Info("yuhaiin shutdown signal received", "signal", sig.String())
+			cancel(normalShutdown)
 		case <-signalDone:
 		}
 	}()
 
-	return wait(ctx, serverListener)
+	err = wait(ctx, serverListener)
+	if errors.Is(context.Cause(ctx), normalShutdown) && errors.Is(err, context.Canceled) {
+		// Shutdown requested by systemd is not an application failure.
+		return nil
+	}
+	return err
 }
 
 var wait = func(ctx context.Context, listeners ...net.Listener) error {
