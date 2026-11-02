@@ -253,6 +253,18 @@ func trySSHServerAuth(tb testing.TB, server *Server, username string, signer gos
 	return gossh.NewClient(clientConn, channels, requests).Close()
 }
 
+// TestSSHServerRefusesUnmanagedCgroups ensures the production listener
+// cannot silently fall back to process-group-only cleanup.
+func TestSSHServerRefusesUnmanagedCgroups(t *testing.T) {
+	config, _ := newSSHServerTestIdentity(t)
+	config.InboundID = "unit-cgroup-root"
+	config.CgroupRoot = filepath.Join(t.TempDir(), "ordinary-directory")
+	if server, err := NewServer(config, newSSHServerTestHandler()); err == nil {
+		_ = server.Close()
+		t.Fatal("SSH server accepted a path outside cgroup v2")
+	}
+}
+
 func TestSSHServerPublicKeyAndForwardingPolicy(t *testing.T) {
 	config, authorizedSigner := newSSHServerTestIdentity(t)
 	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
