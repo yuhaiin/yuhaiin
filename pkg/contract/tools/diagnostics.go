@@ -8,8 +8,8 @@ type DiagnosticRequest struct {
 
 type DiagnosticCheck struct {
 	ID         string   `json:"id"`
-	Status     string   `json:"status"`  // pass, fail, warning, skipped
-	Message    string   `json:"message"` // stable code for client translations
+	Status     string   `json:"status"`     // pass, fail, warning, skipped
+	Message    string   `json:"message"`    // stable code for client translations
 	DurationMS int64    `json:"durationMs"`
 	Evidence   []string `json:"evidence"`
 }
@@ -23,17 +23,16 @@ type DiagnosticReport struct {
 	Version       string               `json:"version"`
 	IPv6Enabled   bool                 `json:"ipv6Enabled"`
 	Checks        []DiagnosticCheck    `json:"checks"`
-	Findings      []string             `json:"findings"` // evidence-based guidance codes
+	Findings      []string             `json:"findings"`            // evidence-based guidance codes
 	TCPStacks     []TCPStackDiagnostic `json:"tcpStacks,omitempty"`
-	Report        string               `json:"report"`   // portable plain-text report, without credentials or raw logs
+	Report        string               `json:"report"`              // portable plain-text report, without credentials or raw logs
 }
-
 
 // TCPStackDiagnostic is a bounded, read-only sample of a running lightweight
 // IP stack. It is deliberately omitted when the inbound uses another engine.
 type TCPStackDiagnostic struct {
-	Scope      string             `json:"scope"`
-	NodeID     string             `json:"nodeId,omitempty"`
+	Scope      string              `json:"scope"`
+	NodeID     string              `json:"nodeId,omitempty"`
 	InboundID  string              `json:"inboundId"`
 	MTU        int                 `json:"mtu"`
 	Statistics TCPStackStatistics  `json:"statistics"`
