@@ -701,3 +701,37 @@ func TestSSHServerPTYSessionDoesNotStopServer(t *testing.T) {
 		t.Fatalf("SSH server stopped serving after PTY command: %q", output)
 	}
 }
+
+func TestSSHServerSpawnFailureDoesNotStopServer(t *testing.T) {
+	if os.Getenv(sshIntegrationEnv) != "1" {
+		t.Skip("requires privileged SSH integration environment")
+	}
+	config, signer := newSSHServerTestIdentity(t)
+	config.Shell = "/nonexistent/yuhaiin-ssh-shell"
+	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
+	client := dialSSHServer(t, server, config.Username, signer)
+	session, err := client.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := session.RequestPty("xterm", 80, 24, gossh.TerminalModes{}); err != nil {
+		t.Fatalf("request SSH PTY: %v", err)
+	}
+	output, err := session.CombinedOutput("true")
+	_ = session.Close()
+	if err == nil {
+		t.Fatalf("expected missing shell to fail: %q", output)
+	}
+	if !bytes.Contains(output, []byte("unable to start isolated command")) {
+		t.Fatalf("missing shell did not report a safe startup error: %q", output)
+	}
+	if err := server.ctx.Err(); err != nil {
+		t.Fatalf("isolated command failure canceled the SSH server: %v", err)
+	}
+	again := dialSSHServer(t, server, config.Username, signer)
+	session, err = again.NewSession()
+	if err != nil {
+		t.Fatalf("SSH listener stopped accepting sessions after spawn failure: %v", err)
+	}
+	_ = session.Close()
+}
