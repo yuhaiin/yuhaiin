@@ -434,6 +434,13 @@ func (c *Route) dumpProcessFor(ctx context.Context, force bool, networks ...stri
 		return netapi.Process{Path: path, Pid: pid, Uid: uid}
 	}
 
+	// A flow from an isolated network namespace is looked up only there. Its
+	// addresses may collide with unrelated host sockets, so never fall back.
+	dumper := c.ProcessDumper
+	if scope := store.ProcessScope(); scope != nil {
+		dumper = scope
+	}
+
 	var dst []net.Addr
 	if store.GetInbound() != nil {
 		dst = append(dst, store.GetInbound())
@@ -459,7 +466,7 @@ func (c *Route) dumpProcessFor(ctx context.Context, force bool, networks ...stri
 		}
 
 		for _, network := range networks {
-			process, err := c.ProcessDumper.ProcessName(network, sourceAddr, dst)
+			process, err := dumper.ProcessName(network, sourceAddr, dst)
 			if err != nil {
 				// log.Warn("get process name failed", "err", err)
 				continue

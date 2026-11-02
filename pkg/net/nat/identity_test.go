@@ -77,7 +77,7 @@ func TestAuthenticatedNATIsolatesIdentitiesAndPreservesFullCone(t *testing.T) {
 		t.Fatalf("extra socket: %s", id)
 	case <-time.After(20 * time.Millisecond):
 	}
-	source, ok := table.authenticatedSources.Load(authenticatedSourceKey{alice.CredentialID, "entry", 12345})
+	source, ok := table.authenticatedSources.Load(authenticatedSourceKey{alice.CredentialID, "entry", nil, 12345})
 	if !ok {
 		t.Fatal("missing authenticated source")
 	}

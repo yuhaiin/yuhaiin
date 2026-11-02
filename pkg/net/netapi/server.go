@@ -142,10 +142,13 @@ type PingMeta struct {
 }
 
 type StreamMeta struct {
-	Identity    *proxyauth.Identity
-	Source      net.Addr
-	Destination net.Addr
-	Inbound     net.Addr
+	Identity *proxyauth.Identity
+	// ProcessScope resolves source sockets inside an isolated network
+	// namespace. Nil means the host namespace.
+	ProcessScope ProcessDumper
+	Source       net.Addr
+	Destination  net.Addr
+	Inbound      net.Addr
 
 	Src     net.Conn
 	Address Address
@@ -185,12 +188,16 @@ type WriteBackFunc func(b []byte, addr net.Addr) (int, error)
 func (f WriteBackFunc) WriteBack(b []byte, addr net.Addr) (int, error) { return f(b, addr) }
 
 type Packet struct {
-	Identity    *proxyauth.Identity
-	src         net.Addr
-	dst         Address
-	writeBack   WriteBack
-	inboundName string
-	inboundID   string
+	Identity *proxyauth.Identity
+	// ProcessScope resolves source sockets inside an isolated network
+	// namespace and separates NAT sources that share an address. It must be
+	// a comparable (pointer) value. Nil means the host namespace.
+	ProcessScope ProcessDumper
+	src          net.Addr
+	dst          Address
+	writeBack    WriteBack
+	inboundName  string
+	inboundID    string
 	// Payload will set to nil when ref count is negative, get it by [Packet.GetPayload]
 	// ! DON'T use Payload directly
 	payload   []byte

@@ -9,8 +9,11 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"strconv"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/yuhaiin/sessionnet"
@@ -26,6 +29,7 @@ type connectionNetwork struct {
 	owner     *sessionnet.Session
 	flows     io.Closer
 	keepalive *os.File
+	processes *netlink.NetNSProcessDumper
 	refs      int
 	closed    bool
 }
@@ -87,6 +91,15 @@ func (g *connectionNetwork) openLocked() (err error) {
 			_ = owner.Close()
 		}
 	}()
+	processes, err := openProcessDumper(owner)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = processes.Close()
+		}
+	}()
 	fd, err := owner.DupTun()
 	if err != nil {
 		return err
@@ -105,7 +118,7 @@ func (g *connectionNetwork) openLocked() (err error) {
 		_ = fd.Close()
 		return err
 	}
-	flows, err := lightweighttun.NewFromStack(stack, s.handler, addresses, "ssh")
+	flows, err := lightweighttun.NewFromStack(stack, &scopedHandler{Handler: s.handler, scope: processes}, addresses, "ssh")
 	if err != nil {
 		_ = stack.Close()
 		return err
@@ -114,8 +127,44 @@ func (g *connectionNetwork) openLocked() (err error) {
 		_ = flows.Close()
 		return err
 	}
-	g.owner, g.flows, g.keepalive = owner, flows, write
+	g.owner, g.flows, g.keepalive, g.processes = owner, flows, write, processes
 	return nil
+}
+
+// openProcessDumper binds process lookups to the owner's network namespace.
+// Spawned shells join that same namespace, so it covers every command of
+// this SSH transport and nothing else.
+func openProcessDumper(owner *sessionnet.Session) (*netlink.NetNSProcessDumper, error) {
+	ns, err := os.Open("/proc/" + strconv.Itoa(owner.PID()) + "/ns/net")
+	if err != nil {
+		return nil, err
+	}
+	defer ns.Close()
+	// The owner is reaped only after Done closes, so if it is still open the
+	// PID could not have been recycled before the namespace file was opened.
+	select {
+	case <-owner.Done():
+		return nil, errors.New("ssh inbound: shared namespace owner exited")
+	default:
+	}
+	return netlink.NewNetNSProcessDumper(ns)
+}
+
+// scopedHandler tags every flow with the namespace that produced it, so
+// process lookup and UDP NAT never confuse transports that share addresses.
+type scopedHandler struct {
+	netapi.Handler
+	scope netapi.ProcessDumper
+}
+
+func (h *scopedHandler) HandleStream(meta *netapi.StreamMeta) {
+	meta.ProcessScope = h.scope
+	h.Handler.HandleStream(meta)
+}
+
+func (h *scopedHandler) HandlePacket(packet *netapi.Packet) {
+	packet.ProcessScope = h.scope
+	h.Handler.HandlePacket(packet)
 }
 
 func (g *connectionNetwork) release() {
@@ -129,19 +178,27 @@ func (g *connectionNetwork) release() {
 		g.mu.Unlock()
 		return
 	}
-	owner, flows, keepalive := g.detachLocked()
+	resources := g.detachLocked()
 	g.mu.Unlock()
-	closeConnectionNetwork(owner, flows, keepalive)
+	resources.close()
 }
 
 // detachLocked moves all owned resources out while g.mu is held.
-func (g *connectionNetwork) detachLocked() (*sessionnet.Session, io.Closer, *os.File) {
-	owner, flows, keepalive := g.owner, g.flows, g.keepalive
-	g.owner, g.flows, g.keepalive = nil, nil, nil
-	return owner, flows, keepalive
+func (g *connectionNetwork) detachLocked() networkResources {
+	r := networkResources{g.owner, g.flows, g.keepalive, g.processes}
+	g.owner, g.flows, g.keepalive, g.processes = nil, nil, nil, nil
+	return r
 }
 
-func closeConnectionNetwork(owner *sessionnet.Session, flows io.Closer, keepalive *os.File) {
+type networkResources struct {
+	owner     *sessionnet.Session
+	flows     io.Closer
+	keepalive *os.File
+	processes *netlink.NetNSProcessDumper
+}
+
+func (r networkResources) close() {
+	owner, flows, keepalive := r.owner, r.flows, r.keepalive
 	// Cleanup errors may contain credentials from the underlying transport or
 	// routing stack. Only log a fixed component label, never the raw error.
 	if keepalive != nil {
@@ -159,6 +216,11 @@ func closeConnectionNetwork(owner *sessionnet.Session, flows io.Closer, keepaliv
 			slog.Error("ssh inbound: isolated session cleanup failed", "component", "packet stack")
 		}
 	}
+	// Close after the stack so no new flow carries a closed scope; in-flight
+	// lookups finish first and later ones fail without a host fallback.
+	if r.processes != nil {
+		_ = r.processes.Close()
+	}
 }
 
 // Close cancels network access when the SSH transport closes. Any active
@@ -166,7 +228,7 @@ func closeConnectionNetwork(owner *sessionnet.Session, flows io.Closer, keepaliv
 func (g *connectionNetwork) Close() {
 	g.mu.Lock()
 	g.closed = true
-	owner, flows, keepalive := g.detachLocked()
+	resources := g.detachLocked()
 	g.mu.Unlock()
-	closeConnectionNetwork(owner, flows, keepalive)
+	resources.close()
 }

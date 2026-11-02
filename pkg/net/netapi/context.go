@@ -343,6 +343,10 @@ type Context struct {
 
 	connOptions *ConnOptions
 
+	// processScope looks up sockets in the isolated network namespace that
+	// produced this flow. When set, the host namespace is never consulted.
+	processScope ProcessDumper
+
 	Hash     string `metrics:"Hash"`
 	NodeName string `metrics:"NodeName"`
 }
@@ -358,7 +362,7 @@ func ForkContext(ctx context.Context) *Context {
 	child := &Context{Context: ctx, Source: parent.Source, Destination: parent.Destination,
 		inbound: parent.inbound, inboundName: parent.inboundName, inboundID: parent.inboundID,
 		fakeIP: parent.fakeIP, hosts: parent.hosts, Hash: parent.Hash, NodeName: parent.NodeName,
-		ruleChain: parent.ruleChain, sharedHistory: true}
+		ruleChain: parent.ruleChain, sharedHistory: true, processScope: parent.processScope}
 	child.interfaceName.Store(parent.interfaceName.Load())
 	if parent.addrInfo != nil {
 		child.addrInfo = new(*parent.addrInfo)
@@ -699,6 +703,15 @@ func (c *Context) SetProcess(p string, pid, uid uint) *Context {
 	})
 	return c
 }
+
+// SetProcessScope binds process lookups to the namespace that owns the
+// flow's source socket. A nil scope means the host namespace.
+func (c *Context) SetProcessScope(scope ProcessDumper) *Context {
+	c.processScope = scope
+	return c
+}
+
+func (c *Context) ProcessScope() ProcessDumper { return c.processScope }
 
 func (c *Context) GetProcess() (string, uint, uint) {
 	if c.sniff != nil && c.sniff.process != nil {

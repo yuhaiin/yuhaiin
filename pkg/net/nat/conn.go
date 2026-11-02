@@ -103,6 +103,7 @@ func (u *SourceControl) sendOneOwned(pkt *netapi.Packet, queueReserved bool) (bo
 		store.Destination = pkt.Dst()
 		store.SetInboundName(pkt.InboundName())
 		store.SetInboundID(pkt.InboundID())
+		store.SetProcessScope(pkt.ProcessScope)
 		store.ConnOptions().SetIsUdp(true)
 
 		if u.sniffer != nil {
