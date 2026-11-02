@@ -26,7 +26,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/oschwald/maxminddb-golang/v2 v2.9.0
 	github.com/pires/go-proxyproto v0.16.0
-	github.com/pkg/sftp v1.13.11
+	github.com/pkg/sftp v1.13.12
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/refraction-networking/utls v1.8.2
@@ -36,7 +36,7 @@ require (
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
 	github.com/yuhaiin/sessionnet v0.0.0-20261102062932-efac23438c74
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102063210-c7377275464b
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102095609-a2769dc029bc
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v3 v3.0.6
