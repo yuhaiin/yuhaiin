@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -581,20 +582,36 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 		_ = session.Close()
 		t.Fatal(err)
 	}
-	if err := session.Start("readlink /proc/self/ns/net; exec sleep 30"); err != nil {
+	if err := session.Start("readlink /proc/self/ns/net; echo $; exec sleep 30"); err != nil {
 		_ = session.Close()
 		t.Fatal(err)
 	}
 	line := make(chan struct {
 		namespace string
+		pid       int
 		err       error
 	}, 1)
 	go func() {
-		namespace, err := bufio.NewReader(stdout).ReadString('\n')
+		reader := bufio.NewReader(stdout)
+		namespace, err := reader.ReadString('\n')
+		if err != nil {
+			line <- struct {
+				namespace string
+				pid       int
+				err       error
+			}{err: err}
+			return
+		}
+		pidLine, err := reader.ReadString('\n')
+		pid := 0
+		if err == nil {
+			pid, err = strconv.Atoi(strings.TrimSpace(pidLine))
+		}
 		line <- struct {
 			namespace string
+			pid       int
 			err       error
-		}{namespace: strings.TrimSpace(namespace), err: err}
+		}{namespace: strings.TrimSpace(namespace), pid: pid, err: err}
 	}()
 	select {
 	case result := <-line:
@@ -602,9 +619,25 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 			_ = session.Close()
 			t.Fatalf("read namespace from SSH command: %v", result.err)
 		}
-		if !strings.HasPrefix(result.namespace, "net:[") {
+		if !strings.HasPrefix(result.namespace, "net:[") || result.pid <= 0 {
 			_ = session.Close()
-			t.Fatalf("unexpected network namespace identifier %q", result.namespace)
+			t.Fatalf("unexpected network namespace identifier %q or PID %d", result.namespace, result.pid)
+		}
+		// Pin the original network namespace until the entire test finishes.
+		// Without this FD, Linux is free to recycle its nsfs inode number
+		// immediately after the final SSH lease is released. Comparing only
+		// readlink strings would incorrectly report a reused namespace.
+		nsPath := fmt.Sprintf("/proc/%d/ns/net", result.pid)
+		nsFile, err := os.Open(nsPath)
+		if err != nil {
+			_ = session.Close()
+			t.Fatalf("pin SSH command network namespace %q: %v", nsPath, err)
+		}
+		t.Cleanup(func() { _ = nsFile.Close() })
+		actual, err := os.Readlink(nsPath)
+		if err != nil || actual != result.namespace {
+			_ = session.Close()
+			t.Fatalf("network namespace changed while pinning: %q vs %q: %v", actual, result.namespace, err)
 		}
 		return session, result.namespace
 	case <-time.After(5 * time.Second):
