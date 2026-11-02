@@ -49,6 +49,35 @@ events. Only a SHA-256 verifier is stored. HTTP setup still requires the code,
 the trusted-Origin policy and TLS for remote peers; it is not first-visitor
 administrator registration. Protect access to startup output until setup closes.
 
+For automated deployments, supply the initialization code before starting the
+server through `YUHAIIN_INITIALIZATION_CODE` or the `run` flag
+`-initialization-code`. The CLI flag takes precedence over the environment.
+When neither is supplied, the random-code behavior above is unchanged.
+
+Generate a code from 32 cryptographically random bytes, encoded as unpadded
+base64url with the `ys_` prefix (46 characters total). For example, with Node.js:
+
+```sh
+export YUHAIIN_INITIALIZATION_CODE="$(node -e "console.log('ys_' + require('node:crypto').randomBytes(32).toString('base64url'))")"
+yuhaiin run -path /your/data-directory
+# Alternatively: yuhaiin run -initialization-code "$YUHAIIN_INITIALIZATION_CODE"
+```
+
+An explicitly supplied empty or malformed code aborts startup while setup is
+unfinished; the error never includes its value. A supplied code is never printed
+in startup output or flag help. Only its hash is persisted, and it is never
+included in recovery startup inputs. Prefer environment injection for deployment;
+CLI values can be visible in process arguments.
+
+Until initialization completes, each start makes the supplied code valid for
+15 minutes from that start and generates a fresh client salt. Restarting with
+the same supplied code renews it; changing the supplied code invalidates the
+previous one. Initializing the administrator permanently consumes the code.
+Future starts ignore leftover initialization-code configuration, even if it is
+malformed, and never recreate an administrator or reopen setup. Remove the
+deployment secret after initialization. Supplying a code does not create an
+account automatically: complete the existing Web UI or setup API exchange.
+
 Manual local bootstrap remains available as an optional alternative:
 
 ```sh

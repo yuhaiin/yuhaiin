@@ -130,6 +130,117 @@ func TestInitializationRestartExpiryAndPersistentCompletion(t *testing.T) {
 	}
 }
 
+func TestConfiguredInitializationLifecycle(t *testing.T) {
+	directory := t.TempDir()
+	secret := "ys_" + base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{42}, 32))
+	var runtime *Runtime
+	t.Cleanup(func() {
+		if runtime != nil {
+			_ = runtime.Close()
+		}
+	})
+	open := func(code string) {
+		t.Helper()
+		if runtime != nil {
+			if err := runtime.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var err error
+		runtime, err = OpenRuntimeWithOptions(t.Context(), directory, RuntimeOptions{InitializationCode: new(code)})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	open(secret)
+	params, err := runtime.passwords.InitializationParameters(t.Context(), secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored []byte
+	if err := runtime.store.db.QueryRowContext(t.Context(), `SELECT verifier FROM management_initialization`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	want := sha256.Sum256([]byte(secret))
+	if !bytes.Equal(stored, want[:]) {
+		t.Fatal("configured secret was not stored as a hash")
+	}
+	users, err := runtime.store.Users(t.Context())
+	if err != nil || len(users) != 0 {
+		t.Fatal("configured startup created an account")
+	}
+	if _, err := runtime.store.db.ExecContext(t.Context(), `UPDATE management_initialization SET expires_at=?`, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.passwords.InitializationParameters(t.Context(), secret); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("expired configured code accepted")
+	}
+	before := time.Now().Add(15 * time.Minute).Unix()
+	open(secret)
+	status, err := runtime.store.InitializationStatus(t.Context())
+	if err != nil || !status.Required || status.ExpiresAt < before || status.ExpiresAt > time.Now().Add(15*time.Minute).Unix() {
+		t.Fatalf("restart did not renew configured code expiry: %+v %v", status, err)
+	}
+	renewed, err := runtime.passwords.InitializationParameters(t.Context(), secret)
+	if err != nil || renewed.Salt == params.Salt {
+		t.Fatal("configured code not reusable with a fresh salt after restart")
+	}
+	replacement := "ys_" + base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{43}, 32))
+	open(replacement)
+	if _, err := runtime.passwords.InitializationParameters(t.Context(), secret); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("replaced configured code survived restart")
+	}
+	params, err = runtime.passwords.InitializationParameters(t.Context(), replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runtime.passwords.CompleteInitialization(t.Context(), replacement, "owner", clientCredential(t, "owner password", params)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.passwords.InitializationParameters(t.Context(), replacement); !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("configured code survived completion")
+	}
+	// Even invalid leftover configuration must not block a completed installation.
+	open("invalid leftover code")
+	status, err = runtime.store.InitializationStatus(t.Context())
+	if err != nil || status.Required || status.ExpiresAt != 0 {
+		t.Fatalf("configured restart reopened setup: %+v %v", status, err)
+	}
+	users, err = runtime.store.Users(t.Context())
+	if err != nil || len(users) != 1 || users[0].Login != "owner" || !users[0].Enrolled {
+		t.Fatal("configured restart changed the administrator")
+	}
+}
+
+func TestInvalidConfiguredInitializationDoesNotRotateCode(t *testing.T) {
+	s := testStore(t)
+	p, err := NewPasswordService(t.Context(), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.StartInitialization(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{
+		"", "short secret", "ys_" + strings.Repeat("A", 42),
+		"yp_" + strings.Repeat("A", 43), "ys_" + strings.Repeat("!", 43),
+		"ys_" + strings.Repeat("A", 42) + "B", // nonzero base64 padding bits
+		first.Secret + "=", " " + first.Secret, first.Secret + "\n",
+	} {
+		code, err := s.startInitialization(t.Context(), new(secret))
+		if err == nil || code.Secret != "" {
+			t.Fatal("invalid configured code did not fail closed")
+		}
+		if secret != "" && strings.Contains(err.Error(), secret) {
+			t.Fatal("validation error exposed the configured code")
+		}
+		if _, err := p.InitializationParameters(t.Context(), first.Secret); err != nil {
+			t.Fatal("invalid configuration rotated the current code")
+		}
+	}
+}
+
 func TestInitializationConcurrentCompletionAndPendingBootstrap(t *testing.T) {
 	s := testStore(t)
 	pending, capability, err := s.CreateUser(t.Context(), "local", "admin", Admin, true)

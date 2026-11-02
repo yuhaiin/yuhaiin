@@ -30,6 +30,13 @@ type Runtime struct {
 	db        io.Closer
 }
 
+type RuntimeOptions struct {
+	// InitializationCode overrides random generation for unfinished setup only.
+	// Nil generates a random code; a non-nil empty or malformed value is invalid.
+	// This secret is never printed or persisted in plaintext.
+	InitializationCode *string
+}
+
 func Middleware(ctx context.Context, mux *http.ServeMux, options httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {
 	runtime, err := OpenRuntime(ctx, options.DataDirectory)
 	if err != nil {
@@ -44,6 +51,10 @@ func Middleware(ctx context.Context, mux *http.ServeMux, options httpapi.Middlew
 }
 
 func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) {
+	return OpenRuntimeWithOptions(ctx, directory, RuntimeOptions{})
+}
+
+func OpenRuntimeWithOptions(ctx context.Context, directory string, options RuntimeOptions) (_ *Runtime, err error) {
 	if directory == "" {
 		return nil, errors.New("management authentication requires a data directory")
 	}
@@ -62,13 +73,13 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 	if err != nil {
 		return nil, err
 	}
-	code, err := store.StartInitialization(ctx)
+	code, err := store.startInitialization(ctx, options.InitializationCode)
 	if err != nil {
 		return nil, err
 	}
 	if code.Secret != "" {
 		// Deliberately use local startup output, not the persistent/HTTP log stream.
-		if _, err := fmt.Fprintf(os.Stderr, "Management setup required. Open the Web UI and create an administrator.\nInitialization code: %s\nExpires at: %s (15 minutes). Restarting before setup completes replaces this code.\n", code.Secret, time.Unix(code.ExpiresAt, 0).Format(time.RFC3339)); err != nil {
+		if err := writeInitializationNotice(os.Stderr, code, options.InitializationCode != nil); err != nil {
 			return nil, fmt.Errorf("write management initialization code: %w", err)
 		}
 	}
@@ -103,6 +114,17 @@ func OpenRuntime(ctx context.Context, directory string) (_ *Runtime, err error) 
 		return nil, err
 	}
 	return &Runtime{Audit: audit, Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: upstream, db: db}, nil
+}
+
+func writeInitializationNotice(output io.Writer, code InitializationCode, configured bool) error {
+	message := "Initialization code: " + code.Secret + "\n"
+	restart := "Restarting before setup completes replaces this code."
+	if configured {
+		message = "Using the configured initialization code (value hidden).\n"
+		restart = "Restarting before setup completes renews the configured code for 15 minutes."
+	}
+	_, err := fmt.Fprintf(output, "Management setup required. Open the Web UI and create an administrator.\n%sExpires at: %s (15 minutes). %s\n", message, time.Unix(code.ExpiresAt, 0).Format(time.RFC3339), restart)
+	return err
 }
 
 func (r *Runtime) Close() error {

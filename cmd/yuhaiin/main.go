@@ -31,6 +31,7 @@ Actions:
     -https-cert TLS certificate PEM file (use with -https-key)
     -https-key  TLS private key PEM file
     -https-names Hostnames/IPs for the generated self-signed certificate
+    -initialization-code First-time setup code (run only; overrides YUHAIIN_INITIALIZATION_CODE)
     -path, -p  save data path [default: %s/.yuhaiin]
     -eweb, -e  external web page static files dir
   help        show help

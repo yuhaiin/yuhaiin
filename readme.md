@@ -227,6 +227,8 @@ yuhaiin -host="127.0.0.1:50051" -path="$HOME/.config/yuhaiin"
 
 Open **http://127.0.0.1:50051** to configure your inbounds, nodes, routing policies, traffic control, and HTTP Gateway. On the first start of the server executable, find the **Initialization code** in the local startup output (valid for 15 minutes), then use **Create administrator** in the Web UI to enroll the first account. The code is not published through an unauthenticated HTTP endpoint.
 
+For automation, supply a code through `YUHAIIN_INITIALIZATION_CODE` or `yuhaiin run -initialization-code` (CLI takes precedence). Supplied codes are hidden from startup output and only apply until initialization completes. See [the initialization-code format and restart behavior](docs/MANAGEMENT_AUTH.md#first-time-setup-and-migration).
+
 After signing in, open **Account & Security** to manage users, traffic groups, custom roles, API tokens, OAuth/OIDC account links, Passkeys, browser sessions, proxy credentials, and security/audit reports. Configure identity resource policies under **Traffic Control**. To attribute proxy traffic to a user, create a device credential and explicitly authorize that user on a supported inbound. A management account alone does not enable proxy authentication on an inbound.
 
 The management endpoint above is local by default. **Use HTTPS with a trusted certificate for remote management**; local loopback HTTP remains supported for development and local use.

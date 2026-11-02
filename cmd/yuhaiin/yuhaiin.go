@@ -43,6 +43,7 @@ var recoveryStartupCheckpoint func(string)
 
 func run(args []string) (resultErr error) {
 	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
+	initialization := initializationOptions(flag)
 	host := flag.String("host", "0.0.0.0:50051", "http listen host")
 	https := flag.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
 	httpsCert := flag.String("https-cert", "", "TLS certificate PEM file (use with -https-key)")
@@ -175,7 +176,7 @@ func run(args []string) (resultErr error) {
 
 	fmt.Println(version.Art)
 
-	identities, err := managementauth.OpenRuntime(context.Background(), *path)
+	identities, err := managementauth.OpenRuntimeWithOptions(context.Background(), *path, *initialization)
 	if err != nil {
 		_ = lis.Close()
 		return err
