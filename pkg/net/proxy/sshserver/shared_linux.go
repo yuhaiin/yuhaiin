@@ -76,6 +76,7 @@ func (g *connectionNetwork) openLocked() (err error) {
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
 		Stdin:      read, MTU: s.config.MTU, IPv6: s.config.IPv6,
 		Addresses: s.addresses,
+		Cgroup:    s.cgroups,
 	})
 	if err != nil {
 		return err

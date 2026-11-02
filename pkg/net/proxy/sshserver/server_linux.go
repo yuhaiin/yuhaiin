@@ -4,6 +4,9 @@ package sshserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"path/filepath"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -26,6 +29,7 @@ type Server struct {
 	netapi.EmptyInterface
 	listener  net.Listener
 	addresses sessionnet.AddressConfig
+	cgroups   *sessionnet.CgroupManager
 	config    Config
 	ssh       gossh.ServerConfig
 	handler   netapi.Handler
@@ -54,13 +58,27 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Use a stable identity so the next process can reap orphaned sessions.
+	root := config.CgroupRoot
+	if root == "" {
+		if config.InboundID == "" {
+			return nil, errors.New("ssh inbound: an inbound ID is required for cgroup recovery")
+		}
+		sum := sha256.Sum256([]byte(config.InboundID))
+		root = filepath.Join("/sys/fs/cgroup/yuhaiin/ssh", hex.EncodeToString(sum[:16]))
+	}
+	cgroups, err := sessionnet.NewCgroupManager(root)
+	if err != nil {
+		return nil, fmt.Errorf("ssh inbound: cgroup v2 containment is required: %w", err)
+	}
 	listener, err := net.Listen("tcp", config.Listen)
 	if err != nil {
+		_ = cgroups.Close()
 		return nil, fmt.Errorf("ssh inbound listen: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
-		listener: listener, config: config, handler: handler, addresses: addresses,
+		listener: listener, config: config, handler: handler, addresses: addresses, cgroups: cgroups,
 		slots: make(chan struct{}, config.MaxSessions), clients: make(map[net.Conn]struct{}),
 		ctx: ctx, cancel: cancel,
 	}
@@ -267,11 +285,11 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 				doneCh := make(chan struct{})
 				done = doneCh
 				_ = req.Reply(true, nil)
-				go func() {
+				s.wg.Go(func() {
 					defer close(doneCh)
 					defer func() { <-s.slots }()
 					s.execute(ctx, ch, args, pty, network)
-				}()
+				})
 			default:
 				_ = req.Reply(false, nil)
 			}
@@ -361,6 +379,7 @@ func (s *Server) Close() error {
 		}
 		s.mu.Unlock()
 		s.wg.Wait()
+		err = errors.Join(err, s.cgroups.Close())
 	})
 	return err
 }

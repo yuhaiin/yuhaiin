@@ -18,6 +18,8 @@ import (
 // authenticating a public key.
 type Config struct {
 	Listen           string
+	InboundID        string
+	CgroupRoot       string
 	HostKey          string
 	Username         string
 	AuthorizedKey    string
