@@ -26,6 +26,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/oschwald/maxminddb-golang/v2 v2.9.0
 	github.com/pires/go-proxyproto v0.16.0
+	github.com/pkg/sftp v1.13.11
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/refraction-networking/utls v1.8.2
@@ -109,6 +110,7 @@ require (
 	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/kamstrup/intmap v0.5.2 // indirect
 	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect

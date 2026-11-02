@@ -9,6 +9,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/sshserver"
 )
 
 var help = `Usage:
@@ -53,6 +54,12 @@ func main() {
 	}
 
 	switch action {
+	case "internal-sftp":
+		if err := sshserver.RunSFTP(args); err != nil {
+			fmt.Fprintln(os.Stderr, "ssh inbound: SFTP server failed")
+			os.Exit(1)
+		}
+		return
 	case "recovery":
 		do(recoverycmd.Run)
 		return

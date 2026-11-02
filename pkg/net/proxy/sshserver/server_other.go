@@ -16,3 +16,5 @@ func NewServer(Config, netapi.Handler) (*Server, error) {
 }
 
 func (*Server) Close() error { return nil }
+
+func RunSFTP([]string) error { return errors.New("SFTP inbound requires Linux") }

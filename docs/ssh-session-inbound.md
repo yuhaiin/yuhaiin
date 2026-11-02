@@ -44,6 +44,7 @@ and no transports:
       "uid": 65534,
       "gid": 65534,
       "shell": "/bin/sh",
+      "sftpReadOnlyPaths": ["/srv/archive", "/srv/backups"],
       "mtu": 1500,
       "ipv6": true,
       "maxSessions": 8,
@@ -90,8 +91,8 @@ from host Unix-domain sockets. Test permissions before exposing SSH remotely.
 
 - Public-key authentication only. Password authentication, `direct-tcpip`
   port forwarding, SSH agent forwarding, and remote TCP listening are disabled.
-- Supports SSH `session` channels with `shell`, `exec`, PTY allocation and
-  terminal resize. No SFTP subsystem.
+- Supports SSH `session` channels with `shell`, `exec`, the built-in `sftp`
+  subsystem, PTY allocation and terminal resize.
 - The first shell or exec channel in an authenticated SSH transport creates one
   namespace, TUN, and lightweight stack. Concurrent channels on that SSH
   transport reuse them, including the isolated loopback network. Separate SSH
@@ -105,12 +106,50 @@ from host Unix-domain sockets. Test permissions before exposing SSH remotely.
 - The first command must successfully create and connect the shared TUN and
   lightweight stack before any command can start. On failure, execution is rejected rather
   than falling back to ordinary host routing.
-- Cancelling the SSH connection shuts down its session. The underlying
-  sessionnet library currently kills the process group, not escaped daemonized
-  descendants. Add cgroup v2 containment before relying on complete cleanup.
+- Cancelling the SSH connection shuts down its session. Required cgroup v2
+  containment also terminates detached descendants.
 - This initial version has its own configured SSH public-key identity. It does
   **not** claim integration with the management user's credential and identity
   system. Setting the inbound `authentication` field is rejected.
+
+## User home and shell startup
+
+`HOME`, `USER`, `LOGNAME`, and the initial working directory follow the local
+system account selected by `uid`, rather than the SSH authentication username.
+If its home directory is missing, the working directory falls back to `/`.
+An unregistered numeric UID uses `/` as HOME and the configured SSH username.
+
+Leaving `shell` empty selects the local account's login shell, with `/bin/sh`
+as fallback for missing entries or service accounts using `nologin`/`false`.
+Existing explicit shell settings are preserved. The shell starts as a login
+shell: select `/bin/bash` when Bash behavior is intended. `/bin/sh`, even when
+it points to Bash, uses different startup files. Bash login shells read their
+normal profile files; `.bash_profile` or `.profile` can source `.bashrc`.
+
+## Built-in SFTP and read-only directories
+
+SFTP is available on the same SSH listener, with the same public-key identity
+and Linux UID/GID. It re-executes the Yuhaiin binary in an unprivileged child
+using the existing shared namespace, cgroup, session limit and disconnect
+cleanup. An external OpenSSH `sftp-server` executable is not required. SFTP
+requests with a PTY or an unknown subsystem name are rejected.
+
+`sftpReadOnlyPaths` is an optional list of absolute paths. If omitted or empty,
+SFTP uses normal operating-system permissions. Each listed directory and its
+descendants remain readable but reject uploads, appends, truncation, directory
+creation, deletion, metadata changes, and renames into or out of the tree.
+Moving an ancestor directory is rejected too. Symbolic-link targets are
+resolved before writes; hard-link creation from a protected path is rejected.
+Writable sibling directories remain governed by their normal permissions.
+
+These are SFTP path rules. They do not modify host permissions, restrict SSH
+shell/exec, or establish a filesystem sandbox. Pre-existing hard links outside
+the configured paths retain their path's normal permissions. Use system
+account/filesystem permissions when access must be restricted across all
+applications and aliases.
+
+The SSH editor exposes the read-only directory list, with one absolute path
+per line. Leave it empty to retain the original filesystem permissions.
 
 ## Validation
 
@@ -128,6 +167,44 @@ share a namespace only within one SSH transport:
 ```sh
 YUH_SSH_SERVER_INTEGRATION=1 go test -race -count=1 -timeout=120s ./pkg/net/proxy/sshserver
 ```
+
+The integration suite also verifies SFTP upload/download, read-only denial,
+shell access to the same files, reconnect/disconnect cleanup, and UID-based
+HOME and working-directory selection. Set `YUH_SSH_SERVER_CGROUP_ROOT` to a
+writable delegated cgroup v2 directory when running the production path.
+
+For process/network qualification in disposable user namespaces without a
+delegated cgroup (this exercises the test-only unmanaged server constructor):
+
+```sh
+go test -c -o /tmp/yuhaiin-sshserver.test ./pkg/net/proxy/sshserver
+unshare --user --map-auto --map-root-user --mount --net sh -c '
+  ip link set lo up && YUH_SSH_SERVER_NAMESPACE_TEST=1 \
+    /tmp/yuhaiin-sshserver.test -test.run "^TestSSHServer(SFTP|UsesSystemHome)" -test.v
+'
+```
+
+Measure SFTP protocol and filesystem costs, comparing default permissions
+with a configured read-only policy, using:
+
+```sh
+go test -run '^$' -bench '^BenchmarkSFTP(Transfer|Read)$' -benchmem -benchtime=1s -count=3 -cpu=1 ./pkg/net/proxy/sshserver
+```
+
+These benchmarks transfer 32 KiB per operation over an in-process connection
+to local temporary files. They exclude SSH encryption and real-network costs.
+
+On Go 1.27.3, Linux amd64 and Ryzen 5 5600G, the median of three two-second
+runs was:
+
+| Operation | System permissions | Read-only path policy |
+| --- | ---: | ---: |
+| Read 32 KiB | 18.045 us/op, 15 allocs | 18.187 us/op, 15 allocs |
+| Write 32 KiB to an unlisted path | 13.353 us/op, 16 allocs | 17.786 us/op, 22 allocs |
+
+The write policy rechecks the opened file before each write, adding about
+4.4 us per 32 KiB operation in this local benchmark. Raw output is in
+`docs/benchmarks/ssh-sftp-2026-11-02.txt`.
 
 Compare fresh SSH transports, a new namespace on a reused transport, and an
 extra concurrent channel sharing a live namespace with:
