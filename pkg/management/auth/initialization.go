@@ -13,8 +13,8 @@ import (
 	"uuid"
 )
 
-// InitializationCode is emitted only to the local startup output. Only its hash
-// is persisted; neither the public status response nor audit events contain it.
+// InitializationCode contains the setup secret. Only generated secrets are
+// emitted to local startup output; only the hash is persisted.
 type InitializationCode struct {
 	Secret    string
 	ExpiresAt int64
@@ -34,13 +34,29 @@ func (s *Store) InitializationStatus(ctx context.Context) (InitializationStatus,
 // StartInitialization rotates an unfinished setup on every actual app start.
 // It creates no account and never reopens a completed installation.
 func (s *Store) StartInitialization(ctx context.Context) (InitializationCode, error) {
+	return s.startInitialization(ctx, nil)
+}
+
+// A configured code is reused on unfinished starts, with a new salt and expiry.
+// Check completion before validating it so leftover configuration cannot reopen
+// setup or prevent an initialized installation from starting.
+func (s *Store) startInitialization(ctx context.Context, configuredCode *string) (InitializationCode, error) {
 	status, err := s.InitializationStatus(ctx)
 	if err != nil || !status.Required {
 		return InitializationCode{}, err
 	}
-	var entropy [32]byte
-	_, _ = rand.Read(entropy[:])
-	out := InitializationCode{Secret: "ys_" + base64.RawURLEncoding.EncodeToString(entropy[:]), ExpiresAt: time.Now().Add(15 * time.Minute).Unix()}
+	var secret string
+	if configuredCode != nil {
+		secret = *configuredCode
+		if !validInitializationCode(secret) {
+			return InitializationCode{}, errors.New("invalid initialization code: expected ys_ followed by the unpadded base64url encoding of 32 bytes")
+		}
+	} else {
+		var entropy [32]byte
+		_, _ = rand.Read(entropy[:])
+		secret = "ys_" + base64.RawURLEncoding.EncodeToString(entropy[:])
+	}
+	out := InitializationCode{Secret: secret, ExpiresAt: time.Now().Add(15 * time.Minute).Unix()}
 	verifier := sha256.Sum256([]byte(out.Secret))
 	result, err := s.db.ExecContext(ctx, `UPDATE management_initialization SET verifier=?,client_salt=?,expires_at=? WHERE id=1 AND completed=0`, verifier[:], clientSalt(), out.ExpiresAt)
 	if err != nil {
@@ -51,6 +67,14 @@ func (s *Store) StartInitialization(ctx context.Context) (InitializationCode, er
 		return InitializationCode{}, err
 	}
 	return out, nil
+}
+
+func validInitializationCode(secret string) bool {
+	if len(secret) != 46 || !strings.HasPrefix(secret, "ys_") {
+		return false
+	}
+	entropy, err := base64.RawURLEncoding.Strict().DecodeString(secret[3:])
+	return err == nil && len(entropy) == 32
 }
 
 func (p *PasswordService) InitializationParameters(ctx context.Context, secret string) (PasswordParameters, error) {

@@ -15,6 +15,19 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lockfile"
 )
 
+func initializationOptions(flags *flag.FlagSet) *managementauth.RuntimeOptions {
+	options := &managementauth.RuntimeOptions{}
+	if code, ok := os.LookupEnv("YUHAIIN_INITIALIZATION_CODE"); ok {
+		options.InitializationCode = new(code)
+	}
+	// Func keeps the secret out of flag defaults and parse-error output.
+	flags.Func("initialization-code", "first-time setup code (overrides YUHAIIN_INITIALIZATION_CODE; ys_ plus 32 bytes encoded as unpadded base64url)", func(code string) error {
+		options.InitializationCode = new(code)
+		return nil
+	})
+	return options
+}
+
 // Optional manual bootstrap/recovery requires local execution and access to the
 // private identity database. Normal first-time setup uses the startup code.
 // Passwords are supplied only to the password derivation client, never to this command.
