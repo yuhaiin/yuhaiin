@@ -441,6 +441,8 @@ github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41 h1:iQLocVGEPJRN
 github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
 github.com/yuhaiin/sessionnet v0.0.0-20261102141811-d3b90c541398 h1:WFaX5JBExVKT+WIqjdOL34o3/XClnWzFiN7HdXA0dXU=
 github.com/yuhaiin/sessionnet v0.0.0-20261102141811-d3b90c541398/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
+github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb h1:dEFDYFwTRE4n/nehJeYWqEahnSj46In3Zjq4eoxLpzk=
+github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746 h1:kWUWcIyli3BIwDjoIK6yqyQldAtMnH/+uyIkgMHnAMI=
@@ -457,6 +459,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102063210-c7377275464b h1:rJEjf
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102063210-c7377275464b/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102095609-a2769dc029bc h1:zTtN7V9mEOMKyNWU/XSDqbyeWYFycst5fGx3VfTEZeU=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102095609-a2769dc029bc/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102135307-508f41359c93 h1:Z3ND/iEc0LIODo+TRDG9QDKiiG6sjOVzQZSt9OaPPrs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102135307-508f41359c93/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29 h1:v9Bl1yxwwLSSGQ0eScz295TtVTXlYuw0igjbV1Iql2Q=
 github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29/go.mod h1:tj43hgM1bWIR/0HMUwaEOFVxPxCbr/HAnbAkSjn//Uo=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
