@@ -41,7 +41,7 @@ jobs:
         run: |
           sudo YUH_SSH_SERVER_INTEGRATION=1 YUH_SSH_SERVER_CGROUP_ROOT=/sys/fs/cgroup/yuhaiin-ssh-integration \
             /tmp/yuhaiin-ssh-integration.test -test.v -test.timeout=120s \
-            -test.run '^TestSSHServer(NetworkIntegration|SharesOnlyWithinConnection)$'
+            -test.run '^TestSSHServer(NetworkIntegration|SharesOnlyWithinConnection|PTYSessionDoesNotStopServer)$'
       - name: Remove test cgroup parent
         if: always()
         run: |
