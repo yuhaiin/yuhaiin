@@ -18,6 +18,7 @@ var help = `Usage:
 Actions:
   auth        local management administrator bootstrap/recovery
   recovery    encrypted backup, verification, restore preview and offline recovery
+  wrap        run a local command in an isolated Linux network namespace
   install     install yuhaiin
   uninstall   uninstall yuhaiin
   start       start yuhaiin
@@ -35,6 +36,9 @@ Actions:
     -initialization-code First-time setup code (run only; overrides YUHAIIN_INITIALIZATION_CODE)
     -path, -p  save data path [default: %s/.yuhaiin]
     -eweb, -e  external web page static files dir
+    -wrap-socket Enable the Linux local wrap service on this Unix socket
+    -wrap-uid, -wrap-gid Non-root Unix account allowed to use local wrap
+    -wrap-cgroup-root Dedicated cgroup v2 root for local wrap
   help        show help
 `
 
@@ -54,6 +58,12 @@ func main() {
 	}
 
 	switch action {
+	case "wrap":
+		code, err := wrapCommand(args)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(code)
 	case "internal-sftp":
 		if err := sshserver.RunSFTP(args); err != nil {
 			fmt.Fprintln(os.Stderr, "ssh inbound: SFTP server failed")

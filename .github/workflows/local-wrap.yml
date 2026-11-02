@@ -1,0 +1,48 @@
+name: Local Namespace Wrap
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/actions/setup-go/**'
+      - '.github/workflows/local-wrap.yml'
+      - 'pkg/net/netapi/**'
+      - 'pkg/net/netlink/**'
+      - 'pkg/net/proxy/processnet/**'
+      - 'pkg/net/proxy/localwrap/**'
+      - 'pkg/net/proxy/tun/lightweight*/**'
+      - 'pkg/inbound/**'
+      - 'cmd/yuhaiin/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: local-wrap-integration
+      - name: Verify TUN and cgroup v2
+        run: |
+          if [ ! -c /dev/net/tun ]; then sudo modprobe tun; fi
+          test -c /dev/net/tun
+          test "$(stat -fc %T /sys/fs/cgroup)" = cgroup2fs
+          sudo mkdir -p /sys/fs/cgroup/yuhaiin-wrap-integration
+      - name: Build integration tests
+        run: go test -c -o /tmp/yuhaiin-wrap.test ./pkg/net/proxy/localwrap
+      - name: Verify local launches, isolated networking, resolver and containment
+        run: |
+          sudo YUH_WRAP_INTEGRATION=1 YUH_WRAP_CGROUP_ROOT=/sys/fs/cgroup/yuhaiin-wrap-integration \
+            /tmp/yuhaiin-wrap.test -test.v -test.timeout=120s -test.run '^TestLocalWrap.*Integration$'
+      - name: Remove test cgroup root
+        if: always()
+        run: sudo rmdir /sys/fs/cgroup/yuhaiin-wrap-integration

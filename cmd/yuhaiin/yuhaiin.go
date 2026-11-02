@@ -31,6 +31,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/localwrap"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	updatemaintenance "github.com/Asutorufa/yuhaiin/pkg/update/maintenance"
@@ -53,6 +54,10 @@ func run(args []string) (resultErr error) {
 	password := flag.String("p", "", "password")
 	path := flag.String("path", configuration.DataDir.Load(), "save data path")
 	webdir := flag.String("eweb", "", "external web page")
+	wrapSocket := flag.String("wrap-socket", "", "enable the Linux local wrap service on this Unix socket")
+	wrapUID := flag.Uint("wrap-uid", 0, "non-root Unix UID allowed to use local wrap")
+	wrapGID := flag.Uint("wrap-gid", 0, "non-root Unix GID owning the local wrap socket")
+	wrapCgroup := flag.String("wrap-cgroup-root", "", "dedicated stable cgroup v2 root for local wrap")
 	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
 	restoredStartup := flag.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
 	// pprof := flag.Bool("pgo", false, "enables CPU profiling")
@@ -206,6 +211,16 @@ func run(args []string) (resultErr error) {
 			log.Error("close app error", "err", err)
 		}
 	}()
+	if *wrapSocket != "" {
+		if *wrapUID > 1<<32-1 || *wrapGID > 1<<32-1 {
+			return errors.New("wrap: UID/GID exceed uint32")
+		}
+		wrap, err := app.Inbound.StartLocalWrap(localwrap.Config{Socket: *wrapSocket, UID: uint32(*wrapUID), GID: uint32(*wrapGID), CgroupRoot: *wrapCgroup, IPv6: configuration.IPv6.Load()})
+		if err != nil {
+			return err
+		}
+		defer wrap.Close()
+	}
 	var managementTLSConfig *tls.Config
 	if app.Certificates != nil {
 		config, pair, bindErr := app.Certificates.BindManagement(context.Background(), *httpsManaged)

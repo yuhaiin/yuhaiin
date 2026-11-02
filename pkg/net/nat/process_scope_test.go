@@ -55,14 +55,17 @@ func TestNATSeparatesProcessScopesWithSameSource(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, want := range []netapi.ProcessDumper{a, b} {
+	// Each source initializes asynchronously; either namespace may dial first.
+	remaining := map[netapi.ProcessDumper]bool{a: true, b: true}
+	for range 2 {
 		select {
 		case got := <-dials:
-			if got != want {
-				t.Fatalf("mapping carried scope %v, want %v", got, want)
+			if !remaining[got] {
+				t.Fatalf("mapping carried duplicate or unexpected scope %v", got)
 			}
+			delete(remaining, got)
 		case <-time.After(time.Second):
-			t.Fatalf("namespace %v reused another namespace's NAT source", want)
+			t.Fatalf("namespaces %v reused another namespace's NAT source", remaining)
 		}
 	}
 	select {

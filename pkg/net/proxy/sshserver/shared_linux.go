@@ -7,15 +7,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net/netip"
 	"os"
-	"strconv"
 	"sync"
 
-	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
-	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/processnet"
 	"github.com/yuhaiin/sessionnet"
 )
 
@@ -29,7 +24,6 @@ type connectionNetwork struct {
 	owner     *sessionnet.Session
 	flows     io.Closer
 	keepalive *os.File
-	processes *netlink.NetNSProcessDumper
 	refs      int
 	closed    bool
 }
@@ -91,80 +85,16 @@ func (g *connectionNetwork) openLocked() (err error) {
 			_ = owner.Close()
 		}
 	}()
-	processes, err := openProcessDumper(owner)
+	flows, err := processnet.Attach(owner, s.handler, s.addresses, s.config.MTU, s.config.IPv6, "ssh")
 	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = processes.Close()
-		}
-	}()
-	fd, err := owner.DupTun()
-	if err != nil {
-		return err
-	}
-	addresses := []netip.Prefix{netip.PrefixFrom(s.addresses.GatewayIPv4, 32)}
-	ips := []netip.Addr{s.addresses.GatewayIPv4}
-	if s.config.IPv6 {
-		addresses = append(addresses, netip.PrefixFrom(s.addresses.GatewayIPv6, 128))
-		ips = append(ips, s.addresses.GatewayIPv6)
-	}
-	stack, err := lightweight.New(lightweight.Config{
-		Addresses: ips, MTU: s.config.MTU,
-		Promiscuous: true, ForwardUDP: true, Profile: lightweight.LocalTun,
-	}, &tunPackets{File: fd})
-	if err != nil {
-		_ = fd.Close()
-		return err
-	}
-	flows, err := lightweighttun.NewFromStack(stack, &scopedHandler{Handler: s.handler, scope: processes}, addresses, "ssh")
-	if err != nil {
-		_ = stack.Close()
 		return err
 	}
 	if err = owner.Release(); err != nil {
 		_ = flows.Close()
 		return err
 	}
-	g.owner, g.flows, g.keepalive, g.processes = owner, flows, write, processes
+	g.owner, g.flows, g.keepalive = owner, flows, write
 	return nil
-}
-
-// openProcessDumper binds process lookups to the owner's network namespace.
-// Spawned shells join that same namespace, so it covers every command of
-// this SSH transport and nothing else.
-func openProcessDumper(owner *sessionnet.Session) (*netlink.NetNSProcessDumper, error) {
-	ns, err := os.Open("/proc/" + strconv.Itoa(owner.PID()) + "/ns/net")
-	if err != nil {
-		return nil, err
-	}
-	defer ns.Close()
-	// The owner is reaped only after Done closes, so if it is still open the
-	// PID could not have been recycled before the namespace file was opened.
-	select {
-	case <-owner.Done():
-		return nil, errors.New("ssh inbound: shared namespace owner exited")
-	default:
-	}
-	return netlink.NewNetNSProcessDumper(ns)
-}
-
-// scopedHandler tags every flow with the namespace that produced it, so
-// process lookup and UDP NAT never confuse transports that share addresses.
-type scopedHandler struct {
-	netapi.Handler
-	scope netapi.ProcessDumper
-}
-
-func (h *scopedHandler) HandleStream(meta *netapi.StreamMeta) {
-	meta.ProcessScope = h.scope
-	h.Handler.HandleStream(meta)
-}
-
-func (h *scopedHandler) HandlePacket(packet *netapi.Packet) {
-	packet.ProcessScope = h.scope
-	h.Handler.HandlePacket(packet)
 }
 
 func (g *connectionNetwork) release() {
@@ -185,8 +115,8 @@ func (g *connectionNetwork) release() {
 
 // detachLocked moves all owned resources out while g.mu is held.
 func (g *connectionNetwork) detachLocked() networkResources {
-	r := networkResources{g.owner, g.flows, g.keepalive, g.processes}
-	g.owner, g.flows, g.keepalive, g.processes = nil, nil, nil, nil
+	r := networkResources{g.owner, g.flows, g.keepalive}
+	g.owner, g.flows, g.keepalive = nil, nil, nil
 	return r
 }
 
@@ -194,7 +124,6 @@ type networkResources struct {
 	owner     *sessionnet.Session
 	flows     io.Closer
 	keepalive *os.File
-	processes *netlink.NetNSProcessDumper
 }
 
 func (r networkResources) close() {
@@ -215,11 +144,6 @@ func (r networkResources) close() {
 		if err := flows.Close(); err != nil {
 			slog.Error("ssh inbound: isolated session cleanup failed", "component", "packet stack")
 		}
-	}
-	// Close after the stack so no new flow carries a closed scope; in-flight
-	// lookups finish first and later ones fail without a host fallback.
-	if r.processes != nil {
-		_ = r.processes.Close()
 	}
 }
 

@@ -11,6 +11,7 @@ on:
       - 'pkg/net/proxy/internal/testutil/**'
       - '.github/workflows/ssh-session.yml'
       - 'pkg/net/proxy/sshserver/**'
+      - 'pkg/net/proxy/processnet/**'
       - 'pkg/contract/inbound/**'
       - 'pkg/inbound/**'
 

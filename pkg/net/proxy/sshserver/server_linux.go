@@ -434,17 +434,6 @@ func sendExitStatus(ch gossh.Channel, code uint32) error {
 	return err
 }
 
-type tunPackets struct{ *os.File }
-
-func (t *tunPackets) ReadPacket(b []byte) (int, error) { return t.Read(b) }
-func (t *tunPackets) WritePacket(b []byte) error {
-	n, err := t.Write(b)
-	if err == nil && n != len(b) {
-		return io.ErrShortWrite
-	}
-	return err
-}
-
 // UpdateFakeIPRanges fails closed if a newly active pool would shadow the
 // session gateway. Existing sessions are terminated before returning an error.
 func (s *Server) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {
