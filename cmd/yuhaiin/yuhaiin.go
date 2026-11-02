@@ -43,32 +43,32 @@ import (
 var recoveryStartupCheckpoint func(string)
 
 func run(args []string) (resultErr error) {
-	flag := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
-	initialization := initializationOptions(flag)
-	host := flag.String("host", "0.0.0.0:50051", "http listen host")
-	https := flag.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
-	httpsCert := flag.String("https-cert", "", "TLS certificate PEM file (use with -https-key)")
-	httpsKey := flag.String("https-key", "", "TLS private key PEM file (use with -https-cert)")
-	httpsManaged := flag.String("https-certificate-id", "", "already issued managed HTTPS certificate ID (exclusive with -https-cert/-https-key/-https-names)")
-	httpsNames := flag.String("https-names", "", "comma-separated hostnames or IPs for the generated TLS certificate")
-	username := flag.String("u", "", "username")
-	password := flag.String("p", "", "password")
-	path := flag.String("path", configuration.DataDir.Load(), "save data path")
-	webdir := flag.String("eweb", "", "external web page")
-	wrapSocket := flag.String("wrap-socket", "", "enable the Linux local wrap service on this Unix socket")
-	wrapUID := flag.Uint("wrap-uid", 0, "non-root Unix UID allowed to use local wrap")
-	wrapGID := flag.Uint("wrap-gid", 0, "non-root Unix GID owning the local wrap socket")
-	wrapCgroup := flag.String("wrap-cgroup-root", "", "dedicated stable cgroup v2 root for local wrap")
-	wrapTimezone := flag.String("wrap-timezone", "", "IANA timezone for wrapped child processes")
-	wrapMaxSessions := flag.Int("wrap-max-sessions", 0, "maximum concurrent local wrap sessions (default 8)")
-	nfsMode := flag.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
-	restoredStartup := flag.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
-	// pprof := flag.Bool("pgo", false, "enables CPU profiling")
-	if err := flag.Parse(args); err != nil {
+	flags := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
+	initialization := initializationOptions(flags)
+	host := flags.String("host", "0.0.0.0:50051", "http listen host")
+	https := flags.Bool("https", true, "enable HTTPS alongside HTTP on the same listen port")
+	httpsCert := flags.String("https-cert", "", "TLS certificate PEM file (use with -https-key)")
+	httpsKey := flags.String("https-key", "", "TLS private key PEM file (use with -https-cert)")
+	httpsManaged := flags.String("https-certificate-id", "", "already issued managed HTTPS certificate ID (exclusive with -https-cert/-https-key/-https-names)")
+	httpsNames := flags.String("https-names", "", "comma-separated hostnames or IPs for the generated TLS certificate")
+	username := flags.String("u", "", "username")
+	password := flags.String("p", "", "password")
+	path := flags.String("path", configuration.DataDir.Load(), "save data path")
+	webdir := flags.String("eweb", "", "external web page")
+	wrapSocket := flags.String("wrap-socket", "", "enable the Linux local wrap service on this Unix socket")
+	wrapUID := flags.Uint("wrap-uid", 0, "non-root Unix UID allowed to use local wrap")
+	wrapGID := flags.Uint("wrap-gid", 0, "non-root Unix GID owning the local wrap socket")
+	wrapCgroup := flags.String("wrap-cgroup-root", "", "dedicated stable cgroup v2 root for local wrap")
+	wrapTimezone := flags.String("wrap-timezone", "", "IANA timezone for wrapped child processes")
+	wrapMaxSessions := flags.Int("wrap-max-sessions", 0, "maximum concurrent local wrap sessions (default 8)")
+	nfsMode := flags.Bool("nfs-mode", false, "use SQLite settings for NFS/network filesystems")
+	restoredStartup := flags.Bool("recovery-startup", true, "adopt explicitly restored startup inputs; disable only for reviewed host configuration changes")
+	// pprof := flags.Bool("pgo", false, "enables CPU profiling")
+	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	wrapFlagOverrides := make(map[string]bool)
-	flag.Visit(func(value *flag.Flag) {
+	flags.Visit(func(value *flag.Flag) {
 		if strings.HasPrefix(value.Name, "wrap-") {
 			wrapFlagOverrides[value.Name] = true
 		}
