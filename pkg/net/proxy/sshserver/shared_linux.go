@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/netip"
 	"os"
 	"sync"
@@ -141,14 +142,18 @@ func (g *connectionNetwork) detachLocked() (*sessionnet.Session, io.Closer, *os.
 }
 
 func closeConnectionNetwork(owner *sessionnet.Session, flows io.Closer, keepalive *os.File) {
+	var err error
 	if keepalive != nil {
-		_ = keepalive.Close()
+		err = errors.Join(err, keepalive.Close())
 	}
 	if owner != nil {
-		_ = owner.Close()
+		err = errors.Join(err, owner.Close())
 	}
 	if flows != nil {
-		_ = flows.Close()
+		err = errors.Join(err, flows.Close())
+	}
+	if err != nil {
+		slog.Error("ssh inbound: failed to clean up isolated session networking", "error", err)
 	}
 }
 
