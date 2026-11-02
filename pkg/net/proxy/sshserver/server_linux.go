@@ -5,9 +5,8 @@ package sshserver
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
-	"path/filepath"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
