@@ -21,6 +21,7 @@ type WrapSettings struct {
 	UID         uint32 `json:"uid"`
 	GID         uint32 `json:"gid"`
 	CgroupRoot  string `json:"cgroupRoot"`
+	Timezone    string `json:"timezone"`
 	MaxSessions int    `json:"maxSessions"`
 }
 
