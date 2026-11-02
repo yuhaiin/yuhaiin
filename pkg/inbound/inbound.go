@@ -269,6 +269,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	}
 	store.SetInboundName(meta.InboundName)
 	store.SetInboundID(meta.InboundID)
+	store.SetProcessScope(meta.ProcessScope)
 
 	if (!meta.DnsRequest && !l.shouldHijackDNS(meta.Address.Port())) || l.dnsHandler == nil {
 		l.handler.Stream(store, meta)
@@ -360,7 +361,7 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 
 	store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, packet.Identity))
 	store.Source = packet.Src()
-	store.SetInboundID(packet.InboundID()).SetInboundName(packet.InboundName())
+	store.SetInboundID(packet.InboundID()).SetInboundName(packet.InboundName()).SetProcessScope(packet.ProcessScope)
 	var resourceLease *trafficcontrol.ResourceSession
 	if identity := packet.Identity; identity != nil {
 		var ok bool

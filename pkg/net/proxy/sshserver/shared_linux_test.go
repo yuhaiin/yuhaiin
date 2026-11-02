@@ -57,7 +57,7 @@ func TestConnectionNetworkCleanupDoesNotLogSensitiveErrors(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
 	secret := "password=example-secret AuthKey=example-key preauthKey=example-preauth"
-	closeConnectionNetwork(nil, failingCleanupCloser{err: errors.New(secret)}, nil)
+	networkResources{flows: failingCleanupCloser{err: errors.New(secret)}}.close()
 
 	logged := output.String()
 	if !strings.Contains(logged, "component=\"packet stack\"") {

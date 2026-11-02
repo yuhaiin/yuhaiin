@@ -26,8 +26,11 @@ func udpIdleTimeout() time.Duration {
 	return configuration.UDPIdleTimeout.Load()
 }
 
+// authenticatedSourceKey separates sources that share an address but belong
+// to different credentials, inbounds or isolated network namespaces.
 type authenticatedSourceKey struct {
 	credentialID, inboundID string
+	scope                   netapi.ProcessDumper
 	source                  uint64
 }
 type Table struct {
@@ -170,12 +173,12 @@ func (u *Table) Write(ctx context.Context, pkt *netapi.Packet) error {
 		return u.sourceControl.LoadOrCreate(key, create)
 	}
 	remove := func(source *SourceControl) { u.sourceControl.CompareAndDelete(key, source) }
-	if identity := pkt.Identity; identity != nil || u.access != nil {
+	if identity := pkt.Identity; identity != nil || u.access != nil || pkt.ProcessScope != nil {
 		credential := ""
 		if identity != nil {
 			credential = identity.CredentialID
 		}
-		scoped := authenticatedSourceKey{credential, pkt.InboundID(), key}
+		scoped := authenticatedSourceKey{credential, pkt.InboundID(), pkt.ProcessScope, key}
 		load = func(create func() (*SourceControl, error)) (*SourceControl, bool, error) {
 			return u.authenticatedSources.LoadOrCreate(scoped, create)
 		}

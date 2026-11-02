@@ -94,6 +94,7 @@ func (u *SourceControl) writeOwned(ctx context.Context, pkt *netapi.Packet, conn
 	store.Source = pkt.Src()
 	store.SetInboundID(pkt.InboundID())
 	store.SetInboundName(pkt.InboundName())
+	store.SetProcessScope(pkt.ProcessScope)
 	store.ConnOptions().SetSkipRoute(true)
 	dst, err := u.dialer.Dispatch(store, pkt.Dst())
 	if err != nil {

@@ -43,6 +43,16 @@ type sshServerTestHandler struct {
 	dnsTCP    chan struct{}
 	dnsUDP    chan struct{}
 	dnsErrors chan error
+	processes chan sshProcessLookup
+}
+
+// sshProcessLookup is the routed flow's process, resolved through the scope
+// the SSH inbound attached while the client socket is still open.
+type sshProcessLookup struct {
+	network string
+	scope   netapi.ProcessDumper
+	process netapi.Process
+	err     error
 }
 
 func newSSHServerTestHandler() *sshServerTestHandler {
@@ -52,12 +62,32 @@ func newSSHServerTestHandler() *sshServerTestHandler {
 		dnsTCP:    make(chan struct{}, 64),
 		dnsUDP:    make(chan struct{}, 64),
 		dnsErrors: make(chan error, 64),
+		processes: make(chan sshProcessLookup, 64),
+	}
+}
+
+func (h *sshServerTestHandler) lookupProcess(network string, scope netapi.ProcessDumper, source, destination net.Addr) {
+	lookup := sshProcessLookup{network: network, scope: scope, err: errors.New("flow has no process scope")}
+	if scope != nil {
+		src, err := netapi.ParseSysAddr(source)
+		if err == nil {
+			var dst netapi.Address
+			if dst, err = netapi.ParseSysAddr(destination); err == nil {
+				lookup.process, err = scope.ProcessName(network, src, dst)
+			}
+		}
+		lookup.err = err
+	}
+	select {
+	case h.processes <- lookup:
+	default:
 	}
 }
 
 func (h *sshServerTestHandler) HandleStream(meta *netapi.StreamMeta) {
 	defer meta.Src.Close()
 	if !meta.DnsRequest {
+		h.lookupProcess("tcp", meta.ProcessScope, meta.Source, meta.Destination)
 		h.tcp <- struct{}{}
 		_, _ = io.Copy(meta.Src, meta.Src)
 		return
@@ -103,6 +133,7 @@ func (h *sshServerTestHandler) HandlePacket(packet *netapi.Packet) {
 		}
 		return
 	}
+	h.lookupProcess("udp", packet.ProcessScope, packet.Src(), packet.Dst())
 	h.udp <- struct{}{}
 	if _, err := packet.WriteBack(payload, packet.Dst()); err != nil {
 		h.dnsErrors <- err
@@ -519,6 +550,94 @@ func TestSSHServerNetworkIntegration(t *testing.T) {
 	case err := <-handler.dnsErrors:
 		t.Fatalf("DNS handler failed: %v", err)
 	default:
+	}
+	verifySSHProcessLookups(t, handler, binary, config.UID)
+}
+
+// verifySSHProcessLookups requires every routed TCP/UDP flow (IPv4 and IPv6)
+// to resolve to the probe inside the SSH namespace, never to a host process.
+func verifySSHProcessLookups(t *testing.T, handler *sshServerTestHandler, binary string, uid uint32) {
+	t.Helper()
+	counts := map[string]int{}
+	var scope netapi.ProcessDumper
+	for {
+		var lookup sshProcessLookup
+		select {
+		case lookup = <-handler.processes:
+		default:
+			if counts["tcp"] < 2 || counts["udp"] < 2 {
+				t.Fatalf("process lookups for IPv4 and IPv6: %v", counts)
+			}
+			return
+		}
+		if lookup.err != nil {
+			t.Fatalf("%s process lookup in the SSH namespace: %v", lookup.network, lookup.err)
+		}
+		if lookup.process.Path != binary || lookup.process.Uid != uint(uid) || lookup.process.Pid == 0 ||
+			lookup.process.Pid == uint(os.Getpid()) {
+			t.Fatalf("%s flow resolved %+v, want %s as uid %d", lookup.network, lookup.process, binary, uid)
+		}
+		if scope != nil && lookup.scope != scope {
+			t.Fatal("flows of one SSH transport carried different process scopes")
+		}
+		scope = lookup.scope
+		counts[lookup.network]++
+	}
+}
+
+// Each SSH transport resolves processes only in its own namespace, and its
+// lookup socket is released when the transport disconnects.
+func TestSSHServerProcessLookupPerTransport(t *testing.T) {
+	if os.Getenv(sshIntegrationEnv) != "1" {
+		t.Skip("set " + sshIntegrationEnv + "=1 on a Linux host with TUN and network namespace privileges")
+	}
+	config, userSigner := newSSHServerTestIdentity(t)
+	config.IPv6 = true
+	handler := newSSHServerTestHandler()
+	server := startSSHServerTestServer(t, config, handler)
+	binary := sshServerTestBinary(t)
+	var scopes []netapi.ProcessDumper
+	var clients []*gossh.Client
+	for range 2 {
+		client := dialSSHServer(t, server, config.Username, userSigner)
+		clients = append(clients, client)
+		// Keep the transport's network alive while its scope is inspected.
+		keeper, _, stop := startSSHNamespaceKeeper(t, client)
+		defer keeper.Close()
+		defer stop()
+		session, err := client.NewSession()
+		if err != nil {
+			t.Fatal(err)
+		}
+		output, err := session.CombinedOutput(sshNetworkProbeCommand(binary))
+		_ = session.Close()
+		if err != nil {
+			t.Fatalf("probe failed: %v\n%s", err, output)
+		}
+		lookup := <-handler.processes
+		handler.processes <- lookup
+		verifySSHProcessLookups(t, handler, binary, config.UID)
+		scopes = append(scopes, lookup.scope)
+	}
+	if scopes[0] == nil || scopes[0] == scopes[1] {
+		t.Fatal("separate SSH transports shared one process scope")
+	}
+	_ = clients[0].Close()
+	source, _ := netapi.ParseAddress("tcp", "172.31.254.2:1")
+	destination, _ := netapi.ParseAddress("tcp", "203.0.113.9:18080")
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		_, err := scopes[0].ProcessName("tcp", source, destination)
+		if errors.Is(err, net.ErrClosed) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("closed transport kept its lookup socket: %v", err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, err := scopes[1].ProcessName("tcp", source, destination); errors.Is(err, net.ErrClosed) {
+		t.Fatal("closing one transport released another transport's scope")
 	}
 }
 

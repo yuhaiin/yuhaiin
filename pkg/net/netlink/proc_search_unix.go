@@ -31,14 +31,21 @@ type procSearchBuffers struct {
 var procSearchPool = sync.Pool{New: func() any { return new(procSearchBuffers) }}
 var procFDName = [...]byte{'f', 'd', 0}
 var procExeName = [...]byte{'e', 'x', 'e', 0}
+var procNetNSName = [...]byte{'n', 's', '/', 'n', 'e', 't', 0}
 
 func resolveProcessNameByProcSearchAt(root string, inode, uid uint32, calls procSearchCalls) (string, uint, error) {
-	scratch := procSearchPool.Get().(*procSearchBuffers)
-	defer procSearchPool.Put(scratch)
-	return findProcessInProc(root, inode, uid, calls, scratch)
+	return resolveProcessNameInNetNSAt(root, inode, uid, 0, calls)
 }
 
-func findProcessInProc(root string, inode, uid uint32, calls procSearchCalls, scratch *procSearchBuffers) (string, uint, error) {
+// resolveProcessNameInNetNSAt additionally requires the owner to be a member of
+// network namespace netns (its nsfs inode). Zero disables the check.
+func resolveProcessNameInNetNSAt(root string, inode, uid uint32, netns uint64, calls procSearchCalls) (string, uint, error) {
+	scratch := procSearchPool.Get().(*procSearchBuffers)
+	defer procSearchPool.Put(scratch)
+	return findProcessInProc(root, inode, uid, netns, calls, scratch)
+}
+
+func findProcessInProc(root string, inode, uid uint32, netns uint64, calls procSearchCalls, scratch *procSearchBuffers) (string, uint, error) {
 	procFD, err := unix.Open(root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return "", 0, err
@@ -49,6 +56,10 @@ func findProcessInProc(root string, inode, uid uint32, calls procSearchCalls, sc
 	target := append(expected[:0], "socket:["...)
 	target = strconv.AppendUint(target, uint64(inode), 10)
 	target = append(target, ']')
+	var expectedNS [32]byte
+	namespace := append(expectedNS[:0], "net:["...)
+	namespace = strconv.AppendUint(namespace, netns, 10)
+	namespace = append(namespace, ']')
 	var path string
 	var pid uint
 	var matchErr error
@@ -80,6 +91,14 @@ func findProcessInProc(root string, inode, uid uint32, calls procSearchCalls, sc
 		_ = unix.Close(fdFD)
 		if !matched {
 			return false
+		}
+		// The socket inode is already unique; the namespace check rejects an
+		// inode that was recycled by another namespace after the diag lookup.
+		if netns != 0 {
+			n, err := calls.readlinkat(pidFD, procNetNSName[:], scratch.link[:])
+			if err != nil || !bytes.Equal(scratch.link[:n], namespace) {
+				return false
+			}
 		}
 		// Resolve exe through the already-open PID directory, rather than reopening
 		// a /proc/PID path that could now refer to a recycled PID.
