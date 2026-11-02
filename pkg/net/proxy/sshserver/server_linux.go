@@ -345,13 +345,9 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 
 	home, username := sessionUser(s.config.UID, s.config.Username)
 	config := sessionnet.Config{
-		Command: argv,
-		Dir:     home,
-		Env: []string{
-			"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + home,
-			"USER=" + username, "LOGNAME=" + username,
-			"SHELL=" + s.config.Shell,
-		},
+		Command:    argv,
+		Dir:        home,
+		Env:        sessionEnvironment(s.config, home, username),
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
 	}
 	// Match sshd's fallback when an account has no usable home directory.
@@ -416,6 +412,20 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	_ = process.Close()
 	release()
 	_ = sendExitStatus(channel, code)
+}
+
+// sessionEnvironment overrides only the child process timezone, leaving the
+// host clock and the shared network namespace untouched.
+func sessionEnvironment(config Config, home, username string) []string {
+	env := []string{
+		"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + home,
+		"USER=" + username, "LOGNAME=" + username,
+		"SHELL=" + config.Shell,
+	}
+	if config.Timezone != "" {
+		env = append(env, "TZ="+config.Timezone)
+	}
+	return env
 }
 
 func sessionUser(uid uint32, fallbackName string) (home, username string) {

@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
@@ -27,6 +28,7 @@ type Config struct {
 	UID               uint32
 	GID               uint32
 	Shell             string
+	Timezone          string
 	SFTPReadOnlyPaths []string
 	MTU               int
 	GatewayIPv4       string
@@ -60,6 +62,14 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 	}
 	if !strings.HasPrefix(c.Shell, "/") {
 		return nil, nil, errors.New("ssh inbound: shell must be an absolute path")
+	}
+	if c.Timezone != "" {
+		if len(c.Timezone) > 128 || strings.ContainsAny(c.Timezone, "\x00\r\n") {
+			return nil, nil, errors.New("ssh inbound: invalid timezone")
+		}
+		if _, err := time.LoadLocation(c.Timezone); err != nil {
+			return nil, nil, fmt.Errorf("ssh inbound: invalid timezone %q: %w", c.Timezone, err)
+		}
 	}
 	for _, path := range c.SFTPReadOnlyPaths {
 		if !filepath.IsAbs(path) || strings.ContainsRune(path, '\x00') {

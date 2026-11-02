@@ -2,9 +2,13 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
+	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
@@ -38,6 +42,9 @@ func (c *SettingsController) Load(ctx context.Context) (contractsettings.Setting
 
 func (c *SettingsController) Save(ctx context.Context, settings contractsettings.Settings) (contractsettings.Settings, error) {
 	if err := validateTrustedOrigins(settings.TrustedOrigins); err != nil {
+		return contractsettings.Settings{}, err
+	}
+	if err := validateWrapSettings(settings.Wrap); err != nil {
 		return contractsettings.Settings{}, err
 	}
 	next, err := c.store.Save(ctx, settings)
@@ -107,4 +114,30 @@ func systemSocks5Host(settings contractsettings.Settings) string {
 		return ""
 	}
 	return ""
+}
+
+// validateWrapSettings rejects invalid privileged defaults before saving them.
+// The listener still checks cgroup delegation and socket ownership at startup.
+func validateWrapSettings(config contractsettings.WrapSettings) error {
+	if config.Socket != "" && !filepath.IsAbs(config.Socket) {
+		return fmt.Errorf("wrap: socket path must be absolute")
+	}
+	if config.CgroupRoot != "" && !filepath.IsAbs(config.CgroupRoot) {
+		return fmt.Errorf("wrap: cgroup root must be absolute")
+	}
+	if config.MaxSessions < 0 || config.MaxSessions > 128 {
+		return fmt.Errorf("wrap: maxSessions must be 0..128")
+	}
+	if config.Timezone != "" {
+		if len(config.Timezone) > 128 || strings.ContainsAny(config.Timezone, "\x00\r\n") {
+			return fmt.Errorf("wrap: invalid timezone")
+		}
+		if _, err := time.LoadLocation(config.Timezone); err != nil {
+			return fmt.Errorf("wrap: invalid timezone %q: %w", config.Timezone, err)
+		}
+	}
+	if config.Enabled && (config.UID == 0 || config.GID == 0) {
+		return fmt.Errorf("wrap: non-root UID and GID are required when enabled")
+	}
+	return nil
 }

@@ -66,6 +66,9 @@ func (s *SettingsStore) Load(ctx context.Context) (contractsettings.Settings, er
 	if err := s.load(ctx, "security", "trusted_origins", &out.TrustedOrigins); err != nil {
 		return contractsettings.Settings{}, err
 	}
+	if err := s.load(ctx, "local_wrap", "defaults", &out.Wrap); err != nil {
+		return contractsettings.Settings{}, err
+	}
 	if err := s.load(ctx, "system_proxy", "http", &out.SystemProxy.HTTP); err != nil {
 		return contractsettings.Settings{}, err
 	}
@@ -121,6 +124,16 @@ func (s *SettingsStore) Save(ctx context.Context, settings contractsettings.Sett
 				return contractsettings.Settings{}, err
 			}
 		}
+		encoded = ""
+		err = tx.QueryRowContext(ctx, `SELECT value_json FROM settings_kv WHERE section='local_wrap' AND key='defaults'`).Scan(&encoded)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return contractsettings.Settings{}, err
+		}
+		if err == nil {
+			if err := json.Unmarshal([]byte(encoded), &previous.Wrap); err != nil {
+				return contractsettings.Settings{}, err
+			}
+		}
 		settings, err = secret.Merge(ctx, settings, previous)
 		if err != nil {
 			return contractsettings.Settings{}, err
@@ -137,6 +150,7 @@ func (s *SettingsStore) Save(ctx context.Context, settings contractsettings.Sett
 		{"general", "net_interface", settings.NetInterface},
 		{"general", "pprof", settings.Pprof},
 		{"security", "trusted_origins", settings.TrustedOrigins},
+		{"local_wrap", "defaults", settings.Wrap},
 		{"system_proxy", "http", settings.SystemProxy.HTTP},
 		{"system_proxy", "socks5", settings.SystemProxy.Socks5},
 		{"logcat", "level", logLevelCode(settings.Logcat.Level)},

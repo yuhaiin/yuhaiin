@@ -89,7 +89,7 @@ func TestTrustedOriginsRequireSeparateSecurityAuthority(t *testing.T) {
 	}
 	defer db.Close()
 	store := NewSettingsStore(db.DB())
-	original := contractsettings.Settings{TrustedOrigins: []string{"https://ui.example"}}
+	original := contractsettings.Settings{TrustedOrigins: []string{"https://ui.example"}, Wrap: contractsettings.WrapSettings{Enabled: true, Socket: "/run/yuhaiin/wrap.sock", UID: 1000, GID: 1000}}
 	if _, err := store.Save(t.Context(), original); err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +98,11 @@ func TestTrustedOriginsRequireSeparateSecurityAuthority(t *testing.T) {
 	if _, err := store.Save(secret.WithCapabilities(t.Context(), secret.Capabilities{}), next); err != nil {
 		t.Fatal("ordinary setting denied", err)
 	}
+	next.Wrap.Socket = "/tmp/another.sock"
+	if _, err := store.Save(secret.WithCapabilities(t.Context(), secret.Capabilities{Manage: true, Execute: true}), next); !errors.Is(err, secret.ErrSecurity) {
+		t.Fatal("settings writer changed wrap security boundary", err)
+	}
+	next.Wrap.Socket = original.Wrap.Socket
 	next.TrustedOrigins = []string{"https://untrusted.example"}
 	if _, err := store.Save(secret.WithCapabilities(t.Context(), secret.Capabilities{Manage: true, Execute: true}), next); !errors.Is(err, secret.ErrSecurity) {
 		t.Fatal("settings writer changed trust boundary", err)

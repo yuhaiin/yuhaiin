@@ -43,8 +43,12 @@ func TestValidate(t *testing.T) {
 	if _, _, err := cfg.validate(); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Shell != "/bin/sh" || cfg.MTU != 1500 || cfg.MaxSessions != 8 {
+	if cfg.Shell != "/bin/sh" || cfg.MTU != 1500 || cfg.MaxSessions != 8 || cfg.Timezone != "" {
 		t.Fatalf("unexpected defaults: %+v", cfg)
+	}
+	cfg.Timezone = "UTC"
+	if _, _, err := cfg.validate(); err != nil {
+		t.Fatalf("valid timezone rejected: %v", err)
 	}
 	tests := []struct {
 		name   string
@@ -55,6 +59,9 @@ func TestValidate(t *testing.T) {
 		{"root uid", func(c *Config) { c.UID = 0 }, "non-root"},
 		{"root gid", func(c *Config) { c.GID = 0 }, "non-root"},
 		{"relative shell", func(c *Config) { c.Shell = "sh" }, "absolute"},
+		{"invalid timezone", func(c *Config) { c.Timezone = "Mars/Olympus" }, "timezone"},
+		{"relative timezone path", func(c *Config) { c.Timezone = "../etc/passwd" }, "timezone"},
+		{"timezone with newline", func(c *Config) { c.Timezone = "UTC\nTZ=UTC" }, "timezone"},
 		{"relative SFTP directory", func(c *Config) { c.SFTPReadOnlyPaths = []string{"archive"} }, "sftpReadOnlyPaths"},
 		{"invalid SFTP directory", func(c *Config) { c.SFTPReadOnlyPaths = []string{"/archive\x00"} }, "sftpReadOnlyPaths"},
 		{"no auth key", func(c *Config) { c.AuthorizedKey = "" }, "authorizedKey"},

@@ -44,6 +44,7 @@ and no transports:
       "uid": 65534,
       "gid": 65534,
       "shell": "/bin/sh",
+      "timezone": "Asia/Tokyo",
       "sftpReadOnlyPaths": ["/srv/archive", "/srv/backups"],
       "mtu": 1500,
       "ipv6": true,
@@ -125,6 +126,20 @@ Existing explicit shell settings are preserved. The shell starts as a login
 shell: select `/bin/bash` when Bash behavior is intended. `/bin/sh`, even when
 it points to Bash, uses different startup files. Bash login shells read their
 normal profile files; `.bash_profile` or `.profile` can source `.bashrc`.
+
+## SSH session timezone
+
+Set the optional `timezone` on the SSH protocol to an IANA time zone, such as
+`Asia/Tokyo` or `America/New_York`. The frontend offers a searchable list with
+current UTC offsets. An omitted or empty value inherits the host time zone.
+
+Yuhaiin validates the name at SSH inbound startup and adds `TZ=<zone>` only to
+the child environment for shell, exec, and built-in SFTP processes. It does not
+change the host clock, `/etc/localtime`, the SSH transport, or any network or
+mount namespace. Daylight-saving transitions follow the installed IANA rules.
+The host must provide compatible time zone data (for example, `tzdata` and
+`/usr/share/zoneinfo` on Linux). A login shell or user profile that resets `TZ`
+can override this setting after startup.
 
 ## Built-in SFTP and read-only directories
 

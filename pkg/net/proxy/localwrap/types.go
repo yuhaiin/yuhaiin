@@ -13,6 +13,7 @@ type Config struct {
 	UID          uint32
 	GID          uint32
 	CgroupRoot   string
+	Timezone     string
 	IPv6         bool
 	MaxSessions  int
 	FakeIPSource interface {

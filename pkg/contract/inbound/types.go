@@ -326,6 +326,7 @@ type SSHProtocol struct {
 	UID               uint32   `json:"uid"`
 	GID               uint32   `json:"gid"`
 	Shell             string   `json:"shell,omitzero"`
+	Timezone          string   `json:"timezone,omitzero"`
 	SFTPReadOnlyPaths []string `json:"sftpReadOnlyPaths,omitempty"`
 	MTU               int      `json:"mtu,omitzero"`
 	GatewayIPv4       string   `json:"gatewayIPv4,omitzero"`
