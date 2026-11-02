@@ -34,8 +34,8 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261101144637-503f1228936c
+	github.com/yuhaiin/sessionnet v0.0.0-20261102062932-efac23438c74
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102063210-c7377275464b
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v3 v3.0.6
