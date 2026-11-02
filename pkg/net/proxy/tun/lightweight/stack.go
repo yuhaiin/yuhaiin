@@ -40,45 +40,45 @@ type flowShard struct {
 const connectionCharge = 6144
 
 type Stack struct {
-	buffers                                       bufferPool
-	outputMu                                      sync.Mutex
-	outputCount                                   atomic.Int64
-	outputWaiters                                 outputQueue
-	config                                        Config
-	link                                          PacketIO
-	packetWriter                                  PacketBufferWriter
-	headroom, gsoMax                              int
+	buffers                                                   bufferPool
+	outputMu                                                  sync.Mutex
+	outputCount                                               atomic.Int64
+	outputWaiters                                             outputQueue
+	config                                                    Config
+	link                                                      PacketIO
+	packetWriter                                              PacketBufferWriter
+	headroom, gsoMax                                          int
 	done                                          chan struct{}
-	once                                          sync.Once
-	txMu                                          sync.RWMutex
-	wg                                            sync.WaitGroup
-	closeErr                                      error
-	scheduler                                     *scheduler
-	output                                        trafficcontrol.OutputQueue[*ownedBuffer]
-	inputGovernor                                 *trafficcontrol.Governor
+	once                                                      sync.Once
+	txMu                                                      sync.RWMutex
+	wg                                                        sync.WaitGroup
+	closeErr                                                  error
+	scheduler                                                 *scheduler
+	output                                                    trafficcontrol.OutputQueue[*ownedBuffer]
+	inputGovernor                                             *trafficcontrol.Governor
 	forwarded                                     chan Datagram
 	pings                                         chan *PingRequest
-	shards                                        [32]flowShard
-	mu                                            sync.Mutex
-	listeners                                     map[netip.AddrPort]*TCPListener
-	udp                                           map[netip.AddrPort]*UDPConn
-	fragments                                     fragmentTable
-	nextPort                                      atomic.Uint32
-	nextID                                        atomic.Uint32
-	flows                                         atomic.Int64
-	memory                                        atomic.Int64
-	packetsIn, packetsOut, drops, retransmissions atomic.Uint64
+	shards                                                    [32]flowShard
+	mu                                                        sync.Mutex
+	listeners                                                 map[netip.AddrPort]*TCPListener
+	udp                                                       map[netip.AddrPort]*UDPConn
+	fragments                                                 fragmentTable
+	nextPort                                                  atomic.Uint32
+	nextID                                                    atomic.Uint32
+	flows                                                     atomic.Int64
+	memory                                                    atomic.Int64
+	packetsIn, packetsOut, drops, retransmissions             atomic.Uint64
 	rstSent, rstReceived, invalidInputDrops, rateLimitedDrops atomic.Uint64
-	icmpMu                                        sync.Mutex
-	icmpTokens                                    float64
-	icmpStamp                                     int64
+	icmpMu                                                    sync.Mutex
+	icmpTokens                                                float64
+	icmpStamp                                                 int64
 }
 type Statistics struct {
-	MemoryBytes, Connections                            int64
-	OutputQueuedPackets, OutputQueuedBytes              int64
-	OutputAQMDrops, OutputRejected, OutputOverloadDrops uint64
-	CachedBytes                                         int64
-	PacketsIn, PacketsOut, Drops, Retransmissions       uint64
+	MemoryBytes, Connections                                  int64
+	OutputQueuedPackets, OutputQueuedBytes                    int64
+	OutputAQMDrops, OutputRejected, OutputOverloadDrops       uint64
+	CachedBytes                                               int64
+	PacketsIn, PacketsOut, Drops, Retransmissions             uint64
 	RSTSent, RSTReceived, InvalidInputDrops, RateLimitedDrops uint64
 }
 
