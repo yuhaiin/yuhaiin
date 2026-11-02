@@ -319,6 +319,7 @@ func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
 // It requires explicit opt-in because network namespaces do not restrict the
 // host filesystem or Unix-domain sockets.
 type SSHProtocol struct {
+	CgroupRoot       string `json:"cgroupRoot,omitzero"`
 	HostKey          string `json:"hostKey" secret:"true"`
 	Username         string `json:"username"`
 	AuthorizedKey    string `json:"authorizedKey"`

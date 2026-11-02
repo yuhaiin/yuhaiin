@@ -94,7 +94,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		}
 		p := config.Protocol.SSH
 		return sshserver.NewServer(sshserver.Config{
-			Listen: config.Network.TCPUDP.Host, HostKey: p.HostKey,
+			Listen: config.Network.TCPUDP.Host, InboundID: config.ID, CgroupRoot: p.CgroupRoot, HostKey: p.HostKey,
 			Username: p.Username, AuthorizedKey: p.AuthorizedKey,
 			UID: p.UID, GID: p.GID, Shell: p.Shell, MTU: p.MTU,
 			GatewayIPv4: p.GatewayIPv4, SessionIPv4: p.SessionIPv4,

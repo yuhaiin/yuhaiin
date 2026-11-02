@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"codeberg.org/miekg/dns"
 	"codeberg.org/miekg/dns/dnsutil"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -171,7 +173,30 @@ func newSSHServerTestIdentity(tb testing.TB) (Config, gossh.Signer) {
 
 func startSSHServerTestServer(tb testing.TB, config Config, handler netapi.Handler) *Server {
 	tb.Helper()
-	server, err := NewServer(config, handler)
+	var server *Server
+	var err error
+	if os.Getenv(sshIntegrationEnv) == "1" {
+		config.InboundID = "ssh-integration"
+		parent := os.Getenv("YUH_SSH_SERVER_CGROUP_ROOT")
+		if parent == "" {
+			tb.Fatal("YUH_SSH_SERVER_CGROUP_ROOT must name a delegated cgroup v2 directory")
+		}
+		config.CgroupRoot = filepath.Join(parent, "ssh-integration")
+		server, err = NewServer(config, handler)
+	} else {
+		// Auth-only unit tests do not start a shell or open a TUN. The
+		// production NewServer path always requires a cgroup v2 manager.
+		var signer gossh.Signer
+		var key gossh.PublicKey
+		var addresses sessionnet.AddressConfig
+		signer, key, err = config.validate()
+		if err == nil {
+			addresses, err = config.resolveAddresses()
+		}
+		if err == nil {
+			server, err = newServerWithManager(config, handler, signer, key, addresses, nil)
+		}
+	}
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -227,6 +252,18 @@ func trySSHServerAuth(tb testing.TB, server *Server, username string, signer gos
 		return err
 	}
 	return gossh.NewClient(clientConn, channels, requests).Close()
+}
+
+// TestSSHServerRefusesUnmanagedCgroups ensures the production listener
+// cannot silently fall back to process-group-only cleanup.
+func TestSSHServerRefusesUnmanagedCgroups(t *testing.T) {
+	config, _ := newSSHServerTestIdentity(t)
+	config.InboundID = "unit-cgroup-root"
+	config.CgroupRoot = filepath.Join(t.TempDir(), "ordinary-directory")
+	if server, err := NewServer(config, newSSHServerTestHandler()); err == nil {
+		_ = server.Close()
+		t.Fatal("SSH server accepted a path outside cgroup v2")
+	}
 }
 
 func TestSSHServerPublicKeyAndForwardingPolicy(t *testing.T) {
@@ -494,23 +531,24 @@ func TestSSHServerSharesOnlyWithinConnection(t *testing.T) {
 	first := dialSSHServer(t, server, config.Username, userSigner)
 	second := dialSSHServer(t, server, config.Username, userSigner)
 
-	firstKeeper, firstNS := startSSHNamespaceKeeper(t, first)
+	firstKeeper, firstNS, stopFirst := startSSHNamespaceKeeper(t, first)
 	defer firstKeeper.Close()
-	secondKeeper, secondNS := startSSHNamespaceKeeper(t, first)
+	secondKeeper, secondNS, stopSecond := startSSHNamespaceKeeper(t, first)
 	defer secondKeeper.Close()
 	if firstNS != secondNS {
 		t.Fatalf("concurrent commands on one SSH connection used different namespaces: %s != %s", firstNS, secondNS)
 	}
-	otherKeeper, otherNS := startSSHNamespaceKeeper(t, second)
+	otherKeeper, otherNS, stopOther := startSSHNamespaceKeeper(t, second)
 	defer otherKeeper.Close()
+	defer stopOther()
 	if firstNS == otherNS {
 		t.Fatalf("separate SSH connections shared network namespace %s", firstNS)
 	}
 
-	if err := firstKeeper.Close(); err != nil {
-		t.Fatalf("close first shared command: %v", err)
+	stopFirst()
+	if err := firstKeeper.Wait(); err != nil {
+		t.Fatalf("finish first shared command: %v", err)
 	}
-	_ = firstKeeper.Wait()
 	client, err := first.NewSession()
 	if err != nil {
 		t.Fatal(err)
@@ -524,17 +562,17 @@ func TestSSHServerSharesOnlyWithinConnection(t *testing.T) {
 		t.Fatalf("namespace closed while another command still held a lease: got %q, want %q", strings.TrimSpace(string(output)), firstNS)
 	}
 
-	if err := secondKeeper.Close(); err != nil {
-		t.Fatalf("close last shared command: %v", err)
+	stopSecond()
+	if err := secondKeeper.Wait(); err != nil {
+		t.Fatalf("finish last shared command: %v", err)
 	}
-	_ = secondKeeper.Wait()
 	restarted := runSSHCommand(t, first, "readlink /proc/self/ns/net")
 	if strings.TrimSpace(string(restarted)) == firstNS {
 		t.Fatalf("a later command reused a namespace after the final lease closed: %q", restarted)
 	}
 }
 
-func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session, string) {
+func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session, string, func()) {
 	t.Helper()
 	session, err := client.NewSession()
 	if err != nil {
@@ -545,20 +583,43 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 		_ = session.Close()
 		t.Fatal(err)
 	}
-	if err := session.Start("readlink /proc/self/ns/net; exec sleep 30"); err != nil {
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		_ = session.Close()
+		t.Fatal(err)
+	}
+	// A controlled EOF/line lets Wait observe the server's exit status,
+	// which is only sent after the shared network lease is released.
+	if err := session.Start("readlink /proc/self/ns/net; echo $$; read -r done"); err != nil {
 		_ = session.Close()
 		t.Fatal(err)
 	}
 	line := make(chan struct {
 		namespace string
+		pid       int
 		err       error
 	}, 1)
 	go func() {
-		namespace, err := bufio.NewReader(stdout).ReadString('\n')
+		reader := bufio.NewReader(stdout)
+		namespace, err := reader.ReadString('\n')
+		if err != nil {
+			line <- struct {
+				namespace string
+				pid       int
+				err       error
+			}{err: err}
+			return
+		}
+		pidLine, err := reader.ReadString('\n')
+		pid := 0
+		if err == nil {
+			pid, err = strconv.Atoi(strings.TrimSpace(pidLine))
+		}
 		line <- struct {
 			namespace string
+			pid       int
 			err       error
-		}{namespace: strings.TrimSpace(namespace), err: err}
+		}{namespace: strings.TrimSpace(namespace), pid: pid, err: err}
 	}()
 	select {
 	case result := <-line:
@@ -566,15 +627,34 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 			_ = session.Close()
 			t.Fatalf("read namespace from SSH command: %v", result.err)
 		}
-		if !strings.HasPrefix(result.namespace, "net:[") {
+		if !strings.HasPrefix(result.namespace, "net:[") || result.pid <= 0 {
 			_ = session.Close()
-			t.Fatalf("unexpected network namespace identifier %q", result.namespace)
+			t.Fatalf("unexpected network namespace identifier %q or PID %d", result.namespace, result.pid)
 		}
-		return session, result.namespace
+		// Pin the original network namespace until the entire test finishes.
+		// Without this FD, Linux is free to recycle its nsfs inode number
+		// immediately after the final SSH lease is released. Comparing only
+		// readlink strings would incorrectly report a reused namespace.
+		nsPath := fmt.Sprintf("/proc/%d/ns/net", result.pid)
+		nsFile, err := os.Open(nsPath)
+		if err != nil {
+			_ = session.Close()
+			t.Fatalf("pin SSH command network namespace %q: %v", nsPath, err)
+		}
+		t.Cleanup(func() { _ = nsFile.Close() })
+		actual, err := os.Readlink(nsPath)
+		if err != nil || actual != result.namespace {
+			_ = session.Close()
+			t.Fatalf("network namespace changed while pinning: %q vs %q: %v", actual, result.namespace, err)
+		}
+		return session, result.namespace, func() {
+			_, _ = io.WriteString(stdin, "done\n")
+			_ = stdin.Close()
+		}
 	case <-time.After(5 * time.Second):
 		_ = session.Close()
 		t.Fatal("SSH command did not start in its network namespace")
-		return nil, ""
+		return nil, "", nil
 	}
 }
 

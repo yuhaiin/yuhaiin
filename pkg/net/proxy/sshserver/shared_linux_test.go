@@ -3,9 +3,12 @@
 package sshserver
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -36,5 +39,32 @@ func TestConnectionNetworkReferenceCounting(t *testing.T) {
 	}
 	if _, err := group.acquire(); err == nil {
 		t.Fatal("new session acquired a closed SSH connection")
+	}
+}
+
+type failingCleanupCloser struct {
+	err error
+}
+
+func (c failingCleanupCloser) Close() error {
+	return c.err
+}
+
+func TestConnectionNetworkCleanupDoesNotLogSensitiveErrors(t *testing.T) {
+	var output bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&output, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	secret := "password=example-secret AuthKey=example-key preauthKey=example-preauth"
+	closeConnectionNetwork(nil, failingCleanupCloser{err: errors.New(secret)}, nil)
+
+	logged := output.String()
+	if !strings.Contains(logged, "component=\"packet stack\"") {
+		t.Fatalf("cleanup log did not identify the failing component: %q", logged)
+	}
+	if strings.Contains(logged, secret) || strings.Contains(logged, "example-secret") ||
+		strings.Contains(logged, "example-key") || strings.Contains(logged, "example-preauth") {
+		t.Fatal("cleanup error leaked sensitive values into logs")
 	}
 }

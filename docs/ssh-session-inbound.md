@@ -65,6 +65,27 @@ address spaces. Inbound startup rejects overlap with the active FakeIP pools.
 The SSH protocol configuration can override `gatewayIPv4`, `sessionIPv4`,
 `gatewayIPv6` and `sessionIPv6` as needed.
 
+## Crash-safe process containment
+
+Each SSH inbound now requires cgroup v2 process containment. On startup the
+server takes an exclusive lock on its dedicated cgroup subtree and uses
+`cgroup.kill` to clean up processes left behind by a previous crash. The
+namespace owner and all shell/exec commands are atomically placed in the
+same cgroup using `CLONE_INTO_CGROUP`. Detached child processes cannot
+escape termination merely by creating another process group.
+
+By default the root is
+`/sys/fs/cgroup/yuhaiin/ssh/<stable-inbound-hash>`, derived from the inbound
+ID. The process must have permission to create and manage this path on a
+writable cgroup v2 filesystem. Systems using systemd may require a delegated
+subtree, in which case configure `cgroupRoot` under the SSH protocol to use
+a **stable, dedicated** directory for that inbound. A normal disk directory,
+read-only cgroupfs, missing `clone3` support, or an unrecoverable orphan
+prevents the SSH listener from starting; no best-effort fallback is used.
+
+This provides process containment, **not** filesystem isolation or protection
+from host Unix-domain sockets. Test permissions before exposing SSH remotely.
+
 ## Behavior and limits
 
 - Public-key authentication only. Password authentication, `direct-tcpip`

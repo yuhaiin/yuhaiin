@@ -30,3 +30,30 @@ jobs:
           gofmt -d pkg/inbound/contract_store.go pkg/inbound/ssh_hostkey_test.go pkg/net/proxy/sshserver/*.go pkg/inbound/capabilities.go pkg/inbound/contract_listener.go pkg/contract/inbound/types.go
       - name: Test SSH and inbound contracts
         run: go test -count=1 -timeout=180s ./pkg/net/proxy/sshserver ./pkg/inbound ./pkg/contract/inbound
+
+  ssh-linux-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify TUN and cgroup v2 availability
+        run: |
+          if [ ! -c /dev/net/tun ]; then sudo modprobe tun; fi
+          test -c /dev/net/tun
+          test "$(stat -fc %T /sys/fs/cgroup)" = cgroup2fs
+          sudo mkdir -p /sys/fs/cgroup/yuhaiin-ssh-integration
+      - name: Build SSH integration tests
+        run: go test -c -o /tmp/yuhaiin-ssh-integration.test ./pkg/net/proxy/sshserver
+      - name: Run isolated SSH TCP UDP DNS and shared-session tests
+        run: |
+          sudo YUH_SSH_SERVER_INTEGRATION=1 YUH_SSH_SERVER_CGROUP_ROOT=/sys/fs/cgroup/yuhaiin-ssh-integration \
+            /tmp/yuhaiin-ssh-integration.test -test.v -test.timeout=120s \
+            -test.run '^TestSSHServer(NetworkIntegration|SharesOnlyWithinConnection)$'
+      - name: Remove test cgroup parent
+        if: always()
+        run: |
+          sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration/ssh-integration || true
+          sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration || true

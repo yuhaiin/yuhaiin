@@ -4,7 +4,9 @@ package sshserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -26,6 +29,7 @@ type Server struct {
 	netapi.EmptyInterface
 	listener  net.Listener
 	addresses sessionnet.AddressConfig
+	cgroups   *sessionnet.CgroupManager
 	config    Config
 	ssh       gossh.ServerConfig
 	handler   netapi.Handler
@@ -54,13 +58,38 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Use a stable identity so the next process can reap orphaned sessions.
+	root := config.CgroupRoot
+	if root == "" {
+		if config.InboundID == "" {
+			return nil, errors.New("ssh inbound: an inbound ID is required for cgroup recovery")
+		}
+		sum := sha256.Sum256([]byte(config.InboundID))
+		root = filepath.Join("/sys/fs/cgroup/yuhaiin/ssh", hex.EncodeToString(sum[:16]))
+	}
+	cgroups, err := sessionnet.NewCgroupManager(root)
+	if err != nil {
+		return nil, fmt.Errorf("ssh inbound: cgroup v2 containment is required: %w", err)
+	}
+	server, err := newServerWithManager(config, handler, signer, key, addresses, cgroups)
+	if err != nil {
+		_ = cgroups.Close()
+	}
+	return server, err
+}
+
+// newServerWithManager binds and runs the SSH listener. Production callers
+// always pass a verified manager; nil is reserved for auth-only unit tests.
+func newServerWithManager(config Config, handler netapi.Handler, signer gossh.Signer, key gossh.PublicKey,
+	addresses sessionnet.AddressConfig, cgroups *sessionnet.CgroupManager,
+) (*Server, error) {
 	listener, err := net.Listen("tcp", config.Listen)
 	if err != nil {
 		return nil, fmt.Errorf("ssh inbound listen: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
-		listener: listener, config: config, handler: handler, addresses: addresses,
+		listener: listener, config: config, handler: handler, addresses: addresses, cgroups: cgroups,
 		slots: make(chan struct{}, config.MaxSessions), clients: make(map[net.Conn]struct{}),
 		ctx: ctx, cancel: cancel,
 	}
@@ -201,16 +230,21 @@ type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
 
 func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request, network *connectionNetwork) {
 	ctx, cancel := context.WithCancel(parent)
-	defer cancel()
-	defer ch.Close()
 	var pty *ptyPair
+	var done <-chan struct{}
 	defer func() {
+		// The SSH channel must not finish until the launched process has
+		// released its connection-scoped network and cgroup lease.
+		cancel()
+		if done != nil {
+			<-done
+		}
 		if pty != nil {
 			_ = pty.master.Close()
 			_ = pty.slave.Close()
 		}
+		_ = ch.Close()
 	}()
-	var done <-chan struct{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -267,11 +301,11 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 				doneCh := make(chan struct{})
 				done = doneCh
 				_ = req.Reply(true, nil)
-				go func() {
+				s.wg.Go(func() {
 					defer close(doneCh)
 					defer func() { <-s.slots }()
 					s.execute(ctx, ch, args, pty, network)
-				}()
+				})
 			default:
 				_ = req.Reply(false, nil)
 			}
@@ -286,7 +320,9 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		_ = sendExitStatus(channel, 255)
 		return
 	}
-	defer network.release()
+	// Complete the final lease release before acknowledging SSH exit status.
+	release := sync.OnceFunc(network.release)
+	defer release()
 
 	config := sessionnet.Config{
 		Command: argv,
@@ -305,6 +341,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	process, err := owner.Spawn(ctx, config)
 	if err != nil {
 		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to start isolated command\n")
+		release()
 		_ = sendExitStatus(channel, 255)
 		return
 	}
@@ -322,6 +359,8 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 			code = uint32(exitErr.ExitCode())
 		}
 	}
+	_ = process.Close()
+	release()
 	_ = sendExitStatus(channel, code)
 }
 func sendExitStatus(ch gossh.Channel, code uint32) error {
@@ -361,6 +400,9 @@ func (s *Server) Close() error {
 		}
 		s.mu.Unlock()
 		s.wg.Wait()
+		if s.cgroups != nil {
+			err = errors.Join(err, s.cgroups.Close())
+		}
 	})
 	return err
 }

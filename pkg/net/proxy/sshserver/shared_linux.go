@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/netip"
 	"os"
 	"sync"
@@ -76,6 +77,7 @@ func (g *connectionNetwork) openLocked() (err error) {
 		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
 		Stdin:      read, MTU: s.config.MTU, IPv6: s.config.IPv6,
 		Addresses: s.addresses,
+		Cgroup:    s.cgroups,
 	})
 	if err != nil {
 		return err
@@ -140,14 +142,22 @@ func (g *connectionNetwork) detachLocked() (*sessionnet.Session, io.Closer, *os.
 }
 
 func closeConnectionNetwork(owner *sessionnet.Session, flows io.Closer, keepalive *os.File) {
+	// Cleanup errors may contain credentials from the underlying transport or
+	// routing stack. Only log a fixed component label, never the raw error.
 	if keepalive != nil {
-		_ = keepalive.Close()
+		if err := keepalive.Close(); err != nil {
+			slog.Error("ssh inbound: isolated session cleanup failed", "component", "keepalive")
+		}
 	}
 	if owner != nil {
-		_ = owner.Close()
+		if err := owner.Close(); err != nil {
+			slog.Error("ssh inbound: isolated session cleanup failed", "component", "namespace")
+		}
 	}
 	if flows != nil {
-		_ = flows.Close()
+		if err := flows.Close(); err != nil {
+			slog.Error("ssh inbound: isolated session cleanup failed", "component", "packet stack")
+		}
 	}
 }
 
