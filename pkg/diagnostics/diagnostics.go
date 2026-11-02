@@ -39,6 +39,7 @@ type TUNState struct {
 
 type Dependencies struct {
 	TUN           func(context.Context) ([]TUNState, error)
+	TCP           func(context.Context) []tools.TCPStackDiagnostic
 	Lookup        func(context.Context, string, bool) ([]string, error)
 	Direct        netapi.StreamProxy
 	Routed        netapi.StreamProxy
@@ -81,6 +82,24 @@ func NormalizeHost(host string) (string, error) {
 }
 
 func (s *Service) Run(ctx context.Context, request tools.DiagnosticRequest) (tools.DiagnosticReport, error) {
+	if request.TCPOnly {
+		if !s.mu.TryLock() {
+			return tools.DiagnosticReport{}, ErrBusy
+		}
+		defer s.mu.Unlock()
+		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		started := time.Now()
+		report := tools.DiagnosticReport{SchemaVersion: 1, StartedAt: started.UTC().Format(time.RFC3339), Platform: runtime.GOOS + "/" + runtime.GOARCH, Version: version.Version, Checks: []tools.DiagnosticCheck{}, Findings: []string{}}
+		if s.deps.TCP != nil {
+			report.TCPStacks = s.deps.TCP(ctx)
+		}
+		if err := ctx.Err(); err != nil {
+			return tools.DiagnosticReport{}, err
+		}
+		report.DurationMS = time.Since(started).Milliseconds()
+		return report, nil
+	}
 	host, err := NormalizeHost(request.Host)
 	if err != nil {
 		return tools.DiagnosticReport{}, err
@@ -149,6 +168,9 @@ func (s *Service) Run(ctx context.Context, request tools.DiagnosticRequest) (too
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
 		return tools.DiagnosticReport{}, err
+	}
+	if s.deps.TCP != nil {
+		report.TCPStacks = s.deps.TCP(ctx)
 	}
 	report.DurationMS = time.Since(started).Milliseconds()
 	report.Findings = findings(report.Checks)
