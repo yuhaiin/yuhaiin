@@ -435,8 +435,8 @@ github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8 h1:RjLnVvlzK4q6zWaSBP
 github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8/go.mod h1:ptlSkJ8k/7IDauNH0SA96JPOo+nYGLTv2Y3UMpwvAsY=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
-github.com/yuhaiin/sessionnet v0.0.0-20261102060413-5d5ad47d542e h1:LqU9a3LMJctbplYrQlF34wOjx3G1YxFuzlUlI7u22Cw=
-github.com/yuhaiin/sessionnet v0.0.0-20261102060413-5d5ad47d542e/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
+github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41 h1:iQLocVGEPJRNLFW+Yokc1LW337vzrnjEamfFX2s7KsE=
+github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746 h1:kWUWcIyli3BIwDjoIK6yqyQldAtMnH/+uyIkgMHnAMI=
