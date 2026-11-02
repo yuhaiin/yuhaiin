@@ -39,6 +39,8 @@ Actions:
     -wrap-socket Enable the Linux local wrap service on this Unix socket
     -wrap-uid, -wrap-gid Non-root Unix account allowed to use local wrap
     -wrap-cgroup-root Dedicated cgroup v2 root for local wrap
+    -wrap-max-sessions Maximum concurrent local wrap sessions (default 8)
+    -wrap-timezone IANA time zone for locally wrapped commands (blank inherits the caller TZ)
   help        show help
 `
 
