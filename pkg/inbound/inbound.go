@@ -113,7 +113,9 @@ func (l *Inbound) TCPStackDiagnostics(limit int) []TCPStackState {
 	}
 	var states []TCPStackState
 	for id, entry := range l.store.Range {
-		if reporter, ok := entry.server.(interface{ StackDiagnostic(int) lightweight.StackDiagnostics }); ok {
+		if reporter, ok := entry.server.(interface {
+			StackDiagnostic(int) lightweight.StackDiagnostics
+		}); ok {
 			states = append(states, TCPStackState{InboundID: id, Snapshot: reporter.StackDiagnostic(limit)})
 			if len(states) == 16 {
 				break
