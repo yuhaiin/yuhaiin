@@ -439,8 +439,8 @@ github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZ
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41 h1:iQLocVGEPJRNLFW+Yokc1LW337vzrnjEamfFX2s7KsE=
 github.com/yuhaiin/sessionnet v0.0.0-20261102061226-6606ecadbc41/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
-github.com/yuhaiin/sessionnet v0.0.0-20261102062932-efac23438c74 h1:GgRXJjRiagpO0/VkGtdn10VpquIBcOtNtMEpDdfQ3rY=
-github.com/yuhaiin/sessionnet v0.0.0-20261102062932-efac23438c74/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
+github.com/yuhaiin/sessionnet v0.0.0-20261102141811-d3b90c541398 h1:WFaX5JBExVKT+WIqjdOL34o3/XClnWzFiN7HdXA0dXU=
+github.com/yuhaiin/sessionnet v0.0.0-20261102141811-d3b90c541398/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261022032805-df51b667f746 h1:kWUWcIyli3BIwDjoIK6yqyQldAtMnH/+uyIkgMHnAMI=

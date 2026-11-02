@@ -1,0 +1,20 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/localwrap
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkLaunchProtocol-12    	   50258	     24433 ns/op	    1795 B/op	      37 allocs/op
+BenchmarkLaunchProtocol-12    	   49304	     24008 ns/op	    1795 B/op	      37 allocs/op
+BenchmarkLaunchProtocol-12    	   48384	     24064 ns/op	    1793 B/op	      37 allocs/op
+BenchmarkLocalCommand-12      	    1870	    572366 ns/op	   43289 B/op	     154 allocs/op
+BenchmarkLocalCommand-12      	    2038	    560244 ns/op	   43222 B/op	     154 allocs/op
+BenchmarkLocalCommand-12      	    2098	    558612 ns/op	   43235 B/op	     154 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/localwrap	6.968s
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/localwrap
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkIsolatedCommand-12    	      39	  39526631 ns/op	  171040 B/op	     654 allocs/op
+BenchmarkIsolatedCommand-12    	      24	  42251196 ns/op	  166761 B/op	     645 allocs/op
+BenchmarkIsolatedCommand-12    	      26	  41970247 ns/op	  167693 B/op	     646 allocs/op
+PASS

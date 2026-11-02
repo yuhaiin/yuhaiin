@@ -66,6 +66,7 @@ jobs:
               ./pkg/gateway ./pkg/cert ./pkg/cert/manager/...
               ./pkg/management/tls ./pkg/net/proxy/http ./pkg/net/proxy/tls
               ./pkg/net/proxy/sshserver ./pkg/inbound/... ./pkg/httpapi/...
+              ./pkg/net/proxy/localwrap ./pkg/net/proxy/processnet
               ./pkg/store/... ./pkg/storage/sqlite ./pkg/route
               ./pkg/contract/connection ./pkg/contract/inbound
               ./pkg/contract/node ./pkg/contract/certificate ./pkg/register
