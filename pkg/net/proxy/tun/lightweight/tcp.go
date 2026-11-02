@@ -269,6 +269,9 @@ func (s *Stack) handleTCP(p Packet) {
 	k := flowKey{netip.AddrPortFrom(p.Destination, binary.BigEndian.Uint16(b[2:4])), netip.AddrPortFrom(p.Source, binary.BigEndian.Uint16(b[:2]))}
 	seq, ack := binary.BigEndian.Uint32(b[4:8]), binary.BigEndian.Uint32(b[8:12])
 	flags := b[13]
+	if flags&flagRST != 0 {
+		s.rstReceived.Add(1)
+	}
 	wnd := uint32(binary.BigEndian.Uint16(b[14:16]))
 	data := b[off:]
 	c := s.find(k)
@@ -471,5 +474,7 @@ func (s *Stack) reset(p Packet) {
 		reply[13] |= flagACK
 	}
 	binary.BigEndian.PutUint16(reply[16:18], transportChecksum(p.Destination, p.Source, 6, reply))
-	_ = s.sendIP(p.Destination, p.Source, 6, reply)
+	if s.sendIP(p.Destination, p.Source, 6, reply) == nil {
+		s.rstSent.Add(1)
+	}
 }
