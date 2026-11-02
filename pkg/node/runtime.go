@@ -331,7 +331,9 @@ func (r *NodeRuntime) ActiveTCPStackSnapshots(limit int) []TCPStackSnapshot {
 			return true
 		}
 		entry.mu.RLock()
-		if provider, ok := entry.Proxy.(interface{ StackDiagnostic(int) lightweight.StackDiagnostics }); ok {
+		if provider, ok := entry.Proxy.(interface {
+			StackDiagnostic(int) lightweight.StackDiagnostics
+		}); ok {
 			snapshot := provider.StackDiagnostic(limit)
 			if snapshot.MTU > 0 {
 				items = append(items, TCPStackSnapshot{NodeID: id, Snapshot: snapshot})
