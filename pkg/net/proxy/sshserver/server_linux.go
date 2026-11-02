@@ -315,7 +315,9 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		_ = sendExitStatus(channel, 255)
 		return
 	}
-	defer network.release()
+	// Complete the final lease release before acknowledging SSH exit status.
+	release := sync.OnceFunc(network.release)
+	defer release()
 
 	config := sessionnet.Config{
 		Command: argv,
@@ -334,6 +336,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 	process, err := owner.Spawn(ctx, config)
 	if err != nil {
 		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to start isolated command\n")
+		release()
 		_ = sendExitStatus(channel, 255)
 		return
 	}
@@ -351,6 +354,8 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 			code = uint32(exitErr.ExitCode())
 		}
 	}
+	_ = process.Close()
+	release()
 	_ = sendExitStatus(channel, code)
 }
 func sendExitStatus(ch gossh.Channel, code uint32) error {
