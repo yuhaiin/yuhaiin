@@ -24,6 +24,7 @@ import (
 	"codeberg.org/miekg/dns"
 	"codeberg.org/miekg/dns/dnsutil"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -171,7 +172,30 @@ func newSSHServerTestIdentity(tb testing.TB) (Config, gossh.Signer) {
 
 func startSSHServerTestServer(tb testing.TB, config Config, handler netapi.Handler) *Server {
 	tb.Helper()
-	server, err := NewServer(config, handler)
+	var server *Server
+	var err error
+	if os.Getenv(sshIntegrationEnv) == "1" {
+		config.InboundID = "ssh-integration"
+		parent := os.Getenv("YUH_SSH_SERVER_CGROUP_ROOT")
+		if parent == "" {
+			tb.Fatal("YUH_SSH_SERVER_CGROUP_ROOT must name a delegated cgroup v2 directory")
+		}
+		config.CgroupRoot = filepath.Join(parent, "ssh-integration")
+		server, err = NewServer(config, handler)
+	} else {
+		// Auth-only unit tests do not start a shell or open a TUN. The
+		// production NewServer path always requires a cgroup v2 manager.
+		var signer gossh.Signer
+		var key gossh.PublicKey
+		var addresses sessionnet.AddressConfig
+		signer, key, err = config.validate()
+		if err == nil {
+			addresses, err = config.resolveAddresses()
+		}
+		if err == nil {
+			server, err = newServerWithManager(config, handler, signer, key, addresses, nil)
+		}
+	}
 	if err != nil {
 		tb.Fatal(err)
 	}

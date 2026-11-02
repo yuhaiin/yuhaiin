@@ -71,9 +71,20 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ssh inbound: cgroup v2 containment is required: %w", err)
 	}
-	listener, err := net.Listen("tcp", config.Listen)
+	server, err := newServerWithManager(config, handler, signer, key, addresses, cgroups)
 	if err != nil {
 		_ = cgroups.Close()
+	}
+	return server, err
+}
+
+// newServerWithManager binds and runs the SSH listener. Production callers
+// always pass a verified manager; nil is reserved for auth-only unit tests.
+func newServerWithManager(config Config, handler netapi.Handler, signer gossh.Signer, key gossh.PublicKey,
+	addresses sessionnet.AddressConfig, cgroups *sessionnet.CgroupManager,
+) (*Server, error) {
+	listener, err := net.Listen("tcp", config.Listen)
+	if err != nil {
 		return nil, fmt.Errorf("ssh inbound listen: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -379,7 +390,9 @@ func (s *Server) Close() error {
 		}
 		s.mu.Unlock()
 		s.wg.Wait()
-		err = errors.Join(err, s.cgroups.Close())
+		if s.cgroups != nil {
+			err = errors.Join(err, s.cgroups.Close())
+		}
 	})
 	return err
 }
