@@ -97,8 +97,8 @@ func newDiagnostics(inboundConfigStore *plainstore.InboundStore, inbounds *inbou
 func stackDiagnostic(scope, id string, stack lightweight.StackDiagnostics) contracttools.TCPStackDiagnostic {
 	stats := stack.Stats
 	report := contracttools.TCPStackDiagnostic{
-		Scope:      scope,
-		MTU:        stack.MTU,
+		Scope: scope,
+		MTU:   stack.MTU,
 		Statistics: contracttools.TCPStackStatistics{
 			Connections: stats.Connections, MemoryBytes: stats.MemoryBytes,
 			PacketsIn: stats.PacketsIn, PacketsOut: stats.PacketsOut,
