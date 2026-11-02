@@ -117,7 +117,9 @@ type routeAccepter struct {
 // StackDiagnostic forwards the optional lightweight statistics through the
 // route-management wrapper. The underlying stack is sampled only on request.
 func (t *routeAccepter) StackDiagnostic(limit int) lightweight.StackDiagnostics {
-	if reporter, ok := t.Accepter.(interface{ StackDiagnostic(int) lightweight.StackDiagnostics }); ok {
+	if reporter, ok := t.Accepter.(interface {
+		StackDiagnostic(int) lightweight.StackDiagnostics
+	}); ok {
 		return reporter.StackDiagnostic(limit)
 	}
 	return lightweight.StackDiagnostics{}
