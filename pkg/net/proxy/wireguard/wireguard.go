@@ -101,7 +101,7 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 		net:             tun,
 		diagnosticStack: tun.Stack(),
 		bind:            newNetBindClient(conf.Reserved),
-		happyDialer:     dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
+		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}, dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewEmptySemaphore())),
 	}
