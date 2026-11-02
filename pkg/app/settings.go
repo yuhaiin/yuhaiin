@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net"
 	"path/filepath"
+	"strings"
+	"time"
 	"runtime"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -125,6 +127,14 @@ func validateWrapSettings(config contractsettings.WrapSettings) error {
 	}
 	if config.MaxSessions < 0 || config.MaxSessions > 128 {
 		return fmt.Errorf("wrap: maxSessions must be 0..128")
+	}
+	if config.Timezone != "" {
+		if len(config.Timezone) > 128 || strings.ContainsAny(config.Timezone, "\x00\r\n") {
+			return fmt.Errorf("wrap: invalid timezone")
+		}
+		if _, err := time.LoadLocation(config.Timezone); err != nil {
+			return fmt.Errorf("wrap: invalid timezone %q: %w", config.Timezone, err)
+		}
 	}
 	if config.Enabled && (config.UID == 0 || config.GID == 0) {
 		return fmt.Errorf("wrap: non-root UID and GID are required when enabled")
