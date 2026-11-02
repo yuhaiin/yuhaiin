@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/tailscale/wireguard-go/tun"
@@ -223,6 +224,15 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 
 // NodeExtraInfo returns a copy of the configuration received during this
 // client's getconfig request.
+// StackDiagnostic reports the existing encrypted tunnel inner TCP stack.
+// This is not a measurement of SSL/ESP carrier latency or wire traffic.
+func (c *Client) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	if c.tunnel == nil {
+		return lightweight.StackDiagnostics{}
+	}
+	return c.tunnel.Stack().DiagnosticSnapshot(limit)
+}
+
 func (c *Client) NodeExtraInfo() contractnode.NodeExtraInfo {
 	info := c.extraInfo
 	info.AccessRoutesIPv4 = slices.Clone(info.AccessRoutesIPv4)
