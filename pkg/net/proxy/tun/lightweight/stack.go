@@ -68,6 +68,7 @@ type Stack struct {
 	flows                                         atomic.Int64
 	memory                                        atomic.Int64
 	packetsIn, packetsOut, drops, retransmissions atomic.Uint64
+	rstSent, rstReceived, invalidInputDrops, rateLimitedDrops atomic.Uint64
 	icmpMu                                        sync.Mutex
 	icmpTokens                                    float64
 	icmpStamp                                     int64
@@ -78,6 +79,7 @@ type Statistics struct {
 	OutputAQMDrops, OutputRejected, OutputOverloadDrops uint64
 	CachedBytes                                         int64
 	PacketsIn, PacketsOut, Drops, Retransmissions       uint64
+	RSTSent, RSTReceived, InvalidInputDrops, RateLimitedDrops uint64
 }
 
 // TrafficControlQueue exposes bounded scheduler diagnostics without leaking
@@ -90,7 +92,7 @@ func (s *Stack) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
 }
 
 func (s *Stack) Stats() Statistics {
-	stats := Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load()}
+	stats := Statistics{MemoryBytes: s.memory.Load(), Connections: s.flows.Load(), CachedBytes: s.buffers.cached.Load(), PacketsIn: s.packetsIn.Load(), PacketsOut: s.packetsOut.Load(), Drops: s.drops.Load(), Retransmissions: s.retransmissions.Load(), RSTSent: s.rstSent.Load(), RSTReceived: s.rstReceived.Load(), InvalidInputDrops: s.invalidInputDrops.Load(), RateLimitedDrops: s.rateLimitedDrops.Load()}
 	if s.output != nil {
 		q := s.output.Stats()
 		stats.OutputQueuedPackets, stats.OutputQueuedBytes = q.Packets, q.Bytes
@@ -250,10 +252,12 @@ func (s *Stack) readLoop() {
 				runtime.Gosched()
 			} // Yield during sustained PPS floods.
 			if s.inputGovernor != nil && !s.inputGovernor.AdmitPacket(time.Now()) {
+				s.rateLimitedDrops.Add(1)
 				s.drops.Add(1)
 				continue
 			}
 			if e := s.inputVerified(b, verified); e != nil {
+				s.invalidInputDrops.Add(1)
 				s.drops.Add(1)
 			}
 		}
