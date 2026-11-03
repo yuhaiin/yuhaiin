@@ -203,3 +203,26 @@ func TestRACKPMTURepairNeedsFreshFlightEvidence(t *testing.T) {
 		t.Fatal("new-flight evidence did not detect lost PMTU replacement")
 	}
 }
+
+func TestPMTUReplacementCancelsPendingTailProbeEvidence(t *testing.T) {
+	start := time.Unix(100, 0)
+	r := &rack{multiplier: 1}
+	r.Delivered(packet(1, start), start.Add(10*time.Millisecond))
+	probe := packet(3001, start.Add(20*time.Millisecond))
+	probe.Transmissions = 2
+	r.Sent(SentEvent{Segment: probe, Next: probe.End, Probe: true})
+
+	// A router rejects the probe at the old MTU. The core resends its range
+	// as PMTU replacements before cumulative delivery passes the probe end.
+	replacement := probe
+	replacement.End = replacement.Start + 500
+	replacement.Sent = start.Add(30 * time.Millisecond)
+	replacement.Transmissions++
+	replacement.PMTURepair = true
+	r.Sent(SentEvent{Segment: replacement, Next: 5001})
+	e := Event{Kind: ACK, Now: start.Add(50 * time.Millisecond), Una: 5001, Next: 5001,
+		Acked: 1000, MSS: 500, SACK: true, SRTT: 10 * time.Millisecond}
+	if d := r.Evaluate(e, testFlight{}); d.RepairedLoss || d.RepairedBytes != 0 {
+		t.Fatal("PMTU replacement retained congestion-loss evidence from the rejected tail probe")
+	}
+}

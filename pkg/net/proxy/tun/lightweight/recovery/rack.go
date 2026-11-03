@@ -24,6 +24,12 @@ func (r *rack) Sent(e SentEvent) {
 		return
 	}
 	r.lastSent = e.Sent
+	if e.PMTURepair {
+		// The old probe may have elicited ICMP instead of congestion loss.
+		// Delivery of its replacement cannot prove a congestion repair.
+		r.probePending = false
+		r.pto = time.Time{}
+	}
 	if e.Probe {
 		r.probeEnd, r.probePending = e.Next, true
 		r.probeBytes = e.End - e.Start

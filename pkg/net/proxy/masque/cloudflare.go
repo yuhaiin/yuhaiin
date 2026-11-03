@@ -105,7 +105,7 @@ func GenerateCert(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([][]byte,
 func init() {
 	register.RegisterContractPoint("cloudflare_warp_masque", func(config contractnode.CloudflareWarpMasque, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewCloudflareWarpMasque(Config{
-			TCPSettings: config.TCPSettings,
+			TCPSettings:       config.TCPSettings,
 			PrivateKey:        config.PrivateKey,
 			Endpoint:          config.Endpoint,
 			EndpointPublicKey: config.EndpointPublicKey,

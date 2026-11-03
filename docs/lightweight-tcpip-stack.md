@@ -133,7 +133,8 @@ Zero-window probes do not consume new sequence space. Optional keepalive is
 scheduled only when enabled and idle. ICMP PMTU feedback validates the quoted
 TCP tuple and sent sequence before reducing MSS and splitting retained data.
 Replacement pieces retain sequence/delivery/Karn history and explicitly request
-resend. Old ACK/SACK feedback cannot classify a replacement as a new loss;
+resend. PMTU replacement transmission also discards pending TLP loss evidence,
+because the old probe may have elicited ICMP instead of congestion loss. Old ACK/SACK feedback cannot classify a replacement as a new loss;
 re-loss repair requires SACK evidence beyond its retransmission boundary.
 
 Each connection owns a protocol mutex and a separate application Write mutex.
