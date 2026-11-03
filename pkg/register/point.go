@@ -9,6 +9,7 @@ import (
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -46,7 +47,11 @@ func init() {
 				return nil, err
 			}
 		}
-		return &networkSplit{tcp: tcp, udp: udp, Proxy: p}, nil
+		provider, ok := tcp.(lightweight.DiagnosticProvider)
+		if !ok {
+			provider, _ = p.(lightweight.DiagnosticProvider)
+		}
+		return &networkSplit{tcp: tcp, udp: udp, Proxy: p, tcpDiagnostics: provider}, nil
 	})
 }
 
@@ -56,6 +61,14 @@ type networkSplit struct {
 	tcp netapi.Proxy
 	udp netapi.Proxy
 	netapi.Proxy
+	tcpDiagnostics lightweight.DiagnosticProvider
+}
+
+func (n *networkSplit) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	if n.tcpDiagnostics == nil {
+		return lightweight.StackDiagnostics{}
+	}
+	return n.tcpDiagnostics.StackDiagnostic(limit)
 }
 
 func (n *networkSplit) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
@@ -91,17 +104,32 @@ func (n *networkSplit) Close() error {
 }
 
 func ContractDialer(p contractnode.Node) (r netapi.Proxy, err error) {
+	r, _, err = ContractDialerWithDiagnostics(p)
+	return r, err
+}
+
+// ContractDialerWithDiagnostics also retains the application-facing TCP stack
+// provider. Later protocol wrappers may hide optional interfaces; keeping the
+// provider separately preserves diagnostics without changing the dialer.
+// Nested carrier stacks are not added to the same node's TCP counters.
+func ContractDialerWithDiagnostics(p contractnode.Node) (r netapi.Proxy, provider lightweight.DiagnosticProvider, err error) {
 	if err := p.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	r = zeroproxy
 	for i, protocol := range p.Chain {
 		r, err = ContractWrap(protocol, r)
 		if err != nil {
-			return nil, fmt.Errorf("contract node %q chain[%d]: %w", p.ID, i, err)
+			return nil, nil, fmt.Errorf("contract node %q chain[%d]: %w", p.ID, i, err)
+		}
+		if current, ok := r.(lightweight.DiagnosticProvider); ok {
+			if split, ok := r.(*networkSplit); ok && split.tcpDiagnostics == nil && provider != split {
+				split.tcpDiagnostics = provider
+			}
+			provider = current
 		}
 	}
-	return r, nil
+	return r, provider, nil
 }
 
 func ContractWrap(protocol contractnode.Protocol, p netapi.Proxy) (netapi.Proxy, error) {

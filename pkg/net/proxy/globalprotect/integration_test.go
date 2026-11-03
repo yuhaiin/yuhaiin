@@ -19,6 +19,7 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
+	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/tailscale/wireguard-go/tun"
 )
 
@@ -221,10 +222,15 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	})
 	gateway := strings.TrimPrefix(server.URL, "https://")
 	ca := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
-	proxy, err := NewClient(Config{
-		Gateway: gateway, Username: "alice", Password: "secret",
-		CACertPEM: string(ca), MTU: mtu,
-	}, nil)
+	proxy, reporter, err := register.ContractDialerWithDiagnostics(contractnode.Node{
+		ID: "gp", Name: "gp", Origin: "manual", Enabled: true,
+		Chain: []contractnode.Protocol{
+			{Type: "globalprotect", GlobalProtect: &contractnode.GlobalProtect{
+				Gateway: gateway, Username: "alice", Password: "secret", CACertPEM: string(ca), MTU: mtu,
+			}},
+			{Type: "bootstrap_dns_warp", BootstrapDNSWarp: &contractnode.BootstrapDNSWarp{}},
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,10 +245,13 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("initial tunnel did not start")
 	}
-	if status := proxy.(contractnode.NodeRuntimeStatusProvider).NodeRuntimeStatus(); status.State != "connected" {
+	if reporter == nil {
+		t.Fatal("protocol wrapper hid the GlobalProtect stack")
+	}
+	if status := reporter.(contractnode.NodeRuntimeStatusProvider).NodeRuntimeStatus(); status.State != "connected" {
 		t.Fatal("authenticated tunnel not exposed", status)
 	}
-	infoProvider, ok := proxy.(interface {
+	infoProvider, ok := reporter.(interface {
 		NodeExtraInfo() contractnode.NodeExtraInfo
 	})
 	if !ok {
@@ -279,6 +288,21 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	if !bytes.Equal(data, echoed) {
 		t.Fatalf("TCP echo mismatch: %q", echoed)
 	}
+	assertStack := func() {
+		t.Helper()
+		snapshot := reporter.StackDiagnostic(32)
+		if snapshot.MTU != mtu || snapshot.Stats.Connections < 1 || snapshot.Stats.PacketsIn == 0 || snapshot.Stats.PacketsOut == 0 || len(snapshot.Flows) == 0 {
+			t.Fatalf("incomplete GlobalProtect stack diagnostics: %+v", snapshot)
+		}
+		flow := snapshot.Flows[0]
+		if flow.Local == "" || flow.Remote == "" || flow.CongestionWindow == 0 || flow.BBR == nil {
+			t.Fatalf("incomplete GlobalProtect TCP flow: %+v", flow)
+		}
+		if limited := reporter.StackDiagnostic(0); len(limited.Flows) != 0 || limited.Stats.Connections < 1 {
+			t.Fatalf("flow limit lost stack totals: %+v", limited)
+		}
+	}
+	assertStack()
 
 	udpAddr, err := netapi.ParseAddress("udp", fmt.Sprintf("%s:%d", serverIP, udpPort))
 	if err != nil {
@@ -329,6 +353,7 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	if !bytes.Equal(data, echoed) {
 		t.Fatalf("TCP echo after reconnect mismatch: %q", echoed)
 	}
+	assertStack()
 
 	mu.Lock()
 	wasAuthenticated := authenticated
@@ -349,10 +374,13 @@ func TestGatewayEndToEndTCPUDP(t *testing.T) {
 	if !didLogout {
 		t.Fatal("gateway did not receive logout")
 	}
-	if status := proxy.(contractnode.NodeRuntimeStatusProvider).NodeRuntimeStatus(); status.State != "closed" {
+	if status := reporter.(contractnode.NodeRuntimeStatusProvider).NodeRuntimeStatus(); status.State != "closed" {
 		t.Fatal("closed tunnel still reported connected", status)
 	}
 	if _, err := proxy.Conn(ctx, tcpAddr); err == nil {
 		t.Fatal("closed proxy accepted TCP dial")
+	}
+	if snapshot := reporter.StackDiagnostic(32); snapshot.MTU != 0 {
+		t.Fatalf("closed GlobalProtect session still reported: %+v", snapshot)
 	}
 }
