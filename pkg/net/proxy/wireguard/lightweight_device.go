@@ -69,6 +69,14 @@ func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound boo
 // Stack is the already-running userspace protocol stack behind this packet link.
 func (n *LightweightNetTun) Stack() *lightweight.Stack { return n.stack }
 
+// StackDiagnostic samples an assigned tunnel without creating or dialing it.
+func (n *LightweightNetTun) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+	if n == nil || n.stack == nil {
+		return lightweight.StackDiagnostics{}
+	}
+	return n.stack.DiagnosticSnapshot(limit)
+}
+
 func (n *LightweightNetTun) Name() (string, error)    { return "lightweight", nil }
 func (n *LightweightNetTun) File() *os.File           { return nil }
 func (n *LightweightNetTun) Events() <-chan tun.Event { return n.events }

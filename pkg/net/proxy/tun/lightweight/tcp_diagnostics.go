@@ -48,6 +48,12 @@ type StackDiagnostics struct {
 	Flows []TCPDiagnostics
 }
 
+// DiagnosticProvider passively samples an existing stack without dialing or
+// starting a tunnel. An unavailable stack is represented by a zero MTU.
+type DiagnosticProvider interface {
+	StackDiagnostic(maxFlows int) StackDiagnostics
+}
+
 // DiagnosticSnapshot obtains a bounded sample without holding a shard lock
 // while acquiring a connection lock (connection teardown takes them in reverse).
 func (s *Stack) DiagnosticSnapshot(maxFlows int) StackDiagnostics {

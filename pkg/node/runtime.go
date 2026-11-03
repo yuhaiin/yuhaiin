@@ -320,7 +320,7 @@ type TCPStackSnapshot struct {
 }
 
 // ActiveTCPStackSnapshots does not construct proxies, perform network I/O,
-// or start any VPN. Only top-level providers in the existing proxy cache appear.
+// or start any VPN. Providers are retained when the protocol chain is built.
 func (r *NodeRuntime) ActiveTCPStackSnapshots(limit int) []TCPStackSnapshot {
 	if r.proxies == nil {
 		return nil
@@ -331,9 +331,11 @@ func (r *NodeRuntime) ActiveTCPStackSnapshots(limit int) []TCPStackSnapshot {
 			return true
 		}
 		entry.mu.RLock()
-		if provider, ok := entry.Proxy.(interface {
-			StackDiagnostic(int) lightweight.StackDiagnostics
-		}); ok {
+		provider := entry.TCPDiagnostics
+		if provider == nil {
+			provider, _ = entry.Proxy.(lightweight.DiagnosticProvider)
+		}
+		if provider != nil {
 			snapshot := provider.StackDiagnostic(limit)
 			if snapshot.MTU > 0 {
 				items = append(items, TCPStackSnapshot{NodeID: id, Snapshot: snapshot})
@@ -519,11 +521,11 @@ func (r *NodeRuntime) getContractDialer(ctx context.Context, id string, node con
 		if netapi.IsBackgroundProbe(ctx) && requiresEstablishedClient(resolved.Chain) {
 			return nil, netapi.ErrBackgroundProbeUnavailable
 		}
-		proxy, err := register.ContractDialer(resolved)
+		proxy, diagnostics, err := register.ContractDialerWithDiagnostics(resolved)
 		if err != nil {
 			return nil, err
 		}
-		return &ProxyEntry{Proxy: proxy, ContractConfig: &node, Name: node.Name}, nil
+		return &ProxyEntry{Proxy: proxy, TCPDiagnostics: diagnostics, ContractConfig: &node, Name: node.Name}, nil
 	})
 	if err != nil {
 		if r.observer != nil && !localProbeDenial(err) {

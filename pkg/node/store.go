@@ -9,6 +9,7 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
@@ -29,6 +30,7 @@ import (
 //	double reference: node <-> [Set]
 type ProxyEntry struct {
 	Proxy          netapi.Proxy
+	TCPDiagnostics lightweight.DiagnosticProvider
 	ContractConfig *contractnode.Node
 	Name           string
 	mu             sync.RWMutex
@@ -82,6 +84,7 @@ func (p *ProxyStore) Delete(hash string) {
 		log.Error("close proxy failed", "key", hash, "err", err)
 	}
 	r.Proxy = netapi.NewErrProxy(errors.New("proxy closed"))
+	r.TCPDiagnostics = nil
 	r.mu.Unlock()
 }
 
