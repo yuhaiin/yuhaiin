@@ -20,6 +20,7 @@ const (
 )
 
 type TunConfig struct {
+	LossRecovery      string          `json:"loss_recovery,omitempty"`
 	OutputScheduler   string          `json:"output_scheduler,omitzero"`
 	Stack             string          `json:"stack,omitzero"`
 	CongestionControl string          `json:"congestion_control,omitzero"`

@@ -48,6 +48,9 @@ func init() {
 // NewClient accepts standard Nebula YAML, using embedded certificates. It
 // rejects a preexisting upstream instead of silently bypassing that upstream.
 func NewClient(cfg contractnode.Nebula, previous netapi.Proxy) (*Client, error) {
+	if err := wireguard.ValidateTCPSettings(cfg.TCPSettings); err != nil {
+		return nil, err
+	}
 	if !register.IsZero(previous) {
 		return nil, errors.New("nebula: chained upstream proxies are not supported by the native UDP underlay")
 	}
@@ -61,7 +64,7 @@ func NewClient(cfg contractnode.Nebula, previous netapi.Proxy) (*Client, error) 
 		if len(networks) == 0 {
 			return nil, errors.New("nebula: the certificate contains no overlay networks")
 		}
-		network, err = wireguard.CreateLightweightNetTUN(networks, c.GetInt("tun.mtu", defaultMTU))
+		network, err = wireguard.CreateLightweightNetTUNWithOptions(networks, c.GetInt("tun.mtu", defaultMTU), cfg.TCPSettings)
 		if err != nil {
 			return nil, fmt.Errorf("nebula: create in-memory IP stack: %w", err)
 		}

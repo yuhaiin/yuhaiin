@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"strconv"
 	"strings"
@@ -35,11 +36,17 @@ var _ netapi.Proxy = (*Client)(nil)
 
 type DialSession func(context.Context, string) (vpnclient.Session, vpnclient.Result, error)
 
-func NewOutbound(name string, mtu int, dial DialSession) (*Client, error) {
+func NewOutbound(name string, mtu int, dial DialSession, tcp ...*transport.TCPSettings) (*Client, error) {
 	if mtu < 0 || mtu > 9000 || mtu > 0 && mtu < 576 {
 		return nil, fmt.Errorf("%s: MTU outside 576..9000", name)
 	}
 	bridge := newPacketBridge()
+	if len(tcp) > 0 {
+		bridge.tcp = tcp[0]
+	}
+	if err := wireguard.ValidateTCPSettings(bridge.tcp); err != nil {
+		return nil, err
+	}
 	var id [16]byte
 	if _, err := rand.Read(id[:]); err != nil {
 		return nil, err

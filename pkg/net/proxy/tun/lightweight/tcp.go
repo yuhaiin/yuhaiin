@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery"
 )
 
 type TCPState string
@@ -192,6 +193,10 @@ func (s *Stack) newTCP(k flowKey, state TCPState) (*TCPConn, error) {
 		return nil, err
 	}
 	c := &TCPConn{stack: s, key: k, state: state, iss: iss, sndUna: iss, sndNxt: iss, sndEnd: iss, mss: min(mss, peerMSS), pathMSS: mss, peerScale: -1, receiveLimit: s.config.ReceiveBuffer, rto: time.Second, controller: cc, born: time.Now(), lastActive: time.Now()}
+	c.detector, err = recovery.New(s.config.LossRecovery)
+	if err != nil {
+		return nil, err
+	}
 	for (s.config.MaxReceiveBuffer>>c.ownScale) > 65535 && c.ownScale < 14 {
 		c.ownScale++
 	}
@@ -389,6 +394,10 @@ func (s *Stack) handleTCP(p Packet) {
 		acceptable = !before(seq, c.rcvNxt) && before(seq, c.rcvAdv)
 	}
 	if !acceptable {
+		if c.sack && len(data) > 0 && before(seq, c.rcvNxt) {
+			c.dsack = sackBlock{seq, seq + uint32(min(len(data), int(c.rcvNxt-seq)))}
+			c.dsackPending = true
+		}
 		c.sendACK()
 		return
 	}

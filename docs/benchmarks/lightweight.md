@@ -69,8 +69,12 @@ The recorded verification covered independent Linux TCP peers, IPv4/IPv6, all th
 
 - On Linux TUN, `readv` scatters **one packet** and `writev` gathers **one packet**; these are not arbitrary packet batching operations. `sendmmsg`/`recvmmsg` do not turn the TUN character device into a socket. Validate virtio headers and retained GSO metadata at the actual descriptor boundary.
 - macOS utun needs a four-byte address-family prefix; Android VpnService's framework-created descriptor does not negotiate Linux VNET/TSO. Emulator throughput does not predict battery use or physical-device thermal behavior.
-- [RFC 9293](https://www.rfc-editor.org/rfc/rfc9293.html), [RFC 2018](https://www.rfc-editor.org/rfc/rfc2018.html), [RFC 6675](https://www.rfc-editor.org/rfc/rfc6675.html), [RFC 8985](https://www.rfc-editor.org/rfc/rfc8985.html), [RFC 9438](https://www.rfc-editor.org/rfc/rfc9438.html) and [RFC 9768 (AccECN)](https://www.rfc-editor.org/rfc/rfc9768.html) inform conformance and future work. Timestamp/PAWS, RACK/TLP, PLPMTUD, recovery fairness and multiple queues require further design and independent tests. AccECN and ACK-rate negotiation are not automatic throughput switches.
+- [RFC 9293](https://www.rfc-editor.org/rfc/rfc9293.html), [RFC 2018](https://www.rfc-editor.org/rfc/rfc2018.html), [RFC 6675](https://www.rfc-editor.org/rfc/rfc6675.html), [RFC 8985](https://www.rfc-editor.org/rfc/rfc8985.html), [RFC 9438](https://www.rfc-editor.org/rfc/rfc9438.html) and [RFC 9768 (AccECN)](https://www.rfc-editor.org/rfc/rfc9768.html) inform conformance and future work. Timestamp/PAWS, PLPMTUD, recovery fairness and multiple queues require further design and independent tests. AccECN and ACK-rate negotiation are not automatic throughput switches.
 - Remaining performance opportunities include vectored receive drain with explicit lifetime accounting, flow-affine execution and multi-queue benchmarking, and improving the BBR GSO download path. Guard against increased allocation, latency and tail loss when changing batching.
+
+For current pluggable classic/RACK-TLP recovery and DSACK measurements, see
+[the TCP recovery benchmark report](tcp-recovery.md). The historical tables above
+precede that implementation.
 
 ## Reproduce
 

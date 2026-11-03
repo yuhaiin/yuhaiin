@@ -2,6 +2,7 @@ package lightweight
 
 import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery"
 	"io"
 	"net"
 	"os"
@@ -22,6 +23,7 @@ type sendSegment struct {
 	retransmitEnd            uint32
 	lostAtSend, txInFlight   uint64
 	lossReported             bool
+	pmtuRepair               bool
 	seq                      uint32
 	flags                    uint8
 	data                     []byte
@@ -71,6 +73,15 @@ type TCPConn struct {
 	state                                                    TCPState
 	listener                                                 *TCPListener
 	controller                                               congestion.Controller
+	detector                                                 recovery.Detector
+	detectorAt                                               time.Time
+	dsack                                                    sackBlock
+	dsackPending                                             bool
+	dsackSent, dsackReceived, tailProbes, spuriousRecoveries uint64
+	undoRanges                                               [16]sackBlock
+	undoCount                                                int
+	undoProof                                                uint16
+	undoValid                                                bool
 	iss, sndUna, sndNxt, sndEnd, rcvNxt, rcvAdv              uint32
 	sndWL1, sndWL2, peerWindow                               uint32
 	ownScale, peerScale                                      int

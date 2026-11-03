@@ -58,20 +58,27 @@ type TCPStackStatistics struct {
 }
 
 type TCPFlowDiagnostic struct {
-	State            string  `json:"state"`
-	Local            string  `json:"local"`
-	Remote           string  `json:"remote"`
-	CongestionWindow uint64  `json:"cwndBytes"`
-	BytesInFlight    uint64  `json:"bytesInFlight"`
-	SRTTMilliseconds float64 `json:"srttMs"`
-	RTOMilliseconds  float64 `json:"rtoMs"`
-	PacingRate       uint64  `json:"pacingBytesPerSecond"`
-	LostBytes        uint64  `json:"lostBytes"`
-	Retransmissions  uint64  `json:"retransmissions"`
-	DuplicateACKs    int     `json:"duplicateAcks"`
-	PathMSS          int     `json:"pathMss"`
-	Retries          int     `json:"retries"`
-	Recovering       bool    `json:"recovering"`
-	BBRMode          string  `json:"bbrMode,omitempty"`
-	BBRPhase         string  `json:"bbrPhase,omitempty"`
+	CongestionControl      string  `json:"congestionControl"`
+	ConfiguredLossRecovery string  `json:"configuredLossRecovery"`
+	LossRecovery           string  `json:"lossRecovery"`
+	DSACKSent              uint64  `json:"dsackSent"`
+	DSACKReceived          uint64  `json:"dsackReceived"`
+	TailLossProbes         uint64  `json:"tailLossProbes"`
+	SpuriousRecoveries     uint64  `json:"spuriousRecoveries"`
+	State                  string  `json:"state"`
+	Local                  string  `json:"local"`
+	Remote                 string  `json:"remote"`
+	CongestionWindow       uint64  `json:"cwndBytes"`
+	BytesInFlight          uint64  `json:"bytesInFlight"`
+	SRTTMilliseconds       float64 `json:"srttMs"`
+	RTOMilliseconds        float64 `json:"rtoMs"`
+	PacingRate             uint64  `json:"pacingBytesPerSecond"`
+	LostBytes              uint64  `json:"lostBytes"`
+	Retransmissions        uint64  `json:"retransmissions"`
+	DuplicateACKs          int     `json:"duplicateAcks"`
+	PathMSS                int     `json:"pathMss"`
+	Retries                int     `json:"retries"`
+	Recovering             bool    `json:"recovering"`
+	BBRMode                string  `json:"bbrMode,omitempty"`
+	BBRPhase               string  `json:"bbrPhase,omitempty"`
 }

@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"net"
 	"net/http"
 	"net/netip"
@@ -43,7 +45,7 @@ var stateOwners = struct {
 
 func init() {
 	register.RegisterContractPoint("tailscale", func(config contractnode.Tailscale, p netapi.Proxy) (netapi.Proxy, error) {
-		return New(Config{AuthKey: config.AuthKey, Hostname: config.Hostname, ControlURL: config.ControlURL, Debug: config.Debug}, p)
+		return New(Config{TCPSettings: config.TCPSettings, AuthKey: config.AuthKey, Hostname: config.Hostname, ControlURL: config.ControlURL, Debug: config.Debug}, p)
 	})
 }
 
@@ -61,13 +63,17 @@ type Tailscale struct {
 }
 
 type Config struct {
-	AuthKey    string `json:"auth_key"`
-	Hostname   string `json:"hostname"`
-	ControlURL string `json:"control_url"`
-	Debug      bool   `json:"debug"`
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	AuthKey     string                 `json:"auth_key"`
+	Hostname    string                 `json:"hostname"`
+	ControlURL  string                 `json:"control_url"`
+	Debug       bool                   `json:"debug"`
 }
 
 func New(c Config, upstream netapi.Proxy) (netapi.Proxy, error) {
+	if err := wireguard.ValidateTCPSettings(c.TCPSettings); err != nil {
+		return nil, err
+	}
 	if c.AuthKey == "" {
 		return nil, errors.New("auth_key is required")
 	}
@@ -133,7 +139,7 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 	u := &underlay{owner: t, ancestors: appendLoop(ctx, t)}
 	s := &tsnet.Server{
 		Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
-		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(), Tun: newTailnetTun(),
+		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(), Tun: newTailnetTunWithOptions(t.config.TCPSettings),
 	}
 	if t.config.Debug {
 		s.Logf = log.InfoFormat

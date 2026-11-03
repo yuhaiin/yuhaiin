@@ -1,0 +1,13 @@
+{
+  "platform": "Linux-7.2.6-zen2-1-zen-x86_64-with-glibc2.44",
+  "go": "go version go1.27.3-X:nodwarf5 linux/amd64",
+  "gomaxprocs": 4,
+  "samples": 3,
+  "benchtime": "500ms",
+  "kernel": true,
+  "offload": false,
+  "encryption": false,
+  "reference_peer": "gVisor; Linux TCP for the optional kernel cases",
+  "base_commit": "76e021f1835aeafaed8e5c95309344acadbc8f6c",
+  "go_source_sha256": "bec2a75c6473af385133fa73282b13e6caeb55afa3b35ed48a1132a2bd174d1d"
+}

@@ -159,86 +159,88 @@ func refAddress(a netip.AddrPort) (tcpip.FullAddress, tcpip.NetworkProtocolNumbe
 }
 
 func TestGVisorTCPInteroperability(t *testing.T) {
-	for _, algorithm := range []string{"reno", "cubic", "bbr"} {
-		for _, v6 := range []bool{false, true} {
-			for _, direction := range []string{"outbound", "inbound"} {
-				t.Run(algorithm+"/"+map[bool]string{false: "v4", true: "v6"}[v6]+"/"+direction, func(t *testing.T) {
-					r, err := newReferenceIO(1500)
-					if err != nil {
-						t.Fatal(err)
-					}
-					r.dropEvery = 17
-					r.duplicateEvery = 11
-					r.reorderEvery = 13
-					s, err := New(Config{Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1"), netip.MustParseAddr("2001:db8::1")}, CongestionControl: algorithm}, r)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer s.Close()
-					local, remote := netip.MustParseAddrPort("192.0.2.1:8080"), netip.MustParseAddrPort("192.0.2.2:8080")
-					if v6 {
-						local = netip.MustParseAddrPort("[2001:db8::1]:8080")
-						remote = netip.MustParseAddrPort("[2001:db8::2]:8080")
-					}
-					ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
-					defer cancel()
-					var client net.Conn
-					var listener net.Listener
-					if direction == "outbound" {
-						a, proto := refAddress(remote)
-						listener, err = gonet.ListenTCP(r.stack, a, proto)
-						if err == nil {
-							client, err = s.DialContextTCP(ctx, remote)
+	for _, lossRecovery := range []string{"classic", "rack-tlp"} {
+		for _, algorithm := range []string{"reno", "cubic", "bbr"} {
+			for _, v6 := range []bool{false, true} {
+				for _, direction := range []string{"outbound", "inbound"} {
+					t.Run(lossRecovery+"/"+algorithm+"/"+map[bool]string{false: "v4", true: "v6"}[v6]+"/"+direction, func(t *testing.T) {
+						r, err := newReferenceIO(1500)
+						if err != nil {
+							t.Fatal(err)
 						}
-					} else {
-						listener, err = s.ListenTCP(local)
-						if err == nil {
-							a, proto := refAddress(local)
-							client, err = gonet.DialContextTCP(ctx, r.stack, a, proto)
+						r.dropEvery = 17
+						r.duplicateEvery = 11
+						r.reorderEvery = 13
+						s, err := New(Config{Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1"), netip.MustParseAddr("2001:db8::1")}, CongestionControl: algorithm, LossRecovery: lossRecovery}, r)
+						if err != nil {
+							t.Fatal(err)
 						}
-					}
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer listener.Close()
-					defer client.Close()
-					server, err := listener.Accept()
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer server.Close()
-					_ = server.SetDeadline(time.Now().Add(12 * time.Second))
-					_ = client.SetDeadline(time.Now().Add(12 * time.Second))
-					payload := bytes.Repeat([]byte("independent-reference-peer\x00\xff"), 4096)
-					done := make(chan error, 1)
-					go func() {
-						got := make([]byte, len(payload))
-						_, e := io.ReadFull(server, got)
-						if e == nil && !bytes.Equal(got, payload) {
-							e = ErrMalformed
+						defer s.Close()
+						local, remote := netip.MustParseAddrPort("192.0.2.1:8080"), netip.MustParseAddrPort("192.0.2.2:8080")
+						if v6 {
+							local = netip.MustParseAddrPort("[2001:db8::1]:8080")
+							remote = netip.MustParseAddrPort("[2001:db8::2]:8080")
 						}
-						if e == nil {
-							_, e = server.Write(got)
+						ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+						defer cancel()
+						var client net.Conn
+						var listener net.Listener
+						if direction == "outbound" {
+							a, proto := refAddress(remote)
+							listener, err = gonet.ListenTCP(r.stack, a, proto)
+							if err == nil {
+								client, err = s.DialContextTCP(ctx, remote)
+							}
+						} else {
+							listener, err = s.ListenTCP(local)
+							if err == nil {
+								a, proto := refAddress(local)
+								client, err = gonet.DialContextTCP(ctx, r.stack, a, proto)
+							}
 						}
-						if e == nil {
-							e = server.(interface{ CloseWrite() error }).CloseWrite()
+						if err != nil {
+							t.Fatal(err)
 						}
-						done <- e
-					}()
-					if _, err = client.Write(payload); err != nil {
-						t.Fatal(err)
-					}
-					if err = client.(interface{ CloseWrite() error }).CloseWrite(); err != nil {
-						t.Fatal(err)
-					}
-					got, err := io.ReadAll(client)
-					if err != nil || !bytes.Equal(got, payload) {
-						t.Fatalf("echo %d/%d: %v stats=%+v", len(got), len(payload), err, s.Stats())
-					}
-					if err = <-done; err != nil {
-						t.Fatal(err)
-					}
-				})
+						defer listener.Close()
+						defer client.Close()
+						server, err := listener.Accept()
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer server.Close()
+						_ = server.SetDeadline(time.Now().Add(12 * time.Second))
+						_ = client.SetDeadline(time.Now().Add(12 * time.Second))
+						payload := bytes.Repeat([]byte("independent-reference-peer\x00\xff"), 4096)
+						done := make(chan error, 1)
+						go func() {
+							got := make([]byte, len(payload))
+							_, e := io.ReadFull(server, got)
+							if e == nil && !bytes.Equal(got, payload) {
+								e = ErrMalformed
+							}
+							if e == nil {
+								_, e = server.Write(got)
+							}
+							if e == nil {
+								e = server.(interface{ CloseWrite() error }).CloseWrite()
+							}
+							done <- e
+						}()
+						if _, err = client.Write(payload); err != nil {
+							t.Fatal(err)
+						}
+						if err = client.(interface{ CloseWrite() error }).CloseWrite(); err != nil {
+							t.Fatal(err)
+						}
+						got, err := io.ReadAll(client)
+						if err != nil || !bytes.Equal(got, payload) {
+							t.Fatalf("echo %d/%d: %v stats=%+v", len(got), len(payload), err, s.Stats())
+						}
+						if err = <-done; err != nil {
+							t.Fatal(err)
+						}
+					})
+				}
 			}
 		}
 	}

@@ -38,5 +38,5 @@ func NewOutbound(c node.Fortinet, up netapi.Proxy) (netapi.Proxy, error) {
 			Insecure: c.InsecureSkipVerify, NoDTLS: c.DisableDTLS || vpnkit.IsChained(up),
 			TUNName: tun, DialContext: vpnkit.EndpointDialer(up)})
 		return s, res, e
-	})
+	}, c.TCPSettings)
 }

@@ -25,5 +25,5 @@ func NewOutbound(c node.AnyConnect, up netapi.Proxy) (netapi.Proxy, error) {
 		return Dial(ctx, Config{Server: host, Port: port, Username: c.Username, Password: c.Password,
 			TUNName: tun, Insecure: c.InsecureSkipVerify,
 			MTU: int(c.MTU), NoDTLS: c.DisableDTLS || vpnkit.IsChained(up), DialContext: vpnkit.EndpointDialer(up)})
-	})
+	}, c.TCPSettings)
 }

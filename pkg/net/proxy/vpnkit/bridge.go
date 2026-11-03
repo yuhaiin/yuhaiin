@@ -5,6 +5,7 @@ package vpnkit
 import (
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"io"
 	"net"
 	"net/netip"
@@ -18,6 +19,7 @@ import (
 // protocol engines. Read may start before IP configuration arrives; it blocks
 // until Attach, instead of losing packets or inventing an IP address.
 type packetBridge struct {
+	tcp     *transport.TCPSettings
 	mu      sync.Mutex
 	ready   chan struct{}
 	once    sync.Once
@@ -67,7 +69,7 @@ func (b *packetBridge) Attach(cfg vpnclient.Result) (*wireguard.LightweightNetTu
 	if mtu < 576 || mtu > 9000 {
 		return nil, fmt.Errorf("vpnkit: unsafe MTU %d", mtu)
 	}
-	network, err := wireguard.CreateLightweightNetTUN(prefixes, mtu)
+	network, err := wireguard.CreateLightweightNetTUNWithOptions(prefixes, mtu, b.tcp)
 	if err != nil {
 		return nil, err
 	}

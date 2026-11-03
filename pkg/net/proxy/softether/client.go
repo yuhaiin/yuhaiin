@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"net/netip"
 	"strconv"
@@ -29,6 +30,7 @@ import (
 )
 
 type Config struct {
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
 	AuthType           string
 	ClientCertPEM      string
 	ClientKeyPEM       string
@@ -78,7 +80,7 @@ var _ netapi.Proxy = (*Client)(nil)
 func init() {
 	register.RegisterContractPoint("softether", func(cfg contractnode.SoftEther, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewOutbound(Config{
-			Gateway: cfg.Gateway, Username: cfg.Username, Password: cfg.Password,
+			TCPSettings: cfg.TCPSettings, Gateway: cfg.Gateway, Username: cfg.Username, Password: cfg.Password,
 			Hub: cfg.Hub, CACertPEM: cfg.CACertPEM, InsecureSkipVerify: cfg.InsecureSkipVerify,
 			Address: cfg.Address, Router: cfg.Router, MTU: int(cfg.MTU),
 			AuthType: cfg.AuthType, ClientCertPEM: cfg.ClientCertPEM, ClientKeyPEM: cfg.ClientKeyPEM, IPv6Address: cfg.IPv6Address, IPv6Router: cfg.IPv6Router, UDPAcceleration: cfg.UDPAcceleration, AutoReconnect: cfg.AutoReconnect,
@@ -109,6 +111,9 @@ func gatewayAddress(input string) (host, endpoint string, err error) {
 }
 
 func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
+	if err := wireguard.ValidateTCPSettings(cfg.TCPSettings); err != nil {
+		return nil, err
+	}
 	return newClientContext(context.Background(), cfg, upstream)
 }
 
@@ -302,7 +307,7 @@ func newClientContext(parent context.Context, cfg Config, upstream netapi.Proxy)
 		}
 		prefixes = append(prefixes, ipv6Prefix)
 	}
-	network, err := wireguard.CreateLightweightNetTUN(prefixes, cfg.MTU)
+	network, err := wireguard.CreateLightweightNetTUNWithOptions(prefixes, cfg.MTU, cfg.TCPSettings)
 	if err != nil {
 		_ = session.Close()
 		return nil, err

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery"
 )
 
 func TestFixedMetadataCharges(t *testing.T) {
@@ -24,6 +25,11 @@ func TestFixedMetadataCharges(t *testing.T) {
 		footprint := reflect.TypeFor[TCPConn]().Size() + reflect.TypeOf(controller).Elem().Size() +
 			64*(reflect.TypeFor[*sendSegment]().Size()+reflect.TypeFor[receiveChunk]().Size()) +
 			2*segmentCharge + 3*128 // SYN/FIN and conservative channel headers.
+		detector, err := recovery.New("rack-tlp")
+		if err != nil {
+			t.Fatal(err)
+		}
+		footprint += reflect.TypeOf(detector).Elem().Size()
 		if footprint > connectionCharge {
 			t.Fatalf("%s connection and retained queues need %d bytes, charge %d", algorithm, footprint, connectionCharge)
 		}

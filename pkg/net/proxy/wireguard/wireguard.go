@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"os"
 	"runtime"
@@ -47,11 +48,12 @@ func init() {
 
 func wireguardConfigFromContract(config contractnode.Wireguard) Config {
 	return Config{
-		SecretKey: config.SecretKey,
-		Endpoint:  config.Endpoint,
-		Peers:     wireguardPeersFromContract(config.Peers),
-		MTU:       config.MTU,
-		Reserved:  config.Reserved,
+		TCPSettings: config.TCPSettings,
+		SecretKey:   config.SecretKey,
+		Endpoint:    config.Endpoint,
+		Peers:       wireguardPeersFromContract(config.Peers),
+		MTU:         config.MTU,
+		Reserved:    config.Reserved,
 	}
 }
 
@@ -70,11 +72,12 @@ func wireguardPeersFromContract(in []contractnode.WireguardPeer) []PeerConfig {
 }
 
 type Config struct {
-	SecretKey string       `json:"secretKey"`
-	Endpoint  []string     `json:"endpoint,omitzero"`
-	Peers     []PeerConfig `json:"peers,omitzero"`
-	MTU       int32        `json:"mtu,omitzero"`
-	Reserved  []byte       `json:"reserved,omitzero"`
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	SecretKey   string                 `json:"secretKey"`
+	Endpoint    []string               `json:"endpoint,omitzero"`
+	Peers       []PeerConfig           `json:"peers,omitzero"`
+	MTU         int32                  `json:"mtu,omitzero"`
+	Reserved    []byte                 `json:"reserved,omitzero"`
 }
 
 type PeerConfig struct {
@@ -91,7 +94,7 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 		return nil, err
 	}
 
-	tun, err := CreateLightweightNetTUN(endpoints, int(conf.MTU))
+	tun, err := CreateLightweightNetTUNWithOptions(endpoints, int(conf.MTU), conf.TCPSettings)
 	if err != nil {
 		return nil, err
 	}

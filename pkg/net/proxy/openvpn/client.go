@@ -4,6 +4,7 @@ package openvpn
 import (
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"slices"
 	"sync"
@@ -20,6 +21,7 @@ import (
 )
 
 type Config struct {
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
 	native.Config
 	AutoReconnect bool
 }
@@ -44,7 +46,7 @@ func init() {
 			direction = int(*cfg.KeyDirection)
 		}
 		return NewOutbound(Config{
-			Gateway: cfg.Gateway, Network: cfg.Network, CACertPEM: cfg.CACertPEM,
+			TCPSettings: cfg.TCPSettings, Gateway: cfg.Gateway, Network: cfg.Network, CACertPEM: cfg.CACertPEM,
 			ClientCertPEM: cfg.ClientCertPEM, ClientKeyPEM: cfg.ClientKeyPEM,
 			ServerName: cfg.ServerName, Username: cfg.Username, Password: cfg.Password,
 			TLSAuthKey: cfg.TLSAuthKey, TLSCryptKey: cfg.TLSCryptKey, KeyDirection: direction,
@@ -59,6 +61,9 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 }
 
 func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*Client, error) {
+	if err := wireguard.ValidateTCPSettings(cfg.TCPSettings); err != nil {
+		return nil, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -77,7 +82,7 @@ func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*
 		return nil, err
 	}
 	info := session.Info()
-	network, err := wireguard.CreateLightweightNetTUN(info.Prefixes, info.MTU)
+	network, err := wireguard.CreateLightweightNetTUNWithOptions(info.Prefixes, info.MTU, cfg.TCPSettings)
 	if err != nil {
 		_ = session.Close()
 		return nil, err

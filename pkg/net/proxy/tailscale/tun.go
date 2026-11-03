@@ -2,6 +2,7 @@ package tailscale
 
 import (
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"net/netip"
 	"os"
@@ -15,6 +16,7 @@ import (
 // packet transport while our stack owns application TCP/UDP. Addresses arrive
 // after Up; packet reads may start earlier and must wait without inventing IPs.
 type tailnetTun struct {
+	tcp     *transport.TCPSettings
 	mu      sync.Mutex
 	ready   chan struct{}
 	events  chan tun.Event
@@ -52,7 +54,7 @@ func (n *tailnetTun) configure(v4, v6 netip.Addr) error {
 	if len(addresses) == 0 {
 		return errors.New("tailscale: no assigned tunnel addresses")
 	}
-	network, err := wireguard.CreateLightweightNetTUN(addresses, 1280)
+	network, err := wireguard.CreateLightweightNetTUNWithOptions(addresses, 1280, n.tcp)
 	if err != nil {
 		return err
 	}
@@ -106,4 +108,10 @@ func (n *tailnetTun) Close() error {
 		return network.Close()
 	}
 	return nil
+}
+
+func newTailnetTunWithOptions(tcp *transport.TCPSettings) *tailnetTun {
+	n := newTailnetTun()
+	n.tcp = tcp
+	return n
 }

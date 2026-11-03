@@ -56,42 +56,44 @@ func BenchmarkUDP(b *testing.B) {
 }
 
 func BenchmarkImpairedTCP(b *testing.B) {
-	for _, algorithm := range []string{"reno", "cubic", "bbr"} {
-		for _, profile := range linkProfiles {
-			b.Run(algorithm+"/"+profile.name, func(b *testing.B) {
-				r, err := newReferenceIO(1500)
-				if err != nil {
-					b.Fatal(err)
-				}
-				link := simulate(r, profile)
-				s, err := New(Config{Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")}, CongestionControl: algorithm, Profile: RemoteTunnel}, link)
-				if err != nil {
-					b.Fatal(err)
-				}
-				defer s.Close()
-				dst := netip.MustParseAddrPort("192.0.2.2:8080")
-				a, proto := refAddress(dst)
-				l, err := gonet.ListenTCP(r.stack, a, proto)
-				if err != nil {
-					b.Fatal(err)
-				}
-				defer l.Close()
-				ctx, cancel := context.WithTimeout(b.Context(), 10*time.Second)
-				client, err := s.DialContextTCP(ctx, dst)
-				cancel()
-				if err != nil {
-					b.Fatal(err)
-				}
-				server, err := l.Accept()
-				if err != nil {
-					b.Fatal(err)
-				}
-				_ = client.SetDeadline(time.Now().Add(time.Minute))
-				_ = server.SetDeadline(time.Now().Add(time.Minute))
-				transferWorkload(b, []net.Conn{client}, []net.Conn{server}, 65536, "upload")
-				b.ReportMetric(float64(s.Stats().Retransmissions), "retransmits")
-				b.ReportMetric(float64(link.drops.Load()), "link-drops")
-			})
+	for _, lossRecovery := range []string{"classic", "rack-tlp"} {
+		for _, algorithm := range []string{"reno", "cubic", "bbr"} {
+			for _, profile := range linkProfiles {
+				b.Run(lossRecovery+"/"+algorithm+"/"+profile.name, func(b *testing.B) {
+					r, err := newReferenceIO(1500)
+					if err != nil {
+						b.Fatal(err)
+					}
+					link := simulate(r, profile)
+					s, err := New(Config{Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.1")}, CongestionControl: algorithm, LossRecovery: lossRecovery, Profile: RemoteTunnel}, link)
+					if err != nil {
+						b.Fatal(err)
+					}
+					defer s.Close()
+					dst := netip.MustParseAddrPort("192.0.2.2:8080")
+					a, proto := refAddress(dst)
+					l, err := gonet.ListenTCP(r.stack, a, proto)
+					if err != nil {
+						b.Fatal(err)
+					}
+					defer l.Close()
+					ctx, cancel := context.WithTimeout(b.Context(), 10*time.Second)
+					client, err := s.DialContextTCP(ctx, dst)
+					cancel()
+					if err != nil {
+						b.Fatal(err)
+					}
+					server, err := l.Accept()
+					if err != nil {
+						b.Fatal(err)
+					}
+					_ = client.SetDeadline(time.Now().Add(time.Minute))
+					_ = server.SetDeadline(time.Now().Add(time.Minute))
+					transferWorkload(b, []net.Conn{client}, []net.Conn{server}, 65536, "upload")
+					b.ReportMetric(float64(s.Stats().Retransmissions), "retransmits")
+					b.ReportMetric(float64(link.drops.Load()), "link-drops")
+				})
+			}
 		}
 	}
 }

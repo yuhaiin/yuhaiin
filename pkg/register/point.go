@@ -139,6 +139,11 @@ func ContractWrap(protocol contractnode.Protocol, p netapi.Proxy) (netapi.Proxy,
 	if err := protocol.Validate(); err != nil {
 		return nil, err
 	}
+	if tcp := protocol.TCPOptions(); tcp != nil {
+		if err := lightweight.ValidateConfig(lightweight.Config{Profile: lightweight.RemoteTunnel, CongestionControl: tcp.CongestionControl, LossRecovery: tcp.LossRecovery}); err != nil {
+			return nil, err
+		}
+	}
 	if fn, ok := execContractProtocol.Load(protocol.Type); ok {
 		obj, err := ContractProtocolConfig(protocol)
 		if err != nil {

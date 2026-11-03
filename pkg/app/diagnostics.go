@@ -118,7 +118,14 @@ func stackDiagnostic(scope, id string, stack lightweight.StackDiagnostics) contr
 	}
 	for _, flow := range stack.Flows {
 		item := contracttools.TCPFlowDiagnostic{
-			State: string(flow.State), Local: flow.Local, Remote: flow.Remote,
+			CongestionControl:      flow.CongestionControl,
+			ConfiguredLossRecovery: flow.ConfiguredLossRecovery,
+			LossRecovery:           flow.LossRecovery,
+			DSACKSent:              flow.DSACKSent,
+			DSACKReceived:          flow.DSACKReceived,
+			TailLossProbes:         flow.TailLossProbes,
+			SpuriousRecoveries:     flow.SpuriousRecoveries,
+			State:                  string(flow.State), Local: flow.Local, Remote: flow.Remote,
 			CongestionWindow: flow.CongestionWindow, BytesInFlight: flow.BytesInFlight,
 			SRTTMilliseconds: flow.SRTTMilliseconds, RTOMilliseconds: flow.RTOMilliseconds,
 			PacingRate: flow.PacingRate, LostBytes: flow.LostBytes,
