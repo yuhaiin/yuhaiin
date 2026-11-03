@@ -3,23 +3,23 @@
     "BenchmarkDetectorACK/classic/flight=16": {
       "samples": [
         {
-          "ns/op": 37.54,
+          "ns/op": 37.51,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 40.24,
+          "ns/op": 37.6,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 39.2,
+          "ns/op": 37.56,
           "B/op": 0.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 39.2,
+        "ns/op": 37.56,
         "B/op": 0.0,
         "allocs/op": 0.0
       }
@@ -27,23 +27,23 @@
     "BenchmarkDetectorACK/classic/flight=256": {
       "samples": [
         {
-          "ns/op": 40.0,
+          "ns/op": 37.49,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 37.81,
+          "ns/op": 37.55,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 37.29,
+          "ns/op": 37.25,
           "B/op": 0.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 37.81,
+        "ns/op": 37.49,
         "B/op": 0.0,
         "allocs/op": 0.0
       }
@@ -51,23 +51,23 @@
     "BenchmarkDetectorACK/classic/flight=4096": {
       "samples": [
         {
-          "ns/op": 37.3,
+          "ns/op": 37.6,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 37.32,
+          "ns/op": 37.52,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 37.39,
+          "ns/op": 37.52,
           "B/op": 0.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 37.32,
+        "ns/op": 37.52,
         "B/op": 0.0,
         "allocs/op": 0.0
       }
@@ -75,12 +75,12 @@
     "BenchmarkDetectorACK/rack-tlp/flight=16": {
       "samples": [
         {
-          "ns/op": 411.0,
+          "ns/op": 411.5,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 486.3,
+          "ns/op": 411.4,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
@@ -91,7 +91,7 @@
         }
       ],
       "median": {
-        "ns/op": 411.1,
+        "ns/op": 411.4,
         "B/op": 0.0,
         "allocs/op": 0.0
       }
@@ -99,23 +99,23 @@
     "BenchmarkDetectorACK/rack-tlp/flight=256": {
       "samples": [
         {
-          "ns/op": 5982.0,
+          "ns/op": 6022.0,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 5983.0,
+          "ns/op": 6006.0,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 6011.0,
+          "ns/op": 5997.0,
           "B/op": 0.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 5983.0,
+        "ns/op": 6006.0,
         "B/op": 0.0,
         "allocs/op": 0.0
       }
@@ -123,23 +123,23 @@
     "BenchmarkDetectorACK/rack-tlp/flight=4096": {
       "samples": [
         {
-          "ns/op": 95082.0,
+          "ns/op": 95244.0,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 95862.0,
+          "ns/op": 95372.0,
           "B/op": 0.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 95419.0,
+          "ns/op": 95987.0,
           "B/op": 0.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 95419.0,
+        "ns/op": 95372.0,
         "B/op": 0.0,
         "allocs/op": 0.0
       }
@@ -149,625 +149,625 @@
     "BenchmarkImpairedTCP/classic/reno/rtt10ms": {
       "samples": [
         {
-          "ns/op": 11165402.0,
-          "MB/s": 5.87,
-          "goroutines": 14.0,
-          "heap-live-B": 1002920.0,
-          "link-drops": 0.0,
-          "p95-us": 11400.0,
-          "p99-us": 31259.0,
-          "retransmits": 0.0,
-          "B/op": 157238.0,
-          "allocs/op": 267.0
-        },
-        {
-          "ns/op": 11171087.0,
-          "MB/s": 5.87,
-          "goroutines": 14.0,
-          "heap-live-B": 1015328.0,
-          "link-drops": 0.0,
-          "p95-us": 11402.0,
-          "p99-us": 31011.0,
-          "retransmits": 0.0,
-          "B/op": 156590.0,
-          "allocs/op": 269.0
-        },
-        {
-          "ns/op": 11153118.0,
+          "ns/op": 11149872.0,
           "MB/s": 5.88,
           "goroutines": 14.0,
-          "heap-live-B": 1042696.0,
+          "heap-live-B": 1016536.0,
+          "link-drops": 0.0,
+          "p95-us": 11357.0,
+          "p99-us": 31099.0,
+          "retransmits": 0.0,
+          "B/op": 156917.0,
+          "allocs/op": 268.0
+        },
+        {
+          "ns/op": 11182449.0,
+          "MB/s": 5.86,
+          "goroutines": 14.0,
+          "heap-live-B": 1023408.0,
           "link-drops": 0.0,
           "p95-us": 11391.0,
-          "p99-us": 31194.0,
+          "p99-us": 32068.0,
           "retransmits": 0.0,
-          "B/op": 156565.0,
+          "B/op": 156338.0,
+          "allocs/op": 266.0
+        },
+        {
+          "ns/op": 11198642.0,
+          "MB/s": 5.85,
+          "goroutines": 14.0,
+          "heap-live-B": 1024256.0,
+          "link-drops": 0.0,
+          "p95-us": 11479.0,
+          "p99-us": 31202.0,
+          "retransmits": 0.0,
+          "B/op": 156689.0,
           "allocs/op": 269.0
         }
       ],
       "median": {
-        "ns/op": 11165402.0,
-        "MB/s": 5.87,
+        "ns/op": 11182449.0,
+        "MB/s": 5.86,
         "goroutines": 14.0,
-        "heap-live-B": 1015328.0,
+        "heap-live-B": 1023408.0,
         "link-drops": 0.0,
-        "p95-us": 11400.0,
-        "p99-us": 31194.0,
+        "p95-us": 11391.0,
+        "p99-us": 31202.0,
         "retransmits": 0.0,
-        "B/op": 156590.0,
-        "allocs/op": 269.0
+        "B/op": 156689.0,
+        "allocs/op": 268.0
       }
     },
     "BenchmarkImpairedTCP/classic/reno/rtt50ms-loss0.1pct": {
       "samples": [
         {
-          "ns/op": 354430252.0,
-          "MB/s": 0.18,
+          "ns/op": 432548757.0,
+          "MB/s": 0.15,
           "goroutines": 14.0,
-          "heap-live-B": 871632.0,
+          "heap-live-B": 870504.0,
           "link-drops": 0.0,
-          "p95-us": 355019.0,
-          "p99-us": 355019.0,
-          "retransmits": 6.0,
-          "B/op": 235596.0,
-          "allocs/op": 569.0
-        },
-        {
-          "ns/op": 331876574.0,
-          "MB/s": 0.2,
-          "goroutines": 14.0,
-          "heap-live-B": 876664.0,
-          "link-drops": 0.0,
-          "p95-us": 355237.0,
-          "p99-us": 355237.0,
-          "retransmits": 7.0,
-          "B/op": 238708.0,
+          "p95-us": 459032.0,
+          "p99-us": 459032.0,
+          "retransmits": 12.0,
+          "B/op": 242080.0,
           "allocs/op": 580.0
         },
         {
-          "ns/op": 430701601.0,
-          "MB/s": 0.15,
+          "ns/op": 380970958.0,
+          "MB/s": 0.17,
           "goroutines": 14.0,
-          "heap-live-B": 880904.0,
+          "heap-live-B": 888880.0,
           "link-drops": 0.0,
-          "p95-us": 453991.0,
-          "p99-us": 453991.0,
-          "retransmits": 10.0,
-          "B/op": 242364.0,
-          "allocs/op": 601.0
+          "p95-us": 407147.0,
+          "p99-us": 407147.0,
+          "retransmits": 9.0,
+          "B/op": 243568.0,
+          "allocs/op": 593.0
+        },
+        {
+          "ns/op": 356717157.0,
+          "MB/s": 0.18,
+          "goroutines": 14.0,
+          "heap-live-B": 889216.0,
+          "link-drops": 0.0,
+          "p95-us": 357009.0,
+          "p99-us": 357009.0,
+          "retransmits": 9.0,
+          "B/op": 242708.0,
+          "allocs/op": 579.0
         }
       ],
       "median": {
-        "ns/op": 354430252.0,
-        "MB/s": 0.18,
+        "ns/op": 380970958.0,
+        "MB/s": 0.17,
         "goroutines": 14.0,
-        "heap-live-B": 876664.0,
+        "heap-live-B": 888880.0,
         "link-drops": 0.0,
-        "p95-us": 355237.0,
-        "p99-us": 355237.0,
-        "retransmits": 7.0,
-        "B/op": 238708.0,
+        "p95-us": 407147.0,
+        "p99-us": 407147.0,
+        "retransmits": 9.0,
+        "B/op": 242708.0,
         "allocs/op": 580.0
       }
     },
     "BenchmarkImpairedTCP/classic/cubic/rtt10ms": {
       "samples": [
         {
-          "ns/op": 21217394.0,
-          "MB/s": 3.09,
+          "ns/op": 21259162.0,
+          "MB/s": 3.08,
           "goroutines": 14.0,
-          "heap-live-B": 1030720.0,
+          "heap-live-B": 1025000.0,
           "link-drops": 0.0,
-          "p95-us": 21702.0,
-          "p99-us": 31309.0,
+          "p95-us": 21812.0,
+          "p99-us": 32126.0,
           "retransmits": 0.0,
-          "B/op": 162922.0,
-          "allocs/op": 281.0
+          "B/op": 159656.0,
+          "allocs/op": 260.0
         },
         {
-          "ns/op": 21213722.0,
-          "MB/s": 3.09,
+          "ns/op": 21261345.0,
+          "MB/s": 3.08,
           "goroutines": 14.0,
-          "heap-live-B": 1039848.0,
+          "heap-live-B": 1024736.0,
           "link-drops": 0.0,
-          "p95-us": 21712.0,
-          "p99-us": 31150.0,
+          "p95-us": 21893.0,
+          "p99-us": 31062.0,
           "retransmits": 0.0,
-          "B/op": 160908.0,
+          "B/op": 159237.0,
+          "allocs/op": 262.0
+        },
+        {
+          "ns/op": 21140221.0,
+          "MB/s": 3.1,
+          "goroutines": 14.0,
+          "heap-live-B": 1044048.0,
+          "link-drops": 0.0,
+          "p95-us": 20934.0,
+          "p99-us": 31217.0,
+          "retransmits": 0.0,
+          "B/op": 160691.0,
           "allocs/op": 270.0
-        },
-        {
-          "ns/op": 11449470.0,
-          "MB/s": 5.72,
-          "goroutines": 14.0,
-          "heap-live-B": 995016.0,
-          "link-drops": 0.0,
-          "p95-us": 20792.0,
-          "p99-us": 31134.0,
-          "retransmits": 0.0,
-          "B/op": 156679.0,
-          "allocs/op": 267.0
         }
       ],
       "median": {
-        "ns/op": 21213722.0,
-        "MB/s": 3.09,
+        "ns/op": 21259162.0,
+        "MB/s": 3.08,
         "goroutines": 14.0,
-        "heap-live-B": 1030720.0,
+        "heap-live-B": 1025000.0,
         "link-drops": 0.0,
-        "p95-us": 21702.0,
-        "p99-us": 31150.0,
+        "p95-us": 21812.0,
+        "p99-us": 31217.0,
         "retransmits": 0.0,
-        "B/op": 160908.0,
-        "allocs/op": 270.0
+        "B/op": 159656.0,
+        "allocs/op": 262.0
       }
     },
     "BenchmarkImpairedTCP/classic/cubic/rtt50ms-loss0.1pct": {
       "samples": [
         {
-          "ns/op": 511011742.0,
-          "MB/s": 0.13,
-          "goroutines": 14.0,
-          "heap-live-B": 883888.0,
-          "link-drops": 0.0,
-          "p95-us": 665596.0,
-          "p99-us": 665596.0,
-          "retransmits": 9.0,
-          "B/op": 240400.0,
-          "allocs/op": 589.0
-        },
-        {
-          "ns/op": 507298572.0,
-          "MB/s": 0.13,
-          "goroutines": 14.0,
-          "heap-live-B": 889592.0,
-          "link-drops": 0.0,
-          "p95-us": 610190.0,
-          "p99-us": 610190.0,
-          "retransmits": 10.0,
-          "B/op": 242100.0,
-          "allocs/op": 594.0
-        },
-        {
-          "ns/op": 459181124.0,
+          "ns/op": 484020302.0,
           "MB/s": 0.14,
           "goroutines": 14.0,
-          "heap-live-B": 889592.0,
+          "heap-live-B": 894200.0,
           "link-drops": 0.0,
-          "p95-us": 562340.0,
-          "p99-us": 562340.0,
-          "retransmits": 7.0,
-          "B/op": 236320.0,
-          "allocs/op": 583.0
+          "p95-us": 611324.0,
+          "p99-us": 611324.0,
+          "retransmits": 10.0,
+          "B/op": 273148.0,
+          "allocs/op": 582.0
+        },
+        {
+          "ns/op": 433089381.0,
+          "MB/s": 0.15,
+          "goroutines": 14.0,
+          "heap-live-B": 896736.0,
+          "link-drops": 0.0,
+          "p95-us": 507683.0,
+          "p99-us": 507683.0,
+          "retransmits": 8.0,
+          "B/op": 238016.0,
+          "allocs/op": 575.0
+        },
+        {
+          "ns/op": 404993976.0,
+          "MB/s": 0.16,
+          "goroutines": 14.0,
+          "heap-live-B": 898736.0,
+          "link-drops": 0.0,
+          "p95-us": 407399.0,
+          "p99-us": 407399.0,
+          "retransmits": 6.0,
+          "B/op": 235020.0,
+          "allocs/op": 571.0
         }
       ],
       "median": {
-        "ns/op": 507298572.0,
-        "MB/s": 0.13,
+        "ns/op": 433089381.0,
+        "MB/s": 0.15,
         "goroutines": 14.0,
-        "heap-live-B": 889592.0,
+        "heap-live-B": 896736.0,
         "link-drops": 0.0,
-        "p95-us": 610190.0,
-        "p99-us": 610190.0,
-        "retransmits": 9.0,
-        "B/op": 240400.0,
-        "allocs/op": 589.0
+        "p95-us": 507683.0,
+        "p99-us": 507683.0,
+        "retransmits": 8.0,
+        "B/op": 238016.0,
+        "allocs/op": 575.0
       }
     },
     "BenchmarkImpairedTCP/classic/bbr/rtt10ms": {
       "samples": [
         {
-          "ns/op": 17096185.0,
-          "MB/s": 3.83,
+          "ns/op": 17179419.0,
+          "MB/s": 3.81,
           "goroutines": 14.0,
-          "heap-live-B": 902456.0,
+          "heap-live-B": 911736.0,
           "link-drops": 0.0,
-          "p95-us": 18501.0,
-          "p99-us": 37135.0,
+          "p95-us": 19803.0,
+          "p99-us": 38135.0,
           "retransmits": 0.0,
-          "B/op": 153314.0,
-          "allocs/op": 264.0
+          "B/op": 153592.0,
+          "allocs/op": 267.0
         },
         {
-          "ns/op": 17158059.0,
-          "MB/s": 3.82,
+          "ns/op": 17255639.0,
+          "MB/s": 3.8,
           "goroutines": 14.0,
-          "heap-live-B": 907104.0,
+          "heap-live-B": 915552.0,
           "link-drops": 0.0,
-          "p95-us": 19791.0,
-          "p99-us": 38026.0,
+          "p95-us": 19760.0,
+          "p99-us": 38227.0,
           "retransmits": 0.0,
-          "B/op": 155564.0,
-          "allocs/op": 266.0
+          "B/op": 153147.0,
+          "allocs/op": 261.0
         },
         {
-          "ns/op": 17160787.0,
+          "ns/op": 17151831.0,
           "MB/s": 3.82,
           "goroutines": 14.0,
-          "heap-live-B": 905776.0,
+          "heap-live-B": 915680.0,
           "link-drops": 0.0,
-          "p95-us": 19795.0,
-          "p99-us": 38041.0,
+          "p95-us": 18673.0,
+          "p99-us": 38233.0,
           "retransmits": 0.0,
-          "B/op": 153149.0,
+          "B/op": 153241.0,
           "allocs/op": 263.0
         }
       ],
       "median": {
-        "ns/op": 17158059.0,
-        "MB/s": 3.82,
+        "ns/op": 17179419.0,
+        "MB/s": 3.81,
         "goroutines": 14.0,
-        "heap-live-B": 905776.0,
+        "heap-live-B": 915552.0,
         "link-drops": 0.0,
-        "p95-us": 19791.0,
-        "p99-us": 38026.0,
+        "p95-us": 19760.0,
+        "p99-us": 38227.0,
         "retransmits": 0.0,
-        "B/op": 153314.0,
-        "allocs/op": 264.0
+        "B/op": 153241.0,
+        "allocs/op": 263.0
       }
     },
     "BenchmarkImpairedTCP/classic/bbr/rtt50ms-loss0.1pct": {
       "samples": [
         {
-          "ns/op": 102203976.0,
-          "MB/s": 0.64,
+          "ns/op": 98528606.0,
+          "MB/s": 0.67,
           "goroutines": 14.0,
-          "heap-live-B": 879240.0,
-          "link-drops": 0.0,
-          "p95-us": 177668.0,
-          "p99-us": 177668.0,
-          "retransmits": 0.0,
-          "B/op": 182075.0,
-          "allocs/op": 490.0
+          "heap-live-B": 1105848.0,
+          "link-drops": 2.0,
+          "p95-us": 178627.0,
+          "p99-us": 178627.0,
+          "retransmits": 78.0,
+          "B/op": 255920.0,
+          "allocs/op": 661.0
         },
         {
-          "ns/op": 102466867.0,
-          "MB/s": 0.64,
-          "goroutines": 14.0,
-          "heap-live-B": 883632.0,
-          "link-drops": 0.0,
-          "p95-us": 177622.0,
-          "p99-us": 177622.0,
-          "retransmits": 0.0,
-          "B/op": 182096.0,
-          "allocs/op": 503.0
-        },
-        {
-          "ns/op": 99127110.0,
+          "ns/op": 98968385.0,
           "MB/s": 0.66,
           "goroutines": 14.0,
-          "heap-live-B": 1083824.0,
+          "heap-live-B": 1075712.0,
           "link-drops": 2.0,
-          "p95-us": 179367.0,
-          "p99-us": 179367.0,
-          "retransmits": 63.0,
-          "B/op": 255334.0,
-          "allocs/op": 632.0
+          "p95-us": 179076.0,
+          "p99-us": 179076.0,
+          "retransmits": 67.0,
+          "B/op": 241844.0,
+          "allocs/op": 620.0
+        },
+        {
+          "ns/op": 102476359.0,
+          "MB/s": 0.64,
+          "goroutines": 14.0,
+          "heap-live-B": 894064.0,
+          "link-drops": 0.0,
+          "p95-us": 177633.0,
+          "p99-us": 177633.0,
+          "retransmits": 0.0,
+          "B/op": 181540.0,
+          "allocs/op": 492.0
         }
       ],
       "median": {
-        "ns/op": 102203976.0,
-        "MB/s": 0.64,
+        "ns/op": 98968385.0,
+        "MB/s": 0.66,
         "goroutines": 14.0,
-        "heap-live-B": 883632.0,
-        "link-drops": 0.0,
-        "p95-us": 177668.0,
-        "p99-us": 177668.0,
-        "retransmits": 0.0,
-        "B/op": 182096.0,
-        "allocs/op": 503.0
+        "heap-live-B": 1075712.0,
+        "link-drops": 2.0,
+        "p95-us": 178627.0,
+        "p99-us": 178627.0,
+        "retransmits": 67.0,
+        "B/op": 241844.0,
+        "allocs/op": 620.0
       }
     },
     "BenchmarkImpairedTCP/rack-tlp/reno/rtt10ms": {
       "samples": [
         {
-          "ns/op": 11298579.0,
+          "ns/op": 11311509.0,
+          "MB/s": 5.79,
+          "goroutines": 14.0,
+          "heap-live-B": 1076632.0,
+          "link-drops": 0.0,
+          "p95-us": 11557.0,
+          "p99-us": 31166.0,
+          "retransmits": 0.0,
+          "B/op": 156881.0,
+          "allocs/op": 266.0
+        },
+        {
+          "ns/op": 11189559.0,
+          "MB/s": 5.86,
+          "goroutines": 14.0,
+          "heap-live-B": 1082624.0,
+          "link-drops": 0.0,
+          "p95-us": 11404.0,
+          "p99-us": 31046.0,
+          "retransmits": 0.0,
+          "B/op": 156732.0,
+          "allocs/op": 268.0
+        },
+        {
+          "ns/op": 11291925.0,
           "MB/s": 5.8,
           "goroutines": 14.0,
-          "heap-live-B": 1052952.0,
+          "heap-live-B": 1073152.0,
           "link-drops": 0.0,
-          "p95-us": 11471.0,
-          "p99-us": 31137.0,
+          "p95-us": 11427.0,
+          "p99-us": 31941.0,
           "retransmits": 0.0,
-          "B/op": 156494.0,
-          "allocs/op": 270.0
-        },
-        {
-          "ns/op": 11487305.0,
-          "MB/s": 5.71,
-          "goroutines": 14.0,
-          "heap-live-B": 1084128.0,
-          "link-drops": 0.0,
-          "p95-us": 12200.0,
-          "p99-us": 32869.0,
-          "retransmits": 0.0,
-          "B/op": 157218.0,
-          "allocs/op": 270.0
-        },
-        {
-          "ns/op": 11224475.0,
-          "MB/s": 5.84,
-          "goroutines": 14.0,
-          "heap-live-B": 1059552.0,
-          "link-drops": 0.0,
-          "p95-us": 11375.0,
-          "p99-us": 31953.0,
-          "retransmits": 0.0,
-          "B/op": 156604.0,
-          "allocs/op": 265.0
+          "B/op": 156340.0,
+          "allocs/op": 266.0
         }
       ],
       "median": {
-        "ns/op": 11298579.0,
+        "ns/op": 11291925.0,
         "MB/s": 5.8,
         "goroutines": 14.0,
-        "heap-live-B": 1059552.0,
+        "heap-live-B": 1076632.0,
         "link-drops": 0.0,
-        "p95-us": 11471.0,
-        "p99-us": 31953.0,
+        "p95-us": 11427.0,
+        "p99-us": 31166.0,
         "retransmits": 0.0,
-        "B/op": 156604.0,
-        "allocs/op": 270.0
+        "B/op": 156732.0,
+        "allocs/op": 266.0
       }
     },
     "BenchmarkImpairedTCP/rack-tlp/reno/rtt50ms-loss0.1pct": {
       "samples": [
         {
-          "ns/op": 98774867.0,
-          "MB/s": 0.66,
-          "goroutines": 14.0,
-          "heap-live-B": 1112856.0,
-          "link-drops": 2.0,
-          "p95-us": 219363.0,
-          "p99-us": 219363.0,
-          "retransmits": 3.0,
-          "B/op": 208413.0,
-          "allocs/op": 548.0
-        },
-        {
-          "ns/op": 135210830.0,
-          "MB/s": 0.48,
-          "goroutines": 14.0,
-          "heap-live-B": 1121952.0,
-          "link-drops": 2.0,
-          "p95-us": 468448.0,
-          "p99-us": 468448.0,
-          "retransmits": 2.0,
-          "B/op": 208224.0,
-          "allocs/op": 543.0
-        },
-        {
-          "ns/op": 64986893.0,
+          "ns/op": 65133068.0,
           "MB/s": 1.01,
           "goroutines": 14.0,
-          "heap-live-B": 1121040.0,
+          "heap-live-B": 1126216.0,
           "link-drops": 2.0,
-          "p95-us": 153423.0,
-          "p99-us": 153423.0,
+          "p95-us": 151691.0,
+          "p99-us": 151691.0,
           "retransmits": 0.0,
-          "B/op": 201471.0,
-          "allocs/op": 525.0
+          "B/op": 201612.0,
+          "allocs/op": 529.0
+        },
+        {
+          "ns/op": 128088592.0,
+          "MB/s": 0.51,
+          "goroutines": 14.0,
+          "heap-live-B": 1131152.0,
+          "link-drops": 2.0,
+          "p95-us": 422136.0,
+          "p99-us": 422136.0,
+          "retransmits": 4.0,
+          "B/op": 209699.0,
+          "allocs/op": 551.0
+        },
+        {
+          "ns/op": 64905207.0,
+          "MB/s": 1.01,
+          "goroutines": 14.0,
+          "heap-live-B": 1126240.0,
+          "link-drops": 2.0,
+          "p95-us": 151683.0,
+          "p99-us": 151683.0,
+          "retransmits": 0.0,
+          "B/op": 201244.0,
+          "allocs/op": 524.0
         }
       ],
       "median": {
-        "ns/op": 98774867.0,
-        "MB/s": 0.66,
+        "ns/op": 65133068.0,
+        "MB/s": 1.01,
         "goroutines": 14.0,
-        "heap-live-B": 1121040.0,
+        "heap-live-B": 1126240.0,
         "link-drops": 2.0,
-        "p95-us": 219363.0,
-        "p99-us": 219363.0,
-        "retransmits": 2.0,
-        "B/op": 208224.0,
-        "allocs/op": 543.0
+        "p95-us": 151691.0,
+        "p99-us": 151691.0,
+        "retransmits": 0.0,
+        "B/op": 201612.0,
+        "allocs/op": 529.0
       }
     },
     "BenchmarkImpairedTCP/rack-tlp/cubic/rtt10ms": {
       "samples": [
         {
-          "ns/op": 19078287.0,
-          "MB/s": 3.44,
-          "goroutines": 14.0,
-          "heap-live-B": 1082488.0,
-          "link-drops": 0.0,
-          "p95-us": 21968.0,
-          "p99-us": 31194.0,
-          "retransmits": 0.0,
-          "B/op": 161740.0,
-          "allocs/op": 281.0
-        },
-        {
-          "ns/op": 21402884.0,
-          "MB/s": 3.06,
-          "goroutines": 14.0,
-          "heap-live-B": 1050208.0,
-          "link-drops": 0.0,
-          "p95-us": 22046.0,
-          "p99-us": 32020.0,
-          "retransmits": 0.0,
-          "B/op": 159420.0,
-          "allocs/op": 264.0
-        },
-        {
-          "ns/op": 21183181.0,
+          "ns/op": 21205634.0,
           "MB/s": 3.09,
           "goroutines": 14.0,
-          "heap-live-B": 1050688.0,
+          "heap-live-B": 1069144.0,
           "link-drops": 0.0,
-          "p95-us": 21115.0,
-          "p99-us": 31211.0,
+          "p95-us": 21823.0,
+          "p99-us": 31177.0,
           "retransmits": 0.0,
-          "B/op": 160304.0,
-          "allocs/op": 265.0
+          "B/op": 160448.0,
+          "allocs/op": 271.0
+        },
+        {
+          "ns/op": 21208533.0,
+          "MB/s": 3.09,
+          "goroutines": 14.0,
+          "heap-live-B": 1066288.0,
+          "link-drops": 0.0,
+          "p95-us": 21785.0,
+          "p99-us": 31043.0,
+          "retransmits": 0.0,
+          "B/op": 159932.0,
+          "allocs/op": 266.0
+        },
+        {
+          "ns/op": 11234693.0,
+          "MB/s": 5.83,
+          "goroutines": 14.0,
+          "heap-live-B": 1067344.0,
+          "link-drops": 0.0,
+          "p95-us": 11378.0,
+          "p99-us": 32224.0,
+          "retransmits": 0.0,
+          "B/op": 156297.0,
+          "allocs/op": 267.0
         }
       ],
       "median": {
-        "ns/op": 21183181.0,
+        "ns/op": 21205634.0,
         "MB/s": 3.09,
         "goroutines": 14.0,
-        "heap-live-B": 1050688.0,
+        "heap-live-B": 1067344.0,
         "link-drops": 0.0,
-        "p95-us": 21968.0,
-        "p99-us": 31211.0,
+        "p95-us": 21785.0,
+        "p99-us": 31177.0,
         "retransmits": 0.0,
-        "B/op": 160304.0,
-        "allocs/op": 265.0
+        "B/op": 159932.0,
+        "allocs/op": 267.0
       }
     },
     "BenchmarkImpairedTCP/rack-tlp/cubic/rtt50ms-loss0.1pct": {
       "samples": [
         {
-          "ns/op": 64940668.0,
-          "MB/s": 1.01,
-          "goroutines": 14.0,
-          "heap-live-B": 1121352.0,
-          "link-drops": 2.0,
-          "p95-us": 151766.0,
-          "p99-us": 151766.0,
-          "retransmits": 0.0,
-          "B/op": 201780.0,
-          "allocs/op": 525.0
-        },
-        {
-          "ns/op": 64893368.0,
-          "MB/s": 1.01,
-          "goroutines": 14.0,
-          "heap-live-B": 1124320.0,
-          "link-drops": 2.0,
-          "p95-us": 152078.0,
-          "p99-us": 152078.0,
-          "retransmits": 0.0,
-          "B/op": 201524.0,
-          "allocs/op": 520.0
-        },
-        {
-          "ns/op": 111804939.0,
+          "ns/op": 110915266.0,
           "MB/s": 0.59,
           "goroutines": 14.0,
-          "heap-live-B": 1124960.0,
+          "heap-live-B": 1135720.0,
           "link-drops": 2.0,
-          "p95-us": 302343.0,
-          "p99-us": 302343.0,
-          "retransmits": 3.0,
-          "B/op": 209420.0,
-          "allocs/op": 547.0
+          "p95-us": 302606.0,
+          "p99-us": 302606.0,
+          "retransmits": 2.0,
+          "B/op": 209641.0,
+          "allocs/op": 559.0
+        },
+        {
+          "ns/op": 101291038.0,
+          "MB/s": 0.65,
+          "goroutines": 14.0,
+          "heap-live-B": 1119488.0,
+          "link-drops": 0.0,
+          "p95-us": 153049.0,
+          "p99-us": 153049.0,
+          "retransmits": 0.0,
+          "B/op": 224145.0,
+          "allocs/op": 549.0
+        },
+        {
+          "ns/op": 120110090.0,
+          "MB/s": 0.55,
+          "goroutines": 14.0,
+          "heap-live-B": 1139376.0,
+          "link-drops": 2.0,
+          "p95-us": 364753.0,
+          "p99-us": 364753.0,
+          "retransmits": 2.0,
+          "B/op": 208409.0,
+          "allocs/op": 545.0
         }
       ],
       "median": {
-        "ns/op": 64940668.0,
-        "MB/s": 1.01,
+        "ns/op": 110915266.0,
+        "MB/s": 0.59,
         "goroutines": 14.0,
-        "heap-live-B": 1124320.0,
+        "heap-live-B": 1135720.0,
         "link-drops": 2.0,
-        "p95-us": 152078.0,
-        "p99-us": 152078.0,
-        "retransmits": 0.0,
-        "B/op": 201780.0,
-        "allocs/op": 525.0
+        "p95-us": 302606.0,
+        "p99-us": 302606.0,
+        "retransmits": 2.0,
+        "B/op": 209641.0,
+        "allocs/op": 549.0
       }
     },
     "BenchmarkImpairedTCP/rack-tlp/bbr/rtt10ms": {
       "samples": [
         {
-          "ns/op": 17118831.0,
-          "MB/s": 3.83,
-          "goroutines": 14.0,
-          "heap-live-B": 922968.0,
-          "link-drops": 0.0,
-          "p95-us": 19702.0,
-          "p99-us": 37254.0,
-          "retransmits": 0.0,
-          "B/op": 153464.0,
-          "allocs/op": 265.0
-        },
-        {
-          "ns/op": 17143187.0,
+          "ns/op": 17167344.0,
           "MB/s": 3.82,
           "goroutines": 14.0,
-          "heap-live-B": 924432.0,
+          "heap-live-B": 927784.0,
           "link-drops": 0.0,
-          "p95-us": 18507.0,
-          "p99-us": 38013.0,
+          "p95-us": 19839.0,
+          "p99-us": 36906.0,
           "retransmits": 0.0,
-          "B/op": 153391.0,
-          "allocs/op": 265.0
+          "B/op": 153295.0,
+          "allocs/op": 267.0
         },
         {
-          "ns/op": 17120653.0,
-          "MB/s": 3.83,
+          "ns/op": 17174317.0,
+          "MB/s": 3.82,
           "goroutines": 14.0,
-          "heap-live-B": 922528.0,
+          "heap-live-B": 933136.0,
           "link-drops": 0.0,
-          "p95-us": 18525.0,
-          "p99-us": 38175.0,
+          "p95-us": 19615.0,
+          "p99-us": 38144.0,
           "retransmits": 0.0,
-          "B/op": 153262.0,
-          "allocs/op": 264.0
+          "B/op": 153448.0,
+          "allocs/op": 266.0
+        },
+        {
+          "ns/op": 17143309.0,
+          "MB/s": 3.82,
+          "goroutines": 14.0,
+          "heap-live-B": 929440.0,
+          "link-drops": 0.0,
+          "p95-us": 18673.0,
+          "p99-us": 38205.0,
+          "retransmits": 0.0,
+          "B/op": 153192.0,
+          "allocs/op": 265.0
         }
       ],
       "median": {
-        "ns/op": 17120653.0,
-        "MB/s": 3.83,
+        "ns/op": 17167344.0,
+        "MB/s": 3.82,
         "goroutines": 14.0,
-        "heap-live-B": 922968.0,
+        "heap-live-B": 929440.0,
         "link-drops": 0.0,
-        "p95-us": 18525.0,
-        "p99-us": 38013.0,
+        "p95-us": 19615.0,
+        "p99-us": 38144.0,
         "retransmits": 0.0,
-        "B/op": 153391.0,
-        "allocs/op": 265.0
+        "B/op": 153295.0,
+        "allocs/op": 266.0
       }
     },
     "BenchmarkImpairedTCP/rack-tlp/bbr/rtt50ms-loss0.1pct": {
       "samples": [
         {
-          "ns/op": 102894739.0,
+          "ns/op": 102140191.0,
           "MB/s": 0.64,
           "goroutines": 14.0,
-          "heap-live-B": 893544.0,
+          "heap-live-B": 899688.0,
           "link-drops": 0.0,
-          "p95-us": 178003.0,
-          "p99-us": 178003.0,
+          "p95-us": 177607.0,
+          "p99-us": 177607.0,
           "retransmits": 0.0,
-          "B/op": 182017.0,
-          "allocs/op": 497.0
+          "B/op": 181320.0,
+          "allocs/op": 494.0
         },
         {
-          "ns/op": 102258395.0,
+          "ns/op": 102253800.0,
           "MB/s": 0.64,
           "goroutines": 14.0,
-          "heap-live-B": 896112.0,
+          "heap-live-B": 903408.0,
           "link-drops": 0.0,
-          "p95-us": 176361.0,
-          "p99-us": 176361.0,
+          "p95-us": 176256.0,
+          "p99-us": 176256.0,
           "retransmits": 0.0,
-          "B/op": 181950.0,
-          "allocs/op": 502.0
+          "B/op": 181500.0,
+          "allocs/op": 490.0
         },
         {
-          "ns/op": 103516760.0,
-          "MB/s": 0.63,
+          "ns/op": 102187925.0,
+          "MB/s": 0.64,
           "goroutines": 14.0,
-          "heap-live-B": 901136.0,
+          "heap-live-B": 904960.0,
           "link-drops": 0.0,
-          "p95-us": 179455.0,
-          "p99-us": 179455.0,
+          "p95-us": 177321.0,
+          "p99-us": 177321.0,
           "retransmits": 0.0,
-          "B/op": 181648.0,
-          "allocs/op": 487.0
+          "B/op": 181313.0,
+          "allocs/op": 491.0
         }
       ],
       "median": {
-        "ns/op": 102894739.0,
+        "ns/op": 102187925.0,
         "MB/s": 0.64,
         "goroutines": 14.0,
-        "heap-live-B": 896112.0,
+        "heap-live-B": 903408.0,
         "link-drops": 0.0,
-        "p95-us": 178003.0,
-        "p99-us": 178003.0,
+        "p95-us": 177321.0,
+        "p99-us": 177321.0,
         "retransmits": 0.0,
-        "B/op": 181950.0,
-        "allocs/op": 497.0
+        "B/op": 181320.0,
+        "allocs/op": 491.0
       }
     }
   },
@@ -775,142 +775,142 @@
     "BenchmarkKernelRecovery/reno/upload": {
       "samples": [
         {
-          "ns/op": 165184.0,
-          "MB/s": 396.74,
+          "ns/op": 163350.0,
+          "MB/s": 401.2,
           "goroutines": 8.0,
-          "heap-live-B": 646488.0,
-          "p95-us": 195.4,
-          "p99-us": 213.1,
+          "heap-live-B": 648408.0,
+          "p95-us": 192.0,
+          "p99-us": 207.2,
           "retransmits": 0.0,
-          "B/op": 54.0,
+          "B/op": 35.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 165407.0,
-          "MB/s": 396.21,
+          "ns/op": 163649.0,
+          "MB/s": 400.47,
           "goroutines": 8.0,
-          "heap-live-B": 701064.0,
-          "p95-us": 196.6,
-          "p99-us": 222.3,
+          "heap-live-B": 711160.0,
+          "p95-us": 192.1,
+          "p99-us": 211.2,
           "retransmits": 0.0,
-          "B/op": 31.0,
+          "B/op": 32.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 169524.0,
-          "MB/s": 386.59,
+          "ns/op": 162514.0,
+          "MB/s": 403.26,
           "goroutines": 8.0,
-          "heap-live-B": 709352.0,
-          "p95-us": 210.9,
-          "p99-us": 240.5,
+          "heap-live-B": 712632.0,
+          "p95-us": 189.2,
+          "p99-us": 205.7,
           "retransmits": 0.0,
-          "B/op": 31.0,
+          "B/op": 30.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 165407.0,
-        "MB/s": 396.21,
+        "ns/op": 163350.0,
+        "MB/s": 401.2,
         "goroutines": 8.0,
-        "heap-live-B": 701064.0,
-        "p95-us": 196.6,
-        "p99-us": 222.3,
+        "heap-live-B": 711160.0,
+        "p95-us": 192.0,
+        "p99-us": 207.2,
         "retransmits": 0.0,
-        "B/op": 31.0,
+        "B/op": 32.0,
         "allocs/op": 0.0
       }
     },
     "BenchmarkKernelRecovery/reno/download": {
       "samples": [
         {
-          "ns/op": 170935.0,
-          "MB/s": 383.4,
+          "ns/op": 170227.0,
+          "MB/s": 384.99,
           "goroutines": 8.0,
-          "heap-live-B": 738032.0,
-          "p95-us": 219.3,
-          "p99-us": 241.0,
+          "heap-live-B": 743648.0,
+          "p95-us": 217.9,
+          "p99-us": 237.5,
           "retransmits": 0.0,
-          "B/op": 48.0,
+          "B/op": 49.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 172019.0,
-          "MB/s": 380.98,
+          "ns/op": 175077.0,
+          "MB/s": 374.33,
           "goroutines": 8.0,
-          "heap-live-B": 782496.0,
-          "p95-us": 220.2,
-          "p99-us": 238.9,
+          "heap-live-B": 787504.0,
+          "p95-us": 225.1,
+          "p99-us": 243.8,
           "retransmits": 0.0,
-          "B/op": 72.0,
+          "B/op": 50.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 175466.0,
-          "MB/s": 373.5,
+          "ns/op": 177859.0,
+          "MB/s": 368.47,
           "goroutines": 8.0,
-          "heap-live-B": 787776.0,
-          "p95-us": 230.3,
-          "p99-us": 251.0,
+          "heap-live-B": 787328.0,
+          "p95-us": 230.5,
+          "p99-us": 250.1,
           "retransmits": 0.0,
-          "B/op": 51.0,
+          "B/op": 66.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 172019.0,
-        "MB/s": 380.98,
+        "ns/op": 175077.0,
+        "MB/s": 374.33,
         "goroutines": 8.0,
-        "heap-live-B": 782496.0,
-        "p95-us": 220.2,
-        "p99-us": 241.0,
+        "heap-live-B": 787328.0,
+        "p95-us": 225.1,
+        "p99-us": 243.8,
         "retransmits": 0.0,
-        "B/op": 51.0,
+        "B/op": 50.0,
         "allocs/op": 0.0
       }
     },
     "BenchmarkKernelRecovery/cubic/upload": {
       "samples": [
         {
-          "ns/op": 163225.0,
-          "MB/s": 401.51,
+          "ns/op": 164444.0,
+          "MB/s": 398.53,
           "goroutines": 8.0,
-          "heap-live-B": 685592.0,
-          "p95-us": 194.3,
-          "p99-us": 217.4,
+          "heap-live-B": 678536.0,
+          "p95-us": 191.7,
+          "p99-us": 208.5,
           "retransmits": 0.0,
           "B/op": 31.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 162188.0,
-          "MB/s": 404.07,
+          "ns/op": 162194.0,
+          "MB/s": 404.06,
           "goroutines": 8.0,
-          "heap-live-B": 733384.0,
-          "p95-us": 190.3,
-          "p99-us": 208.3,
+          "heap-live-B": 723544.0,
+          "p95-us": 188.4,
+          "p99-us": 201.4,
           "retransmits": 0.0,
-          "B/op": 31.0,
+          "B/op": 30.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 161931.0,
-          "MB/s": 404.72,
+          "ns/op": 163163.0,
+          "MB/s": 401.66,
           "goroutines": 8.0,
-          "heap-live-B": 733592.0,
-          "p95-us": 189.9,
-          "p99-us": 207.9,
+          "heap-live-B": 725192.0,
+          "p95-us": 189.1,
+          "p99-us": 203.5,
           "retransmits": 0.0,
-          "B/op": 29.0,
+          "B/op": 52.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 162188.0,
-        "MB/s": 404.07,
+        "ns/op": 163163.0,
+        "MB/s": 401.66,
         "goroutines": 8.0,
-        "heap-live-B": 733384.0,
-        "p95-us": 190.3,
-        "p99-us": 208.3,
+        "heap-live-B": 723544.0,
+        "p95-us": 189.1,
+        "p99-us": 203.5,
         "retransmits": 0.0,
         "B/op": 31.0,
         "allocs/op": 0.0
@@ -919,142 +919,142 @@
     "BenchmarkKernelRecovery/cubic/download": {
       "samples": [
         {
-          "ns/op": 172593.0,
-          "MB/s": 379.71,
+          "ns/op": 170376.0,
+          "MB/s": 384.65,
           "goroutines": 8.0,
-          "heap-live-B": 761792.0,
-          "p95-us": 223.3,
-          "p99-us": 242.6,
+          "heap-live-B": 756448.0,
+          "p95-us": 217.9,
+          "p99-us": 236.6,
           "retransmits": 0.0,
-          "B/op": 48.0,
+          "B/op": 49.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 173474.0,
-          "MB/s": 377.79,
+          "ns/op": 166814.0,
+          "MB/s": 392.87,
           "goroutines": 8.0,
-          "heap-live-B": 804176.0,
-          "p95-us": 224.1,
-          "p99-us": 245.5,
+          "heap-live-B": 803792.0,
+          "p95-us": 210.5,
+          "p99-us": 228.4,
           "retransmits": 0.0,
-          "B/op": 48.0,
+          "B/op": 67.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 175328.0,
-          "MB/s": 373.79,
+          "ns/op": 167683.0,
+          "MB/s": 390.83,
           "goroutines": 8.0,
-          "heap-live-B": 804800.0,
-          "p95-us": 227.8,
-          "p99-us": 246.5,
+          "heap-live-B": 806704.0,
+          "p95-us": 210.3,
+          "p99-us": 230.2,
           "retransmits": 0.0,
-          "B/op": 47.0,
+          "B/op": 69.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 173474.0,
-        "MB/s": 377.79,
+        "ns/op": 167683.0,
+        "MB/s": 390.83,
         "goroutines": 8.0,
-        "heap-live-B": 804176.0,
-        "p95-us": 224.1,
-        "p99-us": 245.5,
+        "heap-live-B": 803792.0,
+        "p95-us": 210.5,
+        "p99-us": 230.2,
         "retransmits": 0.0,
-        "B/op": 48.0,
+        "B/op": 67.0,
         "allocs/op": 0.0
       }
     },
     "BenchmarkKernelRecovery/bbr/upload": {
       "samples": [
         {
-          "ns/op": 163619.0,
-          "MB/s": 400.54,
+          "ns/op": 163771.0,
+          "MB/s": 400.17,
           "goroutines": 8.0,
-          "heap-live-B": 694248.0,
-          "p95-us": 192.6,
-          "p99-us": 206.7,
+          "heap-live-B": 686856.0,
+          "p95-us": 189.9,
+          "p99-us": 201.7,
           "retransmits": 0.0,
           "B/op": 29.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 161535.0,
-          "MB/s": 405.71,
+          "ns/op": 163109.0,
+          "MB/s": 401.79,
           "goroutines": 8.0,
-          "heap-live-B": 729464.0,
-          "p95-us": 188.9,
-          "p99-us": 205.6,
+          "heap-live-B": 729160.0,
+          "p95-us": 190.1,
+          "p99-us": 206.4,
           "retransmits": 0.0,
-          "B/op": 29.0,
+          "B/op": 31.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 162055.0,
-          "MB/s": 404.41,
+          "ns/op": 162608.0,
+          "MB/s": 403.03,
           "goroutines": 8.0,
-          "heap-live-B": 742184.0,
-          "p95-us": 189.0,
+          "heap-live-B": 733592.0,
+          "p95-us": 189.4,
           "p99-us": 205.4,
           "retransmits": 0.0,
-          "B/op": 32.0,
+          "B/op": 30.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 162055.0,
-        "MB/s": 404.41,
+        "ns/op": 163109.0,
+        "MB/s": 401.79,
         "goroutines": 8.0,
-        "heap-live-B": 729464.0,
-        "p95-us": 189.0,
-        "p99-us": 205.6,
+        "heap-live-B": 729160.0,
+        "p95-us": 189.9,
+        "p99-us": 205.4,
         "retransmits": 0.0,
-        "B/op": 29.0,
+        "B/op": 30.0,
         "allocs/op": 0.0
       }
     },
     "BenchmarkKernelRecovery/bbr/download": {
       "samples": [
         {
-          "ns/op": 171815.0,
-          "MB/s": 381.43,
+          "ns/op": 178167.0,
+          "MB/s": 367.84,
           "goroutines": 8.0,
-          "heap-live-B": 775808.0,
-          "p95-us": 222.1,
-          "p99-us": 245.5,
+          "heap-live-B": 765296.0,
+          "p95-us": 230.3,
+          "p99-us": 250.0,
+          "retransmits": 0.0,
+          "B/op": 51.0,
+          "allocs/op": 0.0
+        },
+        {
+          "ns/op": 174513.0,
+          "MB/s": 375.54,
+          "goroutines": 8.0,
+          "heap-live-B": 812816.0,
+          "p95-us": 222.0,
+          "p99-us": 245.2,
           "retransmits": 0.0,
           "B/op": 69.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 175455.0,
-          "MB/s": 373.52,
+          "ns/op": 169169.0,
+          "MB/s": 387.4,
           "goroutines": 8.0,
-          "heap-live-B": 819376.0,
-          "p95-us": 225.5,
-          "p99-us": 247.8,
-          "retransmits": 0.0,
-          "B/op": 49.0,
-          "allocs/op": 0.0
-        },
-        {
-          "ns/op": 159588.0,
-          "MB/s": 410.66,
-          "goroutines": 8.0,
-          "heap-live-B": 819552.0,
-          "p95-us": 204.4,
-          "p99-us": 226.2,
+          "heap-live-B": 813776.0,
+          "p95-us": 212.9,
+          "p99-us": 229.1,
           "retransmits": 0.0,
           "B/op": 68.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 171815.0,
-        "MB/s": 381.43,
+        "ns/op": 174513.0,
+        "MB/s": 375.54,
         "goroutines": 8.0,
-        "heap-live-B": 819376.0,
-        "p95-us": 222.1,
-        "p99-us": 245.5,
+        "heap-live-B": 812816.0,
+        "p95-us": 222.0,
+        "p99-us": 245.2,
         "retransmits": 0.0,
         "B/op": 68.0,
         "allocs/op": 0.0
@@ -1065,46 +1065,46 @@
     "BenchmarkKernelRecovery/reno/upload": {
       "samples": [
         {
-          "ns/op": 170511.0,
-          "MB/s": 384.35,
+          "ns/op": 174453.0,
+          "MB/s": 375.67,
           "goroutines": 8.0,
-          "heap-live-B": 657544.0,
-          "p95-us": 203.0,
-          "p99-us": 220.2,
+          "heap-live-B": 651944.0,
+          "p95-us": 228.8,
+          "p99-us": 289.0,
           "retransmits": 0.0,
-          "B/op": 53.0,
+          "B/op": 59.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 165242.0,
-          "MB/s": 396.61,
+          "ns/op": 167947.0,
+          "MB/s": 390.22,
           "goroutines": 8.0,
-          "heap-live-B": 707192.0,
-          "p95-us": 198.0,
-          "p99-us": 221.3,
+          "heap-live-B": 705656.0,
+          "p95-us": 205.7,
+          "p99-us": 244.6,
           "retransmits": 0.0,
           "B/op": 31.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 163774.0,
-          "MB/s": 400.16,
+          "ns/op": 165540.0,
+          "MB/s": 395.89,
           "goroutines": 8.0,
-          "heap-live-B": 707224.0,
-          "p95-us": 193.2,
-          "p99-us": 209.1,
+          "heap-live-B": 715784.0,
+          "p95-us": 198.1,
+          "p99-us": 224.6,
           "retransmits": 0.0,
-          "B/op": 29.0,
+          "B/op": 30.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 165242.0,
-        "MB/s": 396.61,
+        "ns/op": 167947.0,
+        "MB/s": 390.22,
         "goroutines": 8.0,
-        "heap-live-B": 707192.0,
-        "p95-us": 198.0,
-        "p99-us": 220.2,
+        "heap-live-B": 705656.0,
+        "p95-us": 205.7,
+        "p99-us": 244.6,
         "retransmits": 0.0,
         "B/op": 31.0,
         "allocs/op": 0.0
@@ -1113,142 +1113,142 @@
     "BenchmarkKernelRecovery/reno/download": {
       "samples": [
         {
-          "ns/op": 180530.0,
-          "MB/s": 363.02,
+          "ns/op": 169378.0,
+          "MB/s": 386.92,
           "goroutines": 8.0,
-          "heap-live-B": 740416.0,
-          "p95-us": 233.9,
-          "p99-us": 260.6,
+          "heap-live-B": 749008.0,
+          "p95-us": 217.3,
+          "p99-us": 243.2,
           "retransmits": 1.0,
-          "B/op": 59.0,
+          "B/op": 49.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 172992.0,
-          "MB/s": 378.84,
+          "ns/op": 168692.0,
+          "MB/s": 388.49,
           "goroutines": 8.0,
-          "heap-live-B": 783136.0,
-          "p95-us": 220.5,
-          "p99-us": 241.2,
-          "retransmits": 0.0,
-          "B/op": 70.0,
-          "allocs/op": 0.0
-        },
-        {
-          "ns/op": 172925.0,
-          "MB/s": 378.99,
-          "goroutines": 8.0,
-          "heap-live-B": 785536.0,
-          "p95-us": 220.4,
-          "p99-us": 243.5,
+          "heap-live-B": 790656.0,
+          "p95-us": 222.1,
+          "p99-us": 248.0,
           "retransmits": 0.0,
           "B/op": 50.0,
+          "allocs/op": 0.0
+        },
+        {
+          "ns/op": 162260.0,
+          "MB/s": 403.9,
+          "goroutines": 8.0,
+          "heap-live-B": 790480.0,
+          "p95-us": 209.6,
+          "p99-us": 224.7,
+          "retransmits": 0.0,
+          "B/op": 66.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 172992.0,
-        "MB/s": 378.84,
+        "ns/op": 168692.0,
+        "MB/s": 388.49,
         "goroutines": 8.0,
-        "heap-live-B": 783136.0,
-        "p95-us": 220.5,
-        "p99-us": 243.5,
+        "heap-live-B": 790480.0,
+        "p95-us": 217.3,
+        "p99-us": 243.2,
         "retransmits": 0.0,
-        "B/op": 59.0,
+        "B/op": 50.0,
         "allocs/op": 0.0
       }
     },
     "BenchmarkKernelRecovery/cubic/upload": {
       "samples": [
         {
-          "ns/op": 161616.0,
-          "MB/s": 405.51,
+          "ns/op": 162085.0,
+          "MB/s": 404.33,
           "goroutines": 8.0,
-          "heap-live-B": 666056.0,
-          "p95-us": 189.3,
-          "p99-us": 204.8,
+          "heap-live-B": 673304.0,
+          "p95-us": 187.9,
+          "p99-us": 203.3,
           "retransmits": 0.0,
-          "B/op": 30.0,
+          "B/op": 29.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 163051.0,
-          "MB/s": 401.94,
+          "ns/op": 163214.0,
+          "MB/s": 401.53,
           "goroutines": 8.0,
-          "heap-live-B": 719400.0,
-          "p95-us": 191.5,
-          "p99-us": 208.0,
+          "heap-live-B": 724248.0,
+          "p95-us": 191.6,
+          "p99-us": 213.1,
           "retransmits": 0.0,
           "B/op": 31.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 162710.0,
-          "MB/s": 402.78,
+          "ns/op": 162057.0,
+          "MB/s": 404.4,
           "goroutines": 8.0,
-          "heap-live-B": 720280.0,
-          "p95-us": 190.3,
-          "p99-us": 206.2,
+          "heap-live-B": 726888.0,
+          "p95-us": 189.9,
+          "p99-us": 202.0,
           "retransmits": 0.0,
           "B/op": 29.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 162710.0,
-        "MB/s": 402.78,
+        "ns/op": 162085.0,
+        "MB/s": 404.33,
         "goroutines": 8.0,
-        "heap-live-B": 719400.0,
-        "p95-us": 190.3,
-        "p99-us": 206.2,
+        "heap-live-B": 724248.0,
+        "p95-us": 189.9,
+        "p99-us": 203.3,
         "retransmits": 0.0,
-        "B/op": 30.0,
+        "B/op": 29.0,
         "allocs/op": 0.0
       }
     },
     "BenchmarkKernelRecovery/cubic/download": {
       "samples": [
         {
-          "ns/op": 181687.0,
-          "MB/s": 360.71,
+          "ns/op": 162217.0,
+          "MB/s": 404.0,
           "goroutines": 8.0,
-          "heap-live-B": 751952.0,
-          "p95-us": 235.5,
-          "p99-us": 251.3,
-          "retransmits": 0.0,
-          "B/op": 49.0,
-          "allocs/op": 0.0
-        },
-        {
-          "ns/op": 178693.0,
-          "MB/s": 366.75,
-          "goroutines": 8.0,
-          "heap-live-B": 794224.0,
-          "p95-us": 232.9,
-          "p99-us": 254.1,
+          "heap-live-B": 758880.0,
+          "p95-us": 209.7,
+          "p99-us": 227.0,
           "retransmits": 0.0,
           "B/op": 68.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 171883.0,
-          "MB/s": 381.28,
+          "ns/op": 161525.0,
+          "MB/s": 405.73,
           "goroutines": 8.0,
-          "heap-live-B": 794272.0,
-          "p95-us": 220.2,
-          "p99-us": 246.7,
+          "heap-live-B": 801120.0,
+          "p95-us": 208.4,
+          "p99-us": 224.7,
           "retransmits": 0.0,
-          "B/op": 71.0,
+          "B/op": 69.0,
+          "allocs/op": 0.0
+        },
+        {
+          "ns/op": 167246.0,
+          "MB/s": 391.85,
+          "goroutines": 8.0,
+          "heap-live-B": 802080.0,
+          "p95-us": 220.9,
+          "p99-us": 241.7,
+          "retransmits": 0.0,
+          "B/op": 47.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 178693.0,
-        "MB/s": 366.75,
+        "ns/op": 162217.0,
+        "MB/s": 404.0,
         "goroutines": 8.0,
-        "heap-live-B": 794224.0,
-        "p95-us": 232.9,
-        "p99-us": 251.3,
+        "heap-live-B": 801120.0,
+        "p95-us": 209.7,
+        "p99-us": 227.0,
         "retransmits": 0.0,
         "B/op": 68.0,
         "allocs/op": 0.0
@@ -1257,46 +1257,46 @@
     "BenchmarkKernelRecovery/bbr/upload": {
       "samples": [
         {
-          "ns/op": 162103.0,
-          "MB/s": 404.29,
+          "ns/op": 163432.0,
+          "MB/s": 401.0,
           "goroutines": 8.0,
-          "heap-live-B": 683896.0,
-          "p95-us": 189.3,
-          "p99-us": 202.4,
+          "heap-live-B": 685416.0,
+          "p95-us": 191.4,
+          "p99-us": 205.8,
           "retransmits": 0.0,
           "B/op": 28.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 160500.0,
-          "MB/s": 408.32,
+          "ns/op": 163242.0,
+          "MB/s": 401.47,
           "goroutines": 8.0,
-          "heap-live-B": 724344.0,
-          "p95-us": 187.3,
-          "p99-us": 199.0,
+          "heap-live-B": 727192.0,
+          "p95-us": 192.3,
+          "p99-us": 206.5,
           "retransmits": 0.0,
           "B/op": 29.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 161655.0,
-          "MB/s": 405.41,
+          "ns/op": 162691.0,
+          "MB/s": 402.83,
           "goroutines": 8.0,
-          "heap-live-B": 729032.0,
-          "p95-us": 188.1,
-          "p99-us": 201.3,
+          "heap-live-B": 727752.0,
+          "p95-us": 190.2,
+          "p99-us": 205.1,
           "retransmits": 0.0,
-          "B/op": 29.0,
+          "B/op": 32.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 161655.0,
-        "MB/s": 405.41,
+        "ns/op": 163242.0,
+        "MB/s": 401.47,
         "goroutines": 8.0,
-        "heap-live-B": 724344.0,
-        "p95-us": 188.1,
-        "p99-us": 201.3,
+        "heap-live-B": 727192.0,
+        "p95-us": 191.4,
+        "p99-us": 205.8,
         "retransmits": 0.0,
         "B/op": 29.0,
         "allocs/op": 0.0
@@ -1305,48 +1305,48 @@
     "BenchmarkKernelRecovery/bbr/download": {
       "samples": [
         {
-          "ns/op": 174828.0,
-          "MB/s": 374.86,
+          "ns/op": 166385.0,
+          "MB/s": 393.88,
           "goroutines": 8.0,
-          "heap-live-B": 757408.0,
-          "p95-us": 224.3,
-          "p99-us": 239.8,
+          "heap-live-B": 756448.0,
+          "p95-us": 215.1,
+          "p99-us": 233.1,
           "retransmits": 0.0,
-          "B/op": 53.0,
+          "B/op": 49.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 179397.0,
-          "MB/s": 365.31,
+          "ns/op": 170861.0,
+          "MB/s": 383.56,
           "goroutines": 8.0,
-          "heap-live-B": 805568.0,
-          "p95-us": 233.3,
-          "p99-us": 251.9,
+          "heap-live-B": 800608.0,
+          "p95-us": 225.5,
+          "p99-us": 248.3,
           "retransmits": 0.0,
-          "B/op": 50.0,
+          "B/op": 69.0,
           "allocs/op": 0.0
         },
         {
-          "ns/op": 180937.0,
-          "MB/s": 362.2,
+          "ns/op": 167334.0,
+          "MB/s": 391.65,
           "goroutines": 8.0,
-          "heap-live-B": 805744.0,
-          "p95-us": 235.8,
-          "p99-us": 256.1,
+          "heap-live-B": 805232.0,
+          "p95-us": 217.4,
+          "p99-us": 239.3,
           "retransmits": 0.0,
-          "B/op": 70.0,
+          "B/op": 49.0,
           "allocs/op": 0.0
         }
       ],
       "median": {
-        "ns/op": 179397.0,
-        "MB/s": 365.31,
+        "ns/op": 167334.0,
+        "MB/s": 391.65,
         "goroutines": 8.0,
-        "heap-live-B": 805568.0,
-        "p95-us": 233.3,
-        "p99-us": 251.9,
+        "heap-live-B": 800608.0,
+        "p95-us": 217.4,
+        "p99-us": 239.3,
         "retransmits": 0.0,
-        "B/op": 53.0,
+        "B/op": 49.0,
         "allocs/op": 0.0
       }
     }

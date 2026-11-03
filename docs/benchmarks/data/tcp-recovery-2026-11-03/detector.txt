@@ -2,23 +2,23 @@ goos: linux
 goarch: amd64
 pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery
 cpu: AMD Ryzen 5 5600G with Radeon Graphics
-BenchmarkDetectorACK/classic/flight=16-4         	16093225	        37.54 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=16-4         	16111194	        40.24 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=16-4         	15828918	        39.20 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=256-4        	16091706	        40.00 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=256-4        	16096216	        37.81 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=256-4        	16112600	        37.29 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=4096-4       	16131748	        37.30 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=4096-4       	16127584	        37.32 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/classic/flight=4096-4       	16064412	        37.39 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1457832	       411.0 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1231029	       486.3 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1456222	       411.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=256-4       	  100396	      5982 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=256-4       	  100440	      5983 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=256-4       	   99558	      6011 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6291	     95082 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6273	     95862 ns/op	       0 B/op	       0 allocs/op
-BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6279	     95419 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=16-4         	15908539	        37.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=16-4         	15929133	        37.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=16-4         	16051722	        37.56 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=256-4        	15906907	        37.49 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=256-4        	16003465	        37.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=256-4        	16113531	        37.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=4096-4       	16123314	        37.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=4096-4       	15925927	        37.52 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=4096-4       	16038133	        37.52 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1458094	       411.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1459039	       411.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1460460	       411.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=256-4       	   99188	      6022 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=256-4       	   97791	      6006 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=256-4       	  100219	      5997 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6303	     95244 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6278	     95372 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6272	     95987 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery	10.932s
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery	10.796s

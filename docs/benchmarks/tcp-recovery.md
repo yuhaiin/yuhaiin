@@ -33,21 +33,20 @@ latency distribution or a promise about arbitrary paths.
 
 ## Independent Linux TCP throughput
 
-Median application payload throughput, decimal MB/s. No loss was injected and
-one RACK-TLP Reno download sample reported one retransmission; all other
-retained kernel samples reported zero retransmissions. The new detector
+Median application payload throughput, decimal MB/s. No loss was injected. The 36 retained kernel samples reported
+1 retransmissions across 1 samples. The new detector
 has measurable overhead in this fixture, especially when Lightweight sends;
 these results are not a claim that RACK-TLP improves clean-path throughput.
 Both modes reported zero rounded allocations per operation in this workload.
 
 | Controller | Direction | classic MB/s | rack-tlp MB/s | Change |
 | --- | --- | ---: | ---: | ---: |
-| RENO | upload | 396.21 | 396.61 | +0.1% |
-| RENO | download | 380.98 | 378.84 | -0.6% |
-| CUBIC | upload | 404.07 | 402.78 | -0.3% |
-| CUBIC | download | 377.79 | 366.75 | -2.9% |
-| BBR | upload | 404.41 | 405.41 | +0.2% |
-| BBR | download | 381.43 | 365.31 | -4.2% |
+| RENO | upload | 401.20 | 390.22 | -2.7% |
+| RENO | download | 374.33 | 388.49 | +3.8% |
+| CUBIC | upload | 401.66 | 404.33 | +0.7% |
+| CUBIC | download | 390.83 | 404.00 | +3.4% |
+| BBR | upload | 401.79 | 401.47 | -0.1% |
+| BBR | download | 375.54 | 391.65 | +4.3% |
 
 [Classic raw samples](data/tcp-recovery-2026-11-03/kernel-classic.txt) and
 [RACK-TLP raw samples](data/tcp-recovery-2026-11-03/kernel-rack-tlp.txt).
@@ -63,9 +62,9 @@ does not imply negligible CPU cost on large bandwidth-delay-product paths.
 
 | Outstanding segments | classic ns/op | rack-tlp ns/op | Allocations/op, classic / rack-tlp |
 | ---: | ---: | ---: | ---: |
-| 16 | 39.20 | 411.10 | 0 / 0 |
-| 256 | 37.81 | 5983.00 | 0 / 0 |
-| 4096 | 37.32 | 95419.00 | 0 / 0 |
+| 16 | 37.56 | 411.40 | 0 / 0 |
+| 256 | 37.49 | 6006.00 | 0 / 0 |
+| 4096 | 37.52 | 95372.00 | 0 / 0 |
 
 [Raw detector samples](data/tcp-recovery-2026-11-03/detector.txt).
 
@@ -84,12 +83,12 @@ records before interpreting throughput differences.
 
 | Profile | Controller | classic MB/s | rack-tlp MB/s | p95 ms, classic / rack-tlp |
 | --- | --- | ---: | ---: | ---: |
-| rtt10ms | RENO | 5.87 | 5.80 | 11.40 / 11.47 |
-| rtt10ms | CUBIC | 3.09 | 3.09 | 21.70 / 21.97 |
-| rtt10ms | BBR | 3.82 | 3.83 | 19.79 / 18.52 |
-| rtt50ms-loss0.1pct | RENO | 0.18 | 0.66 | 355.24 / 219.36 |
-| rtt50ms-loss0.1pct | CUBIC | 0.13 | 1.01 | 610.19 / 152.08 |
-| rtt50ms-loss0.1pct | BBR | 0.64 | 0.64 | 177.67 / 178.00 |
+| rtt10ms | RENO | 5.86 | 5.80 | 11.39 / 11.43 |
+| rtt10ms | CUBIC | 3.08 | 3.09 | 21.81 / 21.79 |
+| rtt10ms | BBR | 3.81 | 3.82 | 19.76 / 19.61 |
+| rtt50ms-loss0.1pct | RENO | 0.17 | 1.01 | 407.15 / 151.69 |
+| rtt50ms-loss0.1pct | CUBIC | 0.15 | 0.59 | 507.68 / 302.61 |
+| rtt50ms-loss0.1pct | BBR | 0.66 | 0.64 | 178.63 / 177.32 |
 
 [Raw impaired samples](data/tcp-recovery-2026-11-03/impaired.txt) and
 [all samples and computed medians](data/tcp-recovery-2026-11-03/summary.json).

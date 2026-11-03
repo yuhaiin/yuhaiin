@@ -8,6 +8,6 @@
   "offload": false,
   "encryption": false,
   "reference_peer": "gVisor; Linux TCP for the optional kernel cases",
-  "base_commit": "c94aa062473e2fee8dc02b153491b6af62e29614",
-  "go_source_sha256": "c909da0e02b39a8042d0c79a133baadb4e99248ffff6350f33cedbb3c157c221"
+  "base_commit": "76e021f1835aeafaed8e5c95309344acadbc8f6c",
+  "go_source_sha256": "bec2a75c6473af385133fa73282b13e6caeb55afa3b35ed48a1132a2bd174d1d"
 }
