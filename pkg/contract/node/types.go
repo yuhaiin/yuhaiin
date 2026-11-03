@@ -3,6 +3,7 @@ package node
 import (
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net/url"
 	"reflect"
 	"strings"
@@ -162,38 +163,40 @@ type Protocol struct {
 
 // L2TP is a UDP client LAC with userspace PPP. It does not enable IPsec.
 type L2TP struct {
-	AuthType      string `json:"auth_type,omitzero"`
-	Gateway       string `json:"gateway"`
-	Username      string `json:"username,omitzero"`
-	Password      string `json:"password,omitzero" secret:"true"`
-	SharedSecret  string `json:"shared_secret,omitzero" secret:"true"`
-	Hostname      string `json:"hostname,omitzero"`
-	IPv6          bool   `json:"ipv6,omitzero"`
-	IPv6Address   string `json:"ipv6_address,omitzero"`
-	MTU           int32  `json:"mtu,omitzero"`
-	AutoReconnect bool   `json:"auto_reconnect,omitzero"`
+	TCPSettings   *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	AuthType      string                 `json:"auth_type,omitzero"`
+	Gateway       string                 `json:"gateway"`
+	Username      string                 `json:"username,omitzero"`
+	Password      string                 `json:"password,omitzero" secret:"true"`
+	SharedSecret  string                 `json:"shared_secret,omitzero" secret:"true"`
+	Hostname      string                 `json:"hostname,omitzero"`
+	IPv6          bool                   `json:"ipv6,omitzero"`
+	IPv6Address   string                 `json:"ipv6_address,omitzero"`
+	MTU           int32                  `json:"mtu,omitzero"`
+	AutoReconnect bool                   `json:"auto_reconnect,omitzero"`
 }
 
 // L2TPv3 carries an Ethernet pseudowire over UDP. IP addresses and routers
 // belong to the userspace stack. Static sessions require prearranged peer IDs.
 type L2TPv3 struct {
-	LocalAddress   string `json:"local_address,omitzero"`
-	Gateway        string `json:"gateway"`
-	Hostname       string `json:"hostname,omitzero"`
-	SharedSecret   string `json:"shared_secret,omitzero" secret:"true"`
-	Static         bool   `json:"static,omitzero"`
-	LocalSessionID uint32 `json:"local_session_id,omitzero"`
-	PeerSessionID  uint32 `json:"peer_session_id,omitzero"`
-	LocalCookie    string `json:"local_cookie,omitzero" secret:"true"`
-	PeerCookie     string `json:"peer_cookie,omitzero" secret:"true"`
-	Sublayer       bool   `json:"sublayer,omitzero"`
-	RemoteEndID    string `json:"remote_end_id,omitzero"`
-	Address        string `json:"address,omitzero"`
-	Router         string `json:"router,omitzero"`
-	IPv6Address    string `json:"ipv6_address,omitzero"`
-	IPv6Router     string `json:"ipv6_router,omitzero"`
-	MTU            int32  `json:"mtu,omitzero"`
-	AutoReconnect  bool   `json:"auto_reconnect,omitzero"`
+	TCPSettings    *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	LocalAddress   string                 `json:"local_address,omitzero"`
+	Gateway        string                 `json:"gateway"`
+	Hostname       string                 `json:"hostname,omitzero"`
+	SharedSecret   string                 `json:"shared_secret,omitzero" secret:"true"`
+	Static         bool                   `json:"static,omitzero"`
+	LocalSessionID uint32                 `json:"local_session_id,omitzero"`
+	PeerSessionID  uint32                 `json:"peer_session_id,omitzero"`
+	LocalCookie    string                 `json:"local_cookie,omitzero" secret:"true"`
+	PeerCookie     string                 `json:"peer_cookie,omitzero" secret:"true"`
+	Sublayer       bool                   `json:"sublayer,omitzero"`
+	RemoteEndID    string                 `json:"remote_end_id,omitzero"`
+	Address        string                 `json:"address,omitzero"`
+	Router         string                 `json:"router,omitzero"`
+	IPv6Address    string                 `json:"ipv6_address,omitzero"`
+	IPv6Router     string                 `json:"ipv6_router,omitzero"`
+	MTU            int32                  `json:"mtu,omitzero"`
+	AutoReconnect  bool                   `json:"auto_reconnect,omitzero"`
 }
 
 type L2TPInfo struct {
@@ -210,23 +213,24 @@ type L2TPInfo struct {
 
 // OpenVPN is a native TLS client with an in-memory credential configuration.
 type OpenVPN struct {
-	Gateway            string   `json:"gateway"`
-	Network            string   `json:"network,omitzero"`
-	CACertPEM          string   `json:"ca_cert_pem,omitzero"`
-	ClientCertPEM      string   `json:"client_cert_pem,omitzero"`
-	ClientKeyPEM       string   `json:"client_key_pem,omitzero" secret:"true"`
-	ServerName         string   `json:"server_name,omitzero"`
-	Username           string   `json:"username,omitzero"`
-	Password           string   `json:"password,omitzero" secret:"true"`
-	TLSAuthKey         string   `json:"tls_auth_key,omitzero" secret:"true"`
-	TLSCryptKey        string   `json:"tls_crypt_key,omitzero" secret:"true"`
-	KeyDirection       *int32   `json:"key_direction,omitzero"`
-	Auth               string   `json:"auth,omitzero"`
-	DataCiphers        []string `json:"data_ciphers,omitzero"`
-	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitzero"`
-	AutoReconnect      bool     `json:"auto_reconnect,omitzero"`
-	MTU                int32    `json:"mtu,omitzero"`
-	RenegotiateSeconds int32    `json:"renegotiate_seconds,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway            string                 `json:"gateway"`
+	Network            string                 `json:"network,omitzero"`
+	CACertPEM          string                 `json:"ca_cert_pem,omitzero"`
+	ClientCertPEM      string                 `json:"client_cert_pem,omitzero"`
+	ClientKeyPEM       string                 `json:"client_key_pem,omitzero" secret:"true"`
+	ServerName         string                 `json:"server_name,omitzero"`
+	Username           string                 `json:"username,omitzero"`
+	Password           string                 `json:"password,omitzero" secret:"true"`
+	TLSAuthKey         string                 `json:"tls_auth_key,omitzero" secret:"true"`
+	TLSCryptKey        string                 `json:"tls_crypt_key,omitzero" secret:"true"`
+	KeyDirection       *int32                 `json:"key_direction,omitzero"`
+	Auth               string                 `json:"auth,omitzero"`
+	DataCiphers        []string               `json:"data_ciphers,omitzero"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	AutoReconnect      bool                   `json:"auto_reconnect,omitzero"`
+	MTU                int32                  `json:"mtu,omitzero"`
+	RenegotiateSeconds int32                  `json:"renegotiate_seconds,omitzero"`
 }
 
 type OpenVPNInfo struct {
@@ -241,35 +245,37 @@ type OpenVPNInfo struct {
 // GlobalProtect is a directly addressed gateway with password authentication.
 // Portal discovery, SAML/SSO and HIP are not supported by this node.
 type GlobalProtect struct {
-	Gateway            string `json:"gateway"`
-	Username           string `json:"username"`
-	Password           string `json:"password" secret:"true"`
-	Computer           string `json:"computer,omitzero"`
-	CACertPEM          string `json:"ca_cert_pem,omitzero"`
-	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
-	MTU                int32  `json:"mtu,omitzero"`
-	UseESP             bool   `json:"use_esp,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway            string                 `json:"gateway"`
+	Username           string                 `json:"username"`
+	Password           string                 `json:"password" secret:"true"`
+	Computer           string                 `json:"computer,omitzero"`
+	CACertPEM          string                 `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	MTU                int32                  `json:"mtu,omitzero"`
+	UseESP             bool                   `json:"use_esp,omitzero"`
 }
 
 // SoftEther configures the native SSL-VPN protocol (not SSTP).
 // The virtual hub must provide DHCP unless Address and Router are set.
 type SoftEther struct {
-	Gateway            string `json:"gateway"`
-	Username           string `json:"username"`
-	Password           string `json:"password" secret:"true"`
-	Hub                string `json:"hub,omitzero"`
-	AuthType           string `json:"auth_type,omitzero"`
-	ClientCertPEM      string `json:"client_cert_pem,omitzero"`
-	ClientKeyPEM       string `json:"client_key_pem,omitzero" secret:"true"`
-	CACertPEM          string `json:"ca_cert_pem,omitzero"`
-	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
-	Address            string `json:"address,omitzero"`
-	Router             string `json:"router,omitzero"`
-	IPv6Address        string `json:"ipv6_address,omitzero"`
-	IPv6Router         string `json:"ipv6_router,omitzero"`
-	UDPAcceleration    bool   `json:"udp_acceleration,omitzero"`
-	AutoReconnect      bool   `json:"auto_reconnect,omitzero"`
-	MTU                int32  `json:"mtu,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway            string                 `json:"gateway"`
+	Username           string                 `json:"username"`
+	Password           string                 `json:"password" secret:"true"`
+	Hub                string                 `json:"hub,omitzero"`
+	AuthType           string                 `json:"auth_type,omitzero"`
+	ClientCertPEM      string                 `json:"client_cert_pem,omitzero"`
+	ClientKeyPEM       string                 `json:"client_key_pem,omitzero" secret:"true"`
+	CACertPEM          string                 `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	Address            string                 `json:"address,omitzero"`
+	Router             string                 `json:"router,omitzero"`
+	IPv6Address        string                 `json:"ipv6_address,omitzero"`
+	IPv6Router         string                 `json:"ipv6_router,omitzero"`
+	UDPAcceleration    bool                   `json:"udp_acceleration,omitzero"`
+	AutoReconnect      bool                   `json:"auto_reconnect,omitzero"`
+	MTU                int32                  `json:"mtu,omitzero"`
 }
 
 // NodeExtraInfo contains runtime details returned by an outbound after it has
@@ -463,61 +469,67 @@ type TLSTermination struct {
 // IKEv2 uses ESP over UDP/NAT-T or RFC 8229 TCP encapsulation.
 // EAP credentials supplement, rather than replace, authentication of the peer.
 type IKEv2 struct {
-	Gateway  string `json:"gateway"`
-	PSK      string `json:"psk,omitzero" secret:"true"`
-	LocalID  string `json:"local_id"`
-	ServerID string `json:"server_id,omitzero"`
-	Username string `json:"username,omitzero"`
-	Password string `json:"password,omitzero" secret:"true"`
-	TCP      bool   `json:"tcp,omitzero"`
-	MTU      int32  `json:"mtu,omitzero"`
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway     string                 `json:"gateway"`
+	PSK         string                 `json:"psk,omitzero" secret:"true"`
+	LocalID     string                 `json:"local_id"`
+	ServerID    string                 `json:"server_id,omitzero"`
+	Username    string                 `json:"username,omitzero"`
+	Password    string                 `json:"password,omitzero" secret:"true"`
+	TCP         bool                   `json:"tcp,omitzero"`
+	MTU         int32                  `json:"mtu,omitzero"`
 }
 
 type AnyConnect struct {
-	Gateway            string `json:"gateway"`
-	Username           string `json:"username"`
-	Password           string `json:"password" secret:"true"`
-	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
-	DisableDTLS        bool   `json:"disable_dtls,omitzero"`
-	MTU                int32  `json:"mtu,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway            string                 `json:"gateway"`
+	Username           string                 `json:"username"`
+	Password           string                 `json:"password" secret:"true"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	DisableDTLS        bool                   `json:"disable_dtls,omitzero"`
+	MTU                int32                  `json:"mtu,omitzero"`
 }
 
 type SSTP struct {
-	Gateway            string `json:"gateway"`
-	Username           string `json:"username"`
-	Password           string `json:"password" secret:"true"`
-	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
-	MTU                int32  `json:"mtu,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway            string                 `json:"gateway"`
+	Username           string                 `json:"username"`
+	Password           string                 `json:"password" secret:"true"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	MTU                int32                  `json:"mtu,omitzero"`
 }
 
 type Fortinet struct {
-	Gateway            string `json:"gateway"`
-	Username           string `json:"username"`
-	Password           string `json:"password" secret:"true"`
-	Realm              string `json:"realm,omitzero"`
-	Token              string `json:"token,omitzero" secret:"true"`
-	TOTPSecret         string `json:"totp_secret,omitzero" secret:"true"`
-	CACertPEM          string `json:"ca_cert_pem,omitzero"`
-	InsecureSkipVerify bool   `json:"insecure_skip_verify,omitzero"`
-	DisableDTLS        bool   `json:"disable_dtls,omitzero"`
-	MTU                int32  `json:"mtu,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Gateway            string                 `json:"gateway"`
+	Username           string                 `json:"username"`
+	Password           string                 `json:"password" secret:"true"`
+	Realm              string                 `json:"realm,omitzero"`
+	Token              string                 `json:"token,omitzero" secret:"true"`
+	TOTPSecret         string                 `json:"totp_secret,omitzero" secret:"true"`
+	CACertPEM          string                 `json:"ca_cert_pem,omitzero"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	DisableDTLS        bool                   `json:"disable_dtls,omitzero"`
+	MTU                int32                  `json:"mtu,omitzero"`
 }
 
 // Nebula embeds a standard client configuration as YAML.
 // Certificates and private keys should be supplied inline, not as host file paths.
 type Nebula struct {
-	ConfigYAML string `json:"config_yaml" secret:"true"`
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	ConfigYAML  string                 `json:"config_yaml" secret:"true"`
 }
 
 // ZeroTier joins a controller-managed L2 network using an embedded native core.
 // Identity is stored under the application data directory and survives restarts.
 type ZeroTier struct {
-	NetworkID    string         `json:"network_id"`
-	Identity     string         `json:"identity,omitzero" secret:"true"`
-	Listen       string         `json:"listen,omitzero"`
-	LibraryPath  string         `json:"library_path,omitzero" privilege:"system:execute"`
-	LowBandwidth bool           `json:"low_bandwidth,omitzero"`
-	Moons        []ZeroTierMoon `json:"moons,omitzero"`
+	TCPSettings  *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	NetworkID    string                 `json:"network_id"`
+	Identity     string                 `json:"identity,omitzero" secret:"true"`
+	Listen       string                 `json:"listen,omitzero"`
+	LibraryPath  string                 `json:"library_path,omitzero" privilege:"system:execute"`
+	LowBandwidth bool                   `json:"low_bandwidth,omitzero"`
+	Moons        []ZeroTierMoon         `json:"moons,omitzero"`
 }
 
 type ZeroTierMoon struct {
@@ -526,40 +538,42 @@ type ZeroTierMoon struct {
 }
 
 type Wireguard struct {
-	SecretKey string          `json:"secretKey" secret:"true"`
-	Endpoint  []string        `json:"endpoint,omitzero"`
-	Peers     []WireguardPeer `json:"peers,omitzero"`
-	MTU       int32           `json:"mtu,omitzero"`
-	Reserved  []byte          `json:"reserved,omitzero"`
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	SecretKey   string                 `json:"secretKey" secret:"true"`
+	Endpoint    []string               `json:"endpoint,omitzero"`
+	Peers       []WireguardPeer        `json:"peers,omitzero"`
+	MTU         int32                  `json:"mtu,omitzero"`
+	Reserved    []byte                 `json:"reserved,omitzero"`
 }
 
 // AmneziaWG uses the official amneziawg-go/v3 userspace protocol engine.
 // The fields mirror its UAPI; strings retain its uint32 range notation.
 type AmneziaWG struct {
-	SecretKey              string          `json:"secretKey" secret:"true"`
-	Endpoint               []string        `json:"endpoint,omitzero"`
-	Peers                  []WireguardPeer `json:"peers,omitzero"`
-	MTU                    int32           `json:"mtu,omitzero"`
-	JC                     uint32          `json:"jc,omitzero"`
-	JMin                   uint32          `json:"jmin,omitzero"`
-	JMax                   uint32          `json:"jmax,omitzero"`
-	S1                     uint32          `json:"s1,omitzero"`
-	S2                     uint32          `json:"s2,omitzero"`
-	S3                     uint32          `json:"s3,omitzero"`
-	S4                     uint32          `json:"s4,omitzero"`
-	H1                     string          `json:"h1,omitzero"`
-	H2                     string          `json:"h2,omitzero"`
-	H3                     string          `json:"h3,omitzero"`
-	H4                     string          `json:"h4,omitzero"`
-	I1                     string          `json:"i1,omitzero"`
-	I2                     string          `json:"i2,omitzero"`
-	I3                     string          `json:"i3,omitzero"`
-	I4                     string          `json:"i4,omitzero"`
-	I5                     string          `json:"i5,omitzero"`
-	HeaderProtectionKey    string          `json:"header_protection_key,omitzero" secret:"true"`
-	ContentPaddingAddition string          `json:"content_padding_addition,omitzero"`
-	RandomTrailers         bool            `json:"random_trailers,omitzero"`
-	DisableCookies         bool            `json:"disable_cookies,omitzero"`
+	TCPSettings            *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	SecretKey              string                 `json:"secretKey" secret:"true"`
+	Endpoint               []string               `json:"endpoint,omitzero"`
+	Peers                  []WireguardPeer        `json:"peers,omitzero"`
+	MTU                    int32                  `json:"mtu,omitzero"`
+	JC                     uint32                 `json:"jc,omitzero"`
+	JMin                   uint32                 `json:"jmin,omitzero"`
+	JMax                   uint32                 `json:"jmax,omitzero"`
+	S1                     uint32                 `json:"s1,omitzero"`
+	S2                     uint32                 `json:"s2,omitzero"`
+	S3                     uint32                 `json:"s3,omitzero"`
+	S4                     uint32                 `json:"s4,omitzero"`
+	H1                     string                 `json:"h1,omitzero"`
+	H2                     string                 `json:"h2,omitzero"`
+	H3                     string                 `json:"h3,omitzero"`
+	H4                     string                 `json:"h4,omitzero"`
+	I1                     string                 `json:"i1,omitzero"`
+	I2                     string                 `json:"i2,omitzero"`
+	I3                     string                 `json:"i3,omitzero"`
+	I4                     string                 `json:"i4,omitzero"`
+	I5                     string                 `json:"i5,omitzero"`
+	HeaderProtectionKey    string                 `json:"header_protection_key,omitzero" secret:"true"`
+	ContentPaddingAddition string                 `json:"content_padding_addition,omitzero"`
+	RandomTrailers         bool                   `json:"random_trailers,omitzero"`
+	DisableCookies         bool                   `json:"disable_cookies,omitzero"`
 }
 
 type WireguardPeer struct {
@@ -571,10 +585,11 @@ type WireguardPeer struct {
 }
 
 type Tailscale struct {
-	AuthKey    string `json:"auth_key" secret:"true"`
-	Hostname   string `json:"hostname"`
-	ControlURL string `json:"control_url" secret:"url"`
-	Debug      bool   `json:"debug,omitzero"`
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	AuthKey     string                 `json:"auth_key" secret:"true"`
+	Hostname    string                 `json:"hostname"`
+	ControlURL  string                 `json:"control_url" secret:"url"`
+	Debug       bool                   `json:"debug,omitzero"`
 }
 
 type Set struct {
@@ -597,27 +612,29 @@ type NetworkSplit struct {
 }
 
 type CloudflareWarpMasque struct {
-	PrivateKey        string   `json:"private_key" secret:"true"`
-	Endpoint          string   `json:"endpoint"`
-	EndpointPublicKey string   `json:"endpoint_public_key"`
-	LocalAddresses    []string `json:"local_addresses,omitzero"`
-	MTU               int32    `json:"mtu,omitzero"`
-	Transport         string   `json:"transport,omitzero"`
+	TCPSettings       *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	PrivateKey        string                 `json:"private_key" secret:"true"`
+	Endpoint          string                 `json:"endpoint"`
+	EndpointPublicKey string                 `json:"endpoint_public_key"`
+	LocalAddresses    []string               `json:"local_addresses,omitzero"`
+	MTU               int32                  `json:"mtu,omitzero"`
+	Transport         string                 `json:"transport,omitzero"`
 }
 
 // Masque configures a standards-based RFC 9484 CONNECT-IP client.
 type Masque struct {
-	Endpoint           string   `json:"endpoint"`
-	URL                string   `json:"url" secret:"url"`
-	ServerName         string   `json:"server_name,omitzero"`
-	CACertPEM          string   `json:"ca_cert_pem,omitzero"`
-	ClientCertPEM      string   `json:"client_cert_pem,omitzero"`
-	ClientKeyPEM       string   `json:"client_key_pem,omitzero" secret:"true"`
-	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitzero"`
-	BearerToken        string   `json:"bearer_token,omitzero" secret:"true"`
-	LocalAddresses     []string `json:"local_addresses"`
-	MTU                int32    `json:"mtu,omitzero"`
-	Transport          string   `json:"transport,omitzero"`
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	Endpoint           string                 `json:"endpoint"`
+	URL                string                 `json:"url" secret:"url"`
+	ServerName         string                 `json:"server_name,omitzero"`
+	CACertPEM          string                 `json:"ca_cert_pem,omitzero"`
+	ClientCertPEM      string                 `json:"client_cert_pem,omitzero"`
+	ClientKeyPEM       string                 `json:"client_key_pem,omitzero" secret:"true"`
+	InsecureSkipVerify bool                   `json:"insecure_skip_verify,omitzero"`
+	BearerToken        string                 `json:"bearer_token,omitzero" secret:"true"`
+	LocalAddresses     []string               `json:"local_addresses"`
+	MTU                int32                  `json:"mtu,omitzero"`
+	Transport          string                 `json:"transport,omitzero"`
 }
 
 type PointAsEndpoint struct {
@@ -890,4 +907,57 @@ func (x Protocol) presentVariants() map[string]bool {
 		"fixedv2":                x.FixedV2 != nil,
 		"point_as_endpoint":      x.PointAsEndpoint != nil,
 	}
+}
+
+// TCPOptions returns the shared inner-stack settings of VPN protocols.
+func (x Protocol) TCPOptions() *transport.TCPSettings {
+	if x.L2TP != nil {
+		return x.L2TP.TCPSettings
+	}
+	if x.L2TPv3 != nil {
+		return x.L2TPv3.TCPSettings
+	}
+	if x.OpenVPN != nil {
+		return x.OpenVPN.TCPSettings
+	}
+	if x.GlobalProtect != nil {
+		return x.GlobalProtect.TCPSettings
+	}
+	if x.SoftEther != nil {
+		return x.SoftEther.TCPSettings
+	}
+	if x.IKEv2 != nil {
+		return x.IKEv2.TCPSettings
+	}
+	if x.AnyConnect != nil {
+		return x.AnyConnect.TCPSettings
+	}
+	if x.SSTP != nil {
+		return x.SSTP.TCPSettings
+	}
+	if x.Fortinet != nil {
+		return x.Fortinet.TCPSettings
+	}
+	if x.Nebula != nil {
+		return x.Nebula.TCPSettings
+	}
+	if x.ZeroTier != nil {
+		return x.ZeroTier.TCPSettings
+	}
+	if x.Wireguard != nil {
+		return x.Wireguard.TCPSettings
+	}
+	if x.AmneziaWG != nil {
+		return x.AmneziaWG.TCPSettings
+	}
+	if x.Tailscale != nil {
+		return x.Tailscale.TCPSettings
+	}
+	if x.CloudflareWarpMasque != nil {
+		return x.CloudflareWarpMasque.TCPSettings
+	}
+	if x.Masque != nil {
+		return x.Masque.TCPSettings
+	}
+	return nil
 }

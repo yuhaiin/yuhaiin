@@ -56,7 +56,7 @@ func passiveWire(t *testing.T, isn uint32, window uint16, algorithms ...string) 
 func passiveConfigured(t *testing.T, isn uint32, window uint16, cfg Config, unbuffered bool) (*Stack, *TCPConn, *memoryIO, uint32) {
 	return passiveConfiguredFamily(t, isn, window, cfg, unbuffered, false)
 }
-func passiveConfiguredFamily(t *testing.T, isn uint32, window uint16, cfg Config, unbuffered, ipv6 bool) (*Stack, *TCPConn, *memoryIO, uint32) {
+func passiveConfiguredFamily(t *testing.T, isn uint32, window uint16, cfg Config, unbuffered, ipv6 bool, sackEnabled ...bool) (*Stack, *TCPConn, *memoryIO, uint32) {
 	t.Helper()
 	a, b := memoryPair()
 	if unbuffered {
@@ -84,7 +84,11 @@ func passiveConfiguredFamily(t *testing.T, isn uint32, window uint16, cfg Config
 	if ipv6 {
 		mss -= 20
 	}
-	_ = b.WritePacket(wireTCP(remote, local, isn, 0, flagSYN, window, []byte{2, 4, byte(mss >> 8), byte(mss), 4, 2, 3, 3, 3, 1, 1, 1}, nil))
+	options := []byte{2, 4, byte(mss >> 8), byte(mss), 4, 2, 3, 3, 3, 1, 1, 1}
+	if len(sackEnabled) > 0 && !sackEnabled[0] {
+		options[4], options[5] = 1, 1
+	}
+	_ = b.WritePacket(wireTCP(remote, local, isn, 0, flagSYN, window, options, nil))
 	synack := peerPacket(t, b)
 	serverISN := binary.BigEndian.Uint32(synack.Payload[4:8])
 	_ = b.WritePacket(wireTCP(remote, local, isn+1, serverISN+1, flagACK, window, nil, nil))

@@ -254,6 +254,7 @@ func (c *TCPConn) resegment() {
 		// packets rather than making them appear to be newly sent sequence space.
 		if v.transmissions > 0 && len(v.data) > 0 {
 			v.resend = true
+			v.pmtuRepair = true
 			c.repairPending = true
 			c.setSACK(v, false)
 		}

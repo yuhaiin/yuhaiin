@@ -11,6 +11,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"io"
 	"net"
 	"net/http"
@@ -41,6 +42,7 @@ var (
 // Config validates gateway certificates by default. InsecureSkipVerify is an
 // explicit opt-in that disables certificate-chain and hostname verification.
 type Config struct {
+	TCPSettings        *transport.TCPSettings `json:"tcpSettings,omitzero"`
 	Gateway            string
 	Username           string
 	Password           string

@@ -101,7 +101,7 @@ func TestLinuxKernelContinuousPMTU(t *testing.T) {
 		for _, ipv6 := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/ipv6=%t", kind, ipv6), func(t *testing.T) {
 				path := newChangingMTUIO(kernelLink(t, 9000))
-				s, err := New(Config{MTU: 9000, CongestionControl: kind, Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.2"), netip.MustParseAddr("2001:db8::2")}}, path)
+				s, err := New(Config{MTU: 9000, CongestionControl: kind, LossRecovery: *kernelLossRecovery, Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.2"), netip.MustParseAddr("2001:db8::2")}}, path)
 				if err != nil {
 					_ = path.Close()
 					t.Fatal(err)

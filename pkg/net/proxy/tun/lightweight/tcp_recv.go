@@ -10,6 +10,28 @@ func (c *TCPConn) receive(seq uint32, data []byte, fin bool, now time.Time) {
 		c.sendACK()
 		return
 	}
+	if c.sack && len(data) > 0 {
+		end := seq + uint32(len(data))
+		if before(seq, c.rcvNxt) {
+			c.dsack = sackBlock{seq, seq + uint32(min(len(data), int(c.rcvNxt-seq)))}
+			c.dsackPending = true
+		} else {
+			for _, piece := range c.ooo {
+				start, stop := seq, end
+				if before(start, piece.seq) {
+					start = piece.seq
+				}
+				if after(stop, piece.seq+uint32(len(piece.data))) {
+					stop = piece.seq + uint32(len(piece.data))
+				}
+				if before(start, stop) {
+					c.dsack = sackBlock{start, stop}
+					c.dsackPending = true
+					break
+				}
+			}
+		}
+	}
 	original := seq
 	finSeq := seq + uint32(len(data))
 	if before(seq, c.rcvNxt) {

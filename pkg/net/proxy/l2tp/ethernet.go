@@ -73,7 +73,7 @@ func newEthernetNetwork(cfg Config) (*ethernetNetwork, error) {
 		}
 	}
 	var err error
-	n.LightweightNetTun, err = wireguard.CreateLightweightNetTUN(prefixes, cfg.MTU)
+	n.LightweightNetTun, err = wireguard.CreateLightweightNetTUNWithOptions(prefixes, cfg.MTU, cfg.tcpSettings())
 	if err != nil {
 		return nil, err
 	}

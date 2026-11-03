@@ -45,7 +45,7 @@ func NewClient(cfg contractnode.AmneziaWG, upstream netapi.Proxy) (*Client, erro
 	if mtu == 0 {
 		mtu = 1400
 	}
-	network, err := wireguard.CreateLightweightNetTUN(ips, mtu)
+	network, err := wireguard.CreateLightweightNetTUNWithOptions(ips, mtu, cfg.TCPSettings)
 	if err != nil {
 		return nil, err
 	}

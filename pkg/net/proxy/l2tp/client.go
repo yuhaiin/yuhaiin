@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"net/netip"
 	"slices"
@@ -24,6 +25,7 @@ import (
 )
 
 type Config struct {
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
 	native.Config
 	LocalAddress                string
 	AutoReconnect               bool
@@ -50,7 +52,7 @@ var _ netapi.Proxy = (*Client)(nil)
 
 func init() {
 	register.RegisterContractPoint("l2tp", func(cfg contractnode.L2TP, upstream netapi.Proxy) (netapi.Proxy, error) {
-		return NewOutbound(Config{Version: 2, AuthType: cfg.AuthType, Gateway: cfg.Gateway, Username: cfg.Username, Password: cfg.Password, SharedSecret: cfg.SharedSecret, Hostname: cfg.Hostname, MTU: int(cfg.MTU), IPv6: cfg.IPv6, IPv6Address: cfg.IPv6Address, AutoReconnect: cfg.AutoReconnect}, upstream)
+		return NewOutbound(Config{TCPSettings: cfg.TCPSettings, Version: 2, AuthType: cfg.AuthType, Gateway: cfg.Gateway, Username: cfg.Username, Password: cfg.Password, SharedSecret: cfg.SharedSecret, Hostname: cfg.Hostname, MTU: int(cfg.MTU), IPv6: cfg.IPv6, IPv6Address: cfg.IPv6Address, AutoReconnect: cfg.AutoReconnect}, upstream)
 	})
 	register.RegisterContractPoint("l2tpv3", func(cfg contractnode.L2TPv3, upstream netapi.Proxy) (netapi.Proxy, error) {
 		local, err := hex.DecodeString(cfg.LocalCookie)
@@ -61,7 +63,7 @@ func init() {
 		if err != nil {
 			return nil, fmt.Errorf("l2tpv3: peer cookie: %w", err)
 		}
-		return NewOutbound(Config{Version: 3, Gateway: cfg.Gateway, SharedSecret: cfg.SharedSecret, Hostname: cfg.Hostname, MTU: int(cfg.MTU), Static: cfg.Static, LocalAddress: cfg.LocalAddress, LocalSessionID: cfg.LocalSessionID, PeerSessionID: cfg.PeerSessionID, LocalCookie: local, PeerCookie: peer, Sublayer: cfg.Sublayer, RemoteEndID: cfg.RemoteEndID, Address: cfg.Address, Router: cfg.Router, IPv6Address: cfg.IPv6Address, IPv6Router: cfg.IPv6Router, AutoReconnect: cfg.AutoReconnect}, upstream)
+		return NewOutbound(Config{TCPSettings: cfg.TCPSettings, Version: 3, Gateway: cfg.Gateway, SharedSecret: cfg.SharedSecret, Hostname: cfg.Hostname, MTU: int(cfg.MTU), Static: cfg.Static, LocalAddress: cfg.LocalAddress, LocalSessionID: cfg.LocalSessionID, PeerSessionID: cfg.PeerSessionID, LocalCookie: local, PeerCookie: peer, Sublayer: cfg.Sublayer, RemoteEndID: cfg.RemoteEndID, Address: cfg.Address, Router: cfg.Router, IPv6Address: cfg.IPv6Address, IPv6Router: cfg.IPv6Router, AutoReconnect: cfg.AutoReconnect}, upstream)
 	})
 }
 
@@ -78,6 +80,9 @@ func NewClient(cfg Config, upstream netapi.Proxy) (*Client, error) {
 }
 
 func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*Client, error) {
+	if err := wireguard.ValidateTCPSettings(cfg.tcpSettings()); err != nil {
+		return nil, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -98,7 +103,7 @@ func connectClient(parent context.Context, cfg Config, upstream netapi.Proxy) (*
 	info := session.Info()
 	var network tunnelNetwork
 	if cfg.Version == 2 {
-		network, err = wireguard.CreateLightweightNetTUNWithCongestionControl(info.Prefixes, info.MTU, cfg.CongestionControl)
+		network, err = wireguard.CreateLightweightNetTUNWithOptions(info.Prefixes, info.MTU, cfg.tcpSettings())
 	} else {
 		network, err = newEthernetNetwork(cfg)
 	}
@@ -331,4 +336,11 @@ func (c *Config) validateNetwork() error {
 		}
 	}
 	return nil
+}
+
+func (c Config) tcpSettings() *transport.TCPSettings {
+	if c.TCPSettings != nil {
+		return c.TCPSettings
+	}
+	return &transport.TCPSettings{CongestionControl: c.CongestionControl}
 }

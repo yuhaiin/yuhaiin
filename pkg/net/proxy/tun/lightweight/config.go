@@ -3,6 +3,7 @@ package lightweight
 import (
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"net/netip"
 	"slices"
@@ -21,6 +22,7 @@ type Config struct {
 	Addresses                                                                     []netip.Addr
 	MTU                                                                           int
 	CongestionControl                                                             string
+	LossRecovery                                                                  string
 	Profile                                                                       NetworkProfile
 	Promiscuous, ForwardUDP                                                       bool
 	MaxConnections, MaxUDPSockets, QueuePackets                                   int
@@ -37,6 +39,12 @@ type Config struct {
 }
 
 func (c Config) normalize() (Config, error) {
+	if c.LossRecovery == "" {
+		c.LossRecovery = "classic"
+	}
+	if _, err := recovery.New(c.LossRecovery); err != nil {
+		return c, err
+	}
 	if c.OutputScheduler == "" {
 		c.OutputScheduler = trafficcontrol.SchedulerFIFO
 	}

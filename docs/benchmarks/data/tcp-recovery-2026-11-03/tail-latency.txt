@@ -1,0 +1,10 @@
+=== RUN   TestRecoveryTailLossLatency
+=== RUN   TestRecoveryTailLossLatency/classic
+    recovery_wire_test.go:271: virtual tail-loss repair: detector=classic srtt=10ms delayed-ack-budget=200ms latency=1s
+=== RUN   TestRecoveryTailLossLatency/rack-tlp
+    recovery_wire_test.go:271: virtual tail-loss repair: detector=rack-tlp srtt=10ms delayed-ack-budget=200ms latency=220ms
+--- PASS: TestRecoveryTailLossLatency (0.00s)
+    --- PASS: TestRecoveryTailLossLatency/classic (0.00s)
+    --- PASS: TestRecoveryTailLossLatency/rack-tlp (0.00s)
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight	0.003s

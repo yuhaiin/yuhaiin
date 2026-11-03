@@ -41,14 +41,14 @@ func Validate(o device.TunConfig) error {
 			addresses = append(addresses, prefix.Addr())
 		}
 	}
-	return lightweight.ValidateConfig(lightweight.Config{Addresses: addresses, OutputScheduler: trafficcontrol.SchedulerMode(o.OutputScheduler), MTU: int(o.MTU), CongestionControl: o.CongestionControl})
+	return lightweight.ValidateConfig(lightweight.Config{Addresses: addresses, OutputScheduler: trafficcontrol.SchedulerMode(o.OutputScheduler), MTU: int(o.MTU), LossRecovery: o.LossRecovery, CongestionControl: o.CongestionControl})
 }
 func stackConfig(o *device.Opt) lightweight.Config {
 	var addresses []netip.Addr
 	for _, a := range append(append([]netip.Prefix(nil), o.Inet4Address...), o.Inet6Address...) {
 		addresses = append(addresses, a.Addr())
 	}
-	return lightweight.Config{OutputScheduler: trafficcontrol.SchedulerMode(o.Tun.OutputScheduler), Addresses: addresses, MTU: o.MTU, CongestionControl: o.Tun.CongestionControl, Promiscuous: true, ForwardUDP: true, ForwardPing: forwardPing}
+	return lightweight.Config{OutputScheduler: trafficcontrol.SchedulerMode(o.Tun.OutputScheduler), Addresses: addresses, MTU: o.MTU, LossRecovery: o.Tun.LossRecovery, CongestionControl: o.Tun.CongestionControl, Promiscuous: true, ForwardUDP: true, ForwardPing: forwardPing}
 }
 func New(o *device.Opt) (netapi.Accepter, error) {
 	if err := Validate(o.Tun); err != nil {

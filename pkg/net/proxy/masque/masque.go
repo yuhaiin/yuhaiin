@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
 	"net/http"
 	"net/netip"
@@ -58,11 +59,15 @@ func NewMasque(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAd
 }
 
 // NewMasqueWithTransport selects QUIC/HTTP3 with BBR or TCP/HTTP2.
-func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int, transport string) (*Masque, error) {
-	if transport != "" && transport != "h3" && transport != "h2" {
-		return nil, fmt.Errorf("unsupported MASQUE transport %q", transport)
+func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDPAddr, localAddresses []netip.Prefix, mtu int, carrier string, tcp ...*transport.TCPSettings) (*Masque, error) {
+	if carrier != "" && carrier != "h3" && carrier != "h2" {
+		return nil, fmt.Errorf("unsupported MASQUE transport %q", carrier)
 	}
-	dev, err := wireguard.CreateLightweightNetTUN(localAddresses, mtu)
+	var settings *transport.TCPSettings
+	if len(tcp) > 0 {
+		settings = tcp[0]
+	}
+	dev, err := wireguard.CreateLightweightNetTUNWithOptions(localAddresses, mtu, settings)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +82,7 @@ func NewMasqueWithTransport(p netapi.Proxy, tlsConfig *tls.Config, addr *net.UDP
 		addr:           addr,
 		localAddresses: localAddresses,
 		mtu:            mtu,
-		http2:          transport == "h2",
+		http2:          carrier == "h2",
 		requestURL:     ConnectURI + "/",
 		dev:            dev,
 		receive:        make(chan []byte, 100),

@@ -65,7 +65,7 @@ var _ netapi.Proxy = (*Client)(nil)
 func init() {
 	register.RegisterContractPoint("globalprotect", func(config contractnode.GlobalProtect, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewClient(Config{
-			Gateway: config.Gateway, Username: config.Username, Password: config.Password,
+			TCPSettings: config.TCPSettings, Gateway: config.Gateway, Username: config.Username, Password: config.Password,
 			Computer: config.Computer, CACertPEM: config.CACertPEM,
 			InsecureSkipVerify: config.InsecureSkipVerify, MTU: int(config.MTU), UseESP: config.UseESP,
 		}, p)
@@ -74,6 +74,9 @@ func init() {
 
 // connectClient establishes one session with a directly addressed gateway.
 func connectClient(parent context.Context, config Config) (_ *Client, err error) {
+	if err := wireguard.ValidateTCPSettings(config.TCPSettings); err != nil {
+		return nil, err
+	}
 	if config.Username == "" || config.Password == "" {
 		return nil, errors.New("globalprotect: username and password required")
 	}
@@ -152,7 +155,7 @@ func connectClient(parent context.Context, config Config) (_ *Client, err error)
 		closeTransport()
 		return nil, fmt.Errorf("globalprotect: invalid MTU %d", mtu)
 	}
-	network, err := wireguard.CreateLightweightNetTUN([]netip.Prefix{addr}, mtu)
+	network, err := wireguard.CreateLightweightNetTUNWithOptions([]netip.Prefix{addr}, mtu, config.TCPSettings)
 	if err != nil {
 		closeTransport()
 		return nil, err

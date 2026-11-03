@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"io"
 	"net"
 	"net/netip"
@@ -41,6 +42,7 @@ type session struct {
 // Client owns a ZeroTier identity, a root-outbound UDP socket, and a
 // dynamically configured in-memory IP stack. It never creates a system NIC.
 type Client struct {
+	tcpSettings *transport.TCPSettings
 	netapi.EmptyDispatch
 	node      *zt.Node
 	underlay  net.PacketConn
@@ -69,6 +71,9 @@ func init() {
 // NewClient starts the ZeroTier protocol engine without waiting for network
 // approval. Dialers wait until the controller supplies managed addresses.
 func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error) {
+	if err := wireguard.ValidateTCPSettings(cfg.TCPSettings); err != nil {
+		return nil, err
+	}
 	if !register.IsZero(previous) {
 		return nil, errors.New("zerotier: must be the root protocol; chaining through another outbound is unsupported")
 	}
@@ -96,7 +101,7 @@ func NewClient(cfg contractnode.ZeroTier, previous netapi.Proxy) (*Client, error
 		identities.Delete(dir)
 		return nil, fmt.Errorf("zerotier: open identity store: %w", err)
 	}
-	c := &Client{
+	c := &Client{tcpSettings: cfg.TCPSettings,
 		id: id, state: dir, closing: make(chan struct{}), ready: make(chan struct{}),
 		configs: make(chan zt.NetworkConfig, 8), frames: make(chan zt.Frame, 512),
 	}
@@ -255,7 +260,7 @@ func (c *Client) applyConfig(cfg zt.NetworkConfig) {
 		old.bridge.updateRoutes(cfg.Routes)
 		return
 	}
-	tun, err := wireguard.CreateLightweightNetTUN(cfg.Addresses, mtu)
+	tun, err := wireguard.CreateLightweightNetTUNWithOptions(cfg.Addresses, mtu, c.tcpSettings)
 	if err != nil {
 		c.deactivate(fmt.Errorf("zerotier: initialize lightweight stack: %w", err))
 		c.readyOnce.Do(func() { close(c.ready) })

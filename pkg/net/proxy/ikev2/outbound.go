@@ -32,5 +32,5 @@ func NewOutbound(c node.IKEv2, up netapi.Proxy) (netapi.Proxy, error) {
 		return Dial(ctx, Config{Server: host, Port: p, LocalID: c.LocalID, ServerID: c.ServerID,
 			PSK: c.PSK, EAPUser: c.Username, EAPPassword: c.Password, TCP: c.TCP,
 			TUNName: tun, DialContext: vpnkit.EndpointDialer(up)})
-	})
+	}, c.TCPSettings)
 }

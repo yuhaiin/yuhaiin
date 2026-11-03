@@ -25,6 +25,9 @@ func init() {
 // NewClient constructs a standard RFC 9484 CONNECT-IP client. WARP's
 // nonstandard protocol and draft datagrams are deliberately not used here.
 func NewClient(config contractnode.Masque, p netapi.Proxy) (netapi.Proxy, error) {
+	if err := wireguard.ValidateTCPSettings(config.TCPSettings); err != nil {
+		return nil, err
+	}
 	u, err := url.Parse(config.URL)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || !strings.HasPrefix(u.Path, "/") || u.User != nil || u.Fragment != "" {
 		return nil, fmt.Errorf("masque: url must be an absolute HTTPS URL with a path: %q", config.URL)
@@ -84,7 +87,7 @@ func NewClient(config contractnode.Masque, p netapi.Proxy) (netapi.Proxy, error)
 		}
 		tlsConfig.Certificates = []tls.Certificate{pair}
 	}
-	client, err := NewMasqueWithTransport(p, tlsConfig, addr, addresses, mtu, config.Transport)
+	client, err := NewMasqueWithTransport(p, tlsConfig, addr, addresses, mtu, config.Transport, config.TCPSettings)
 	if err != nil {
 		return nil, err
 	}

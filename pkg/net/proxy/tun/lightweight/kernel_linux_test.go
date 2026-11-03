@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"golang.org/x/sys/unix"
 	"io"
@@ -19,6 +20,8 @@ import (
 
 // Run only in an isolated user/network namespace. Lack of capabilities is a
 // failure of this explicitly selected suite, never an implicit passing skip.
+var kernelLossRecovery = flag.String("loss-recovery", "classic", "TCP loss detector for kernel interoperability tests")
+
 type kernelIO struct{ file *os.File }
 
 func (k *kernelIO) ReadPacket(b []byte) (int, error) { return k.file.Read(b) }
@@ -62,13 +65,44 @@ func kernelLink(t testing.TB, mtu int) *kernelIO {
 func kernelStack(t testing.TB, algorithm string) *Stack {
 	t.Helper()
 	link := kernelLink(t, 1500)
-	s, err := New(Config{Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.2"), netip.MustParseAddr("2001:db8::2")}, CongestionControl: algorithm}, link)
+	s, err := New(Config{Addresses: []netip.Addr{netip.MustParseAddr("192.0.2.2"), netip.MustParseAddr("2001:db8::2")}, CongestionControl: algorithm, LossRecovery: *kernelLossRecovery}, link)
 	if err != nil {
 		_ = link.Close()
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
 	return s
+}
+
+// BenchmarkKernelRecovery uses an independent Linux TCP peer over a plain TUN.
+// Run each detector in its own isolated user/network namespace.
+func BenchmarkKernelRecovery(b *testing.B) {
+	for _, algorithm := range []string{"reno", "cubic", "bbr"} {
+		for _, direction := range []string{"upload", "download"} {
+			b.Run(algorithm+"/"+direction, func(b *testing.B) {
+				s := kernelStack(b, algorithm)
+				listener, err := s.ListenTCP(netip.MustParseAddrPort("192.0.2.2:18080"))
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer listener.Close()
+				ctx, cancel := context.WithTimeout(b.Context(), 5*time.Second)
+				defer cancel()
+				client, err := (&net.Dialer{}).DialContext(ctx, "tcp", "192.0.2.2:18080")
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer client.Close()
+				server, err := listener.Accept()
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer server.Close()
+				transferWorkload(b, []net.Conn{client}, []net.Conn{server}, 65536, direction)
+				b.ReportMetric(float64(s.Stats().Retransmissions), "retransmits")
+			})
+		}
+	}
 }
 func TestLinuxKernelTCP(t *testing.T) {
 	for _, algorithm := range []string{"reno", "cubic", "bbr"} {

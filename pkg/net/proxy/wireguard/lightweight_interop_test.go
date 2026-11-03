@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/tailscale/wireguard-go/conn"
 	wgdevice "github.com/tailscale/wireguard-go/device"
@@ -70,8 +71,9 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 		t.Fatal("reference peer did not bind UDP")
 	}
 	proxy, err := NewClient(Config{
-		SecretKey: base64.StdEncoding.EncodeToString(clientKey.Bytes()),
-		Endpoint:  []string{"192.0.2.1/32", "2001:db8::1/128"}, MTU: 1400,
+		TCPSettings: &transport.TCPSettings{CongestionControl: "cubic", LossRecovery: "rack-tlp"},
+		SecretKey:   base64.StdEncoding.EncodeToString(clientKey.Bytes()),
+		Endpoint:    []string{"192.0.2.1/32", "2001:db8::1/128"}, MTU: 1400,
 		Peers: []PeerConfig{{PublicKey: base64.StdEncoding.EncodeToString(peerKey.PublicKey().Bytes()), Endpoint: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), AllowedIPs: []string{"192.0.2.2/32", "2001:db8::2/128"}}},
 	}, nil)
 	if err != nil {
@@ -117,6 +119,10 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer local.Close()
+			flows := client.net.StackDiagnostic(4).Flows
+			if len(flows) == 0 || flows[0].CongestionControl != "cubic" || flows[0].LossRecovery != "rack-tlp" {
+				t.Fatalf("TCP settings did not reach encrypted outbound: %+v", flows)
+			}
 			accepted, err := listener.Accept()
 			if err != nil {
 				t.Fatal(err)

@@ -1,0 +1,24 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkDetectorACK/classic/flight=16-4         	16093225	        37.54 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=16-4         	16111194	        40.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=16-4         	15828918	        39.20 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=256-4        	16091706	        40.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=256-4        	16096216	        37.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=256-4        	16112600	        37.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=4096-4       	16131748	        37.30 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=4096-4       	16127584	        37.32 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/classic/flight=4096-4       	16064412	        37.39 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1457832	       411.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1231029	       486.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=16-4        	 1456222	       411.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=256-4       	  100396	      5982 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=256-4       	  100440	      5983 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=256-4       	   99558	      6011 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6291	     95082 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6273	     95862 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDetectorACK/rack-tlp/flight=4096-4      	    6279	     95419 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery	10.932s

@@ -1,0 +1,23 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkKernelRecovery/reno/upload-4         	    3724	    170511 ns/op	 384.35 MB/s	         8.000 goroutines	    657544 heap-live-B	       203.0 p95-us	       220.2 p99-us	         0 retransmits	      53 B/op	       0 allocs/op
+BenchmarkKernelRecovery/reno/upload-4         	    3614	    165242 ns/op	 396.61 MB/s	         8.000 goroutines	    707192 heap-live-B	       198.0 p95-us	       221.3 p99-us	         0 retransmits	      31 B/op	       0 allocs/op
+BenchmarkKernelRecovery/reno/upload-4         	    3598	    163774 ns/op	 400.16 MB/s	         8.000 goroutines	    707224 heap-live-B	       193.2 p95-us	       209.1 p99-us	         0 retransmits	      29 B/op	       0 allocs/op
+BenchmarkKernelRecovery/reno/download-4       	    2916	    180530 ns/op	 363.02 MB/s	         8.000 goroutines	    740416 heap-live-B	       233.9 p95-us	       260.6 p99-us	         1.000 retransmits	      59 B/op	       0 allocs/op
+BenchmarkKernelRecovery/reno/download-4       	    3382	    172992 ns/op	 378.84 MB/s	         8.000 goroutines	    783136 heap-live-B	       220.5 p95-us	       241.2 p99-us	         0 retransmits	      70 B/op	       0 allocs/op
+BenchmarkKernelRecovery/reno/download-4       	    3391	    172925 ns/op	 378.99 MB/s	         8.000 goroutines	    785536 heap-live-B	       220.4 p95-us	       243.5 p99-us	         0 retransmits	      50 B/op	       0 allocs/op
+BenchmarkKernelRecovery/cubic/upload-4        	    3589	    161616 ns/op	 405.51 MB/s	         8.000 goroutines	    666056 heap-live-B	       189.3 p95-us	       204.8 p99-us	         0 retransmits	      30 B/op	       0 allocs/op
+BenchmarkKernelRecovery/cubic/upload-4        	    3612	    163051 ns/op	 401.94 MB/s	         8.000 goroutines	    719400 heap-live-B	       191.5 p95-us	       208.0 p99-us	         0 retransmits	      31 B/op	       0 allocs/op
+BenchmarkKernelRecovery/cubic/upload-4        	    3705	    162710 ns/op	 402.78 MB/s	         8.000 goroutines	    720280 heap-live-B	       190.3 p95-us	       206.2 p99-us	         0 retransmits	      29 B/op	       0 allocs/op
+BenchmarkKernelRecovery/cubic/download-4      	    3483	    181687 ns/op	 360.71 MB/s	         8.000 goroutines	    751952 heap-live-B	       235.5 p95-us	       251.3 p99-us	         0 retransmits	      49 B/op	       0 allocs/op
+BenchmarkKernelRecovery/cubic/download-4      	    3496	    178693 ns/op	 366.75 MB/s	         8.000 goroutines	    794224 heap-live-B	       232.9 p95-us	       254.1 p99-us	         0 retransmits	      68 B/op	       0 allocs/op
+BenchmarkKernelRecovery/cubic/download-4      	    3326	    171883 ns/op	 381.28 MB/s	         8.000 goroutines	    794272 heap-live-B	       220.2 p95-us	       246.7 p99-us	         0 retransmits	      71 B/op	       0 allocs/op
+BenchmarkKernelRecovery/bbr/upload-4          	    3721	    162103 ns/op	 404.29 MB/s	         8.000 goroutines	    683896 heap-live-B	       189.3 p95-us	       202.4 p99-us	         0 retransmits	      28 B/op	       0 allocs/op
+BenchmarkKernelRecovery/bbr/upload-4          	    3555	    160500 ns/op	 408.32 MB/s	         8.000 goroutines	    724344 heap-live-B	       187.3 p95-us	       199.0 p99-us	         0 retransmits	      29 B/op	       0 allocs/op
+BenchmarkKernelRecovery/bbr/upload-4          	    3642	    161655 ns/op	 405.41 MB/s	         8.000 goroutines	    729032 heap-live-B	       188.1 p95-us	       201.3 p99-us	         0 retransmits	      29 B/op	       0 allocs/op
+BenchmarkKernelRecovery/bbr/download-4        	    3252	    174828 ns/op	 374.86 MB/s	         8.000 goroutines	    757408 heap-live-B	       224.3 p95-us	       239.8 p99-us	         0 retransmits	      53 B/op	       0 allocs/op
+BenchmarkKernelRecovery/bbr/download-4        	    3394	    179397 ns/op	 365.31 MB/s	         8.000 goroutines	    805568 heap-live-B	       233.3 p95-us	       251.9 p99-us	         0 retransmits	      50 B/op	       0 allocs/op
+BenchmarkKernelRecovery/bbr/download-4        	    3370	    180937 ns/op	 362.20 MB/s	         8.000 goroutines	    805744 heap-live-B	       235.8 p95-us	       256.1 p99-us	         0 retransmits	      70 B/op	       0 allocs/op
+PASS

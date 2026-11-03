@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"math/big"
 	"net"
 	"net/netip"
@@ -104,6 +105,7 @@ func GenerateCert(privKey *ecdsa.PrivateKey, pubKey *ecdsa.PublicKey) ([][]byte,
 func init() {
 	register.RegisterContractPoint("cloudflare_warp_masque", func(config contractnode.CloudflareWarpMasque, p netapi.Proxy) (netapi.Proxy, error) {
 		return NewCloudflareWarpMasque(Config{
+			TCPSettings: config.TCPSettings,
 			PrivateKey:        config.PrivateKey,
 			Endpoint:          config.Endpoint,
 			EndpointPublicKey: config.EndpointPublicKey,
@@ -115,12 +117,13 @@ func init() {
 }
 
 type Config struct {
-	PrivateKey        string   `json:"private_key"`
-	Endpoint          string   `json:"endpoint"`
-	EndpointPublicKey string   `json:"endpoint_public_key"`
-	LocalAddresses    []string `json:"local_addresses,omitzero"`
-	MTU               int32    `json:"mtu,omitzero"`
-	Transport         string   `json:"transport,omitzero"`
+	TCPSettings       *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	PrivateKey        string                 `json:"private_key"`
+	Endpoint          string                 `json:"endpoint"`
+	EndpointPublicKey string                 `json:"endpoint_public_key"`
+	LocalAddresses    []string               `json:"local_addresses,omitzero"`
+	MTU               int32                  `json:"mtu,omitzero"`
+	Transport         string                 `json:"transport,omitzero"`
 }
 
 func NewCloudflareWarpMasque(o Config, p netapi.Proxy) (netapi.Proxy, error) {
@@ -178,5 +181,5 @@ func NewCloudflareWarpMasque(o Config, p netapi.Proxy) (netapi.Proxy, error) {
 		o.MTU = 1280
 	}
 
-	return NewMasqueWithTransport(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.MTU), o.Transport)
+	return NewMasqueWithTransport(p, tlsConfig, net.UDPAddrFromAddrPort(udpAddr), localAddresses, int(o.MTU), o.Transport, o.TCPSettings)
 }

@@ -3,6 +3,7 @@ package wireguard
 import (
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"io"
 	"net"
 	"net/netip"
@@ -26,22 +27,22 @@ type LightweightNetTun struct {
 }
 
 func CreateLightweightNetTUN(localAddresses []netip.Prefix, mtu int) (*LightweightNetTun, error) {
-	return createLightweightNetTUN(localAddresses, mtu, false, "")
+	return createLightweightNetTUN(localAddresses, mtu, false, nil)
 }
 
 // CreateLightweightNetTUNWithCongestionControl overrides the RemoteTunnel profile's
 // default congestion control for controlled interoperability testing.
 func CreateLightweightNetTUNWithCongestionControl(localAddresses []netip.Prefix, mtu int, algorithm string) (*LightweightNetTun, error) {
-	return createLightweightNetTUN(localAddresses, mtu, false, algorithm)
+	return createLightweightNetTUN(localAddresses, mtu, false, &transport.TCPSettings{CongestionControl: algorithm})
 }
 
 // CreateLightweightInboundTUN terminates arbitrary routed client destinations
 // entirely in the in-memory lightweight TCP/IP stack. It never opens a system TUN.
 func CreateLightweightInboundTUN(localAddresses []netip.Prefix, mtu int) (*LightweightNetTun, error) {
-	return createLightweightNetTUN(localAddresses, mtu, true, "")
+	return createLightweightNetTUN(localAddresses, mtu, true, nil)
 }
 
-func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound bool, algorithm string) (*LightweightNetTun, error) {
+func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound bool, tcp *transport.TCPSettings) (*LightweightNetTun, error) {
 	if mtu == 0 {
 		mtu = 1500
 	}
@@ -57,7 +58,7 @@ func createLightweightNetTUN(localAddresses []netip.Prefix, mtu int, inbound boo
 		dev.hasV6 = dev.hasV6 || ip.Is6()
 	}
 	var err error
-	dev.stack, err = lightweight.New(lightweight.Config{Addresses: addresses, MTU: mtu, Profile: lightweight.RemoteTunnel, Promiscuous: inbound, ForwardUDP: inbound, CongestionControl: algorithm}, dev.link)
+	dev.stack, err = lightweight.New(lightweight.Config{Addresses: addresses, MTU: mtu, Profile: lightweight.RemoteTunnel, Promiscuous: inbound, ForwardUDP: inbound, CongestionControl: tcpSettings(tcp).CongestionControl, LossRecovery: tcpSettings(tcp).LossRecovery}, dev.link)
 	if err != nil {
 		_ = dev.link.Close()
 		return nil, err
@@ -198,4 +199,22 @@ func (n *LightweightNetTun) DialUDP(local, remote *net.UDPAddr) (*lightweight.UD
 		la = netip.AddrPortFrom(ip, uint16(local.Port))
 	}
 	return n.stack.DialUDP(la, ra)
+}
+
+// CreateLightweightNetTUNWithOptions configures inner TCP without changing the
+// VPN carrier's own congestion control or packet interface.
+func CreateLightweightNetTUNWithOptions(addresses []netip.Prefix, mtu int, tcp *transport.TCPSettings) (*LightweightNetTun, error) {
+	return createLightweightNetTUN(addresses, mtu, false, tcp)
+}
+func tcpSettings(tcp *transport.TCPSettings) transport.TCPSettings {
+	if tcp == nil {
+		return transport.TCPSettings{}
+	}
+	return *tcp
+}
+
+// ValidateTCPSettings rejects unknown algorithms before remote authentication.
+func ValidateTCPSettings(tcp *transport.TCPSettings) error {
+	cfg := tcpSettings(tcp)
+	return lightweight.ValidateConfig(lightweight.Config{Profile: lightweight.RemoteTunnel, CongestionControl: cfg.CongestionControl, LossRecovery: cfg.LossRecovery})
 }

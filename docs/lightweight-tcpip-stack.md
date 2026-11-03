@@ -50,7 +50,7 @@ mixing offload gains with stack gains. The
 [mipstack project](https://github.com/MetaCubeX/mipstack) is MPL-2.0 licensed.
 No Xray or mipstack source is copied. Protocol sources include RFC 9293,
 RFC 5681, RFC 6582, RFC 6298, RFC 7323, RFC 2018, RFC 8200, RFC 5722,
-RFC 9438 and RFC 9406. The BBR v3 model adapts Google's
+RFC 9438, RFC 9406, RFC 8985 and RFC 2883. The BBR v3 model adapts Google's
 [2026-09-16 release](https://github.com/google/bbr/blob/674859761ded9f32690c7bdaf22ef585531452ed/net/ipv4/tcp_bbr3.c)
 under its BSD-3-Clause option. Attribution and complete terms are in
 [licenses/bbr-v3.md](../licenses/bbr-v3.md), also embedded in the binary's
@@ -123,9 +123,10 @@ from the incremental flight count. Inferred lost transmissions leave the pipe;
 repair packets re-enter it once. Multiple SACK-proven holes can be repaired in
 one flight. RTO preserves useful SACK evidence. An advancing ACK stopping at a
 SACKed head starts a short reneging confirmation interval, allowing reordered
-ACKs to retire the head before discarding the scoreboard. Three duplicate ACKs
-trigger fast retransmit of original data; partial recovery ACKs identify the
-next original gap. RTT estimation uses SRTT/RTTVAR, Karn's
+ACKs to retire the head before discarding the scoreboard. The default classic detector uses three duplicate ACKs for fast retransmit
+of original data and partial recovery ACKs to identify the next original gap.
+The independently selectable RACK-TLP detector instead uses transmission time
+and delivery evidence, with a bounded reordering timer and tail loss probes. RTT estimation uses SRTT/RTTVAR, Karn's
 rule and RFC 6298's one-second minimum RTO with exponential backoff. Delayed ACKs
 wait at most 20ms; reordering, FIN and window updates trigger immediate ACKs.
 Zero-window probes do not consume new sequence space. Optional keepalive is
@@ -168,8 +169,9 @@ loss-aware probe feedback, randomized/Reno-conscious probe timing, ACK
 aggregation and aging min-RTT/PROBE_RTT. The model uses byte units and the
 actual PacketIO sender batch budget rather than Linux's packet/TSO units.
 Snapshot exposes version, mode, phase, bounds and round state. This adaptation
-does not claim Linux bit-for-bit equivalence; ECN and transport DSACK-based
-spurious-loss proof are not implemented.
+does not claim Linux bit-for-bit equivalence. ECN is not implemented.
+Transport DSACK evidence can restore BBR model bounds after a conservatively
+proven spurious recovery, as described below.
 
 One reusable timer and one heap entry per connection combine pacing, RTO,
 delayed ACK, persist and teardown. The shared scheduler sleeps when empty.
@@ -196,6 +198,72 @@ factory is trusted plugin code and must not panic or return shared mutable
 instances. Built-in factories always allocate independent state. Configuration
 changes take effect when a new stack/connection is created; active controller
 state is not hot-swapped.
+
+## Pluggable loss detection and DSACK
+
+`lightweight/recovery` owns per-connection loss detection independently of the
+congestion controller. `classic` preserves the existing DupACK/SACK and partial
+NewReno ACK rules; `rack-tlp` implements RFC 8985 time-based loss detection and
+tail loss probing. Empty `LossRecovery` preserves `classic` for both profiles.
+A RACK-TLP connection without negotiated SACK uses classic recovery. Diagnostics
+expose the configured and effective detector names separately.
+
+Detectors implement `Sent`, `Delivered`, and `Evaluate` and register a fresh
+instance factory with `recovery.Register`. The transport passes borrowed,
+sequence-ordered metadata through `Flight`, never mutable send descriptors or
+payload buffers. Delivery metadata is reported before ACK processing releases
+a descriptor, and previously SACKed bytes are not credited twice. Decisions
+contain at most 64 lost ranges, a continuation flag, a probe request, an
+indication of loss already repaired by a probe, and a next deadline. Core TCP
+owns loss accounting, congestion notifications, actual transmission and the
+shared scheduler. Detectors allocate no per-packet timers or goroutines.
+
+RACK breaks equal transmission-time ties by sequence number, ignores ambiguous
+retransmission samples shorter than the minimum RTT, and adapts a bounded
+reordering allowance using DSACK feedback once per flight round. Expanded
+allowances age after 16 recoveries. RTO marks the oldest outstanding range and
+other sufficiently old transmissions, preserving recently sent data. PMTU
+replacement segments keep transport-owned timing and delivery history. A
+PMTU repair retains its cause after transmission: old-flight ACKs cannot prove
+congestion loss of a replacement; delivery beyond its repair-flight boundary
+or RTO provides fresh evidence.
+
+TLP prefers one unsent data segment when the receive window allows, otherwise
+retransmits the highest outstanding data segment. A probe may exceed cwnd by
+one segment, but never the receive window. Sending a probe is not itself loss
+proof. A further probe requires acknowledgment of the previous probe and a
+fresh RTT sample; failed or unanswered probing falls back to RTO. Single-segment
+PTO includes a conservative 200ms delayed-ACK allowance. Zero-window persist,
+SYN retries, pacing and output backpressure remain owned by TCP.
+
+Both modes generate RFC 2883 DSACK for duplicate data below the cumulative ACK
+and for overlaps in the out-of-order queue. Above-ACK duplicates retain the
+ordinary enclosing SACK block. The sender separates DSACK from ordinary SACK
+validation, so duplicate feedback does not discard valid scoreboard evidence.
+Conservative BBR undo requires exact DSACK coverage of every loss in the
+recovery, cumulative acknowledgment through its end, and no RTO or re-loss.
+Proof tracking is bounded to 16 loss ranges; overflow disables undo, not data
+recovery. This does not implement TCP Timestamp/PAWS, PRR or ECN.
+
+VPN outbounds share the optional `tcpSettings` object. It configures the inner
+Lightweight TCP stack, independently of the outer VPN transport:
+
+```json
+{
+  "tcpSettings": {
+    "congestionControl": "cubic",
+    "lossRecovery": "rack-tlp"
+  }
+}
+```
+
+Supported outbounds are WireGuard, AmneziaWG, OpenVPN, GlobalProtect, SoftEther,
+L2TPv2/v3, IKEv2, AnyConnect, SSTP, Fortinet, MASQUE, Cloudflare WARP MASQUE,
+Tailscale, Nebula and ZeroTier. Omitted settings retain BBR v3 plus classic
+recovery. The local TUN keeps its flat `congestionControl` field and adds
+`lossRecovery`, retaining the CUBIC default. Invalid algorithm names are rejected
+before remote authentication. Configuration applies when a stack is created;
+active connections are not hot-swapped. See the [recovery benchmark report](benchmarks/tcp-recovery.md).
 
 ## Bounds, IP and UDP
 

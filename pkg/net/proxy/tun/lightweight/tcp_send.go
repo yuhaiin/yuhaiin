@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/recovery"
 	"slices"
 	"sort"
 	"time"
@@ -22,7 +23,7 @@ func (c *TCPConn) headerOptions(dst []byte, syn bool) []byte {
 		copy(b, []byte{2, 4, byte(c.pathMSS >> 8), byte(c.pathMSS), 4, 2, 1, 3, 3, byte(c.ownScale), 1, 1})
 		return b
 	}
-	if !c.sack || len(c.ooo) == 0 {
+	if !c.sack || len(c.ooo) == 0 && !c.dsackPending {
 		return nil
 	}
 	var ranges [128]sackBlock
@@ -41,9 +42,18 @@ func (c *TCPConn) headerOptions(dst []byte, syn bool) []byte {
 	}
 	var blocks [4]sackBlock
 	n := 0
+	base := 0
+	if c.dsackPending {
+		blocks[0] = c.dsack
+		n++
+		base = 1
+	}
 	for _, seq := range c.sackRecent[:c.sackRecentCount] {
+		if n == len(blocks) {
+			break
+		}
 		for _, block := range ranges[:rangeCount] {
-			if !before(seq, block.start) && before(seq, block.end) && !slices.Contains(blocks[:n], block) {
+			if !before(seq, block.start) && before(seq, block.end) && !slices.Contains(blocks[base:n], block) {
 				blocks[n] = block
 				n++
 				break
@@ -54,7 +64,7 @@ func (c *TCPConn) headerOptions(dst []byte, syn bool) []byte {
 		if n == len(blocks) {
 			break
 		}
-		if !slices.Contains(blocks[:n], block) {
+		if !slices.Contains(blocks[base:n], block) {
 			blocks[n] = block
 			n++
 		}
@@ -169,6 +179,10 @@ func (c *TCPConn) outputSegment(seq uint32, flags uint8, data []byte, segmentSiz
 		}
 	}
 	if flags&flagACK != 0 {
+		if len(opts) > 0 && !syn && c.dsackPending {
+			c.dsackPending = false
+			c.dsackSent++
+		}
 		c.ackPending = 0
 		c.ackAt = time.Time{}
 	}
@@ -258,6 +272,9 @@ func (c *TCPConn) recordTransmission(v *sendSegment, now time.Time, retrans bool
 		c.stack.retransmissions.Add(1)
 	} else {
 		c.sndNxt = v.seq + v.length()
+	}
+	if c.detector != nil {
+		c.detector.Sent(recovery.SentEvent{Segment: recoverySegment(v), Next: c.sndNxt})
 	}
 	// A byte cwnd need not be an MSS multiple. If the next packet does not
 	// fit, the sender is cwnd limited even though flight is slightly below cwnd.
@@ -377,6 +394,9 @@ func (c *TCPConn) pump(now time.Time) {
 	if c.peerWindow > 0 {
 		c.persistAt = time.Time{}
 	}
+	if sent > 0 && c.detectLoss(recovery.Transmit, now, 0, false, nil, false) {
+		c.detectorAt = now
+	}
 	c.schedule(now)
 }
 
@@ -469,7 +489,21 @@ func (s *deliverySample) credit(v *sendSegment, n uint32) {
 	}
 }
 func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, pure bool) {
-	if before(ack, c.sndUna) || after(ack, c.sndNxt) {
+	if after(ack, c.sndNxt) {
+		return
+	}
+	var dsack *sackBlock
+	if c.sack {
+		o, dsack = splitDSACK(o, ack)
+	}
+	if dsack != nil {
+		c.dsackReceived++
+	}
+	if before(ack, c.sndUna) {
+		if dsack != nil {
+			c.detectLoss(recovery.ACK, now, 0, o.count > 0, dsack, false)
+			c.proveSpurious(*dsack, now)
+		}
 		return
 	}
 	priorFlight := c.flight()
@@ -495,7 +529,7 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 			for i := range o.count {
 				b := o.blocks[i]
 				if !before(v.seq, b.start) && !after(v.seq+v.length(), b.end) {
-					sample.credit(v, v.length())
+					c.creditDelivery(&sample, v, v.length(), now)
 					v.deliveredBytes = v.length()
 					c.setSACK(v, true)
 					break
@@ -516,7 +550,7 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 				break
 			}
 			n := min(uint32(ack-v.seq), v.length())
-			sample.credit(v, n)
+			c.creditDelivery(&sample, v, n, now)
 			if v.transmissions == 1 {
 				rtt = now.Sub(v.firstSent)
 			} else {
@@ -567,10 +601,11 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 	if rtt > 0 {
 		c.updateRTT(rtt)
 	}
-	newLoss := false
-	if validSACK {
-		newLoss = c.inferSACKLoss(now)
+	duplicateACK := acked == 0 && pure && wnd == oldWindow && c.sndUna != c.sndNxt
+	if duplicateACK {
+		c.dupACKs++
 	}
+	newLoss := c.detectLoss(recovery.ACK, now, acked, validSACK, dsack, duplicateACK)
 	event := congestion.AckEvent{Now: now, AckedBytes: acked, PriorInFlight: priorFlight, NewlyDelivered: sample.bytes, BytesInFlight: c.flight(), Delivered: c.delivered, PriorDelivered: c.delivered - sample.bytes, RTT: rtt, ACK: ack, NextSeq: c.sndNxt, CwndLimited: c.cwndLimited || priorFlight >= c.controller.CongestionWindow(), PacingDelay: max(c.paceAt.Sub(now), 0)}
 	c.cwndLimited = false
 	if sample.valid {
@@ -591,26 +626,17 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 		event.RateSample = false
 		event.DeliveryRate = 0
 	}
-	if newLoss && !c.recovering {
-		c.recovering = true
-		c.recover = c.sndNxt
-		c.controller.OnLoss(congestion.LossEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna), LostBytes: uint64(c.mss)})
+	if newLoss {
 		c.retransmit(now)
 	}
+	if dsack != nil {
+		c.proveSpurious(*dsack, now)
+	}
 	if acked == 0 {
-		if pure && wnd == oldWindow && c.sndUna != c.sndNxt {
-			c.dupACKs++
-			headOriginal := c.tx.len() > 0 && c.tx.values()[0].transmissions == 1 && !c.tx.values()[0].resend
-			if c.dupACKs == 3 && !c.recovering && headOriginal {
-				c.recovering = true
-				c.recover = c.sndNxt
-				c.controller.OnLoss(congestion.LossEvent{Now: now, BytesInFlight: uint64(c.sndNxt - c.sndUna), LostBytes: uint64(c.mss)})
-				c.retransmit(now)
-			} else if c.recovering {
-				event.InRecovery = true
-				c.ackController(event)
-				return
-			}
+		if c.recovering && duplicateACK {
+			event.InRecovery = true
+			c.ackController(event)
+			return
 		}
 		if sample.bytes > 0 {
 			event.InRecovery = c.recovering
@@ -624,17 +650,6 @@ func (c *TCPConn) processAck(ack, wnd, seq uint32, o tcpOptions, now time.Time, 
 	c.ackController(event)
 	if recovered {
 		c.recovering = false
-	} else if c.recovering {
-		// A partial NewReno ACK identifies the next original loss. Already
-		// retransmitted data remains in flight until stronger evidence or an RTO.
-		for _, v := range c.tx.values() {
-			if v.transmissions > 0 && !v.sacked {
-				if v.transmissions == 1 {
-					c.markLost(v, now)
-				}
-				break
-			}
-		}
 	}
 	if c.sndUna == c.sndNxt {
 		c.rtoAt = time.Time{}
