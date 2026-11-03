@@ -13,12 +13,14 @@ import subprocess
 import tempfile
 
 
-def run(command, output, repo, env):
+def run(command, output, repo, env, retain=True):
     result = subprocess.run(command, cwd=repo, env=env, text=True,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output.write_text("".join(line.rstrip() + "\n" for line in result.stdout.splitlines()))
     if result.returncode:
         raise RuntimeError(f"Command failed; preserved output in {output}")
+    if not retain:
+        output.unlink()
     return result.stdout
 
 
@@ -77,18 +79,18 @@ def main():
     summary["detector"] = summarize(raw, args.samples)
     with tempfile.TemporaryDirectory(prefix="yuhaiin-tcp-recovery-") as temporary:
         binary = str(Path(temporary) / "stack.test")
-        run(["go", "test", "-c", "-o", binary, package], output / "build.txt", repo, env)
+        run(["go", "test", "-c", "-o", binary, package], output / "build.txt", repo, env, retain=False)
         raw = run([binary, *common, "-test.bench=^BenchmarkImpairedTCP$/(classic|rack-tlp)/(reno|cubic|bbr)/(rtt10ms|rtt50ms-loss0[.]1pct)$"],
                   output / "impaired.txt", repo, env)
         summary["impaired"] = summarize(raw, args.samples)
         if args.kernel:
             kernel = str(Path(temporary) / "kernel.test")
             run(["go", "test", "-c", "-tags", "lightweight_kernel", "-o", kernel, package],
-                output / "kernel-build.txt", repo, env)
+                output / "kernel-build.txt", repo, env, retain=False)
             for detector in ["classic", "rack-tlp"]:
                 run(["unshare", "-Urn", kernel, f"-loss-recovery={detector}",
                      "-test.run=^TestLinuxKernel", "-test.v", "-test.timeout=90s"],
-                    output / f"kernel-tests-{detector}.txt", repo, env)
+                    output / f"kernel-tests-{detector}.txt", repo, env, retain=False)
                 raw = run(["unshare", "-Urn", kernel, *common, f"-loss-recovery={detector}",
                            "-test.bench=^BenchmarkKernelRecovery$"],
                           output / f"kernel-{detector}.txt", repo, env)
