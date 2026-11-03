@@ -33,10 +33,11 @@ latency distribution or a promise about arbitrary paths.
 
 ## Independent Linux TCP throughput
 
-Median application payload throughput, decimal MB/s. No loss was injected. The 36 retained kernel samples reported
-1 retransmissions across 1 samples. The new detector
-has measurable overhead in this fixture, especially when Lightweight sends;
-these results are not a claim that RACK-TLP improves clean-path throughput.
+Median application payload throughput, decimal MB/s. No loss was injected.
+One of the 36 retained kernel samples reported one retransmission; the other
+samples reported none. The direction and size of throughput differences vary
+between short runs. These results do not establish a general RACK-TLP
+throughput improvement. Detector CPU cost is measured separately below.
 Both modes reported zero rounded allocations per operation in this workload.
 
 | Controller | Direction | classic MB/s | rack-tlp MB/s | Change |
