@@ -243,13 +243,3 @@ func fillIPHeader(b []byte, src, dst netip.Addr, proto uint8, id uint16, h int) 
 		copy(b[24:40], dst.AsSlice())
 	}
 }
-func makeIP(src, dst netip.Addr, proto uint8, payload []byte, id uint16) ([]byte, error) {
-	h, err := ipHeaderSize(src, dst, len(payload))
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, h+len(payload))
-	fillIPHeader(b, src, dst, proto, id, h)
-	copy(b[h:], payload)
-	return b, nil
-}

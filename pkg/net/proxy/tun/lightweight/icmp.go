@@ -1,7 +1,6 @@
 package lightweight
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight/congestion"
@@ -49,7 +48,22 @@ func (s *Stack) handleICMP(p Packet) {
 	s.handleICMPError(p)
 }
 func (s *Stack) echoReply(p Packet) error {
-	out := bytes.Clone(p.Payload)
+	// Ordinary echoes are answered in place in an owned frame; only
+	// reassembled requests above the MTU need a fragmented reply.
+	packet, out, err := s.ipFrame(p.Destination, p.Source, p.Protocol, len(p.Payload))
+	if err == nil {
+		fillEchoReply(out, p)
+		return s.sendOwned(packet)
+	}
+	if !errors.Is(err, ErrMTU) {
+		return err
+	}
+	out = make([]byte, len(p.Payload))
+	fillEchoReply(out, p)
+	return s.sendDatagram(flowAddress{p.Destination}, flowAddress{p.Source}, p.Protocol, out)
+}
+func fillEchoReply(out []byte, p Packet) {
+	copy(out, p.Payload)
 	out[0] = 0
 	if p.Protocol == 58 {
 		out[0] = 129
@@ -60,7 +74,6 @@ func (s *Stack) echoReply(p Packet) error {
 		sum = transportChecksum(p.Destination, p.Source, 58, out)
 	}
 	binary.BigEndian.PutUint16(out[2:4], sum)
-	return s.sendDatagram(flowAddress{p.Destination}, flowAddress{p.Source}, p.Protocol, out)
 }
 func (s *Stack) icmpError(p Packet, typ, code byte, mtu uint32) {
 	_ = s.writeICMPError(p, typ, code, mtu)
@@ -92,7 +105,11 @@ func (s *Stack) writeICMPError(p Packet, typ, code byte, mtu uint32) error {
 			}
 		}
 	}
-	b := make([]byte, 8+quote)
+	packet, b, err := s.ipFrame(p.Destination, p.Source, proto, 8+quote)
+	if err != nil {
+		return err
+	}
+	clear(b[:8]) // A pooled frame may contain a previous packet.
 	b[0] = typ
 	b[1] = code
 	copy(b[8:], p.Data[:quote])
@@ -108,7 +125,7 @@ func (s *Stack) writeICMPError(p Packet, typ, code byte, mtu uint32) error {
 		sum = transportChecksum(p.Destination, p.Source, 58, b)
 	}
 	binary.BigEndian.PutUint16(b[2:4], sum)
-	return s.sendIP(p.Destination, p.Source, proto, b)
+	return s.sendOwned(packet)
 }
 
 // ICMP quotations are intentionally truncated IP packets; parse just enough

@@ -317,19 +317,6 @@ func (s *Stack) writeLoop() {
 	}
 }
 
-// emit copies unowned packet data; the owned fast path transfers its lease.
-func (s *Stack) emit(b []byte) error {
-	packet, err := s.buffers.get(s.headroom + len(b))
-	if err != nil {
-		return err
-	}
-	packet.offset = s.headroom
-	copy(packet.data[packet.offset:], b)
-	if err = s.emitOwned(packet); err != nil {
-		packet.release()
-	}
-	return err
-}
 func (s *Stack) emitOwned(packet *ownedBuffer) error {
 	s.txMu.RLock()
 	defer s.txMu.RUnlock()
@@ -343,6 +330,12 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 }
 
 func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ownedBuffer, int, error) {
+	return s.ipBufferID(src, dst, proto, payloadSize, uint16(s.nextID.Add(1)))
+}
+
+// ipBufferID keeps fragmented packets on one datagram ID without allocating
+// temporary IP frames. The caller must transfer or release the returned lease.
+func (s *Stack) ipBufferID(src, dst netip.Addr, proto uint8, payloadSize int, id uint16) (*ownedBuffer, int, error) {
 	h, err := ipHeaderSize(src, dst, payloadSize)
 	if err != nil {
 		return nil, 0, err
@@ -352,26 +345,43 @@ func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ow
 		return nil, s.headroom + h, err
 	}
 	packet.offset = s.headroom
-	fillIPHeader(packet.data[packet.offset:], src, dst, proto, uint16(s.nextID.Add(1)), h)
+	fillIPHeader(packet.data[packet.offset:], src, dst, proto, id, h)
 	return packet, packet.offset + h, nil
 }
-func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {
-	h, err := ipHeaderSize(src, dst, len(payload))
+
+// ipFrame leases an MTU-checked output frame and returns its transport
+// region, so callers can build replies in place instead of in a temporary
+// slice that sendIP would copy again. Pooled frames may hold stale bytes.
+func (s *Stack) ipFrame(src, dst netip.Addr, proto uint8, size int) (*ownedBuffer, []byte, error) {
+	h, err := ipHeaderSize(src, dst, size)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	if h+len(payload) > s.config.MTU {
-		return ErrMTU
+	if h+size > s.config.MTU {
+		return nil, nil, ErrMTU
 	}
-	packet, h, err := s.ipBuffer(src, dst, proto, len(payload))
+	packet, offset, err := s.ipBuffer(src, dst, proto, size)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	copy(packet.data[h:], payload)
-	if err = s.emitOwned(packet); err != nil {
+	return packet, packet.data[offset : offset+size], nil
+}
+
+// sendOwned transfers the lease to the output queue or releases it.
+func (s *Stack) sendOwned(packet *ownedBuffer) error {
+	err := s.emitOwned(packet)
+	if err != nil {
 		packet.release()
 	}
 	return err
+}
+func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {
+	packet, b, err := s.ipFrame(src, dst, proto, len(payload))
+	if err != nil {
+		return err
+	}
+	copy(b, payload)
+	return s.sendOwned(packet)
 }
 func (s *Stack) input(b []byte) error {
 	return s.inputVerified(b, false)
