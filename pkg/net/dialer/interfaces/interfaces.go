@@ -108,6 +108,9 @@ type networkState struct {
 
 var lastNetworkState atomic.Pointer[networkState]
 
+// Guarded by defaultInterfaceNameMu, alongside publication of DefaultRouter.
+var lastPublishedRoutes *router
+
 func snapshotNetwork(name string, addrs map[netip.Addr]string, routes router) networkState {
 	s := networkState{name: name}
 	if name == "" {
@@ -277,7 +280,12 @@ func reGetDefaultInterface(reason string) error {
 	next := snapshotNetwork(name, addresses, routes)
 	prev := lastNetworkState.Load()
 	changed := oldName != name || (prev != nil && networkStateChanged(*prev, next))
-	defaultrouter.Store(routes.ToTrie())
+	// A poll can observe the same routes repeatedly. Keep the published trie
+	// until the complete IPv4/IPv6 routing table actually changes.
+	if lastPublishedRoutes == nil || !lastPublishedRoutes.equal(routes) {
+		defaultrouter.Store(routes.ToTrie())
+		lastPublishedRoutes = &routes
+	}
 	localAddresses.Store(&addresses)
 	defaultInterfaceName.Store(&name)
 	lastNetworkState.Store(&next)

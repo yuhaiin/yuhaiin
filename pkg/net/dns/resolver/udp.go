@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,7 +29,14 @@ func udpCacheKey(id uint16, question netapi.DNSQuestion) string {
 	var digits [10]byte
 	identifier := strconv.AppendUint(digits[:0:5], uint64(id), 10)
 	typ := strconv.AppendUint(digits[5:5], uint64(question.Qtype), 10)
-	return string(identifier) + ":" + question.Name + "|" + string(typ)
+	var key strings.Builder
+	key.Grow(len(identifier) + len(question.Name) + len(typ) + 2)
+	_, _ = key.Write(identifier)
+	_ = key.WriteByte(':')
+	_, _ = key.WriteString(question.Name)
+	_ = key.WriteByte('|')
+	_, _ = key.Write(typ)
+	return key.String()
 }
 
 type udpresp struct {
@@ -49,7 +57,8 @@ type udpPacket struct {
 }
 
 type udp struct {
-	addr netapi.Address
+	addr       netapi.Address
+	staticAddr *net.UDPAddr
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -199,6 +208,9 @@ func (u *udp) loopWrite() {
 
 func (u *udp) udpAddr() (*net.UDPAddr, error) {
 	if !u.addr.IsFqdn() {
+		if u.staticAddr != nil {
+			return u.staticAddr, nil
+		}
 		return net.UDPAddrFromAddrPort(u.addr.(netapi.IPAddress).AddrPort()), nil
 	}
 
@@ -272,6 +284,9 @@ func NewDoU(config Config) (Transport, error) {
 		ctx:    ctx,
 		cancel: cancel,
 		wchan:  make(chan *udpPacket, 200),
+	}
+	if !addr.IsFqdn() {
+		udp.staticAddr = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
 	}
 
 	go udp.loopWrite()
