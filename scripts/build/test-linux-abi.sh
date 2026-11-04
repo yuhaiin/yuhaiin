@@ -25,7 +25,7 @@ for image in docker.io/library/centos:7 docker.io/library/debian:bookworm-slim d
   echo "Checking $image (expected SQLite update ABI: $abi)"
   args=(--rm --network none --tmpfs "/tmp:exec,mode=1777"
     -v "$repo_dir:/src:ro" -v "$output:/abi:ro"
-    -e "YUHAIIN_TEST_LINUX_ABI=$abi" -e YUHAIIN_GLIBC_CANDIDATE=/abi/purego.test)
+    -e XDG_CACHE_HOME=/tmp/cache -e "YUHAIIN_TEST_LINUX_ABI=$abi" -e YUHAIIN_GLIBC_CANDIDATE=/abi/purego.test)
   docker run "${args[@]}" "$image" /abi/abi.test -test.v -test.run='^TestLinuxABIEnvironment$'
   docker run "${args[@]}" -w /src/pkg/storage/sqlite "$image" /abi/static.test -test.v -test.timeout=5m
   if [[ "$abi" == glibc ]]; then

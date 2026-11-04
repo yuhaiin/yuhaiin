@@ -4,9 +4,10 @@ Yuhaiin uses `github.com/yuhaiin/purego-sqlite`, backed by the official SQLite
 engine. Configuration and management schemas are unchanged. Existing modernc
 and mattn database files are opened directly; no export/import is needed.
 
-Normal Go builds on Linux/macOS/Windows amd64/arm64 and FreeBSD amd64 select the
-verified library embedded by `github.com/yuhaiin/purego-sqlite-embed`.
-`CGO_ENABLED=0` uses PureGo; race tests use `-tags=sqlite_purego` with CGO enabled.
+CGO-disabled Go builds on Linux/macOS/Windows amd64/arm64 and FreeBSD amd64 select
+the verified library embedded by `github.com/yuhaiin/purego-sqlite-embed`.
+CGO-enabled builds link the official SQLite engine by default; race tests use
+`-tags=sqlite_purego` to exercise PureGo with CGO enabled.
 The embedded library includes the optional row and scalar execution helpers.
 FreeBSD PureGo builds also require
 `-gcflags=github.com/ebitengine/purego/internal/fakecgo=-std`.
@@ -14,10 +15,9 @@ FreeBSD PureGo builds also require
 Android, iOS, MIPS, OpenBSD and other targets without the selected embedded
 library require CGO and a C compiler matching the target. SQLite's official
 amalgamation is linked into the program, with no system SQLite dependency.
-`-tags=sqlite_cgo` explicitly selects this linked engine on any platform. On
-Linux hosts that cannot load the glibc library, a normal CGO-enabled build also
-selects the linked engine automatically. A CGO-disabled build cannot provide
-this fallback and reports the required build configuration.
+`-tags=sqlite_cgo` explicitly selects this linked engine on any platform. A normal CGO-enabled build therefore also works on Linux hosts that cannot
+load the glibc library. A CGO-disabled build cannot provide this fallback and
+reports the required build configuration.
 
 For Alpine/musl or a loader-free container, build with a musl compiler:
 

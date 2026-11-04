@@ -34,7 +34,7 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/purego-sqlite v0.0.0-20261104085928-183747df4cdd
+	github.com/yuhaiin/purego-sqlite v0.0.0-20261104093127-106b7c606e96
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104081830-4c4a60e5eb53
 	github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102135307-508f41359c93

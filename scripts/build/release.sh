@@ -100,8 +100,12 @@ mv "yuhaiin${extension}" "$binary"
 metadata_host_os=$(go env GOHOSTOS)
 metadata_host_arch=$(go env GOHOSTARCH)
 metadata_target_os="$GOOS"
+metadata_gcflags=""
+case "$metadata_host_os" in
+  freebsd|netbsd) metadata_gcflags=github.com/ebitengine/purego/internal/fakecgo=-std ;;
+esac
 GOOS="$metadata_host_os" GOARCH="$metadata_host_arch" GOAMD64=v1 GOARM64=v8.0 CGO_ENABLED=0 \
-  go run ./cmd/update-metadata -binary "$binary" -os "$metadata_target_os" -arch "$RELEASE_ARCH"
+  go run -gcflags="$metadata_gcflags" ./cmd/update-metadata -binary "$binary" -os "$metadata_target_os" -arch "$RELEASE_ARCH"
 
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then

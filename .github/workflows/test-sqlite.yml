@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'pkg/storage/**'
+      - 'internal/sqliteabi/**'
+      - 'internal/sqlitetest/**'
       - 'pkg/store/**'
       - 'pkg/net/dns/fakeip/**'
       - 'pkg/statistics/**'
@@ -25,6 +27,8 @@ on:
     branches: [main]
     paths:
       - 'pkg/storage/**'
+      - 'internal/sqliteabi/**'
+      - 'internal/sqlitetest/**'
       - 'pkg/store/**'
       - 'pkg/net/dns/fakeip/**'
       - 'pkg/statistics/**'

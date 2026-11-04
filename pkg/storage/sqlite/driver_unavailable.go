@@ -1,4 +1,4 @@
-//go:build !cgo && (sqlite_cgo || android || ios || !(((linux || darwin || windows) && (amd64 || arm64)) || (freebsd && amd64)))
+//go:build (!cgo || sqlite_purego) && (sqlite_cgo || android || ios || !(((linux || darwin || windows) && (amd64 || arm64)) || (freebsd && amd64)))
 
 package sqlite
 

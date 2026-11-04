@@ -1,9 +1,9 @@
-//go:build cgo && (sqlite_cgo || android || ios || !(((linux || darwin || windows) && (amd64 || arm64)) || (freebsd && amd64)))
+//go:build cgo && !sqlite_purego
 
 package sqlite
 
 import nativesqlite "github.com/yuhaiin/purego-sqlite"
 
-// Unsupported embed/PureGo targets use the driver's default linked SQLite
-// engine. These targets require CGO and a compiler matching the target ABI.
+// CGO builds use the driver's default linked SQLite engine. This also provides
+// the default backend on targets without PureGo or an embedded library.
 func sqliteOptions() ([]nativesqlite.Option, error) { return nil, nil }
