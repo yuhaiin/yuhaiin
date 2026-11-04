@@ -113,3 +113,18 @@ func TestUDPOwnedPacketWireFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestFillUDPPayloadClearsReusedChecksum(t *testing.T) {
+	src := netip.MustParseAddrPort("[2001:db8::1]:5353")
+	dst := netip.MustParseAddrPort("[2001:db8::2]:53")
+	b := bytes.Repeat([]byte{0xa5}, 128)
+	// Simulate a cached output buffer containing a previous packet.
+	packet := bytes.Repeat([]byte{0xff}, 8+len(b))
+	fillUDPPayload(packet, src, dst, b)
+	if transportChecksum(src.Addr(), dst.Addr(), 17, packet) != 0 {
+		t.Fatal("UDP checksum includes stale bytes from the pooled buffer")
+	}
+	if !bytes.Equal(packet[8:], b) {
+		t.Fatal("payload mismatch")
+	}
+}
