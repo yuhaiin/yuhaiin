@@ -60,7 +60,7 @@ func (a *AccessPolicies) Validate(ctx context.Context, config contract.Config) A
 	if _, err := accesscontrol.Prepare(config); err != nil {
 		return AccessValidation{Errors: []string{err.Error()}}
 	}
-	tx, err := a.store.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := a.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return AccessValidation{Errors: []string{"cannot validate policy references"}}
 	}

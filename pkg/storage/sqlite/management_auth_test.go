@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -39,7 +40,9 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	// Unix mode bits do not describe Windows ACLs; native ACL qualification
+	// runs in test-windows.yml.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("private database mode: %v", info.Mode())
 	}
 	config, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))

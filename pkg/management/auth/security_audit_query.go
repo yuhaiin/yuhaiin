@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json/v2"
 	"strconv"
@@ -30,7 +29,7 @@ func (s *Store) AuditPage(ctx context.Context, q AuditQuery) (AuditPage, error) 
 			return out, ErrInvalid
 		}
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return out, err
 	}

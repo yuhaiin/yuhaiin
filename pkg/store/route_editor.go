@@ -35,7 +35,7 @@ type RouteEditorStore struct{ db *sql.DB }
 func NewRouteEditorStore(db *sql.DB) *RouteEditorStore { return &RouteEditorStore{db: db} }
 
 func (s *RouteEditorStore) Get(ctx context.Context, id string) (contractroute.RuleDraft, error) {
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return contractroute.RuleDraft{}, err
 	}

@@ -49,7 +49,9 @@ func InspectStoreCatalog(ctx context.Context, path, kind string) ([]MigrationDes
 		return nil, err
 	}
 	defer db.Close()
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	// OpenLiveReader enforces read-only access with SQLite's mode=ro. A deferred
+	// transaction provides a consistent snapshot without a per-transaction flag.
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

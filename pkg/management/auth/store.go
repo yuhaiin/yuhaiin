@@ -367,7 +367,7 @@ func (s *Store) Authenticate(ctx context.Context, secret, kind string) (Principa
 	if len(secret) != 46 || !strings.HasPrefix(secret, "yu_") {
 		return Principal{}, ErrUnauthorized
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Principal{}, ErrUnauthorized
 	}

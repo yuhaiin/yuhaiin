@@ -49,4 +49,4 @@ jobs:
       - name: Check workflows and build scripts
         run: |
           go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          shellcheck scripts/build/*.sh
+          shellcheck scripts/build/*.sh scripts/ci/*.sh

@@ -85,7 +85,7 @@ hardware-bound Nebula keys without an external recovery procedure fail creation.
 Uninitialized Tailnet/ZeroTier identities are explicitly listed as requirements.
 ZeroTier inventory uses only portable filename/namespace parsing. Unsupported
 native targets keep the existing bridge stub; offline backup does not pull the
-native loader into Android/BSD builds. CI checks that dependency boundary.
+ZeroTier loader into Android/BSD builds. SQLite independently selects its supported PureGo or linked CGO backend. CI checks the ZeroTier dependency boundary.
 
 External files are stored under a hashed `dependencies/` archive name. Their
 original absolute path is encrypted manifest metadata (`sourcePath`), never
@@ -377,7 +377,7 @@ Ordinary database startup shares the migration-prefix check and rejects
 incompatible stores before bootstrap writes/journal-mode changes. This is a
 current-binary protection, not a guarantee for archived binaries predating it.
 
-Both SQLite drivers apply connection-local limits: 64 MiB SQLite values,
+The SQLite driver applies connection-local limits: 64 MiB SQLite values,
 1 MiB SQL and expression depth 64. Snapshot checks use a 2 MiB page cache and
 trusted schema is disabled. These limits do not change live application
 connections. A database requiring larger values is outside this verifier's
@@ -505,4 +505,4 @@ policy revisions advance once. The rewrite affects only authenticated staging,
 after every writer has stopped, and adds no migration. Original-instance recovery
 retains the source schedules. `TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone`
 restores a real encrypted archive in both modes and verifies these settings,
-revisions and unchanged manual policies. It runs with both SQLite drivers.
+revisions and unchanged manual policies. It runs with both PureGo and linked CGO SQLite.

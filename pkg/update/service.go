@@ -58,6 +58,7 @@ type Options struct {
 	CurrentVersion   string
 	TargetOS         string
 	TargetArch       string
+	TargetABI        string
 	CurrentTimestamp time.Time
 	CurrentCommit    string
 }
@@ -70,6 +71,7 @@ type Service struct {
 	current          string
 	targetOS         string
 	targetArch       string
+	targetABI        string
 	currentTimestamp time.Time
 	currentCommit    string
 	mu               sync.RWMutex
@@ -101,6 +103,10 @@ func NewService(opt Options) *Service {
 			targetArch = runtime.GOARCH
 		}
 	}
+	targetABI := opt.TargetABI
+	if targetABI == "" && opt.TargetOS == "" {
+		targetABI = compatibility.LinuxABI()
+	}
 	currentTimestamp := opt.CurrentTimestamp
 	if currentTimestamp.IsZero() && version.ReleaseTimestamp != "" {
 		currentTimestamp, _ = time.Parse(time.RFC3339, version.ReleaseTimestamp)
@@ -109,7 +115,7 @@ func NewService(opt Options) *Service {
 	if currentCommit == "" {
 		currentCommit = version.GitCommit
 	}
-	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, recovery: opt.Recovery, current: current, targetOS: targetOS, targetArch: targetArch, currentTimestamp: currentTimestamp, currentCommit: currentCommit}
+	return &Service{client: client, releasesURL: releasesURL, installer: opt.Installer, recovery: opt.Recovery, current: current, targetOS: targetOS, targetArch: targetArch, targetABI: targetABI, currentTimestamp: currentTimestamp, currentCommit: currentCommit}
 }
 
 // proxyHTTPClient routes GitHub API, release assets, and checksum downloads
@@ -152,7 +158,7 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 	if err != nil {
 		return result, err
 	}
-	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, channel, s.targetOS, s.targetArch)
+	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, channel, s.targetOS, s.targetArch, s.targetABI)
 	if !ok {
 		log.Info("software update no newer release", "channel", channel, "current", s.current, "commit", s.currentCommit, "os", s.targetOS, "arch", s.targetArch, "releases", len(releases))
 		result.Reason = "no newer release found for this platform"
@@ -227,7 +233,7 @@ func (s *Service) Apply(ctx context.Context, request contractupdate.ApplyRequest
 			channel = contractupdate.ChannelBeta
 		}
 	}
-	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, normalizeChannel(channel), s.targetOS, s.targetArch)
+	selected, ok := selectReleaseChannel(releases, s.current, s.currentCommit, s.currentTimestamp, normalizeChannel(channel), s.targetOS, s.targetArch, s.targetABI)
 	if !ok || selected.Tag != request.TargetTag {
 		return fail(errors.New("requested release is no longer available"))
 	}
@@ -450,7 +456,7 @@ func selectRelease(releases []release, current string, includePrerelease bool, t
 	return selectReleaseChannel(releases, current, "", time.Time{}, channel, targetOS, targetArch)
 }
 
-func selectReleaseChannel(releases []release, current, currentCommit string, currentTimestamp time.Time, channel, targetOS, targetArch string) (release, bool) {
+func selectReleaseChannel(releases []release, current, currentCommit string, currentTimestamp time.Time, channel, targetOS, targetArch string, libc ...string) (release, bool) {
 	channel = normalizeChannel(channel)
 	currentVersion := normalizeVersion(current)
 	trimmedCurrent := strings.TrimSpace(current)
@@ -459,6 +465,10 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 	assetName := "yuhaiin-" + targetOS + "-" + targetArch
 	if targetOS == "windows" {
 		assetName += ".exe"
+	}
+	assetNames := []string{assetName}
+	if targetOS == "linux" && targetArch != "mipsle" && len(libc) > 0 && libc[0] == "glibc" {
+		assetNames = append([]string{assetName + "-glibc"}, assetNames...)
 	}
 	for _, item := range releases {
 		mainVersion := mainReleaseVersion(item)
@@ -479,9 +489,14 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 				continue
 			}
 		}
-		for _, a := range item.Assets {
-			if a.Name == assetName {
-				item.Asset = Asset{Name: a.Name, URL: a.URL, Size: a.Size}
+		for _, name := range assetNames {
+			for _, a := range item.Assets {
+				if a.Name == name {
+					item.Asset = Asset{Name: a.Name, URL: a.URL, Size: a.Size}
+					break
+				}
+			}
+			if item.Asset.Name != "" {
 				break
 			}
 		}
@@ -489,7 +504,7 @@ func selectReleaseChannel(releases []release, current, currentCommit string, cur
 			continue
 		}
 		for _, a := range item.Assets {
-			if a.Name == assetName+compatibility.Suffix {
+			if a.Name == item.Asset.Name+compatibility.Suffix {
 				item.Asset.CompatibilityURL = a.URL
 			}
 		}

@@ -241,7 +241,9 @@ func ExportConfigForLocalRestore(ctx context.Context, db *sql.DB) ([]byte, error
 }
 
 func exportConfig(ctx context.Context, db *sql.DB, localRestore bool) ([]byte, error) {
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	// A deferred SQLite transaction gives every export query one snapshot. The
+	// engine does not offer a per-transaction read-only setting.
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

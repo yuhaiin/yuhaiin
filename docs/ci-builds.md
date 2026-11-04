@@ -1,35 +1,50 @@
 # CI builds
 
-`.github/workflows/go.yml` defines the build targets. Pull requests build seven
-representative binaries (Linux amd64/arm64, macOS arm64, Windows amd64,
-FreeBSD amd64, OpenBSD amd64, and Android arm64), run the Windows amd64
-executable on a native runner, and build the Android AAR. Full releases on
-`main` pushes and version tags still wait for all 22 binary targets, the native
-Windows x64/ARM64 smoke tests, and the Android AAR before publication:
+`.github/workflows/go.yml` defines the build targets. Pull requests build twelve
+representative binaries (Linux amd64/arm64 in static and glibc forms, MIPS,
+macOS arm64, Windows amd64, FreeBSD amd64/arm64, OpenBSD amd64/arm64, and Android arm64)
+and build the Android AAR. Full releases on `main` pushes and version tags wait
+for all 26 binary targets and the Android AAR before publication:
 
 | Job | Targets | Build environment | SQLite |
 | --- | --- | --- | --- |
-| `linux` | amd64, amd64v3, amd64v4, arm64, mipsle | Ubuntu with musl cross compilers | mattn, statically linked |
-| `darwin` | amd64, amd64v3, amd64v4, arm64 | Ubuntu 24.04 with osxcross/LLVM 18 and macOS SDK 14.5 | mattn with CGO |
-| `windows` | amd64, amd64v3, amd64v4, arm64 | Ubuntu with llvm-mingw/UCRT cross compilers | mattn, compiler runtimes statically linked |
-| `cross` | FreeBSD, OpenBSD: amd64, amd64v3, amd64v4, arm64; Android: arm64 | Ubuntu, CGO disabled | modernc |
+| `linux` | amd64, amd64v3, amd64v4, arm64, mipsle; four amd64/arm64 `-glibc` variants | Ubuntu with musl cross compilers for static assets | purego-sqlite: static CGO/musl or PureGo + embedded library |
+| `darwin` | amd64, amd64v3, amd64v4, arm64 | Ubuntu, CGO disabled | PureGo + embedded library |
+| `windows` | amd64, amd64v3, amd64v4, arm64 | Ubuntu, CGO disabled | PureGo + embedded library |
+| `cross` | FreeBSD amd64, amd64v3, amd64v4 | Ubuntu, CGO disabled | PureGo + embedded library |
+| `cross` | FreeBSD arm64 | Ubuntu with Clang, GNU ld.bfd, FreeBSD 14.3 sysroot | Official SQLite linked through CGO |
+| `cross` | OpenBSD amd64, amd64v3, amd64v4, arm64 | Ubuntu with pinned LLVM and OpenBSD 7.8 sysroot | Official SQLite linked through CGO |
+| `cross` | Android arm64 | Ubuntu with Android NDK | Official SQLite linked through CGO |
 
 The reusable binary workflow handles checkout, Go setup, frontend update,
-toolchain setup, and artifact upload. Release jobs do not compile or run SQLite
-test executables. The v3/v4 binaries are built without executing them on runners
+toolchain setup, and artifact upload. FreeBSD ARM64 and OpenBSD also cross-link
+storage, FakeIP and migration test executables, without executing them on Linux.
+The v3/v4 binaries are built without executing them on runners
 that may lack the required CPU instructions. Makefile's build-tag generator always runs with
 `GOAMD64=v1`, independently of the target binary's CPU level.
 
-`test-windows.yml` runs the executable's `version` command on a native Windows
-x64 runner for PRs and on both x64/ARM64 runners before release publication.
-Each Windows build also verifies
-the binary's architecture, CGO/mattn metadata, and system DLL imports.
+The binary workflow cross-compiles Windows releases on Linux and verifies the
+binary's architecture, PureGo/embedded-library metadata, and system DLL imports.
+It does not start a Windows runner or execute the release binary. The former
+`pr-windows-test` and release `windows-test` jobs have been removed, including
+their recovery/CLI startup checks and release dependencies. Independent SQLite
+native-platform regressions remain in `test-sqlite.yml` as weekly/manual jobs;
+they do not replace the removed release executable and CLI startup qualification.
 The release job only downloads artifacts matching `yuhaiin*`.
 
 `test-sqlite.yml` independently runs the SQLite storage, FakeIP, statistics, and
-legacy settings regressions on Ubuntu with both mattn (CGO) and modernc. It runs
+legacy settings regressions with PureGo, PureGo under the race detector and
+fully static CGO, plus native Linux ARM, MIPS and Linux ABI checks. It runs
 for Go source, module, or its workflow changes on main pushes and pull requests,
-and can also be started manually. These tests do not gate binary publication.
+and can also be started manually. macOS/Windows amd64/arm64 regression executables
+are cross-compiled on Linux. Native macOS/Windows SQLite tests run every Saturday
+at 03:23 UTC or on manual dispatch, so hosted desktop runner queues do not block
+PRs. The profiler workflow likewise cross-compiles both desktop architectures on
+PRs and runs native macOS/Windows tests weekly at 03:53 UTC or manually. Linux
+profiler execution remains in the application race tests. Cross-compilation does
+not exercise native library loading, recovery/ACL behavior or profiler capture;
+those checks can detect regressions later in the weekly/manual runs. These tests
+do not gate binary publication.
 
 Windows SQLite performance comparisons are still opt-in. In Actions, select
 **SQLite regressions**, choose **Run workflow**, and enable the
@@ -77,31 +92,76 @@ relinking. JSON v2 and Green Tea GC use Go 1.27's defaults.
   verifies its SHA-256 checksum, and prints the compiler path. It requires
   `RUNNER_TEMP` and runs on Linux. Update the release URL and checksums together.
   Binary and container builds share this installer and the release script.
-- `scripts/build/install-windows-toolchain.sh ARCH` downloads pinned llvm-mingw
-  20260922, verifies its SHA-256 checksum, and prints the target compiler path.
-  It supports Linux x64/ARM64 and macOS hosts and requires `RUNNER_TEMP`.
-- `scripts/build/install-darwin-toolchain.sh ARCH` installs pinned osxcross with
-  the LLVM build flavor and macOS SDK 14.5, verifying both archive checksums.
-  It runs on Linux with LLVM 18 installed and requires `RUNNER_TEMP` (or an
-  explicit `OSXCROSS_ROOT`). The workflow caches the installation for all four
-  Darwin targets; its key includes the installer so version changes invalidate
-  the cache. SDK packaging follows [osxcross's SDK documentation](https://github.com/tpoechtrager/osxcross/blob/master/README.SDK.md).
 - `scripts/build/check-windows-binary.sh BINARY ARCH` verifies the PE/Go CPU target,
-  CGO/mattn build metadata, and DLL imports. `LLVM_READOBJ` selects the tool from
+  PureGo/embedded-library build metadata, and DLL imports. `LLVM_READOBJ` selects the tool from
   the installed toolchain. Non-system DLL dependencies fail the build.
 
-Windows builds include SQLite's C source and statically link compiler runtimes,
-so they remain single executables. They use the UCRT supplied with Windows 10+;
-users do not need SQLite or MinGW installed.
+Windows and Darwin releases embed SQLite's verified prebuilt library and use
+PureGo. They do not require a cross C compiler or a system SQLite installation.
 
-Darwin is cross-compiled on Linux using [osxcross](https://github.com/tpoechtrager/osxcross).
-It uses SQLite's bundled C source, so users do not need Homebrew SQLite.
-Only macOS system libraries/frameworks are dynamically linked. Its deployment
-target is explicitly macOS 13.0, matching Go 1.27's minimum, so a newer runner
-SDK does not raise the binary's minimum OS version. Review this target when
-upgrading Go.
-Local builds on macOS continue to use the native compiler and SDK. Linux builds
-require `CC` to select the osxcross compiler, whose wrapper supplies the SDK.
+### FreeBSD ARM64 cross compilation
+
+`scripts/build/install-freebsd-toolchain.sh arm64` installs the checksum-pinned
+FreeBSD 14.3 base SDK and builds GNU binutils 2.45's ARM64 FreeBSD linker on Linux.
+It prints a Clang compiler wrapper path. Install Clang, build-essential, bison,
+flex and texinfo first; set `RUNNER_TEMP` to a writable scratch directory.
+The workflow caches the installed SDK/linker, with a key including the installer
+hash. Existing Go module/compiler caches also apply to this target.
+
+```sh
+CC=$(bash scripts/build/install-freebsd-toolchain.sh arm64)
+export CC
+bash scripts/build/release.sh freebsd arm64
+bash scripts/build/check-freebsd-binary.sh yuhaiin-freebsd-arm64
+```
+
+This avoids compiling Go and SQLite inside an ARM VM emulated on x86. Go
+[requires GNU ld.bfd for FreeBSD ARM64 external linking](https://github.com/golang/go/issues/35197);
+Clang with an LLVM-only linker is insufficient. SQLite stays compiled into the
+executable, with only FreeBSD libc, libthr and libm allowed as shared dependencies.
+The release and three regression binaries are inspected for their ELF/Go target,
+FreeBSD ABI note and loader, dependencies, undefined SQLite imports and host
+library search paths. These checks do not execute ARM64 FreeBSD code; runtime
+qualification requires an actual FreeBSD host.
+
+### OpenBSD cross compilation
+
+`scripts/build/install-openbsd-toolchain.sh ARCH` installs the official OpenBSD
+7.8 headers, startup objects and system libraries from checksum-pinned `base78`
+and `comp78` sets. It reuses the existing pinned native LLVM distribution from
+`install-windows-toolchain.sh`, with an OpenBSD target and sysroot. Clang and LLD
+23.1.2 support both amd64 and arm64, including the Go-required NOBTCFI header.
+No compiler needs to be built from source. Set `RUNNER_TEMP` to a writable scratch
+directory; `OPENBSD_CROSS_ROOT` optionally selects the installation directory.
+
+```sh
+CC=$(bash scripts/build/install-openbsd-toolchain.sh arm64)
+export CC
+bash scripts/build/release.sh openbsd arm64
+bash scripts/build/check-openbsd-binary.sh yuhaiin-openbsd-arm64 arm64
+```
+
+The wrapper supplies unversioned library aliases for upstream LLD, preserving the
+official library SONAMEs in the executable. It normalizes Go's native `-nopie`
+spelling and merges startup-object Retguard cookies into `.openbsd.randomdata`.
+LLD emits the RANDOMIZE and NOBTCFI program headers; immediate binding and RELRO
+protect the random data and relocation tables after startup. The inspector
+rejects orphan Retguard sections, missing security headers, random data outside
+RANDOMIZE/RELRO, writable executable segments, host search paths and shared SQLite.
+Only the SDK's libc, libpthread and libm may remain shared.
+
+The workflow caches the SDK and LLVM by host, target architecture and installer
+hash; amd64/v3/v4 share one SDK cache. Go module/compiler caches also apply. Normal
+release builds run entirely on Linux. Cross-linked test binaries validate build
+and link compatibility; executing them requires an OpenBSD host.
+
+Initial qualification on 2026-11-04 executed the Linux-built storage, FakeIP and
+migration tests plus the release's `version` command on OpenBSD 7.8
+[amd64](https://github.com/yuhaiin/yuhaiin/actions/runs/41855486241/job/126668220903)
+and [arm64](https://github.com/yuhaiin/yuhaiin/actions/runs/41855486241/job/126668612096).
+Both passed. The temporary execution VMs were then removed from the workflow.
+The first uncached Linux builds took 3m46s for amd64 and 4m11s for arm64,
+including SDK/LLVM installation and all binary inspections.
 
 ## Validation
 

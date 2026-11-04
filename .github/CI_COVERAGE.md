@@ -11,13 +11,23 @@ Specialized coverage stays separate:
 | --- | --- |
 | `lint.yml` | Formatting, Go fixes, actionlint, shellcheck and golangci-lint |
 | `tests.yml` | Default race tests, release-tag DNS and nil-connection tests, dependency boundaries |
-| `test-sqlite.yml` | Both SQLite backends, CGO-disabled builds and alternate-backend authentication |
+| `test-sqlite.yml` | PureGo embedded and static CGO, application persistence/identity/recovery, Linux ARM, desktop test cross-compilation, MIPS QEMU, glibc/musl ABI/update selection; native macOS/Windows CPUs weekly or manually |
+| `go.yml` / `build-binary.yml` | Release cross-compilation and PE/ELF checks; FreeBSD ARM64 and OpenBSD also cross-link storage, FakeIP and migration regressions |
 | `lightweight-stack.yml` | Portable checksum fallback, Linux kernel peers, all eight portable core targets, three cross-platform test builds, ARM64 QEMU |
 | `reliability.yml` | Real installed-service recovery and protected-update drills for system and user services |
 | `ssh-session.yml` | Native Linux SSH isolation with TUN and cgroup v2 |
-| `profiler.yml` | Native macOS and Windows profiler behavior; Linux is covered by the application group |
+| `profiler.yml` | macOS/Windows amd64/arm64 test cross-compilation on PRs; native profiler behavior weekly or manually; Linux runtime coverage in the application group |
 | Protocol interop workflows | Real independent protocol implementations and container fixtures |
-| `test-windows.yml` | Native recovery durability, rollback, ACLs and release executable smoke tests |
+
+`go.yml` cross-compiles Windows releases on Linux and checks PE architecture,
+PureGo/embedded-library metadata and system DLL imports. It has no native Windows
+release executable or CLI recovery/startup qualification job. Independent native
+Windows SQLite/profiler regressions run weekly or manually, alongside the macOS
+regressions. They do not request native desktop runners for PRs or main pushes.
+PRs instead cross-compile the desktop regression executables on Linux for both
+amd64 and arm64. Cross-compilation checks Go/platform compatibility and linking;
+it cannot verify native library loading, filesystem behavior or profiler capture.
+Optional performance workflows remain.
 
 Do not repeat ordinary `go test -race` commands in interop workflows. Build tags,
 CGO settings, native operating systems and privileged fixtures provide additional

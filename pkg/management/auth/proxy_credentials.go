@@ -210,7 +210,7 @@ func (p *ProxyCredentials) load() (map[string]*proxyRecord, error) {
 	// One read transaction gives credentials and memberships a consistent view.
 	// Intern memberships per owner and retain unchanged slices across reloads:
 	// 64 device credentials must not copy the same group set 64 times per second.
-	tx, err := p.store.db.BeginTx(p.ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := p.store.db.BeginTx(p.ctx, nil)
 	if err != nil {
 		return nil, err
 	}

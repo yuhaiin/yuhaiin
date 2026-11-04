@@ -25,7 +25,7 @@ func readRuleChange(ctx context.Context, tx *sql.Tx, id string) (RouteRuleChange
 	return RouteRuleChange{Draft: draft, Priority: priority}, err
 }
 func (s *RouteRuleStore) RuleChange(ctx context.Context, id string) (RouteRuleChange, error) {
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return RouteRuleChange{}, err
 	}

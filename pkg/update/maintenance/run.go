@@ -32,7 +32,10 @@ func verify(ctx context.Context, path string, m compatibility.Manifest) error {
 	if err != nil || observed.SHA256 != m.SHA256 {
 		return errors.New("update executable checksum changed")
 	}
-	return m.VerifyPlatform(path)
+	if err := m.VerifyPlatform(path); err != nil {
+		return err
+	}
+	return compatibility.VerifyHostLibc(path)
 }
 
 func Run(ctx context.Context, directory, id string, host Host) (resultErr error) {
