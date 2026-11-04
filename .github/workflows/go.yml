@@ -41,6 +41,7 @@ jobs:
           - {os: windows, arch: amd64, runner: ubuntu-latest}
           - {os: freebsd, arch: amd64, runner: ubuntu-latest}
           - {os: openbsd, arch: amd64, runner: ubuntu-latest}
+          - {os: openbsd, arch: arm64, runner: ubuntu-latest}
           - {os: android, arch: arm64, runner: ubuntu-latest}
     uses: ./.github/workflows/build-binary.yml
     with:
