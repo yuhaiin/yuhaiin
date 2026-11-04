@@ -380,8 +380,6 @@ github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8 h1:RjLnVvlzK4q6zWaSBP
 github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8/go.mod h1:ptlSkJ8k/7IDauNH0SA96JPOo+nYGLTv2Y3UMpwvAsY=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
-github.com/yuhaiin/purego-sqlite v0.0.0-20261104085928-183747df4cdd h1:SvSC1cRMULyxqAeGrWL0y8kBsLd/G59v+3HExOg4eCo=
-github.com/yuhaiin/purego-sqlite v0.0.0-20261104085928-183747df4cdd/go.mod h1:VSa+PkdtQiakhsNFtNoppFn2H/sc2hssbfHDXY1hZM8=
 github.com/yuhaiin/purego-sqlite v0.0.0-20261104093127-106b7c606e96 h1:KMfNzz+vQdhkAzSZSObNi8puUQ2MlLm1Km+OpbYzBL0=
 github.com/yuhaiin/purego-sqlite v0.0.0-20261104093127-106b7c606e96/go.mod h1:VSa+PkdtQiakhsNFtNoppFn2H/sc2hssbfHDXY1hZM8=
 github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104081830-4c4a60e5eb53 h1:H0p2DGkhYfVlH++14QE/M8SBpboLPpF0PvoSTPjODu4=

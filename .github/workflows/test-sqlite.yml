@@ -119,6 +119,12 @@ jobs:
           cache-scope: sqlite-native-${{ matrix.runner }}
       - name: Execute the embedded engine on the actual OS and CPU
         run: |
+          # Recovery fixtures compare deployment paths; macOS exposes /var
+          # through a symlink while production canonicalizes its data directory.
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            TMPDIR=$(cd "$TMPDIR" && pwd -P)
+            export TMPDIR
+          fi
           go test -count=1 -timeout=8m ./pkg/storage/sqlite ./pkg/store/...             ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/migrate ./pkg/node             ./pkg/app/backup/... ./pkg/security/configchange ./pkg/update/maintenance
 
   linux-abi:
