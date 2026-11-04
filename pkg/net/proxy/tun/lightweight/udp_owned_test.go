@@ -26,9 +26,9 @@ func TestUDPOwnedPacketWireFormat(t *testing.T) {
 	defer s.Close()
 
 	for _, tc := range []struct {
-		name string
+		name     string
 		src, dst string
-		size int
+		size     int
 	}{
 		{"ipv4 empty", "192.0.2.1:1000", "192.0.2.2:2000", 0},
 		{"ipv4 exact mtu", "192.0.2.1:1000", "192.0.2.2:2000", 1252},
