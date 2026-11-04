@@ -9,8 +9,8 @@ import (
 
 func TestUDPCacheKey(t *testing.T) {
 	for _, test := range []struct {
-		id uint16
-		name string
+		id    uint16
+		name  string
 		qtype uint16
 	}{
 		{0, ".", 1},
