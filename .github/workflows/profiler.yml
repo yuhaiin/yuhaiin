@@ -11,6 +11,10 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/profiler.yml'
+      - '.github/actions/setup-go/**'
+      - 'scripts/ci/compile-tests.sh'
+  schedule:
+    - cron: '53 3 * * 6'
   workflow_dispatch:
 
 # Drop superseded automatic checks; preserve explicitly dispatched runs.
@@ -22,7 +26,30 @@ permissions:
   contents: read
 
 jobs:
+  profiler-cross-compile:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [darwin, windows]
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: profiler-cross-${{ matrix.os }}-${{ matrix.arch }}
+      - name: Cross-compile profiler test executable without running it
+        env:
+          TARGET_OS: ${{ matrix.os }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          bash scripts/ci/compile-tests.sh "$TARGET_OS" "$TARGET_ARCH" \
+            "$RUNNER_TEMP/profiler-tests/$TARGET_OS-$TARGET_ARCH" ./pkg/app
+
   profiler-tests:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -31,9 +58,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          cache: true
+          cache-scope: profiler-native-${{ matrix.os }}
       - name: Verify profiler capture and official viewer
         run: go test -count=1 ./pkg/app -run '^TestProfiler'

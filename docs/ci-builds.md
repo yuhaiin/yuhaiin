@@ -28,15 +28,23 @@ binary's architecture, PureGo/embedded-library metadata, and system DLL imports.
 It does not start a Windows runner or execute the release binary. The former
 `pr-windows-test` and release `windows-test` jobs have been removed, including
 their recovery/CLI startup checks and release dependencies. Independent SQLite
-native-platform regressions remain in `test-sqlite.yml`; they do not replace the
-removed release executable and CLI startup qualification.
+native-platform regressions remain in `test-sqlite.yml` as weekly/manual jobs;
+they do not replace the removed release executable and CLI startup qualification.
 The release job only downloads artifacts matching `yuhaiin*`.
 
 `test-sqlite.yml` independently runs the SQLite storage, FakeIP, statistics, and
 legacy settings regressions with PureGo, PureGo under the race detector and
-fully static CGO, plus native desktop platforms, MIPS and Linux ABI checks. It runs
+fully static CGO, plus native Linux ARM, MIPS and Linux ABI checks. It runs
 for Go source, module, or its workflow changes on main pushes and pull requests,
-and can also be started manually. These tests do not gate binary publication.
+and can also be started manually. macOS/Windows amd64/arm64 regression executables
+are cross-compiled on Linux. Native macOS/Windows SQLite tests run every Saturday
+at 03:23 UTC or on manual dispatch, so hosted desktop runner queues do not block
+PRs. The profiler workflow likewise cross-compiles both desktop architectures on
+PRs and runs native macOS/Windows tests weekly at 03:53 UTC or manually. Linux
+profiler execution remains in the application race tests. Cross-compilation does
+not exercise native library loading, recovery/ACL behavior or profiler capture;
+those checks can detect regressions later in the weekly/manual runs. These tests
+do not gate binary publication.
 
 Windows SQLite performance comparisons are still opt-in. In Actions, select
 **SQLite regressions**, choose **Run workflow**, and enable the

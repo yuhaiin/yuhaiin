@@ -13,6 +13,7 @@ on:
       - 'pkg/migrate/**'
       - 'pkg/update/**'
       - 'scripts/build/**'
+      - 'scripts/ci/compile-tests.sh'
       - 'pkg/node/**'
       - 'pkg/app/backup/**'
       - 'pkg/management/auth/**'
@@ -35,6 +36,7 @@ on:
       - 'pkg/migrate/**'
       - 'pkg/update/**'
       - 'scripts/build/**'
+      - 'scripts/ci/compile-tests.sh'
       - 'pkg/node/**'
       - 'pkg/app/backup/**'
       - 'pkg/management/auth/**'
@@ -45,6 +47,8 @@ on:
       - go.sum
       - .github/workflows/test-sqlite.yml
       - .github/actions/setup-go/**
+  schedule:
+    - cron: '23 3 * * 6'
   workflow_dispatch:
     inputs:
       windows_benchmarks:
@@ -104,7 +108,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04-arm, macos-15-intel, macos-15, windows-2025, windows-11-arm]
+        # Desktop execution is weekly/manual; PRs and main pushes use Linux.
+        runner: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-24.04-arm", "macos-15-intel", "macos-15", "windows-2025", "windows-11-arm"]' || '["ubuntu-24.04-arm"]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     env:
@@ -145,6 +150,36 @@ jobs:
             go test -count=1 -timeout=5m -run '^TestWindowsRecoveryArtifactsHavePrivateACLs$' ./pkg/store/backup/archive
             YUH_WINDOWS_RECOVERY_REQUIRE=1 go test -count=1 -timeout=5m -run '^(TestRecoveryTransaction.*|TestWindowsRecovery.*|TestEncryptedRecoveryRetainsPrivateSourceURL)$' ./pkg/app/backup/recovery
           fi
+
+  desktop-cross-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [darwin, windows]
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: sqlite-cross-${{ matrix.os }}-${{ matrix.arch }}
+      - name: Cross-compile desktop regression executables without running them
+        env:
+          TARGET_OS: ${{ matrix.os }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          packages=(./pkg/storage/sqlite ./pkg/store/... ./pkg/net/dns/fakeip
+            ./pkg/statistics ./pkg/migrate ./pkg/security/configchange
+            ./pkg/update/maintenance ./pkg/node)
+          if [[ "$TARGET_OS" == darwin ]]; then
+            packages+=(./pkg/app/backup/...)
+          else
+            packages+=(./pkg/app/backup/internal/backupfs
+              ./pkg/store/backup/archive ./pkg/app/backup/recovery)
+          fi
+          bash scripts/ci/compile-tests.sh "$TARGET_OS" "$TARGET_ARCH" \
+            "$RUNNER_TEMP/sqlite-tests/$TARGET_OS-$TARGET_ARCH" "${packages[@]}"
 
   linux-abi:
     runs-on: ubuntu-24.04
