@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"net/netip"
+	"slices"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 )
@@ -15,6 +16,12 @@ type rtInfo struct {
 
 type router struct {
 	v4, v6 []rtInfo
+}
+
+// equal compares the complete route snapshot, not just the default interface.
+// Order is significant because trie insertion order can affect overlapping routes.
+func (r router) equal(other router) bool {
+	return slices.Equal(r.v4, other.v4) && slices.Equal(r.v6, other.v6)
 }
 
 func (r router) ToTrie() *cidr.Cidr[string] {

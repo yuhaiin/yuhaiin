@@ -381,11 +381,23 @@ func (r *UserUsage) sample(now time.Time) {
 		if u != 0 || d != 0 || a.millis != 0 {
 			r.addLocked(s, a, end)
 		}
+		// Keep the latest audit snapshot without repeatedly formatting unchanged
+		// counters for idle sessions (duration still advances normally).
+		if u != 0 {
+			s.audit.Upload = formatUint64(up)
+		}
+		if d != 0 {
+			s.audit.Download = formatUint64(down)
+		}
+		if millis != s.millis {
+			s.audit.DurationMillis = formatUint64(millis)
+		}
 		s.up, s.down, s.millis = up, down, millis
-		s.audit.Upload, s.audit.Download, s.audit.DurationMillis = formatUint64(up), formatUint64(down), formatUint64(millis)
-		l := r.userLocked(s.key.user)
-		l.upload += u
-		l.download += d
+		if u != 0 || d != 0 {
+			l := r.userLocked(s.key.user)
+			l.upload += u
+			l.download += d
+		}
 		r.auditLocked(s.audit)
 		if s.ended {
 			delete(r.sessions, s)

@@ -84,3 +84,33 @@ func TestRunNetworkMonitorCoalescesEvents(t *testing.T) {
 		t.Fatal("monitor did not stop")
 	}
 }
+
+// The route trie must be rebuilt when *any* route changes, including routes
+// unrelated to the default interface. Identical polls should reuse the trie.
+func TestRouterEquality(t *testing.T) {
+	original := router{
+		v4: []rtInfo{{Dst: netip.MustParsePrefix("0.0.0.0/0"), OutputIface: "en0", Gateway: netip.MustParseAddr("192.0.2.1")}},
+		v6: []rtInfo{{Dst: netip.MustParsePrefix("::/0"), OutputIface: "en0", Gateway: netip.MustParseAddr("2001:db8::1")}},
+	}
+	copyRoutes := router{
+		v4: append([]rtInfo(nil), original.v4...),
+		v6: append([]rtInfo(nil), original.v6...),
+	}
+	if !original.equal(copyRoutes) {
+		t.Fatal("identical routing tables must compare equal")
+	}
+	copyRoutes.v4[0].OutputIface = "en1"
+	if original.equal(copyRoutes) {
+		t.Fatal("changed output interface must invalidate the trie")
+	}
+	copyRoutes.v4[0] = original.v4[0]
+	copyRoutes.v6[0].Gateway = netip.MustParseAddr("2001:db8::2")
+	if original.equal(copyRoutes) {
+		t.Fatal("changed IPv6 gateway must invalidate the trie")
+	}
+	copyRoutes.v6[0] = original.v6[0]
+	copyRoutes.v4 = append(copyRoutes.v4, rtInfo{Dst: netip.MustParsePrefix("10.0.0.0/8"), OutputIface: "tun0"})
+	if original.equal(copyRoutes) {
+		t.Fatal("an unrelated route must invalidate the trie")
+	}
+}

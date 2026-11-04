@@ -51,6 +51,10 @@ func (l *Ledger) run() {
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	pending := make(map[*window]bool)
+	// Reuse funding batches across wakeups instead of allocating on every grant.
+	var windows []*window
+	var records []Record
+	var versions []uint64
 	var retryAt time.Time
 	nextCheckpoint := time.Now().Add(time.Second)
 	for {
@@ -98,9 +102,9 @@ func (l *Ledger) run() {
 		if len(pending) == 0 || now.Before(retryAt) {
 			continue
 		}
-		windows := make([]*window, 0, len(pending))
-		records := make([]Record, 0, len(pending))
-		versions := make([]uint64, 0, len(pending))
+		windows = windows[:0]
+		records = records[:0]
+		versions = versions[:0]
 		for w := range pending {
 			w.mu.Lock()
 			r := w.record
@@ -139,10 +143,11 @@ func (l *Ledger) checkpoint(ctx context.Context) error {
 		windows = append(windows, w)
 	}
 	l.mu.Unlock()
-	// Bounded transactions avoid retaining a second copy of the whole ledger.
-	records := make([]Record, 0, 256)
-	touched := make([]*window, 0, 256)
-	versions := make([]uint64, 0, 256)
+	// Allocate batches only for dirty windows, not on every idle checkpoint.
+	// Transactions remain capped at 256 records.
+	var records []Record
+	var touched []*window
+	var versions []uint64
 	flush := func() error {
 		if len(records) == 0 {
 			return nil
@@ -166,7 +171,7 @@ func (l *Ledger) checkpoint(ctx context.Context) error {
 			versions = append(versions, w.version)
 		}
 		w.mu.Unlock()
-		if len(records) == cap(records) {
+		if len(records) == 256 {
 			if err := flush(); err != nil {
 				return err
 			}
@@ -209,8 +214,9 @@ func (l *Ledger) prune(now time.Time) {
 func (l *Ledger) reclaim(ctx context.Context, now time.Time, shutdown bool) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	requests := make([]Reclaim, 0, 256)
-	windows := make([]*window, 0, 256)
+	// Most sweeps have nothing to reclaim. Avoid allocating empty batches.
+	var requests []Reclaim
+	var windows []*window
 	flush := func() error {
 		if len(requests) == 0 {
 			return nil
@@ -261,7 +267,7 @@ func (l *Ledger) reclaim(ctx context.Context, now time.Time, shutdown bool) erro
 		w.mu.Unlock()
 		requests = append(requests, Reclaim{Record: after, MaxCharged: maximum})
 		windows = append(windows, w)
-		if len(requests) == cap(requests) {
+		if len(requests) == 256 {
 			if err := flush(); err != nil {
 				return err
 			}
