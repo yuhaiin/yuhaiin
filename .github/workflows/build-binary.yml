@@ -25,7 +25,7 @@ defaults:
 
 jobs:
   build:
-    if: inputs.os != 'openbsd' && !(inputs.os == 'freebsd' && inputs.arch == 'arm64')
+    if: inputs.os != 'openbsd'
     runs-on: ${{ inputs.runner }}
     env:
       GOOS: ${{ inputs.os }}
@@ -57,6 +57,45 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y llvm
 
+      - name: Install FreeBSD cross compiler prerequisites
+        if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
+        id: freebsd-host
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y clang build-essential bison flex texinfo
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache FreeBSD ARM64 SDK and GNU linker
+        if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/freebsd-cross
+          key: freebsd-cross-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.freebsd-host.outputs.image }}-${{ hashFiles('scripts/build/install-freebsd-toolchain.sh') }}
+
+      - name: Install FreeBSD cross toolchain
+        if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
+        run: |
+          compiler=$(bash scripts/build/install-freebsd-toolchain.sh "$RELEASE_ARCH")
+          echo "CC=$compiler" >> "$GITHUB_ENV"
+
+      - name: Cross-link FreeBSD SQLite regression binaries
+        if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
+        env:
+          GOARCH: arm64
+          CGO_ENABLED: '1'
+        run: |
+          # Compilation/link qualification only: Linux cannot execute FreeBSD binaries.
+          for package in sqlite fakeip migrate; do
+            case "$package" in
+              sqlite) source=./pkg/storage/sqlite ;;
+              fakeip) source=./pkg/net/dns/fakeip ;;
+              migrate) source=./pkg/migrate ;;
+            esac
+            binary="$RUNNER_TEMP/$package-freebsd-arm64.test"
+            go test -c -tags=sqlite_cgo -o "$binary" "$source"
+            bash scripts/build/check-freebsd-binary.sh "$binary"
+          done
+
       - name: Build
         id: build
         env:
@@ -71,6 +110,12 @@ jobs:
           BINARY: ${{ steps.build.outputs.binary }}
         run: bash scripts/build/check-windows-binary.sh "$BINARY" "$RELEASE_ARCH"
 
+      - name: Verify FreeBSD ARM64 binary
+        if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
+        env:
+          BINARY: ${{ steps.build.outputs.binary }}
+        run: bash scripts/build/check-freebsd-binary.sh "$BINARY"
+
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
@@ -81,9 +126,9 @@ jobs:
           if-no-files-found: error
 
   bsd-linked:
-    if: inputs.os == 'openbsd' || (inputs.os == 'freebsd' && inputs.arch == 'arm64')
+    if: inputs.os == 'openbsd'
     runs-on: ubuntu-24.04
-    # ARM64 runs under CPU emulation; the first native Go/SQLite build is slow.
+    # OpenBSD ARM64 release targets still run under CPU emulation.
     timeout-minutes: 120
     env:
       GOOS: ${{ inputs.os }}
@@ -100,7 +145,7 @@ jobs:
         uses: cross-platform-actions/action@82668f1fbd89d9c99487604f822cbf6716f124d3 # v1.7.0
         with:
           operating_system: ${{ inputs.os }}
-          version: ${{ inputs.os == 'freebsd' && '14.3' || '7.8' }}
+          version: '7.8'
           architecture: ${{ inputs.arch == 'arm64' && 'arm64' || 'x86-64' }}
           cpu_count: 4
           memory: 10G
@@ -109,11 +154,7 @@ jobs:
         shell: cpa.sh {0}
         run: |
           set -eu
-          if [ "$GOOS" = freebsd ]; then
-            sudo pkg install -y bash gmake binutils curl ca_root_nss
-          else
-            sudo pkg_add bash gmake curl
-          fi
+          sudo pkg_add bash gmake curl
           bash scripts/build/install-bsd-go.sh "$GOOS" "$RELEASE_ARCH"
       - name: Test linked SQLite and build the release
         shell: cpa.sh {0}

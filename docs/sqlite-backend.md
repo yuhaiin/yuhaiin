@@ -65,6 +65,11 @@ Coverage includes old modernc/mattn configuration and management fixtures,
 reconnect settings, cancellation, migrations, triggers/FTS/JSON, private file
 permissions, authentication, FakeIP, statistics, committed WAL backups and
 recovery. CI executes both backends, native desktop OS/CPU combinations, MIPS
-under QEMU and BSD CGO inside native VMs. `scripts/build/test-linux-abi.sh` checks
+under QEMU and OpenBSD CGO inside VMs. FreeBSD ARM64 releases and regression
+executables are cross-linked on Linux with Clang, GNU ld.bfd and the official
+FreeBSD 14.3 sysroot. ELF inspection verifies the architecture, OS, system loader
+and dependencies: SQLite is linked into the executable; only FreeBSD libc,
+libthr and libm may be shared. This is compilation/link validation, not a
+FreeBSD ARM64 runtime test. `scripts/build/test-linux-abi.sh` checks
 real glibc 2.17, newer glibc, glibc 2.12, Alpine/musl and scratch environments,
 including update selection and rejecting incompatible staged targets.
