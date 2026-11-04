@@ -124,15 +124,21 @@ func (f *fragmentTable) add(p Packet) (Packet, bool, error) {
 	if g.end < 0 || g.bytes != g.end {
 		return Packet{}, false, nil
 	}
-	payload := make([]byte, g.end)
-	for _, v := range g.parts {
-		copy(payload[v.offset:], v.data)
+	// Reassemble straight into the IP frame instead of a payload copy that
+	// makeIP would copy again.
+	h, err := ipHeaderSize(p.Source, p.Destination, g.end)
+	var data []byte
+	if err == nil {
+		data = make([]byte, h+g.end)
+		fillIPHeader(data, p.Source, p.Destination, p.Protocol, uint16(p.FragmentID), h)
+		for _, v := range g.parts {
+			copy(data[h+v.offset:], v.data)
+		}
 	}
 	f.discard(g)
 	f.stack.release(256)
 	delete(f.groups, k)
 	f.schedule()
-	data, err := makeIP(p.Source, p.Destination, p.Protocol, payload, uint16(p.FragmentID))
 	if err != nil {
 		return Packet{}, false, err
 	}
@@ -198,8 +204,7 @@ func (s *Stack) sendDatagram(src, dst flowAddress, proto uint8, payload []byte) 
 			binary.BigEndian.PutUint32(fragment[4:8], id)
 		}
 		copy(packet.data[dataOffset+fragmentHeader:], payload[off:end])
-		if err := s.emitOwned(packet); err != nil {
-			packet.release()
+		if err := s.sendOwned(packet); err != nil {
 			return err
 		}
 	}

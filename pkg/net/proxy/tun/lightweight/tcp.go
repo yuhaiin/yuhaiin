@@ -464,7 +464,11 @@ func (s *Stack) reset(p Packet) {
 		return
 	}
 	h := int(b[12]>>4) * 4
-	reply := make([]byte, 20)
+	packet, reply, err := s.ipFrame(p.Destination, p.Source, 6, 20)
+	if err != nil {
+		return
+	}
+	clear(reply) // A pooled frame may contain a previous packet.
 	copy(reply[:2], b[2:4])
 	copy(reply[2:4], b[:2])
 	reply[12] = 5 << 4
@@ -483,7 +487,7 @@ func (s *Stack) reset(p Packet) {
 		reply[13] |= flagACK
 	}
 	binary.BigEndian.PutUint16(reply[16:18], transportChecksum(p.Destination, p.Source, 6, reply))
-	if s.sendIP(p.Destination, p.Source, 6, reply) == nil {
+	if s.sendOwned(packet) == nil {
 		s.rstSent.Add(1)
 	}
 }

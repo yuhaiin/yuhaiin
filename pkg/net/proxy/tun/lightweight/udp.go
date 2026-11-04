@@ -218,21 +218,16 @@ func (s *Stack) WriteUDP(src, dst netip.AddrPort, b []byte) (int, error) {
 	}
 	// The common, unfragmented path writes the UDP header and payload
 	// directly into an owned IP frame: one copy, no temporary UDP/IP arrays.
-	h, err := ipHeaderSize(src.Addr(), dst.Addr(), 8+len(b))
-	if err != nil {
-		return 0, err
-	}
-	if h+8+len(b) <= s.config.MTU {
-		packet, offset, err := s.ipBuffer(src.Addr(), dst.Addr(), 17, 8+len(b))
-		if err != nil {
-			return 0, err
-		}
-		fillUDPPayload(packet.data[offset:], src, dst, b)
-		if err := s.emitOwned(packet); err != nil {
-			packet.release()
+	packet, frame, err := s.ipFrame(src.Addr(), dst.Addr(), 17, 8+len(b))
+	if err == nil {
+		fillUDPPayload(frame, src, dst, b)
+		if err := s.sendOwned(packet); err != nil {
 			return 0, err
 		}
 		return len(b), nil
+	}
+	if !errors.Is(err, ErrMTU) {
+		return 0, err
 	}
 
 	// A fragmented datagram still needs one contiguous UDP payload for the
