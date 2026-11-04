@@ -17,7 +17,11 @@ Specialized coverage stays separate:
 | `ssh-session.yml` | Native Linux SSH isolation with TUN and cgroup v2 |
 | `profiler.yml` | Native macOS and Windows profiler behavior; Linux is covered by the application group |
 | Protocol interop workflows | Real independent protocol implementations and container fixtures |
-| `test-windows.yml` | Native recovery durability, rollback, ACLs and release executable smoke tests |
+
+`go.yml` cross-compiles Windows releases on Linux and checks PE architecture,
+PureGo/embedded-library metadata and system DLL imports. It has no native Windows
+release executable or CLI recovery/startup qualification job. Independent native
+Windows SQLite/profiler regressions and optional performance workflows remain.
 
 Do not repeat ordinary `go test -race` commands in interop workflows. Build tags,
 CGO settings, native operating systems and privileged fixtures provide additional

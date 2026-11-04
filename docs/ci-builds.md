@@ -2,10 +2,9 @@
 
 `.github/workflows/go.yml` defines the build targets. Pull requests build eleven
 representative binaries (Linux amd64/arm64 in static and glibc forms, MIPS,
-macOS arm64, Windows amd64, FreeBSD amd64/arm64, OpenBSD amd64, and Android arm64), run the Windows amd64
-executable on a native runner, and build the Android AAR. Full releases on
-`main` pushes and version tags still wait for all 26 binary targets, the native
-Windows x64/ARM64 smoke tests, and the Android AAR before publication:
+macOS arm64, Windows amd64, FreeBSD amd64/arm64, OpenBSD amd64, and Android arm64)
+and build the Android AAR. Full releases on `main` pushes and version tags wait
+for all 26 binary targets and the Android AAR before publication:
 
 | Job | Targets | Build environment | SQLite |
 | --- | --- | --- | --- |
@@ -24,10 +23,13 @@ runs these tests inside its VM. The v3/v4 binaries are built without executing t
 that may lack the required CPU instructions. Makefile's build-tag generator always runs with
 `GOAMD64=v1`, independently of the target binary's CPU level.
 
-`test-windows.yml` runs the executable's `version` command on a native Windows
-x64 runner for PRs and on both x64/ARM64 runners before release publication.
-Each Windows build also verifies
-the binary's architecture, PureGo/embedded-library metadata, and system DLL imports.
+The binary workflow cross-compiles Windows releases on Linux and verifies the
+binary's architecture, PureGo/embedded-library metadata, and system DLL imports.
+It does not start a Windows runner or execute the release binary. The former
+`pr-windows-test` and release `windows-test` jobs have been removed, including
+their recovery/CLI startup checks and release dependencies. Independent SQLite
+native-platform regressions remain in `test-sqlite.yml`; they do not replace the
+removed release executable and CLI startup qualification.
 The release job only downloads artifacts matching `yuhaiin*`.
 
 `test-sqlite.yml` independently runs the SQLite storage, FakeIP, statistics, and

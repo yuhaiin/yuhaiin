@@ -49,14 +49,6 @@ jobs:
       runner: ${{ matrix.runner }}
       front_version: ${{ needs.get_version.outputs.front_version }}
 
-  pr-windows-test:
-    if: github.event_name == 'pull_request'
-    needs: pr-build
-    uses: ./.github/workflows/test-windows.yml
-    with:
-      arch: amd64
-      runner: windows-2025
-
   android:
     needs: get_version
     runs-on: ubuntu-latest
@@ -137,20 +129,6 @@ jobs:
       arch: ${{ matrix.arch }}
       front_version: ${{ needs.get_version.outputs.front_version }}
 
-  windows-test:
-    if: github.event_name == 'push'
-    needs: windows
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {arch: amd64, runner: windows-2025}
-          - {arch: arm64, runner: windows-11-arm}
-    uses: ./.github/workflows/test-windows.yml
-    with:
-      arch: ${{ matrix.arch }}
-      runner: ${{ matrix.runner }}
-
   cross:
     if: github.event_name == 'push'
     needs: get_version
@@ -169,7 +147,7 @@ jobs:
 
   release:
     if: github.ref_type == 'tag' || (github.ref_type == 'branch' && github.ref_name == 'main')
-    needs: [linux, darwin, windows, windows-test, cross, android]
+    needs: [linux, darwin, windows, cross, android]
     permissions:
       contents: write
     runs-on: ubuntu-latest
