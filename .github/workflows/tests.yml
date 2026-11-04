@@ -130,11 +130,11 @@ jobs:
             ./pkg/net/netapi ./pkg/net/dialer ./pkg/net/proxy/tailscale
       - name: Keep offline recovery independent of unsupported native bridges
         run: |
-          for target in android/arm64/0 android/amd64/0 android/amd64/1 freebsd/amd64/0 openbsd/amd64/0; do
+          for target in android/arm64/1 android/amd64/1 freebsd/amd64/0 openbsd/amd64/1; do
             IFS=/ read -r target_os target_arch target_cgo <<< "$target"
             GOOS="$target_os" GOARCH="$target_arch" CGO_ENABLED="$target_cgo" \
               go list -deps ./pkg/app > "$RUNNER_TEMP/recovery-dependencies"
-            if grep -E '^(github.com/yuhaiin/zerotier-go|github.com/ebitengine/purego)(/|$)' "$RUNNER_TEMP/recovery-dependencies"; then
+            if grep -E '^github.com/yuhaiin/zerotier-go(/|$)' "$RUNNER_TEMP/recovery-dependencies"; then
               echo "offline recovery bypasses the native bridge platform boundary on $target" >&2
               exit 1
             fi

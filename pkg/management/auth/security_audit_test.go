@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -87,7 +88,7 @@ func TestAuditQueueOverflowRetentionAndMetadata(t *testing.T) {
 	if err != nil || len(events) != 66 || events[0].AuthMethod != "token" || events[0].Reason != "permission.denied" || events[0].CredentialID != "credential" {
 		t.Fatalf("events=%+v err=%v", events, err)
 	}
-	if _, err := s.db.ExecContext(t.Context(), `UPDATE management_security_events SET occurred_at=1; UPDATE management_audit_outbox SET created_at=1`); err != nil {
+	if _, err := sqlitetest.Exec(t.Context(), s.db, `UPDATE management_security_events SET occurred_at=1;`, `UPDATE management_audit_outbox SET created_at=1`); err != nil {
 		t.Fatal(err)
 	}
 	appendTestAudit(t, s, "local.updated", "new")

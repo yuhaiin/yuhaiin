@@ -13,7 +13,10 @@ else
 	BUILD_TIME	:= $(shell date)
 endif
 
-CGO_ENABLED ?= 0
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+SQLITE_PUREGO_TARGETS = linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64
+CGO_ENABLED ?= $(if $(filter $(GOOS)/$(GOARCH),$(SQLITE_PUREGO_TARGETS)),0,1)
 STATIC_LINK ?= 0
 
 GO=$(shell command -v go | head -n1)
@@ -31,7 +34,7 @@ ifeq ($(STATIC_LINK),1)
 GO_LDFLAGS += -linkmode external -extldflags "-static"
 endif
 
-GO_GCFLAGS=
+GO_GCFLAGS ?=
 # GO_GCFLAGS= -m
 
 GOHOSTOS := $(shell $(GO) env GOHOSTOS)
@@ -95,6 +98,8 @@ define build
 	$(if $(filter mipsle, $(ARCH)),$(eval MIPS := softfloat),)
 	$(if $(filter lite, $(MODE)),$(eval SUFFIX := _lite),)
 	$(if $(filter windows, $(OS)),$(if $(SUFFIX), $(eval SUFFIX := $(addsuffix .exe, $(SUFFIX))), $(eval SUFFIX := .exe)),)
+	$(eval GOOS := $(OS))
+	$(eval GOARCH := $(ARCH))
 	$(eval BUILD_OUTPUT := yuhaiin_$(OS)_$(ARCH)$(AMD64V)$(SUFFIX))
 
 	$(info OS: $(OS), ARCH: $(ARCH), MODE: $(if $(MODE),$(MODE),full), SUFFIX: $(SUFFIX))

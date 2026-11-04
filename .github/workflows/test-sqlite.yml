@@ -9,6 +9,8 @@ on:
       - 'pkg/net/dns/fakeip/**'
       - 'pkg/statistics/**'
       - 'pkg/migrate/**'
+      - 'pkg/update/**'
+      - 'scripts/build/**'
       - 'pkg/node/**'
       - 'pkg/app/backup/**'
       - 'pkg/management/auth/**'
@@ -27,6 +29,8 @@ on:
       - 'pkg/net/dns/fakeip/**'
       - 'pkg/statistics/**'
       - 'pkg/migrate/**'
+      - 'pkg/update/**'
+      - 'scripts/build/**'
       - 'pkg/node/**'
       - 'pkg/app/backup/**'
       - 'pkg/management/auth/**'
@@ -40,7 +44,7 @@ on:
   workflow_dispatch:
     inputs:
       windows_benchmarks:
-        description: Build and compare both Windows SQLite backends
+        description: Compare PureGo embedded and static CGO SQLite on Windows
         type: boolean
         default: false
 
@@ -55,38 +59,96 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {backend: mattn, cgo: '1'}
-          - {backend: modernc, cgo: '0'}
+          - {backend: purego, cgo: '0', tags: '', flags: '', cc: gcc}
+          - {backend: purego-race, cgo: '1', tags: sqlite_purego, flags: '-race', cc: gcc}
+          - {backend: cgo-static, cgo: '1', tags: sqlite_cgo, flags: '', cc: musl-gcc}
     env:
       CGO_ENABLED: ${{ matrix.cgo }}
-      SQLITE_BACKEND: ${{ matrix.backend }}
+      SQLITE_TAGS: ${{ matrix.tags }}
+      SQLITE_FLAGS: ${{ matrix.flags }}
+      CC: ${{ matrix.cc }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
         with:
           cache-scope: test-sqlite-${{ matrix.backend }}
-      - name: Test storage, FakeIP, statistics, and state initialization
-        run: |
-          go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
-            ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/migrate ./pkg/node
-      - name: Test S3 configuration backup snapshots
-        run: |
-          go test -timeout=5m -tags="sqlite_${SQLITE_BACKEND},stdlibjson,debug,fts5" \
-            -run '^TestBackup' ./pkg/app/backup
-
       - uses: actions/setup-node@v7
-        if: matrix.backend == 'mattn'
         with:
           node-version: '26'
-      - name: Test management authentication with the alternate SQLite backend
-        if: matrix.backend == 'mattn'
+      - name: Install musl for fully static tests
+        if: matrix.backend == 'cgo-static'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Test application persistence, identity, backups and recovery
         run: |
-          go test -count=1 -tags=sqlite_mattn,fts5 -timeout=180s \
-            ./pkg/storage/sqlite ./pkg/management/auth
+          flags=()
+          if [[ "$SQLITE_FLAGS" == '-race' ]]; then flags+=(-race); fi
+          if [[ "$CC" == musl-gcc ]]; then flags+=('-ldflags=-linkmode external -extldflags -static'); fi
+          go test -count=1 -timeout=8m "${flags[@]}" -tags="${SQLITE_TAGS},stdlibjson,debug,fts5"             ./pkg/storage/sqlite ./pkg/store/... ./pkg/net/dns/fakeip ./pkg/statistics             ./pkg/migrate ./pkg/node ./pkg/app/backup/... ./pkg/management/auth             ./pkg/security/configchange ./pkg/update/maintenance
+      - name: Verify static test binary has no loader or SQLite dependency
+        if: matrix.backend == 'cgo-static'
+        run: |
+          go test -c -tags=sqlite_cgo -ldflags='-linkmode external -extldflags -static'             -o "$RUNNER_TEMP/sqlite-static.test" ./pkg/storage/sqlite
+          if readelf -l "$RUNNER_TEMP/sqlite-static.test" | grep 'INTERP'; then exit 1; fi
+          (cd pkg/storage/sqlite && "$RUNNER_TEMP/sqlite-static.test" -test.run=TestLegacyDriverDatabases)
+
+  native-platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04-arm, macos-15-intel, macos-15, windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: '0'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: sqlite-native-${{ matrix.runner }}
+      - name: Execute the embedded engine on the actual OS and CPU
+        run: |
+          go test -count=1 -timeout=8m ./pkg/storage/sqlite ./pkg/store/...             ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/migrate ./pkg/node             ./pkg/app/backup/... ./pkg/security/configchange ./pkg/update/maintenance
+
+  linux-abi:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: sqlite-linux-abi
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Test actual glibc 2.17, older glibc, musl and scratch hosts
+        run: bash scripts/build/test-linux-abi.sh
+
+  mipsle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: sqlite-mipsle
+      - run: sudo apt-get update && sudo apt-get install -y qemu-user
+      - name: Build and run static fallback on MIPS little endian
+        run: |
+          compiler=$(bash scripts/build/install-musl-toolchain.sh mipsle)
+          export GOOS=linux GOARCH=mipsle GOMIPS=softfloat CGO_ENABLED=1 CC="$compiler"
+          for package in sqlite fakeip; do
+            path=./pkg/storage/sqlite
+            if [[ "$package" == fakeip ]]; then path=./pkg/net/dns/fakeip; fi
+            go test -c -ldflags='-linkmode external -extldflags -static' -o "$RUNNER_TEMP/$package.test" "$path"
+            if readelf -l "$RUNNER_TEMP/$package.test" | grep 'INTERP'; then exit 1; fi
+            (cd "$path" && qemu-mipsel "$RUNNER_TEMP/$package.test" -test.v -test.timeout=10m)
+          done
 
   benchmark-compile:
     if: github.event_name == 'workflow_dispatch' && inputs.windows_benchmarks
@@ -113,11 +175,11 @@ jobs:
       - name: Compile both SQLite backends
         run: |
           mkdir -p windows-benchmarks
-          CGO_ENABLED=1 go test -c -tags=sqlite_mattn,stdlibjson,debug,fts5 \
+          CGO_ENABLED=1 go test -c -tags=sqlite_cgo,stdlibjson,debug,fts5 \
             -ldflags='-linkmode external -extldflags -static' \
-            -o windows-benchmarks/statistics-mattn.test.exe ./pkg/statistics
-          CGO_ENABLED=0 go test -c -tags=sqlite_modernc,stdlibjson,debug,fts5 \
-            -o windows-benchmarks/statistics-modernc.test.exe ./pkg/statistics
+            -o windows-benchmarks/statistics-cgo.test.exe ./pkg/statistics
+          CGO_ENABLED=0 go test -c -tags=sqlite_purego,stdlibjson,debug,fts5 \
+            -o windows-benchmarks/statistics-purego.test.exe ./pkg/statistics
       - name: Upload benchmark executables
         uses: actions/upload-artifact@v7
         with:
@@ -147,7 +209,7 @@ jobs:
           path: windows-benchmarks
       - name: Compare SQLite performance
         run: |
-          foreach ($backend in @("modernc", "mattn")) {
+          foreach ($backend in @("purego", "cgo")) {
             & ".\windows-benchmarks\statistics-$backend.test.exe" '-test.run=^$' '-test.bench=BenchmarkPersistConnection|BenchmarkAllInfos|BenchmarkTelemetryFlush' '-test.benchmem' '-test.benchtime=500ms' '-test.count=3' '-test.timeout=5m' |
               Tee-Object -FilePath "windows-benchmarks\benchmark-$backend.txt"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

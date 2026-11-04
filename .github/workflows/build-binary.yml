@@ -25,6 +25,7 @@ defaults:
 
 jobs:
   build:
+    if: inputs.os != 'openbsd' && !(inputs.os == 'freebsd' && inputs.arch == 'arm64')
     runs-on: ${{ inputs.runner }}
     env:
       GOOS: ${{ inputs.os }}
@@ -45,38 +46,16 @@ jobs:
         run: go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
 
       - name: Install Linux cgo toolchain
-        if: inputs.os == 'linux'
+        if: inputs.os == 'linux' && !endsWith(inputs.arch, '-glibc')
         run: |
           compiler=$(bash scripts/build/install-musl-toolchain.sh "$RELEASE_ARCH")
           echo "CC=$compiler" >> "$GITHUB_ENV"
 
-      - name: Install Darwin compiler dependencies
-        if: inputs.os == 'darwin'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-18 llvm-18 lld-18 g++ make patch xz-utils bzip2 cpio
-          echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
-
-      - name: Restore Darwin toolchain
-        if: inputs.os == 'darwin'
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/osxcross
-          key: osxcross-ubuntu24-${{ runner.arch }}-${{ hashFiles('scripts/build/install-darwin-toolchain.sh') }}
-
-      - name: Set up Darwin cgo compiler
-        if: inputs.os == 'darwin'
-        run: |
-          compiler=$(bash scripts/build/install-darwin-toolchain.sh "$RELEASE_ARCH")
-          echo "CC=$compiler" >> "$GITHUB_ENV"
-          echo "MACOSX_DEPLOYMENT_TARGET=13.0" >> "$GITHUB_ENV"
-          echo "${compiler%/*}" >> "$GITHUB_PATH"
-
-      - name: Install Windows cgo toolchain
+      - name: Install Windows binary inspection tool
         if: inputs.os == 'windows'
         run: |
-          compiler=$(bash scripts/build/install-windows-toolchain.sh "$RELEASE_ARCH")
-          echo "CC=$compiler" >> "$GITHUB_ENV"
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y llvm
 
       - name: Build
         id: build
@@ -90,7 +69,7 @@ jobs:
         if: inputs.os == 'windows'
         env:
           BINARY: ${{ steps.build.outputs.binary }}
-        run: LLVM_READOBJ="${CC%/*}/llvm-readobj" bash scripts/build/check-windows-binary.sh "$BINARY" "$RELEASE_ARCH"
+        run: bash scripts/build/check-windows-binary.sh "$BINARY" "$RELEASE_ARCH"
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
@@ -99,4 +78,58 @@ jobs:
           path: |
             ${{ steps.build.outputs.binary }}
             ${{ steps.build.outputs.binary }}.update.json
+          if-no-files-found: error
+
+  bsd-linked:
+    if: inputs.os == 'openbsd' || (inputs.os == 'freebsd' && inputs.arch == 'arm64')
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    env:
+      GOOS: ${{ inputs.os }}
+      RELEASE_ARCH: ${{ inputs.arch }}
+      FRONT_VERSION: ${{ inputs.front_version }}
+      RELEASE_CHANNEL: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && 'main' || (contains(github.ref_name, 'beta') && 'beta' || 'stable') }}
+      RELEASE_VERSION: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && format('main-{0}', github.sha) || '' }}
+      RELEASE_TIMESTAMP: ${{ github.ref_type == 'branch' && github.ref_name == 'main' && github.event.head_commit.timestamp || '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Start native BSD build VM
+        uses: cross-platform-actions/action@82668f1fbd89d9c99487604f822cbf6716f124d3 # v1.7.0
+        with:
+          operating_system: ${{ inputs.os }}
+          version: ${{ inputs.os == 'freebsd' && '14.3' || '7.8' }}
+          architecture: ${{ inputs.arch == 'arm64' && 'arm64' || 'x86-64' }}
+          environment_variables: GOOS RELEASE_ARCH FRONT_VERSION RELEASE_CHANNEL RELEASE_VERSION RELEASE_TIMESTAMP
+      - name: Install native compiler, GNU make and Go
+        shell: cpa.sh {0}
+        run: |
+          set -eu
+          if [ "$GOOS" = freebsd ]; then
+            sudo pkg install -y bash gmake binutils curl ca_root_nss
+          else
+            sudo pkg_add bash gmake curl
+          fi
+          bash scripts/build/install-bsd-go.sh "$GOOS" "$RELEASE_ARCH"
+      - name: Test linked SQLite and build the release
+        shell: cpa.sh {0}
+        run: |
+          set -eu
+          export PATH="/tmp/sqlite-go/go/bin:/usr/local/bin:$PATH"
+          export CGO_ENABLED=1 MAKE=gmake
+          unset GITHUB_OUTPUT
+          go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
+          go test -count=1 -timeout=8m ./pkg/storage/sqlite ./pkg/net/dns/fakeip ./pkg/migrate
+          bash scripts/build/release.sh "$GOOS" "$RELEASE_ARCH"
+          if ldd "yuhaiin-${GOOS}-${RELEASE_ARCH}" | grep -i sqlite; then
+            echo 'SQLite must be linked into the executable' >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: yuhaiin_${{ inputs.os }}_${{ inputs.arch }}
+          path: |
+            yuhaiin-${{ inputs.os }}-${{ inputs.arch }}
+            yuhaiin-${{ inputs.os }}-${{ inputs.arch }}.update.json
           if-no-files-found: error

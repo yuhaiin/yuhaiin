@@ -154,7 +154,7 @@ func (c *ConfigurationChanges) currentIdentity(ctx context.Context, p Principal,
 		v, err = c.server.Store.Group(ctx, id)
 		value = v
 	case "role":
-		tx, e := c.server.Store.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		tx, e := c.server.Store.db.BeginTx(ctx, nil)
 		if e != nil {
 			return nil, e
 		}

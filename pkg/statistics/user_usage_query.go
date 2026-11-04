@@ -82,7 +82,9 @@ func (r *UserUsage) Report(ctx context.Context, q usage.Query) (usage.Report, er
 	if err := r.Flush(ctx); err != nil {
 		return usage.Report{}, err
 	}
-	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	// SQLite uses a deferred transaction for a consistent multi-query snapshot;
+	// it has no per-transaction read-only mode. This report only runs SELECTs.
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return usage.Report{}, err
 	}

@@ -49,7 +49,9 @@ func InspectStoreCatalog(ctx context.Context, path, kind string) ([]MigrationDes
 		return nil, err
 	}
 	defer db.Close()
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	// OpenLiveReader enforces read-only access with SQLite's mode=ro. A deferred
+	// transaction provides a consistent snapshot without a per-transaction flag.
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +98,11 @@ func OpenLiveReader(ctx context.Context, path string) (*sql.DB, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.ExecContext(ctx, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=1000"); err != nil {
-		_ = db.Close()
-		return nil, err
+	for _, statement := range []string{"PRAGMA query_only=ON", "PRAGMA trusted_schema=OFF", "PRAGMA busy_timeout=1000"} {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
 	}
 
 	return db, nil

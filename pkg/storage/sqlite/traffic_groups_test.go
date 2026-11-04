@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -45,7 +46,7 @@ func TestTrafficGroupsMigrationRestartAndInterruptedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := upgraded.DB().ExecContext(t.Context(), `INSERT INTO traffic_groups(id,name,description,created_at,updated_at) VALUES('finance','Finance','',1,1); INSERT INTO traffic_group_members(group_id,user_id) VALUES('finance','admin')`); err != nil {
+	if _, err := sqlitetest.Exec(t.Context(), upgraded.DB(), `INSERT INTO traffic_groups(id,name,description,created_at,updated_at) VALUES('finance','Finance','',1,1);`, `INSERT INTO traffic_group_members(group_id,user_id) VALUES('finance','admin')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := upgraded.DB().ExecContext(t.Context(), `INSERT INTO traffic_group_members(group_id,user_id) VALUES('finance','missing')`); err == nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,25 +24,25 @@ func TestOpenRejectsIncompatibleHistoryBeforeChangingDatabase(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			statement := ""
+			var statements []string
 			switch fault {
 			case "future-configuration":
-				statement = "INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future_schema',1); UPDATE metadata SET value='10000' WHERE key='schema_version'"
+				statements = []string{"INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future_schema',1)", "UPDATE metadata SET value='10000' WHERE key='schema_version'"}
 			case "future-management":
-				statement = "INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future_identity',1); UPDATE metadata SET value='10000' WHERE key='schema_version'"
+				statements = []string{"INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future_identity',1)", "UPDATE metadata SET value='10000' WHERE key='schema_version'"}
 			case "foreign-name":
-				statement = "UPDATE migrate SET name='foreign_schema' WHERE version=1"
+				statements = []string{"UPDATE migrate SET name='foreign_schema' WHERE version=1"}
 			case "gap":
-				statement = "DELETE FROM migrate WHERE version=10"
+				statements = []string{"DELETE FROM migrate WHERE version=10"}
 			case "metadata-version":
-				statement = "UPDATE metadata SET value='19' WHERE key='schema_version'"
+				statements = []string{"UPDATE metadata SET value='19' WHERE key='schema_version'"}
 			case "configuration-as-management":
 				opener = OpenManagement
 			case "management-as-configuration":
 				opener = Open
 			}
-			if statement != "" {
-				if _, err := store.DB().ExecContext(t.Context(), statement); err != nil {
+			if len(statements) != 0 {
+				if _, err := sqlitetest.Exec(t.Context(), store.DB(), statements...); err != nil {
 					t.Fatal(err)
 				}
 				if err := checkStoreCompatibility(t.Context(), store.DB(), kind); !errors.Is(err, ErrIncompatibleSchema) {

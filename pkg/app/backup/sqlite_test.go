@@ -3,6 +3,7 @@ package backup
 import (
 	"bytes"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"io"
 	"os"
 	"path/filepath"
@@ -89,7 +90,7 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	if err := plainstore.NewInboundStore(sqliteStore.DB()).SaveTrafficControl(t.Context(), shaping); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sqliteStore.DB().ExecContext(t.Context(), `INSERT INTO user_usage_settings(id,options_json) VALUES(1,'{"auditDays":30,"maxAuditRows":100000,"hourlyDays":30,"dailyDays":365}'); UPDATE route_configuration_state SET saved_revision=42,applied_revision=41,applied_rules_json='[]',applied_config_json='{}' WHERE id=1`); err != nil {
+	if _, err := sqlitetest.Exec(t.Context(), sqliteStore.DB(), `INSERT INTO user_usage_settings(id,options_json) VALUES(1,'{"auditDays":30,"maxAuditRows":100000,"hourlyDays":30,"dailyDays":365}');`, `UPDATE route_configuration_state SET saved_revision=42,applied_revision=41,applied_rules_json='[]',applied_config_json='{}' WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
 	jsonConfiguration, err := storagesqlite.ExportConfig(t.Context(), sqliteStore.DB())
@@ -135,7 +136,7 @@ func TestBackupSQLiteSnapshotRestore(t *testing.T) {
 	if _, err := historical.DB().ExecContext(t.Context(), `INSERT INTO route_registries(id,name,url,enabled,builtin,updated_at) VALUES('old-private','Old registry','https://example.org/manifest?token=legacy-private-source',1,0,1)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := historical.DB().ExecContext(t.Context(), `INSERT INTO nodes(hash,group_name,name,origin,updated_at,data_json) VALUES('archived','','Archived',1,1,'{"identityRecord":"historical-node-marker"}'); INSERT INTO inbounds(name,enabled,inbound_type,updated_at,data_json) VALUES('archived',0,'http',1,'{"identityRecord":"historical-inbound-marker"}'); INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('archived-tag','node','archived',1)`); err != nil {
+	if _, err := sqlitetest.Exec(t.Context(), historical.DB(), `INSERT INTO nodes(hash,group_name,name,origin,updated_at,data_json) VALUES('archived','','Archived',1,1,'{"identityRecord":"historical-node-marker"}');`, `INSERT INTO inbounds(name,enabled,inbound_type,updated_at,data_json) VALUES('archived',0,'http',1,'{"identityRecord":"historical-inbound-marker"}');`, `INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('archived-tag','node','archived',1)`); err != nil {
 		t.Fatal(err)
 	}
 	if err := historical.Close(); err != nil {
@@ -266,43 +267,21 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 
 	db := sqliteStore.DB()
-	if _, err := db.Exec(`
-		INSERT INTO statistics_kv(key, value_int, updated_at) VALUES ('total_upload', 100, 1);
-		INSERT INTO traffic_hourly(bucket_start_utc, upload_bytes, download_bytes, updated_at) VALUES (1, 100, 200, 1);
-		INSERT INTO connection_history(protocol, addr, process_name, hit_count, last_seen_at, last_connection_json)
-		VALUES (1, 'example.com:443', '', 1, 1, '{}');
-		INSERT INTO fakeip_entries(family, prefix, domain, ip, created_at, last_used_at)
-		VALUES (4, '198.18.0.0/15', 'example.com', X'01020304', 1, 1);
-		INSERT INTO telemetry_dimension_values(id, dimension, value)
-		VALUES (1, 'source', 'test');
-		INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, upload_bytes, download_bytes)
-		VALUES (1, 1, 100, 200);
-		INSERT INTO traffic_dimension_daily(bucket_start_utc, value_id, upload_bytes, download_bytes)
-		VALUES (1, 1, 100, 200);
-		INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
-		VALUES (1, 1, 2);
-		INSERT INTO failure_dimension_daily(bucket_start_utc, value_id, failed_count)
-		VALUES (1, 1, 2);
-		CREATE TABLE IF NOT EXISTS inbound_traffic_control (id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);
-		INSERT INTO inbound_traffic_control(id,config_json) VALUES(1,'{}');
-		INSERT INTO user_usage_settings(id,options_json)
-		VALUES (1, '{"auditDays":30,"maxAuditRows":100000,"hourlyDays":30,"dailyDays":365}');
-		INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
-		VALUES ('audit-1','user','','','','tcp','client','example.com:443','closed',1,2,'{"result":"closed"}');
-		INSERT INTO user_usage_totals(user_id,credential_id,inbound_id,node_id,protocol,inbound_name,node_name,first_seen,last_seen)
-		VALUES ('user','','','','tcp','','',1,2);
-		INSERT INTO user_usage_buckets(period,bucket,user_id,credential_id,inbound_id,node_id,protocol,inbound_name,node_name,first_seen,last_seen)
-		VALUES ('hour',3600,'user','','','','tcp','','',1,2);
-		INSERT INTO user_usage_activity(user_id,minute) VALUES ('user',1);
-		INSERT INTO user_usage_users(user_id,active_minutes) VALUES ('user',1);
-		INSERT INTO user_usage_flush(id,batch_id) VALUES (1,'batch-1');
-		INSERT INTO configuration_changes(id,kind,resource_id,state,origin,created_by,committed_by,created_at,committed_at,expires_at,revision,rollback_of,before_json,after_json,diff_json)
-		VALUES ('change-1','node','node-1','committed','direct','user','user',1,2,0,'1','','{"password":"journal-private-marker"}','{}','{}');
-		INSERT INTO gateway_statistics(gateway_id,requests,blocked,forwarded,errors,tls_failures,protocol_failures,duration_ns,updated_at)
-		VALUES ('gateway',1,0,1,0,0,0,10,1);
-		INSERT INTO inbound_statistics(inbound_id,accepted_streams,received_packets,received_pings,updated_at)
-		VALUES ('inbound',1,0,0,1);
-	`); err != nil {
+	if _, err := sqlitetest.Exec(t.Context(), db, `INSERT INTO statistics_kv(key, value_int, updated_at) VALUES ('total_upload', 100, 1);`, `INSERT INTO traffic_hourly(bucket_start_utc, upload_bytes, download_bytes, updated_at) VALUES (1, 100, 200, 1);`, `INSERT INTO connection_history(protocol, addr, process_name, hit_count, last_seen_at, last_connection_json)
+		VALUES (1, 'example.com:443', '', 1, 1, '{}');`, `INSERT INTO fakeip_entries(family, prefix, domain, ip, created_at, last_used_at)
+		VALUES (4, '198.18.0.0/15', 'example.com', X'01020304', 1, 1);`, `INSERT INTO telemetry_dimension_values(id, dimension, value)
+		VALUES (1, 'source', 'test');`, `INSERT INTO traffic_dimension_hourly(bucket_start_utc, value_id, upload_bytes, download_bytes)
+		VALUES (1, 1, 100, 200);`, `INSERT INTO traffic_dimension_daily(bucket_start_utc, value_id, upload_bytes, download_bytes)
+		VALUES (1, 1, 100, 200);`, `INSERT INTO failure_dimension_hourly(bucket_start_utc, value_id, failed_count)
+		VALUES (1, 1, 2);`, `INSERT INTO failure_dimension_daily(bucket_start_utc, value_id, failed_count)
+		VALUES (1, 1, 2);`, `CREATE TABLE IF NOT EXISTS inbound_traffic_control (id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);`, `INSERT INTO inbound_traffic_control(id,config_json) VALUES(1,'{}');`, `INSERT INTO user_usage_settings(id,options_json)
+		VALUES (1, '{"auditDays":30,"maxAuditRows":100000,"hourlyDays":30,"dailyDays":365}');`, `INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
+		VALUES ('audit-1','user','','','','tcp','client','example.com:443','closed',1,2,'{"result":"closed"}');`, `INSERT INTO user_usage_totals(user_id,credential_id,inbound_id,node_id,protocol,inbound_name,node_name,first_seen,last_seen)
+		VALUES ('user','','','','tcp','','',1,2);`, `INSERT INTO user_usage_buckets(period,bucket,user_id,credential_id,inbound_id,node_id,protocol,inbound_name,node_name,first_seen,last_seen)
+		VALUES ('hour',3600,'user','','','','tcp','','',1,2);`, `INSERT INTO user_usage_activity(user_id,minute) VALUES ('user',1);`, `INSERT INTO user_usage_users(user_id,active_minutes) VALUES ('user',1);`, `INSERT INTO user_usage_flush(id,batch_id) VALUES (1,'batch-1');`, `INSERT INTO configuration_changes(id,kind,resource_id,state,origin,created_by,committed_by,created_at,committed_at,expires_at,revision,rollback_of,before_json,after_json,diff_json)
+		VALUES ('change-1','node','node-1','committed','direct','user','user',1,2,0,'1','','{"password":"journal-private-marker"}','{}','{}');`, `INSERT INTO gateway_statistics(gateway_id,requests,blocked,forwarded,errors,tls_failures,protocol_failures,duration_ns,updated_at)
+		VALUES ('gateway',1,0,1,0,0,0,10,1);`, `INSERT INTO inbound_statistics(inbound_id,accepted_streams,received_packets,received_pings,updated_at)
+		VALUES ('inbound',1,0,0,1);`); err != nil {
 		t.Fatalf("write runtime state failed: %v", err)
 	}
 
@@ -328,13 +307,8 @@ func TestBackupSQLiteSnapshotExcludesRuntimeState(t *testing.T) {
 	}
 
 	// Runtime-only updates must not invalidate the S3 snapshot hash.
-	if _, err := db.Exec(`
-		UPDATE user_usage_audit SET checkpoint_at = 3, data_json = '{"result":"closed","upload":"100"}' WHERE id = 'audit-1';
-		INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
-		VALUES ('audit-2','user','','','','tcp','client','example.net:443','closed',3,4,'{"result":"closed"}');
-		UPDATE gateway_statistics SET requests = 2, updated_at = 3 WHERE gateway_id = 'gateway';
-		UPDATE inbound_statistics SET accepted_streams = 2, updated_at = 3 WHERE inbound_id = 'inbound';
-	`); err != nil {
+	if _, err := sqlitetest.Exec(t.Context(), db, `UPDATE user_usage_audit SET checkpoint_at = 3, data_json = '{"result":"closed","upload":"100"}' WHERE id = 'audit-1';`, `INSERT INTO user_usage_audit(id,user_id,credential_id,inbound_id,node_id,protocol,source,target,result,started_at,checkpoint_at,data_json)
+		VALUES ('audit-2','user','','','','tcp','client','example.net:443','closed',3,4,'{"result":"closed"}');`, `UPDATE gateway_statistics SET requests = 2, updated_at = 3 WHERE gateway_id = 'gateway';`, `UPDATE inbound_statistics SET accepted_streams = 2, updated_at = 3 WHERE inbound_id = 'inbound';`); err != nil {
 		t.Fatalf("update runtime-only state failed: %v", err)
 	}
 	third, err := readBackupSnapshot(t, backup)

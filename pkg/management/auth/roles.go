@@ -300,7 +300,7 @@ func (s *Store) RoleAssignment(ctx context.Context, actor Principal, owner strin
 	if owner != actor.UserID && !actor.Allows(RolesRead) {
 		return RoleAssignment{}, ErrForbidden
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return RoleAssignment{}, err
 	}

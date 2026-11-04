@@ -21,7 +21,7 @@ type RouteSnapshot struct {
 }
 
 func (s *RouteRuleStore) Snapshot(ctx context.Context) (RouteSnapshot, error) {
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return RouteSnapshot{}, err
 	}

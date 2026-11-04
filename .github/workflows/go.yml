@@ -32,7 +32,11 @@ jobs:
       matrix:
         include:
           - {os: linux, arch: amd64, runner: ubuntu-latest}
+          - {os: linux, arch: amd64-glibc, runner: ubuntu-latest}
+          - {os: linux, arch: arm64-glibc, runner: ubuntu-latest}
           - {os: linux, arch: arm64, runner: ubuntu-latest}
+          - {os: linux, arch: mipsle, runner: ubuntu-latest}
+          - {os: freebsd, arch: arm64, runner: ubuntu-latest}
           - {os: darwin, arch: arm64, runner: ubuntu-24.04}
           - {os: windows, arch: amd64, runner: ubuntu-latest}
           - {os: freebsd, arch: amd64, runner: ubuntu-latest}
@@ -99,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, amd64v3, amd64v4, arm64, mipsle]
+        arch: [amd64, amd64v3, amd64v4, arm64, mipsle, amd64-glibc, amd64v3-glibc, amd64v4-glibc, arm64-glibc]
     uses: ./.github/workflows/build-binary.yml
     with:
       os: linux

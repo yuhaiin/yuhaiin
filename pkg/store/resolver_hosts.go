@@ -28,7 +28,7 @@ func (s *ResolverConfigStore) ListHostEntries(ctx context.Context, page, pageSiz
 		where = " WHERE instr(lower(host), ?) > 0 OR instr(lower(target), ?) > 0"
 		args = append(args, query, query)
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, 0, err
 	}

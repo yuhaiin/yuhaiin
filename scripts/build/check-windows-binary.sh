@@ -33,10 +33,10 @@ if [[ "$metadata" != *$'\tbuild\tGOARCH='"$expected_goarch"* ||
   echo "unexpected Go architecture/CPU target for $2" >&2
   exit 1
 fi
-if [[ "$metadata" != *$'\tdep\tgithub.com/mattn/go-sqlite3\t'* ||
-      "$metadata" != *$'\tbuild\tCGO_ENABLED=1'* ||
-      "$metadata" == *modernc.org/sqlite* ]]; then
-  echo "Windows binary must use cgo and the mattn SQLite backend" >&2
+if [[ "$metadata" != *$'\tdep\tgithub.com/yuhaiin/purego-sqlite-embed\t'* ||
+      "$metadata" != *$'\tbuild\tCGO_ENABLED=0'* ||
+      "$metadata" == *modernc.org/sqlite* || "$metadata" == *github.com/mattn/go-sqlite3* ]]; then
+  echo "Windows binary must use PureGo and the embedded SQLite library" >&2
   exit 1
 fi
 
@@ -55,4 +55,4 @@ while IFS= read -r dll; do
       ;;
   esac
 done <<< "$dlls"
-printf '%s: %s, cgo + mattn, Windows system DLLs only\n%s\n' "$binary" "$format" "$dlls"
+printf '%s: %s, PureGo + embedded SQLite, Windows system DLLs only\n%s\n' "$binary" "$format" "$dlls"

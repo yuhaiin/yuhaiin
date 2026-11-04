@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -31,7 +32,7 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if _, err = db.DB().ExecContext(t.Context(), `CREATE TABLE example_policy(id INTEGER PRIMARY KEY,revision INTEGER,name TEXT);INSERT INTO example_policy VALUES(1,1,'old')`); err != nil {
+	if _, err = sqlitetest.Exec(t.Context(), db.DB(), `CREATE TABLE example_policy(id INTEGER PRIMARY KEY,revision INTEGER,name TEXT);`, `INSERT INTO example_policy VALUES(1,1,'old')`); err != nil {
 		t.Fatal(err)
 	}
 	return &fixture{db: db.DB(), j: configchange.New(db.DB())}

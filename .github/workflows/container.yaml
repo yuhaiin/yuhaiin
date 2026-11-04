@@ -61,7 +61,7 @@ jobs:
         run: |
           for arch in amd64 arm64; do
             compiler=$(bash scripts/build/install-musl-toolchain.sh "$arch")
-            CC="$compiler" bash scripts/build/release.sh linux "$arch" .docker-binaries
+            CC="$compiler" SQLITE_BACKEND=cgo bash scripts/build/release.sh linux "$arch" .docker-binaries
           done
 
       - name: Login to GitHub Container Registry

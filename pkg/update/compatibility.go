@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
@@ -25,6 +26,9 @@ type CompatibilityInspector interface {
 func (s *Service) inspectCompatibility(ctx context.Context, m compatibility.Manifest) (contract.CompatibilityStatus, error) {
 	if m.Platform != s.targetOS || m.Architecture != s.targetArch {
 		return contract.CompatibilityStatus{State: "incompatible", Reason: "target_platform_mismatch"}, nil
+	}
+	if m.Platform == "linux" && strings.HasSuffix(m.Asset, "-glibc") && s.targetABI != "glibc" {
+		return contract.CompatibilityStatus{State: "incompatible", Reason: "target_libc_mismatch"}, nil
 	}
 	if host, ok := s.installer.(ProtectedInstaller); ok && m.UpdateGuard != 1 {
 		if supported, _ := host.ProtectedUpdateSupported(); supported {
@@ -122,6 +126,9 @@ func InspectStagedCompatibility(ctx context.Context, path, dataDir string) (comp
 		return empty, status, errors.New("invalid staged executable type or size")
 	}
 	if err := m.VerifyPlatform(path); err != nil {
+		return empty, status, err
+	}
+	if err := compatibility.VerifyHostLibc(path); err != nil {
 		return empty, status, err
 	}
 	observed, err := compatibility.Describe(ctx, path, m.Platform, m.Architecture)

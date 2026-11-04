@@ -425,7 +425,7 @@ func (s *NodeStore) Selection(ctx context.Context) (contractnode.Selection, erro
 	if s == nil || s.db == nil {
 		return contractnode.Selection{}, errors.New("node store database is nil")
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return contractnode.Selection{}, err
 	}

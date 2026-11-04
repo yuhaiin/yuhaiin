@@ -172,7 +172,7 @@ func (r *ResourcePolicies) Validate(ctx context.Context, config resource.Config)
 	if _, err := r.Control.PrepareResources(ctx, config, r.bindings); err != nil {
 		return AccessValidation{Errors: []string{err.Error()}}
 	}
-	tx, err := r.store.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := r.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return AccessValidation{Errors: []string{"cannot validate resource references"}}
 	}

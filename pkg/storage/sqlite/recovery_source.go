@@ -83,7 +83,11 @@ func OpenSnapshotReader(ctx context.Context, path string) (*sql.DB, error) {
 		err = restrictBackupSnapshot(conn)
 	}
 	if err == nil {
-		_, err = conn.ExecContext(ctx, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA cache_size=-2048")
+		for _, statement := range []string{"PRAGMA query_only=ON", "PRAGMA trusted_schema=OFF", "PRAGMA cache_size=-2048"} {
+			if _, err = conn.ExecContext(ctx, statement); err != nil {
+				break
+			}
+		}
 	}
 	if conn != nil {
 		_ = conn.Close()
@@ -139,8 +143,10 @@ func SnapshotRecoveryDatabaseWithSpaceCheck(ctx context.Context, source, destina
 	if err := restrictBackupSnapshot(conn); err != nil {
 		return 0, err
 	}
-	if _, err := conn.ExecContext(ctx, "PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA cache_size=-2048"); err != nil {
-		return 0, err
+	for _, statement := range []string{"PRAGMA synchronous=FULL", "PRAGMA trusted_schema=OFF", "PRAGMA cache_size=-2048"} {
+		if _, err := conn.ExecContext(ctx, statement); err != nil {
+			return 0, err
+		}
 	}
 	var pages, pageSize, freePages int64
 	if err := conn.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pages); err != nil {
