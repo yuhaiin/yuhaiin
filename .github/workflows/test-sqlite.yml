@@ -125,7 +125,26 @@ jobs:
             TMPDIR=$(cd "$TMPDIR" && pwd -P)
             export TMPDIR
           fi
-          go test -count=1 -timeout=8m ./pkg/storage/sqlite ./pkg/store/...             ./pkg/net/dns/fakeip ./pkg/statistics ./pkg/migrate ./pkg/node             ./pkg/app/backup/... ./pkg/security/configchange ./pkg/update/maintenance
+          packages=(./pkg/storage/sqlite ./pkg/store/... ./pkg/net/dns/fakeip
+            ./pkg/statistics ./pkg/migrate ./pkg/security/configchange ./pkg/update/maintenance)
+          if [[ "$RUNNER_OS" != Windows ]]; then
+            packages+=(./pkg/node ./pkg/app/backup/...)
+          else
+            # Git Bash exposes short aliases for the user temp directory.
+            TEMP=$(cygpath -w "$RUNNER_TEMP")
+            TMP="$TEMP"
+            export TEMP TMP
+          fi
+          go test -count=1 -timeout=8m "${packages[@]}"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            # The complete POSIX backup suite runs on Linux/macOS. Windows
+            # uses its native ACL/durability and installed-service qualification.
+            # Exercise durable node state without the unrelated TLS speed probe.
+            go test -count=1 -timeout=5m -run '^(TestSelectorConnectionPathDoesNotQuerySQLite|TestUploadAndDownloadShareDurableDailyBudget|TestThroughputDirectionsPersistAndSmoothSeparately)$' ./pkg/node
+            go test -count=1 -timeout=5m ./pkg/app/backup/internal/backupfs
+            go test -count=1 -timeout=5m -run '^TestWindowsRecoveryArtifactsHavePrivateACLs$' ./pkg/store/backup/archive
+            YUH_WINDOWS_RECOVERY_REQUIRE=1 go test -count=1 -timeout=5m -run '^(TestRecoveryTransaction.*|TestWindowsRecovery.*|TestEncryptedRecoveryRetainsPrivateSourceURL)$' ./pkg/app/backup/recovery
+          fi
 
   linux-abi:
     runs-on: ubuntu-24.04

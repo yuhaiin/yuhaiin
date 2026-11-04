@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -40,7 +40,9 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	// Unix mode bits do not describe Windows ACLs; native ACL qualification
+	// runs in test-windows.yml.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("private database mode: %v", info.Mode())
 	}
 	config, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
@@ -79,7 +81,8 @@ func TestManagementSSTPMigrationPreservesExistingCredentialsAndSnapshots(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sqlitetest.Exec(t.Context(), old.DB(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),randomblob(32),1,1);`, `INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,generation,inbounds,protocols,created_at) VALUES('credential','owner','legacy',x'0102',x'0304',1,'[]','["sstp"]',1)`); err != nil {
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),randomblob(32),1,1);
+		INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,generation,inbounds,protocols,created_at) VALUES('credential','owner','legacy',x'0102',x'0304',1,'[]','["sstp"]',1)`); err != nil {
 		t.Fatal(err)
 	}
 	if err := old.Close(); err != nil {
@@ -277,7 +280,9 @@ func TestEnterpriseUpgradePreservesPublishedPasskeysAndSSTPVerifiers(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sqlitetest.Exec(t.Context(), old.DB(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),x'0102',1,1);`, `INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,sstp_nt_hash,generation,inbounds,protocols,created_at) VALUES('credential','owner','SSTP',x'0102',x'0304',zeroblob(16),1,'[]','["sstp"]',1);`, `INSERT INTO management_passkeys(credential_id,user_id,rp_id,data,name,created_at) VALUES(x'1234','owner','example.org',x'010203','key',1)`); err != nil {
+	if _, err := old.DB().ExecContext(t.Context(), `INSERT INTO management_users(id,login,role,client_salt,credential,created_at,updated_at) VALUES('owner','owner','admin',randomblob(16),x'0102',1,1);
+		INSERT INTO proxy_credentials(id,user_id,name,verifier,wire_verifier,sstp_nt_hash,generation,inbounds,protocols,created_at) VALUES('credential','owner','SSTP',x'0102',x'0304',zeroblob(16),1,'[]','["sstp"]',1);
+		INSERT INTO management_passkeys(credential_id,user_id,rp_id,data,name,created_at) VALUES(x'1234','owner','example.org',x'010203','key',1)`); err != nil {
 		t.Fatal(err)
 	}
 	if err := old.Close(); err != nil {

@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"errors"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +17,7 @@ func TestRecoverySnapshotSpaceCheckIncludesCommittedWALBeforeWriting(t *testing.
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := sqlitetest.Exec(t.Context(), store.DB(), `PRAGMA wal_checkpoint(TRUNCATE);`, `PRAGMA wal_autocheckpoint=0`); err != nil {
+	if _, err := store.DB().ExecContext(t.Context(), "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.DB().ExecContext(t.Context(), "INSERT INTO metadata(key,value) VALUES('space_fixture',?)", strings.Repeat("x", 2<<20)); err != nil {

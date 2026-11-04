@@ -54,8 +54,12 @@ mode. Only after that check does a connector apply the journal, foreign-key,
 busy timeout and synchronous settings to every new physical connection.
 Management connections retain `synchronous=FULL`, including pool replacements.
 Read snapshots enforce SQLite's `mode=ro`; transaction readers use a deferred
-transaction for a consistent SELECT snapshot. Each Exec/Query contains one SQL
-statement; trigger bodies remain intact.
+transaction for a consistent SELECT snapshot. Exec without parameters accepts
+SQL scripts, including consecutive PRAGMAs and migration fixtures. SQLite parses
+statement boundaries, preserving quoted semicolons and trigger bodies. Scripts
+stop at the first error or cancellation and return the last statement's result;
+use a transaction when earlier writes must roll back. Query, Prepare and Exec
+with parameters still require one statement.
 
 Coverage includes old modernc/mattn configuration and management fixtures,
 reconnect settings, cancellation, migrations, triggers/FTS/JSON, private file

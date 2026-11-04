@@ -25,6 +25,7 @@ func TestSQLiteTelemetryPersistsTotalsAndHistory(t *testing.T) {
 	cache.Close()
 
 	history := NewSQLiteHistory(path)
+	defer history.Close()
 	history.Push(contractconnection.Connection{
 		ID:      "1",
 		Addr:    "example.com:443",

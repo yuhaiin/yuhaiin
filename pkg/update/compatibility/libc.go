@@ -4,11 +4,12 @@ import (
 	"debug/buildinfo"
 	"debug/elf"
 	"errors"
-	"github.com/Asutorufa/yuhaiin/internal/sqliteabi"
 	"io"
 	"runtime"
 	"slices"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/internal/sqliteabi"
 )
 
 // MinimumGlibc is the ABI baseline verified for the embedded engine.

@@ -28,6 +28,28 @@ func TestNativeEngineCapabilities(t *testing.T) {
 	}
 }
 
+func TestNativeExecPragmaScript(t *testing.T) {
+	store, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	conn, err := store.DB().Conn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(t.Context(), "PRAGMA busy_timeout=5000; PRAGMA trusted_schema=OFF"); err != nil {
+		t.Fatal(err)
+	}
+	for query, want := range map[string]int{"PRAGMA busy_timeout": 5000, "PRAGMA trusted_schema": 0} {
+		var got int
+		if err := conn.QueryRowContext(t.Context(), query).Scan(&got); err != nil || got != want {
+			t.Fatalf("%s: got %d, want %d: %v", query, got, want, err)
+		}
+	}
+}
+
 func TestStorePoolReplacementPreservesPragmas(t *testing.T) {
 	for _, kind := range []string{"configuration", "management"} {
 		t.Run(kind, func(t *testing.T) {

@@ -4,10 +4,11 @@ package sqlite
 
 import (
 	"fmt"
+	"runtime"
+
 	"github.com/Asutorufa/yuhaiin/internal/sqliteabi"
 	nativesqlite "github.com/yuhaiin/purego-sqlite"
 	sqliteembed "github.com/yuhaiin/purego-sqlite-embed"
-	"runtime"
 )
 
 func sqliteOptions() ([]nativesqlite.Option, error) {

@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"database/sql"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,23 +58,23 @@ func TestInspectBackupSnapshotWALAndSchema(t *testing.T) {
 }
 
 func TestInspectBackupSnapshotDoesNotMigrateUnknownFutureOrIncompleteSchema(t *testing.T) {
-	for _, change := range [][]string{
-		{"INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future',1)", "UPDATE metadata SET value='10000' WHERE key='schema_version'"},
-		{"UPDATE migrate SET name='foreign schema' WHERE version=1"},
-		{"DELETE FROM migrate WHERE version=10"},
-		{"UPDATE metadata SET value='19' WHERE key='schema_version'"},
-		{"DROP TABLE settings_json"},
-		{"DROP TABLE certificate_acme_accounts"},
-		{"DROP TABLE migrate", "CREATE VIEW migrate AS SELECT 1 AS version, 'foreign' AS name"},
-		{"PRAGMA foreign_keys=OFF", "CREATE TABLE recovery_fk_parent(id INTEGER PRIMARY KEY)", "CREATE TABLE recovery_fk_child(id INTEGER REFERENCES recovery_fk_parent(id))", "INSERT INTO recovery_fk_child(id) VALUES(1)"},
+	for _, change := range []string{
+		"INSERT INTO migrate(version,name,applied_at) VALUES(10000,'future',1); UPDATE metadata SET value='10000' WHERE key='schema_version'",
+		"UPDATE migrate SET name='foreign schema' WHERE version=1",
+		"DELETE FROM migrate WHERE version=10",
+		"UPDATE metadata SET value='19' WHERE key='schema_version'",
+		"DROP TABLE settings_json",
+		"DROP TABLE certificate_acme_accounts",
+		"DROP TABLE migrate; CREATE VIEW migrate AS SELECT 1 AS version, 'foreign' AS name",
+		"PRAGMA foreign_keys=OFF; CREATE TABLE recovery_fk_parent(id INTEGER PRIMARY KEY); CREATE TABLE recovery_fk_child(id INTEGER REFERENCES recovery_fk_parent(id)); INSERT INTO recovery_fk_child(id) VALUES(1)",
 	} {
-		t.Run(strings.Join(change, ";"), func(t *testing.T) {
+		t.Run(change, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.db")
 			db, err := Open(t.Context(), path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := sqlitetest.Exec(t.Context(), db.DB(), change...); err != nil {
+			if _, err := db.DB().ExecContext(t.Context(), change); err != nil {
 				t.Fatal(err)
 			}
 			if err := db.Close(); err != nil {

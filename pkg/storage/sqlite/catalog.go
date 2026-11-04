@@ -98,11 +98,9 @@ func OpenLiveReader(ctx context.Context, path string) (*sql.DB, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	for _, statement := range []string{"PRAGMA query_only=ON", "PRAGMA trusted_schema=OFF", "PRAGMA busy_timeout=1000"} {
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			_ = db.Close()
-			return nil, err
-		}
+	if _, err := db.ExecContext(ctx, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA busy_timeout=1000"); err != nil {
+		_ = db.Close()
+		return nil, err
 	}
 
 	return db, nil

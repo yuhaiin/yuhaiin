@@ -83,7 +83,8 @@ jobs:
   bsd-linked:
     if: inputs.os == 'openbsd' || (inputs.os == 'freebsd' && inputs.arch == 'arm64')
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # ARM64 runs under CPU emulation; the first native Go/SQLite build is slow.
+    timeout-minutes: 120
     env:
       GOOS: ${{ inputs.os }}
       RELEASE_ARCH: ${{ inputs.arch }}
@@ -101,6 +102,8 @@ jobs:
           operating_system: ${{ inputs.os }}
           version: ${{ inputs.os == 'freebsd' && '14.3' || '7.8' }}
           architecture: ${{ inputs.arch == 'arm64' && 'arm64' || 'x86-64' }}
+          cpu_count: 4
+          memory: 10G
           environment_variables: GOOS RELEASE_ARCH FRONT_VERSION RELEASE_CHANNEL RELEASE_VERSION RELEASE_TIMESTAMP
       - name: Install native compiler, GNU make and Go
         shell: cpa.sh {0}

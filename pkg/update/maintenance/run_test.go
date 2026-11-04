@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"io"
 	"os"
 	"os/exec"
@@ -80,7 +79,7 @@ func (h *hostFixture) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		_, err = sqlitetest.Exec(ctx, db.DB(), `UPDATE metadata SET value='999' WHERE key='schema_version';`, `UPDATE metadata SET value='after-target-start' WHERE key='business_value'`)
+		_, err = db.DB().ExecContext(ctx, "UPDATE metadata SET value='999' WHERE key='schema_version'; UPDATE metadata SET value='after-target-start' WHERE key='business_value'")
 		_ = db.Close()
 		if err != nil {
 			return err

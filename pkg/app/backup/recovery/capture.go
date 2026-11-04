@@ -112,10 +112,8 @@ func withRecoveryJobStore(ctx context.Context, directory string, fn func(*backup
 	}
 	defer db.Close()
 	db.SetMaxOpenConns(1)
-	for _, statement := range []string{"PRAGMA busy_timeout=5000", "PRAGMA trusted_schema=OFF"} {
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			return err
-		}
+	if _, err := db.ExecContext(ctx, "PRAGMA busy_timeout=5000; PRAGMA trusted_schema=OFF"); err != nil {
+		return err
 	}
 	return fn(backupstore.New(db))
 }

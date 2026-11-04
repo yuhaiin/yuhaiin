@@ -3,7 +3,6 @@ package sqlite
 import (
 	"bytes"
 	"errors"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +15,7 @@ func TestInspectStoreCatalogReadsLiveWALWithoutMigrating(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := sqlitetest.Exec(t.Context(), db.DB(), `PRAGMA wal_checkpoint(TRUNCATE);`, `PRAGMA wal_autocheckpoint=0`); err != nil {
+	if _, err := db.DB().ExecContext(t.Context(), "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0"); err != nil {
 		t.Fatal(err)
 	}
 	before, err := os.ReadFile(path)

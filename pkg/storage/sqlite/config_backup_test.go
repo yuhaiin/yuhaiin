@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -228,7 +227,10 @@ func TestLegacyConfigurationRestorePreservesNewSettingsAndResetsActivation(t *te
 		t.Fatal(err)
 	}
 	defer target.Close()
-	if _, err := sqlitetest.Exec(t.Context(), target.DB(), `CREATE TABLE inbound_traffic_control(id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);`, `INSERT INTO inbound_traffic_control VALUES(1,'{"enabled":true}');`, `INSERT INTO user_usage_settings VALUES(1,'{"auditDays":42}');`, `UPDATE route_configuration_state SET applied_revision=123,applied_rules_json='[{"id":"stale"}]',applied_config_json='{"defaultMode":"direct"}' WHERE id=1`); err != nil {
+	if _, err := target.DB().ExecContext(t.Context(), `CREATE TABLE inbound_traffic_control(id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL);
+		INSERT INTO inbound_traffic_control VALUES(1,'{"enabled":true}');
+		INSERT INTO user_usage_settings VALUES(1,'{"auditDays":42}');
+		UPDATE route_configuration_state SET applied_revision=123,applied_rules_json='[{"id":"stale"}]',applied_config_json='{"defaultMode":"direct"}' WHERE id=1`); err != nil {
 		t.Fatal(err)
 	}
 	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {

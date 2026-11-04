@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/Asutorufa/yuhaiin/internal/sqlitetest"
 	"io"
 	"net"
 	"net/http"
@@ -292,7 +291,7 @@ func TestConfigurationS3SnapshotRejectsUnknownTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := sqlitetest.Exec(t.Context(), db.DB(), `CREATE TABLE future_private_state (value TEXT NOT NULL);`, `INSERT INTO future_private_state VALUES('future-private-table-marker')`); err != nil {
+	if _, err := db.DB().ExecContext(t.Context(), `CREATE TABLE future_private_state (value TEXT NOT NULL); INSERT INTO future_private_state VALUES('future-private-table-marker')`); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.Run(t.Context()); err == nil {
