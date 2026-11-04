@@ -343,6 +343,12 @@ func (s *Stack) emitOwned(packet *ownedBuffer) error {
 }
 
 func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ownedBuffer, int, error) {
+	return s.ipBufferID(src, dst, proto, payloadSize, uint16(s.nextID.Add(1)))
+}
+
+// ipBufferID keeps fragmented packets on one datagram ID without allocating
+// temporary IP frames. The caller must transfer or release the returned lease.
+func (s *Stack) ipBufferID(src, dst netip.Addr, proto uint8, payloadSize int, id uint16) (*ownedBuffer, int, error) {
 	h, err := ipHeaderSize(src, dst, payloadSize)
 	if err != nil {
 		return nil, 0, err
@@ -352,7 +358,7 @@ func (s *Stack) ipBuffer(src, dst netip.Addr, proto uint8, payloadSize int) (*ow
 		return nil, s.headroom + h, err
 	}
 	packet.offset = s.headroom
-	fillIPHeader(packet.data[packet.offset:], src, dst, proto, uint16(s.nextID.Add(1)), h)
+	fillIPHeader(packet.data[packet.offset:], src, dst, proto, id, h)
 	return packet, packet.offset + h, nil
 }
 func (s *Stack) sendIP(src, dst netip.Addr, proto uint8, payload []byte) error {

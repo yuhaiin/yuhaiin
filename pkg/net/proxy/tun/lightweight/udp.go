@@ -216,20 +216,47 @@ func (s *Stack) WriteUDP(src, dst netip.AddrPort, b []byte) (int, error) {
 	if len(b) > maxPayload {
 		return 0, ErrMTU
 	}
+	// The common, unfragmented path writes the UDP header and payload
+	// directly into an owned IP frame: one copy, no temporary UDP/IP arrays.
+	h, err := ipHeaderSize(src.Addr(), dst.Addr(), 8+len(b))
+	if err != nil {
+		return 0, err
+	}
+	if h+8+len(b) <= s.config.MTU {
+		packet, offset, err := s.ipBuffer(src.Addr(), dst.Addr(), 17, 8+len(b))
+		if err != nil {
+			return 0, err
+		}
+		fillUDPPayload(packet.data[offset:], src, dst, b)
+		if err := s.emitOwned(packet); err != nil {
+			packet.release()
+			return 0, err
+		}
+		return len(b), nil
+	}
+
+	// A fragmented datagram still needs one contiguous UDP payload for the
+	// checksum. sendDatagram writes each IP fragment into a pooled frame.
 	payload := make([]byte, 8+len(b))
+	fillUDPPayload(payload, src, dst, b)
+	if err := s.sendDatagram(flowAddress{src.Addr()}, flowAddress{dst.Addr()}, 17, payload); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+// fillUDPPayload writes a datagram into its final destination and preserves
+// IPv4/IPv6 pseudo-header checksums, including the zero-as-0xffff rule.
+func fillUDPPayload(payload []byte, src, dst netip.AddrPort, data []byte) {
 	binary.BigEndian.PutUint16(payload[:2], src.Port())
 	binary.BigEndian.PutUint16(payload[2:4], dst.Port())
 	binary.BigEndian.PutUint16(payload[4:6], uint16(len(payload)))
-	copy(payload[8:], b)
+	copy(payload[8:], data)
 	sum := transportChecksum(src.Addr(), dst.Addr(), 17, payload)
 	if sum == 0 {
 		sum = 65535
 	}
 	binary.BigEndian.PutUint16(payload[6:8], sum)
-	if err := s.sendDatagram(flowAddress{src.Addr()}, flowAddress{dst.Addr()}, 17, payload); err != nil {
-		return 0, err
-	}
-	return len(b), nil
 }
 func (u *UDPConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	u.mu.Lock()

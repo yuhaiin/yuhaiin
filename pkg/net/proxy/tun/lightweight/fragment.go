@@ -145,54 +145,61 @@ func (f *fragmentTable) add(p Packet) (Packet, bool, error) {
 	return assembled, err == nil, err
 }
 
+// sendDatagram constructs each output frame directly in an owned output
+// buffer. No full-sized temporary IP packet is needed before fragmentation.
 func (s *Stack) sendDatagram(src, dst flowAddress, proto uint8, payload []byte) error {
 	// Fragmentation is only for connectionless IP output. TCP uses MSS/PMTUD.
-	b, err := makeIP(src.addr, dst.addr, proto, payload, uint16(s.nextID.Add(1)))
+	h, err := ipHeaderSize(src.addr, dst.addr, len(payload))
 	if err != nil {
 		return err
 	}
-	if len(b) <= s.config.MTU {
-		return s.emit(b)
+	if h+len(payload) <= s.config.MTU {
+		return s.sendIP(src.addr, dst.addr, proto, payload)
 	}
-	h := 20
+
+	fragmentHeader := 0
 	if src.addr.Is6() {
-		h = 48
+		fragmentHeader = 8
 	}
-	size := (s.config.MTU - h) &^ 7
+	size := (s.config.MTU - h - fragmentHeader) &^ 7
+	if size <= 0 {
+		return ErrMTU
+	}
 	id := s.nextID.Add(1)
 	for off := 0; off < len(payload); off += size {
 		end := min(len(payload), off+size)
 		more := end < len(payload)
-		var packet []byte
-		if src.addr.Is4() {
-			packet, err = makeIP(src.addr, dst.addr, proto, payload[off:end], uint16(id))
-			if err != nil {
-				return err
-			}
+		fragmentProto := proto
+		if fragmentHeader != 0 {
+			fragmentProto = 44
+		}
+		packet, dataOffset, err := s.ipBufferID(src.addr, dst.addr, fragmentProto, fragmentHeader+end-off, uint16(id))
+		if err != nil {
+			return err
+		}
+		frame := packet.data[packet.offset:]
+		if fragmentHeader == 0 {
 			flags := uint16(off / 8)
 			if more {
 				flags |= 0x2000
 			}
-			binary.BigEndian.PutUint16(packet[6:8], flags)
-			packet[10] = 0
-			packet[11] = 0
-			binary.BigEndian.PutUint16(packet[10:12], Checksum(packet[:20]))
+			binary.BigEndian.PutUint16(frame[6:8], flags) // Clear DF on fragments.
+			binary.BigEndian.PutUint16(frame[10:12], 0)
+			binary.BigEndian.PutUint16(frame[10:12], Checksum(frame[:20]))
 		} else {
-			frag := make([]byte, 8+end-off)
-			frag[0] = proto
+			fragment := packet.data[dataOffset : dataOffset+8]
+			clear(fragment) // A pooled buffer may contain a previous packet.
+			fragment[0] = proto
 			flags := uint16(off)
 			if more {
 				flags |= 1
 			}
-			binary.BigEndian.PutUint16(frag[2:4], flags)
-			binary.BigEndian.PutUint32(frag[4:8], id)
-			copy(frag[8:], payload[off:end])
-			packet, err = makeIP(src.addr, dst.addr, 44, frag, uint16(id))
-			if err != nil {
-				return err
-			}
+			binary.BigEndian.PutUint16(fragment[2:4], flags)
+			binary.BigEndian.PutUint32(fragment[4:8], id)
 		}
-		if err = s.emit(packet); err != nil {
+		copy(packet.data[dataOffset+fragmentHeader:], payload[off:end])
+		if err := s.emitOwned(packet); err != nil {
+			packet.release()
 			return err
 		}
 	}
