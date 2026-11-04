@@ -215,7 +215,7 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 	}
 	if mode == "clone" {
 		for path := range projection.files {
-			if strings.HasPrefix(path, "tailscale/") || strings.HasPrefix(path, "zerotier/") || path == "management-tls.pem" && preview.Runtime.ManagementTLS == "self_signed" {
+			if strings.HasPrefix(path, "tailscale/") || strings.HasPrefix(path, "tailscale-lite/") || strings.HasPrefix(path, "zerotier/") || path == "management-tls.pem" && preview.Runtime.ManagementTLS == "self_signed" {
 				projection.files[path] = ""
 			}
 		}

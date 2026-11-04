@@ -351,6 +351,7 @@ func TestConfigurationExportRedactsEmbeddedNodeCredentials(t *testing.T) {
 		{"openvpn", `{"type":"openvpn","openvpn":{"gateway":"vpn.example","password":"identity-marker","client_key_pem":"identity-marker","tls_auth_key":"identity-marker","tls_crypt_key":"identity-marker","auth":"SHA256"}}`},
 		{"nebula", `{"type":"nebula","nebula":{"config_yaml":"private_key: identity-marker"}}`},
 		{"tls", `{"type":"tls_termination","tls_termination":{"tls":{"certificates":[{"cert":"cHVibGlj","key":"identity-marker"}]}}}`},
+		{"tailscale-lite", `{"type":"tailscale-lite","tailscale-lite":{"auth_key":"identity-marker"}}`},
 		{"network split", `{"type":"network_split","network_split":{"tcp":{"type":"tailscale","tailscale":{"auth_key":"identity-marker"}}}}`},
 		{"escaped key", `{"type":"wireguard","wireguard":{"secr\u0065tKey":"identity-marker"}}`},
 		{"legacy field casing", `{"type":"ssh","ssh":{"Private_Key":"identity-marker","Private_Key_Passphrase":"identity-marker","host_key":"public"}}`},

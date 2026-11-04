@@ -128,6 +128,14 @@ jobs:
           pattern='^(TestIsNilConn|TestIsNilPacketConn|TestHappyEyeballsDirectDialReturnsTrueNilOnFailure|TestHappyEyeballsV2GenericRejectsNilSuccess|TestHappyEyeballsParallelDoesNotReturnTypedNil|TestUnderlayNormalizesTypedNilTCP|TestUnderlayNormalizesTCPConnectionCleanup|TestUnderlayNormalizesTypedNilUDP)$'
           go test -race -count=1 -tags="$tags" -run "$pattern" \
             ./pkg/net/netapi ./pkg/net/dialer ./pkg/net/proxy/tailscale
+      - name: Exercise both Tailnet outbound types with release features
+        run: |
+          tags="$(go run ./cmd/buildtags/...)"
+          # testcontrol needs Tailnet Lock helpers; the runtime still rejects
+          # enabled Tailnet Lock. Keep every other release omission in effect.
+          integration_tags="${tags//ts_omit_tailnetlock/}"
+          go test -race -count=1 -timeout=120s -tags="$integration_tags" \
+            -run '^(TestLocalLiteTailnet.*|TestLiteAndTSNetCoexist|TestLiteDNSBeforeTransportEcho)$' ./pkg/net/proxy/tailscale
       - name: Keep offline recovery independent of unsupported native bridges
         run: |
           for target in android/arm64/0 android/amd64/0 android/amd64/1 freebsd/amd64/0 openbsd/amd64/1; do

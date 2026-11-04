@@ -54,24 +54,31 @@ func TestNativeProbeSeparatesControlConfigurationAndTunnelSession(t *testing.T) 
 	}
 }
 func TestBackgroundNodeFactoryCannotStartExpiredCachedVPN(t *testing.T) {
-	r := newTestRuntime(t)
-	n := testNode(t, "a", "a")
-	n.Chain = []contract.Protocol{{Type: "tailscale", Tailscale: &contract.Tailscale{AuthKey: "local-test-placeholder"}}}
-	if _, err := r.Save(t.Context(), n); err != nil {
-		t.Fatal(err)
-	}
-	_, epoch, err := r.cachedNode(t.Context(), n.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := r.getContractDialer(netapi.WithBackgroundProbe(t.Context()), n.ID, n, epoch); !errors.Is(err, netapi.ErrBackgroundProbeUnavailable) {
-		t.Fatal(err)
-	}
-	if _, ok := r.proxies.store.Load(n.ID); ok {
-		t.Fatal("periodic factory constructed a VPN")
-	}
-	if !localProbeDenial(netapi.ErrBackgroundProbeUnavailable) || healthFailure(netapi.ErrBackgroundProbeUnavailable) {
-		t.Fatal("local reuse denial classified as remote failure")
+	for _, protocol := range []contract.Protocol{
+		{Type: "tailscale", Tailscale: &contract.Tailscale{AuthKey: "local-test-placeholder"}},
+		{Type: "tailscale-lite", TailscaleLite: &contract.TailscaleLite{AuthKey: "local-test-placeholder"}},
+	} {
+		t.Run(protocol.Type, func(t *testing.T) {
+			r := newTestRuntime(t)
+			n := testNode(t, "a", "a")
+			n.Chain = []contract.Protocol{protocol}
+			if _, err := r.Save(t.Context(), n); err != nil {
+				t.Fatal(err)
+			}
+			_, epoch, err := r.cachedNode(t.Context(), n.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.getContractDialer(netapi.WithBackgroundProbe(t.Context()), n.ID, n, epoch); !errors.Is(err, netapi.ErrBackgroundProbeUnavailable) {
+				t.Fatal(err)
+			}
+			if _, ok := r.proxies.store.Load(n.ID); ok {
+				t.Fatal("periodic factory constructed a VPN")
+			}
+			if !localProbeDenial(netapi.ErrBackgroundProbeUnavailable) || healthFailure(netapi.ErrBackgroundProbeUnavailable) {
+				t.Fatal("local reuse denial classified as remote failure")
+			}
+		})
 	}
 }
 

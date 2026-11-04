@@ -37,6 +37,7 @@ require (
 	github.com/yuhaiin/purego-sqlite v0.0.0-20261104125355-eedc669e5bf7
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104081830-4c4a60e5eb53
 	github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb
+	github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102135307-508f41359c93
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0

@@ -388,6 +388,8 @@ github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104081830-4c4a60e5eb53 h1:H0p
 github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104081830-4c4a60e5eb53/go.mod h1:UPXdxaALH9kgMSYoj+8rXO+iw3hyRnipo14LE4lh9/Q=
 github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb h1:dEFDYFwTRE4n/nehJeYWqEahnSj46In3Zjq4eoxLpzk=
 github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb/go.mod h1:3DbXqVFKcqzxZ3X8W6dmRlBCrYZ3ecktB+afTlBsEBg=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66 h1:GZ6qjVmHAvsNMLnPN9/eQtFaVksgxslBdqgr5TGGKaM=
+github.com/yuhaiin/tailscale-lite v0.0.0-20261024171927-49ae11fefe66/go.mod h1:krX82oXX6KQBCn4taBIaq4LFzqnq/J9UB2a5/wfkOFk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102135307-508f41359c93 h1:Z3ND/iEc0LIODo+TRDG9QDKiiG6sjOVzQZSt9OaPPrs=

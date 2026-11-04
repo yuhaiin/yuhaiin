@@ -81,7 +81,7 @@ func writeType(out *bytes.Buffer, spec *ast.TypeSpec, indent string) error {
 				if index == len(variants)-1 {
 					separator = ";"
 				}
-				fmt.Fprintf(out, "%s  | { type: %q; %s%s: %s }%s\n", indent, variant.name, taggedUnionCommonFields(value, variants), variant.name, variant.typeName, separator)
+				fmt.Fprintf(out, "%s  | { type: %q; %s%s: %s }%s\n", indent, variant.name, taggedUnionCommonFields(value, variants), tsPropertyName(variant.name), variant.typeName, separator)
 			}
 			return nil
 		}
@@ -104,6 +104,7 @@ func writeType(out *bytes.Buffer, spec *ast.TypeSpec, indent string) error {
 			if name == "-" {
 				continue
 			}
+			name = tsPropertyName(name)
 			if optional || isPointer(field.Type) {
 				name += "?"
 			}
@@ -170,9 +171,16 @@ func taggedUnionCommonFields(value *ast.StructType, variants []taggedVariant) st
 		if optional {
 			suffix = "?"
 		}
-		_, _ = fmt.Fprintf(&out, "%s%s: %s; ", name, suffix, tsType(field.Type))
+		_, _ = fmt.Fprintf(&out, "%s%s: %s; ", tsPropertyName(name), suffix, tsType(field.Type))
 	}
 	return out.String()
+}
+
+func tsPropertyName(name string) string {
+	if token.IsIdentifier(name) || token.Lookup(name).IsKeyword() {
+		return name
+	}
+	return strconv.Quote(name)
 }
 
 func jsonName(field *ast.Field) (string, bool) {

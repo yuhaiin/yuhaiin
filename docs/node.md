@@ -116,3 +116,9 @@ checks continue to use their global targets.
    }
 }
 ```
+
+## Optional Tailscale Lite
+
+Use the independent [`tailscale-lite` outbound](tailscale-lite.md) to opt into
+the lite client. Existing `tailscale` nodes continue using tsnet and keep their
+identities. The two types can coexist.

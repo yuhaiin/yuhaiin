@@ -139,6 +139,8 @@ func (c *recoveryInventory) protocols(nodeID string, chain []nodecontract.Protoc
 		var files []string
 		var err error
 		switch {
+		case protocol.TailscaleLite != nil:
+			files, err = tailscale.LiteRecoveryFiles(c.source, *protocol.TailscaleLite)
 		case protocol.Tailscale != nil:
 			files, err = tailscale.RecoveryFiles(c.source, *protocol.Tailscale)
 		case protocol.ZeroTier != nil:
@@ -160,7 +162,7 @@ func (c *recoveryInventory) protocols(nodeID string, chain []nodecontract.Protoc
 		if err != nil {
 			return fmt.Errorf("node %s identity inventory: %w", nodeID, err)
 		}
-		if (protocol.Tailscale != nil || protocol.ZeroTier != nil) && len(files) == 0 {
+		if (protocol.Tailscale != nil || protocol.TailscaleLite != nil || protocol.ZeroTier != nil) && len(files) == 0 {
 			if len(c.manifest.Requirements) >= backuparchive.MaxFiles {
 				return errors.New("too many recovery requirements")
 			}

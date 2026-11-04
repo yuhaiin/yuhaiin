@@ -257,7 +257,9 @@ func recoveryIdentityReplacements(ctx context.Context, stage, target string) ([]
 		for _, protocol := range chain {
 			var files []string
 			var err error
-			if protocol.Tailscale != nil {
+			if protocol.TailscaleLite != nil {
+				files, err = tailscale.LiteRecoveryFiles(target, *protocol.TailscaleLite)
+			} else if protocol.Tailscale != nil {
 				files, err = tailscale.RecoveryFiles(target, *protocol.Tailscale)
 			} else if protocol.ZeroTier != nil {
 				files, err = zerotier.RecoveryFiles(target, *protocol.ZeroTier)
