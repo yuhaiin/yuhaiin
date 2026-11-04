@@ -12,6 +12,7 @@ Specialized coverage stays separate:
 | `lint.yml` | Formatting, Go fixes, actionlint, shellcheck and golangci-lint |
 | `tests.yml` | Default race tests, release-tag DNS and nil-connection tests, dependency boundaries |
 | `test-sqlite.yml` | PureGo embedded and static CGO, application persistence/identity/recovery, native desktop CPUs, MIPS QEMU, and glibc/musl ABI/update selection |
+| `go.yml` / `build-binary.yml` | Release cross-compilation and PE/ELF checks; FreeBSD ARM64 and OpenBSD also cross-link storage, FakeIP and migration regressions |
 | `lightweight-stack.yml` | Portable checksum fallback, Linux kernel peers, all eight portable core targets, three cross-platform test builds, ARM64 QEMU |
 | `reliability.yml` | Real installed-service recovery and protected-update drills for system and user services |
 | `ssh-session.yml` | Native Linux SSH isolation with TUN and cgroup v2 |

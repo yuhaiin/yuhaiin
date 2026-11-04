@@ -1,8 +1,8 @@
 # CI builds
 
-`.github/workflows/go.yml` defines the build targets. Pull requests build eleven
+`.github/workflows/go.yml` defines the build targets. Pull requests build twelve
 representative binaries (Linux amd64/arm64 in static and glibc forms, MIPS,
-macOS arm64, Windows amd64, FreeBSD amd64/arm64, OpenBSD amd64, and Android arm64)
+macOS arm64, Windows amd64, FreeBSD amd64/arm64, OpenBSD amd64/arm64, and Android arm64)
 and build the Android AAR. Full releases on `main` pushes and version tags wait
 for all 26 binary targets and the Android AAR before publication:
 
@@ -13,13 +13,13 @@ for all 26 binary targets and the Android AAR before publication:
 | `windows` | amd64, amd64v3, amd64v4, arm64 | Ubuntu, CGO disabled | PureGo + embedded library |
 | `cross` | FreeBSD amd64, amd64v3, amd64v4 | Ubuntu, CGO disabled | PureGo + embedded library |
 | `cross` | FreeBSD arm64 | Ubuntu with Clang, GNU ld.bfd, FreeBSD 14.3 sysroot | Official SQLite linked through CGO |
-| `cross` | OpenBSD amd64, amd64v3, amd64v4, arm64 | OpenBSD 7.8 VM with native compiler | Official SQLite linked through CGO |
+| `cross` | OpenBSD amd64, amd64v3, amd64v4, arm64 | Ubuntu with pinned LLVM and OpenBSD 7.8 sysroot | Official SQLite linked through CGO |
 | `cross` | Android arm64 | Ubuntu with Android NDK | Official SQLite linked through CGO |
 
 The reusable binary workflow handles checkout, Go setup, frontend update,
-toolchain setup, and artifact upload. FreeBSD ARM64 also cross-links storage,
-FakeIP and migration test executables, without executing them on Linux; OpenBSD
-runs these tests inside its VM. The v3/v4 binaries are built without executing them on runners
+toolchain setup, and artifact upload. FreeBSD ARM64 and OpenBSD also cross-link
+storage, FakeIP and migration test executables, without executing them on Linux.
+The v3/v4 binaries are built without executing them on runners
 that may lack the required CPU instructions. Makefile's build-tag generator always runs with
 `GOAMD64=v1`, independently of the target binary's CPU level.
 
@@ -114,7 +114,46 @@ executable, with only FreeBSD libc, libthr and libm allowed as shared dependenci
 The release and three regression binaries are inspected for their ELF/Go target,
 FreeBSD ABI note and loader, dependencies, undefined SQLite imports and host
 library search paths. These checks do not execute ARM64 FreeBSD code; runtime
-qualification requires an actual FreeBSD host. OpenBSD continues using its VM.
+qualification requires an actual FreeBSD host.
+
+### OpenBSD cross compilation
+
+`scripts/build/install-openbsd-toolchain.sh ARCH` installs the official OpenBSD
+7.8 headers, startup objects and system libraries from checksum-pinned `base78`
+and `comp78` sets. It reuses the existing pinned native LLVM distribution from
+`install-windows-toolchain.sh`, with an OpenBSD target and sysroot. Clang and LLD
+23.1.2 support both amd64 and arm64, including the Go-required NOBTCFI header.
+No compiler needs to be built from source. Set `RUNNER_TEMP` to a writable scratch
+directory; `OPENBSD_CROSS_ROOT` optionally selects the installation directory.
+
+```sh
+CC=$(bash scripts/build/install-openbsd-toolchain.sh arm64)
+export CC
+bash scripts/build/release.sh openbsd arm64
+bash scripts/build/check-openbsd-binary.sh yuhaiin-openbsd-arm64 arm64
+```
+
+The wrapper supplies unversioned library aliases for upstream LLD, preserving the
+official library SONAMEs in the executable. It normalizes Go's native `-nopie`
+spelling and merges startup-object Retguard cookies into `.openbsd.randomdata`.
+LLD emits the RANDOMIZE and NOBTCFI program headers; immediate binding and RELRO
+protect the random data and relocation tables after startup. The inspector
+rejects orphan Retguard sections, missing security headers, random data outside
+RANDOMIZE/RELRO, writable executable segments, host search paths and shared SQLite.
+Only the SDK's libc, libpthread and libm may remain shared.
+
+The workflow caches the SDK and LLVM by host, target architecture and installer
+hash; amd64/v3/v4 share one SDK cache. Go module/compiler caches also apply. Normal
+release builds run entirely on Linux. Cross-linked test binaries validate build
+and link compatibility; executing them requires an OpenBSD host.
+
+Initial qualification on 2026-11-04 executed the Linux-built storage, FakeIP and
+migration tests plus the release's `version` command on OpenBSD 7.8
+[amd64](https://github.com/yuhaiin/yuhaiin/actions/runs/41855486241/job/126668220903)
+and [arm64](https://github.com/yuhaiin/yuhaiin/actions/runs/41855486241/job/126668612096).
+Both passed. The temporary execution VMs were then removed from the workflow.
+The first uncached Linux builds took 3m46s for amd64 and 4m11s for arm64,
+including SDK/LLVM installation and all binary inspections.
 
 ## Validation
 

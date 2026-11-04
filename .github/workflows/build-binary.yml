@@ -109,15 +109,6 @@ jobs:
             bash "scripts/build/check-$GOOS-binary.sh" "$binary" "$GOARCH"
           done
 
-      - name: Upload OpenBSD regression executables for qualification
-        if: inputs.os == 'openbsd'
-        uses: actions/upload-artifact@v7
-        with:
-          name: openbsd-regression-${{ inputs.arch }}
-          path: ${{ runner.temp }}/*-openbsd-*.test
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Build
         id: build
         env:
@@ -152,51 +143,3 @@ jobs:
             ${{ steps.build.outputs.binary }}
             ${{ steps.build.outputs.binary }}.update.json
           if-no-files-found: error
-
-  qualify-openbsd-cross:
-    # Temporary native execution qualification of the new cross compiler.
-    if: inputs.os == 'openbsd' && (inputs.arch == 'amd64' || inputs.arch == 'arm64')
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      GOOS: ${{ inputs.os }}
-      RELEASE_ARCH: ${{ inputs.arch }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
-        with:
-          name: openbsd-regression-${{ inputs.arch }}
-          path: cross-tests
-      - uses: actions/download-artifact@v8
-        with:
-          name: yuhaiin_openbsd_${{ inputs.arch }}
-          path: cross-release
-      - name: Start OpenBSD execution VM
-        uses: cross-platform-actions/action@82668f1fbd89d9c99487604f822cbf6716f124d3 # v1.7.0
-        with:
-          operating_system: ${{ inputs.os }}
-          version: '7.8'
-          architecture: ${{ inputs.arch == 'arm64' && 'arm64' || 'x86-64' }}
-          cpu_count: 4
-          memory: 10G
-          environment_variables: GOOS RELEASE_ARCH
-      - name: Execute Linux-built regression tests and release
-        shell: cpa.sh {0}
-        run: |
-          set -eu
-          root=$(pwd)
-          chmod +x cross-tests/*.test cross-release/yuhaiin-*
-          for package in sqlite fakeip migrate; do
-            case "$package" in
-              sqlite) source=./pkg/storage/sqlite ;;
-              fakeip) source=./pkg/net/dns/fakeip ;;
-              migrate) source=./pkg/migrate ;;
-            esac
-            (cd "$source" && "$root/cross-tests/$package-openbsd-$RELEASE_ARCH.test" -test.v -test.count=1 -test.timeout=8m)
-          done
-          "cross-release/yuhaiin-openbsd-$RELEASE_ARCH" version
-          if ldd "cross-release/yuhaiin-openbsd-$RELEASE_ARCH" | grep -i sqlite; then
-            echo 'SQLite must be linked into the executable' >&2
-            exit 1
-          fi
