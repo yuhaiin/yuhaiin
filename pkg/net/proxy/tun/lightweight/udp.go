@@ -251,6 +251,7 @@ func fillUDPPayload(payload []byte, src, dst netip.AddrPort, data []byte) {
 	binary.BigEndian.PutUint16(payload[:2], src.Port())
 	binary.BigEndian.PutUint16(payload[2:4], dst.Port())
 	binary.BigEndian.PutUint16(payload[4:6], uint16(len(payload)))
+	binary.BigEndian.PutUint16(payload[6:8], 0) // Pooled frames may have a stale checksum.
 	copy(payload[8:], data)
 	sum := transportChecksum(src.Addr(), dst.Addr(), 17, payload)
 	if sum == 0 {
