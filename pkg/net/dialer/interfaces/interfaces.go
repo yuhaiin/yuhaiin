@@ -280,12 +280,7 @@ func reGetDefaultInterface(reason string) error {
 	next := snapshotNetwork(name, addresses, routes)
 	prev := lastNetworkState.Load()
 	changed := oldName != name || (prev != nil && networkStateChanged(*prev, next))
-	// Keep the published trie when the effective prefix-to-interface mapping
-	// is unchanged, even if gateway metadata or RIB ordering changes.
-	if lastPublishedRoutes == nil || !lastPublishedRoutes.sameTrie(routes) {
-		defaultrouter.Store(routes.ToTrie())
-		lastPublishedRoutes = &routes
-	}
+	updateDefaultRouter(routes)
 	localAddresses.Store(&addresses)
 	defaultInterfaceName.Store(&name)
 	lastNetworkState.Store(&next)
@@ -301,6 +296,21 @@ func reGetDefaultInterface(reason string) error {
 		}
 	}
 	return nil
+}
+
+// updateDefaultRouter is called with defaultInterfaceNameMu held.
+func updateDefaultRouter(routes router) {
+	// Keep the published trie when the effective prefix-to-interface mapping
+	// is unchanged, even if gateway metadata or RIB ordering changes.
+	if lastPublishedRoutes == nil || !lastPublishedRoutes.sameTrie(routes) {
+		defaultrouter.Store(routes.ToTrie())
+	}
+	// Remember metadata and ordering changes too, so the next identical
+	// snapshot takes the allocation-free equality path. Reuse the holder.
+	if lastPublishedRoutes == nil {
+		lastPublishedRoutes = new(router)
+	}
+	*lastPublishedRoutes = routes
 }
 
 type networkMonitorCloser func()

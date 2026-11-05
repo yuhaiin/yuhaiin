@@ -12,7 +12,7 @@ type Trie[T any] struct {
 // Insert adds a CIDR prefix. Existing more-specific prefixes must survive
 // inserting or updating a parent prefix.
 func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
-	if maskSize < 0 || maskSize > len(ip)*8 {
+	if (len(ip) != net.IPv4len && len(ip) != net.IPv6len) || maskSize < 0 || maskSize > len(ip)*8 {
 		return
 	}
 	node := t
@@ -34,6 +34,9 @@ func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
 
 // Search performs longest-prefix matching, including /0 at the root.
 func (t *Trie[T]) Search(ip net.IP) (mark T, ok bool) {
+	if len(ip) != net.IPv4len && len(ip) != net.IPv6len {
+		return mark, false
+	}
 	node := t
 	mark, ok = node.mark, node.last
 	for _, octet := range ip {

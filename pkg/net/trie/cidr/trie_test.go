@@ -45,3 +45,21 @@ func TestTrieIPv6DefaultAndSpecificRoute(t *testing.T) {
 		}
 	}
 }
+
+func TestTrieInvalidIPDoesNotMatchDefault(t *testing.T) {
+	c := NewTrie[string]()
+	c.InsertCIDR(netip.MustParsePrefix("::/0"), "default")
+	for _, ip := range []net.IP{nil, {}, {192, 0, 2}, make(net.IP, 15), make(net.IP, 17)} {
+		if mark, ok := c.SearchIP(ip); ok {
+			t.Errorf("invalid IP %x matched %q", []byte(ip), mark)
+		}
+	}
+}
+
+func TestTrieInvalidIPCannotInsertDefault(t *testing.T) {
+	var trie Trie[string]
+	trie.Insert(nil, 0, "invalid")
+	if mark, ok := trie.Search(net.ParseIP("2001:db8::1")); ok {
+		t.Fatalf("invalid insertion supplied default %q", mark)
+	}
+}

@@ -54,11 +54,32 @@ func routes() (router, error) {
 		return router{}, err
 	}
 
+	ret := routesFromMessages(msgs, ifaces)
+
+	// Route snapshots are immutable after publication.
+	parsedRIB.raw = messages
+	parsedRIB.names = make(map[int]string, len(ifaces))
+	for index, iface := range ifaces {
+		parsedRIB.names[index] = iface.Name
+	}
+	parsedRIB.routes = ret
+	return ret, nil
+}
+
+// routesFromMessages builds the unscoped routing table used for automatic
+// outbound interface selection.
+func routesFromMessages(msgs []route.Message, ifaces map[int]Interface) router {
 	ret := router{}
 
 	for _, m := range msgs {
 		switch msg := m.(type) {
 		case *route.RouteMessage:
+			// Interface-scoped routes only apply after the caller chooses that
+			// interface. Flattening them into this trie can replace the global
+			// default with an unrelated tunnel, especially for IPv6.
+			if msg.Flags&unix.RTF_IFSCOPE != 0 {
+				continue
+			}
 			if len(msg.Addrs) < 3 {
 				continue
 			}
@@ -115,12 +136,5 @@ func routes() (router, error) {
 		}
 	}
 
-	// Route snapshots are immutable after publication.
-	parsedRIB.raw = messages
-	parsedRIB.names = make(map[int]string, len(ifaces))
-	for index, iface := range ifaces {
-		parsedRIB.names[index] = iface.Name
-	}
-	parsedRIB.routes = ret
-	return ret, nil
+	return ret
 }
