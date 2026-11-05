@@ -341,8 +341,9 @@ an explicit permission; unclassified handlers deny even administrators.
 | POST `/api/v2/auth/password/enrollment` | Own password change; session authentication |
 | DELETE `/api/v2/auth/session` | Revoke current session |
 | GET/POST `/api/v2/auth/tokens` | List/create own tokens; `tokens:own` |
+| PATCH `/api/v2/auth/tokens/{id}` | Edit `name`/`note` of an active token; own token or `tokens:manage` |
 | DELETE `/api/v2/auth/tokens/{id}` | Revoke; own token or `tokens:manage` |
-| POST `/api/v2/auth/tokens/{id}/rotate` | Atomic rotation; preserves scopes and expiry |
+| POST `/api/v2/auth/tokens/{id}/rotate` | Atomic rotation; preserves scopes, expiry, name and note |
 | GET `/api/v2/auth/events` | Latest 1,000 redacted security events; `security:read` |
 
 Create users with `{"login":"reader","role":"read-only"}`. The result contains
@@ -352,6 +353,9 @@ active enrolled administrator; a pending administrator does not satisfy this
 guard. Create tokens with `{"scopes":["nodes:read"],"expiresAt":UNIX_SECONDS}`;
 omit/zero expiry for no expiry. Optional `owner` selects another user and requires
 `tokens:manage`; listing another user's tokens uses `?owner=USER_UUID`.
+Optional `name` (single line, at most 64 characters) and `note` (at most 512
+characters, line breaks allowed) label a token for operators; surrounding
+whitespace is trimmed. Labels never affect authentication or authorization.
 
 Authentication failures return 401, permission failures 403, and protected
 responses use `Cache-Control: no-store`. Auth errors expose no SQL or submitted

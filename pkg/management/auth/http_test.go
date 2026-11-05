@@ -211,7 +211,11 @@ func TestUserTokenAPIsAndSecretResponse(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("disable: %d", w.Code)
 	}
-	w = request("POST", "/api/v2/auth/tokens", map[string]any{"scopes": []Permission{NodesRead}})
+	w = request("POST", "/api/v2/auth/tokens", map[string]any{"scopes": []Permission{NodesRead}, "name": strings.Repeat("n", maxTokenNameLength+1)})
+	if w.Code != 400 {
+		t.Fatalf("oversized token name: %d", w.Code)
+	}
+	w = request("POST", "/api/v2/auth/tokens", map[string]any{"scopes": []Permission{NodesRead}, "name": "monitoring", "note": "grafana"})
 	if w.Code != 200 {
 		t.Fatalf("token creation: %d %s", w.Code, w.Body.String())
 	}
@@ -219,9 +223,19 @@ func TestUserTokenAPIsAndSecretResponse(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &issued); err != nil {
 		t.Fatal(err)
 	}
+	if issued.Name != "monitoring" || issued.Note != "grafana" {
+		t.Fatalf("issued labels: %+v", issued.Credential)
+	}
+	w = request("PATCH", "/api/v2/auth/tokens/"+issued.ID, map[string]any{"name": "dashboards", "note": "grafana + loki"})
+	if w.Code != 200 || strings.Contains(w.Body.String(), issued.Secret) {
+		t.Fatalf("token label update: %d %s", w.Code, w.Body.String())
+	}
 	w = request("GET", "/api/v2/auth/tokens", nil)
 	if strings.Contains(w.Body.String(), issued.Secret) {
 		t.Fatal("secret returned more than once")
+	}
+	if !strings.Contains(w.Body.String(), `"name":"dashboards"`) || !strings.Contains(w.Body.String(), `"note":"grafana + loki"`) {
+		t.Fatalf("listing missing labels: %s", w.Body.String())
 	}
 	if got := request("DELETE", "/api/v2/auth/tokens/"+issued.ID, nil); got.Code != 200 {
 		t.Fatalf("revoke=%d", got.Code)

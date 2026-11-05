@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 	"uuid"
 )
 
@@ -41,6 +43,52 @@ type Credential struct {
 	CreatedAt int64        `json:"createdAt"`
 	ExpiresAt int64        `json:"expiresAt"`
 	Revoked   bool         `json:"revoked"`
+	Name      string       `json:"name"`
+	Note      string       `json:"note"`
+}
+
+// TokenLabels are operator-facing metadata for API tokens. They are never used
+// for authentication or authorization decisions.
+type TokenLabels struct {
+	Name string `json:"name"`
+	Note string `json:"note"`
+}
+
+const (
+	maxTokenNameLength = 64
+	maxTokenNoteLength = 512
+)
+
+// normalize trims surrounding whitespace and rejects oversized or control
+// characters. Notes may contain line breaks; names are single-line.
+func (l TokenLabels) normalize() (TokenLabels, error) {
+	l.Name, l.Note = strings.TrimSpace(l.Name), strings.TrimSpace(l.Note)
+	if !utf8.ValidString(l.Name) || !utf8.ValidString(l.Note) ||
+		utf8.RuneCountInString(l.Name) > maxTokenNameLength || utf8.RuneCountInString(l.Note) > maxTokenNoteLength {
+		return TokenLabels{}, ErrInvalid
+	}
+	for _, r := range l.Name {
+		if unicode.IsControl(r) {
+			return TokenLabels{}, ErrInvalid
+		}
+	}
+	for _, r := range l.Note {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return TokenLabels{}, ErrInvalid
+		}
+	}
+	return l, nil
+}
+
+func setTokenLabels(ctx context.Context, tx *sql.Tx, issued *IssuedCredential, labels TokenLabels) error {
+	if labels == (TokenLabels{}) {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET name=?,note=? WHERE id=? AND kind='token'`, labels.Name, labels.Note, issued.ID); err != nil {
+		return err
+	}
+	issued.Name, issued.Note = labels.Name, labels.Note
+	return nil
 }
 
 type IssuedCredential struct {
@@ -321,6 +369,15 @@ func issueCredential(ctx context.Context, tx *sql.Tx, owner, kind string, scopes
 // IssueToken snapshots the owner's permissions, capped by the caller's scopes.
 // Role promotion cannot silently broaden an already-issued token.
 func (s *Store) IssueToken(ctx context.Context, actor Principal, owner string, scopes []Permission, expiry int64) (IssuedCredential, error) {
+	return s.IssueLabeledToken(ctx, actor, owner, scopes, expiry, TokenLabels{})
+}
+
+// IssueLabeledToken is IssueToken with an operator-facing name and note.
+func (s *Store) IssueLabeledToken(ctx context.Context, actor Principal, owner string, scopes []Permission, expiry int64, labels TokenLabels) (IssuedCredential, error) {
+	labels, err := labels.normalize()
+	if err != nil {
+		return IssuedCredential{}, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return IssuedCredential{}, err
@@ -355,6 +412,9 @@ func (s *Store) IssueToken(ctx context.Context, actor Principal, owner string, s
 	}
 	issued, err := issueCredential(ctx, tx, owner, "token", scopes, expiry)
 	if err != nil {
+		return IssuedCredential{}, err
+	}
+	if err := setTokenLabels(ctx, tx, &issued, labels); err != nil {
 		return IssuedCredential{}, err
 	}
 	if err := recordEvent(ctx, tx, "token.created", actor.UserID, issued.ID); err != nil {
@@ -419,7 +479,7 @@ func (s *Store) logout(ctx context.Context, secret string) error {
 }
 
 func (s *Store) Credentials(ctx context.Context, owner string) ([]Credential, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,user_id,kind,prefix,scopes,created_at,expires_at,revoked FROM management_credentials WHERE user_id=? AND kind='token' ORDER BY created_at,id`, owner)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,user_id,kind,prefix,scopes,created_at,expires_at,revoked,name,note FROM management_credentials WHERE user_id=? AND kind='token' ORDER BY created_at,id`, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +488,7 @@ func (s *Store) Credentials(ctx context.Context, owner string) ([]Credential, er
 	for rows.Next() {
 		var c Credential
 		var encoded string
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Kind, &c.Prefix, &encoded, &c.CreatedAt, &c.ExpiresAt, &c.Revoked); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Kind, &c.Prefix, &encoded, &c.CreatedAt, &c.ExpiresAt, &c.Revoked, &c.Name, &c.Note); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(encoded), &c.Scopes); err != nil {
@@ -477,8 +537,9 @@ func (s *Store) RotateToken(ctx context.Context, actor Principal, id string) (Is
 
 	var owner, role, encoded string
 	var expiry int64
-	err = tx.QueryRowContext(ctx, `SELECT c.user_id,u.role,c.scopes,c.expires_at FROM management_credentials c JOIN management_users u ON u.id=c.user_id
-		WHERE c.id=? AND c.kind='token' AND c.revoked=0 AND u.disabled=0 AND u.credential IS NOT NULL AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, id, time.Now().Unix()).Scan(&owner, &role, &encoded, &expiry)
+	var labels TokenLabels
+	err = tx.QueryRowContext(ctx, `SELECT c.user_id,u.role,c.scopes,c.expires_at,c.name,c.note FROM management_credentials c JOIN management_users u ON u.id=c.user_id
+		WHERE c.id=? AND c.kind='token' AND c.revoked=0 AND u.disabled=0 AND u.credential IS NOT NULL AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>?)`, id, time.Now().Unix()).Scan(&owner, &role, &encoded, &expiry, &labels.Name, &labels.Note)
 	if err != nil {
 		return IssuedCredential{}, err
 	}
@@ -505,10 +566,48 @@ func (s *Store) RotateToken(ctx context.Context, actor Principal, id string) (Is
 	if err != nil {
 		return IssuedCredential{}, err
 	}
+	if err := setTokenLabels(ctx, tx, &issued, labels); err != nil {
+		return IssuedCredential{}, err
+	}
 	if err := recordEvent(ctx, tx, "token.rotated", actor.UserID, issued.ID); err != nil {
 		return IssuedCredential{}, err
 	}
 	return issued, tx.Commit()
+}
+
+// UpdateTokenLabels renames or re-annotates an active token. Labels carry no
+// authority, so the same owner-or-tokens:manage rule as revocation applies.
+func (s *Store) UpdateTokenLabels(ctx context.Context, actor Principal, id string, labels TokenLabels) (Credential, error) {
+	labels, err := labels.normalize()
+	if err != nil {
+		return Credential{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Credential{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var c Credential
+	var encoded string
+	err = tx.QueryRowContext(ctx, `SELECT id,user_id,kind,prefix,scopes,created_at,expires_at,revoked FROM management_credentials WHERE id=? AND kind='token' AND revoked=0`, id).
+		Scan(&c.ID, &c.UserID, &c.Kind, &c.Prefix, &encoded, &c.CreatedAt, &c.ExpiresAt, &c.Revoked)
+	if err != nil {
+		return Credential{}, err
+	}
+	if c.UserID != actor.UserID && !actor.Allows(TokensManage) {
+		return Credential{}, ErrForbidden
+	}
+	if err := json.Unmarshal([]byte(encoded), &c.Scopes); err != nil {
+		return Credential{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET name=?,note=? WHERE id=?`, labels.Name, labels.Note, id); err != nil {
+		return Credential{}, err
+	}
+	if err := recordEvent(ctx, tx, "token.updated", actor.UserID, id); err != nil {
+		return Credential{}, err
+	}
+	c.Name, c.Note = labels.Name, labels.Note
+	return c, tx.Commit()
 }
 
 // Events retains the legacy bounded array contract. New consumers use AuditPage.
