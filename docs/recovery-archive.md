@@ -5,8 +5,10 @@ The encrypted streaming format and authenticated inventory checks live in
 `pkg/contract/backup/recovery`. Deployment
 snapshots, offline activation, startup checks and crash rollback belong to
 `pkg/app/backup/recovery`. The existing online backup scheduler owns managed
-local/S3 jobs, retention, verification and downloads. Web restoration now uses these owners on the supported systemd host. Protected updates use the same collector and verified startup on that host;
-[service/platform boundaries](enterprise-reliability-audit.md) are explicit.
+local/S3 jobs, retention, verification and downloads. Web restoration and
+protected updates use the same collector on supported systemd and launchd
+installations. Protected updates require a verified startup. See the
+[service and platform boundaries](enterprise-reliability-audit.md).
 
 ## Package ownership
 
@@ -488,7 +490,7 @@ are retained. The real startup/crash drill above provides separate correctness
 evidence, not a resource benchmark.
 
 The [managed-backup page](managed-recovery-backups.md) now wraps this collector
-with explicit Linux systemd system/user maintenance, history, local/S3 targets,
+with explicit Linux systemd or macOS launchd maintenance, history, local/S3 targets,
 verification/download and retention. It uses public recipients for scheduled
 creation and transient private identities for authenticated checks. Database
 schema is now 24 (history 21, imports 22, exclusive activation 23, managed

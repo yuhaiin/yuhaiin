@@ -155,7 +155,7 @@ func SaveHistory(dataDir, executable, version, commit string) error {
 		return err
 	}
 
-	if err := saveCurrentCompatibility(executable, binPath); err != nil {
+	if err := saveCurrentCompatibility(binPath, id); err != nil {
 		return err
 	}
 	item := contractupdate.HistoryEntry{

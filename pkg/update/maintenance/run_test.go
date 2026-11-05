@@ -34,6 +34,9 @@ type hostFixture struct {
 
 func (h *hostFixture) Stop(context.Context) error {
 	h.stops++
+	if h.fault == "target_stop_once" && h.stops == 2 {
+		return errors.New("target stop interrupted")
+	}
 	if h.database != nil {
 		err := h.database.Close()
 		h.database = nil
@@ -63,6 +66,9 @@ func (h *hostFixture) Prune(context.Context, Record) error {
 }
 func (h *hostFixture) Start(ctx context.Context) error {
 	h.starts++
+	if h.fault == "source_restart_once" && h.starts == 1 {
+		return errors.New("source restart interrupted")
+	}
 	r, err := Read(h.directory)
 	if err != nil {
 		return err
@@ -94,8 +100,8 @@ func (h *hostFixture) Start(ctx context.Context) error {
 }
 func binaries(t testing.TB) (string, string) {
 	t.Helper()
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		t.Skip("installed supervisor fixture uses Linux amd64")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("coordinator fixture needs Unix executable activation")
 	}
 	directory := t.TempDir()
 	result := []string{}
@@ -106,7 +112,7 @@ func binaries(t testing.TB) (string, string) {
 		}
 		executable := filepath.Join(directory, name)
 		build := exec.CommandContext(t.Context(), "go", "build", "-o", executable, source)
-		build.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "GOAMD64=v1", "CGO_ENABLED=0")
+		build.Env = append(os.Environ(), "GOOS="+runtime.GOOS, "GOARCH="+runtime.GOARCH, "GOAMD64=v1", "CGO_ENABLED=0")
 		if output, err := build.CombinedOutput(); err != nil {
 			t.Fatalf("build fixture: %v: %s", err, output)
 		}
@@ -167,11 +173,11 @@ func deployment(t testing.TB, source, target string) (string, Record, *hostFixtu
 	active, staged := filepath.Join(executableDir, "yuhaiin"), filepath.Join(executableDir, "yuhaiin-update-fixture")
 	copyExecutable(t, source, active)
 	copyExecutable(t, target, staged)
-	old, err := compatibility.Describe(t.Context(), active, "linux", "amd64")
+	old, err := compatibility.Describe(t.Context(), active, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := compatibility.Describe(t.Context(), staged, "linux", "amd64")
+	next, err := compatibility.Describe(t.Context(), staged, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		t.Fatal(err)
 	}

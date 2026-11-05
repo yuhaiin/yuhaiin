@@ -22,14 +22,15 @@ introduce another scheduling service or copy the entire data directory.
    interruption. Or explicitly enable the periodic schedule, accepting those
    interruptions. The browser does not need to remain online.
 
-Automatic maintenance supports a root-owned Linux systemd system service or a
-systemd user service with lingering enabled, where the current process is the
-actual MainPID of `yuhaiin.service`. The helper retains that account's UID/GID
-rather than acquiring a different file identity. Enable lingering for the user
-with `loginctl enable-linger` so its manager survives logout; the server refuses
-automatic maintenance if it cannot verify this prerequisite. Standalone, macOS,
-Windows and embedded hosts need further host
-integration; the offline CLI remains separate. Windows offline restoration
+Automatic maintenance supports installed Linux systemd and macOS launchd services.
+Linux user services require lingering and must be the actual MainPID of
+`yuhaiin.service`. Use `loginctl enable-linger` for that account.
+
+On macOS, use the root system LaunchDaemon installed by `yuhaiin install`.
+The running executable, data directory and installed plist must match that
+job. Their paths must be root-owned, protected from group and public writes,
+and free of extended ACLs. Standalone, embedded, and other installations
+can use the offline CLI. Windows offline restoration
 requires elevated local NTFS volume access, including its first validation
 startup and rollback. See the [Windows recovery prerequisites](recovery-archive.md#windows-offline-recovery).
 
@@ -59,13 +60,18 @@ destination fingerprints are frozen with the request. No private backup key or
 duplicate S3 credential is stored in the history. Compare-and-swap transitions
 prevent an old helper/upload/deletion from overwriting a newer state.
 
-The installed-service host launches an independent transient systemd unit. It
-stops the existing service, closes the real database/protocol owners, invokes
-the existing offline inventory/SQLite snapshot/age writer, records the completed
-ciphertext length/digest, and restarts the service. The systemd unit also has an
-`ExecStopPost` restart action for abrupt helper death or its runtime deadline,
-when Go cleanup cannot run. Updates and recovery helpers share a persistent
-`.recovery-maintenance.lock` so they cannot concurrently stop/swap one deployment.
+The installed host uses an independent maintenance job to stop the service,
+close database and protocol owners, capture the encrypted point and restart the
+service. Linux uses a transient systemd unit with an `ExecStopPost` fallback.
+macOS uses a temporary system LaunchDaemon with its own copy of the source
+executable. This copy remains available while an update replaces the installed
+binary. If the worker or supervisor dies, launchd retires the old process group
+and starts the recovery action. The worker is attempted once.
+
+The macOS job records its progress under `<data-dir>/.recovery-launchd/<job-id>`
+and logs to `helper.log` in that directory. It removes its startup plist after
+completion. The next maintenance job retires completed helper files. Backups,
+restores and protected updates share the deployment maintenance lease.
 
 Encrypted files live at `<data-dir>/.recovery-archives/<job-uuid>.yhb`, beneath
 private directories. Conflicting files are never overwritten or adopted after a
@@ -318,7 +324,7 @@ the benchmark is also run by the existing reliability workflow.
 The Web import publisher and retrieval owner use the same native durability
 operation on Windows and therefore require elevated local NTFS access. Their
 publication support does not install a Windows service coordinator: automatic
-disruptive maintenance remains limited to qualified systemd hosts. Use the
+disruptive maintenance requires a qualified systemd or launchd installation. Use the
 documented offline CLI on other hosts. Native Windows qualification includes
 real crash/rollback and CLI startup tests; cross-compilation is insufficient.
 

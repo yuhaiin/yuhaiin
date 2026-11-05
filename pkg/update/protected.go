@@ -163,7 +163,7 @@ func (s *Service) installPrepared(ctx context.Context, stage string, m compatibi
 	}
 	admitted = true
 	if err := host.StartProtected(ctx, id); err != nil {
-		// Launch responses can be lost after systemd admitted the independent helper.
+		// Launch responses can be lost after the service manager admits the helper.
 		// Preserve the durable operation, staging and point; never replay automatically.
 		return errProtectedHandoffUncertain
 	}
