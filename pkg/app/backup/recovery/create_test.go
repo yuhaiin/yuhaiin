@@ -235,7 +235,7 @@ func TestFullRecoveryExcludesActiveOwnersAndHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestFullRecoveryCapturesExternalDependenciesAndRejectsMissingOnes(t *testing.T) {
+func TestFullRecoveryCapturesExternalDependenciesAndRecordsMissingOnes(t *testing.T) {
 	directory, key := testfixture.Deployment(t)
 	outside := filepath.Join(t.TempDir(), "external.pem")
 	if err := os.WriteFile(outside, []byte("external certificate fixture"), 0o600); err != nil {
@@ -275,8 +275,18 @@ func TestFullRecoveryCapturesExternalDependenciesAndRejectsMissingOnes(t *testin
 	if err := os.Remove(outside); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Create(t.Context(), directory, filepath.Join(t.TempDir(), "broken.yhb"), backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true}); err == nil {
-		t.Fatal("missing required dependency silently omitted")
+	missing, err := Create(t.Context(), directory, filepath.Join(t.TempDir(), "missing.yhb"), backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true})
+	if err != nil {
+		t.Fatal("configured missing certificate blocked full backup", err)
+	}
+	found = false
+	for _, requirement := range missing.Requirements {
+		if requirement.Kind == "missing_dependency" && requirement.Path == outside {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("missing certificate was not recorded in authenticated requirements")
 	}
 }
 

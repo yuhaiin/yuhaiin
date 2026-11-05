@@ -33,7 +33,13 @@ type CreateOptions struct {
 // existing backup/storage owners. The service and external identity/certificate
 // writers must be stopped. The lifecycle lock excludes cooperating instances;
 // the explicit maintenance acknowledgement also covers older/embedded writers.
-func Create(ctx context.Context, directory, destination string, key backuparchive.Encryption, options CreateOptions) (contractrecovery.Manifest, error) {
+func Create(ctx context.Context, directory, destination string, key backuparchive.Encryption, options CreateOptions) (result contractrecovery.Manifest, resultErr error) {
+	stage := "admission"
+	defer func() {
+		if resultErr != nil {
+			resultErr = &captureFailure{stage: stage, cause: resultErr}
+		}
+	}()
 	var empty contractrecovery.Manifest
 	if err := key.Validate(); err != nil {
 		return empty, err
@@ -90,6 +96,7 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 		ID: uuid.New().String(), CreatedAt: time.Now().UTC(), Consistency: "offline-maintenance", IncludesHistory: options.IncludeHistory,
 		SourceDirectory: directory, Build: contractrecovery.Build{Version: version.Version, Commit: version.GitCommit, Platform: runtime.GOOS, Architecture: runtime.GOARCH, GoVersion: runtime.Version()},
 	}
+	stage = "database_snapshot"
 	var databaseBytes int64
 	for _, database := range []struct{ name, kind, role string }{{"state.db", "configuration", "configuration_database"}, {"management.db", "management", "management_database"}} {
 		source := filepath.Join(directory, database.name)
@@ -127,6 +134,7 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 	if err != nil {
 		return empty, err
 	}
+	stage = "startup_inputs"
 	inputs := options.Runtime
 	if inputs == nil {
 		inputs, err = backupstore.LoadRecoveryRuntime(ctx, reader)
@@ -141,6 +149,7 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 	}
 	collector := newRecoveryInventory(ctx, directory, snapshot, inputs, &manifest)
 	collector.checkSpace = checkSpace
+	stage = "dependency_inventory"
 	err = collector.collect(reader)
 	closeErr := reader.Close()
 	if err != nil {
@@ -153,11 +162,14 @@ func Create(ctx context.Context, directory, destination string, key backuparchiv
 		return empty, err
 	}
 	manifest.Runtime = inputs
+	// CompleteInventory means every supported source resource was accounted for
+	// as captured data or an explicit recovery obligation, not startup readiness.
 	manifest.CompleteInventory = true
 	// Reserve ciphertext while the complete plaintext set is still allocated.
 	// age adds one tag per 64 KiB chunk; two MiB covers the bounded manifest,
 	// framing, recipient header and final chunk. Pruning may make this estimate
 	// conservative. Check the output filesystem separately from staging.
+	stage = "archive_write"
 	cipherBytes := collector.bytes + (collector.bytes/(64<<10)+1)*16 + (2 << 20)
 	if err := checkSpace(filepath.Dir(destination), cipherBytes); err != nil {
 		return empty, err

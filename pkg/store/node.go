@@ -208,7 +208,7 @@ func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractno
 		return errors.New("node store database is nil")
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, data_json
+		SELECT id, data_json, enabled
 		FROM nodes_v2
 		ORDER BY group_name, name, id
 	`)
@@ -219,10 +219,34 @@ func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractno
 
 	for rows.Next() {
 		var id, dataJSON string
-		if err := rows.Scan(&id, &dataJSON); err != nil {
+		var enabled bool
+		if err := rows.Scan(&id, &dataJSON, &enabled); err != nil {
 			return fmt.Errorf("scan node contract failed: %w", err)
 		}
-		node, err := decodeNodeContract(dataJSON)
+		var node contractnode.Node
+		var err error
+		if strict {
+			// Recovery preserves decodable inactive documents even when their
+			// activation metadata is obsolete. Unknown protocol/identity layouts
+			// still fail: their persistent credentials cannot be inventoried.
+			err = json.Unmarshal([]byte(dataJSON), &node, json.RejectUnknownMembers(true))
+			if err == nil {
+				if node.Enabled != enabled {
+					err = errors.New("node enabled state differs from storage")
+				} else if enabled {
+					err = node.Validate()
+				} else {
+					for _, protocol := range node.Chain {
+						if err = protocol.Validate(); err != nil {
+							break
+						}
+					}
+				}
+			}
+		}
+		if !strict {
+			node, err = decodeNodeContract(dataJSON)
+		}
 		if strict && err == nil && node.ID != id {
 			err = errors.New("node identity differs from storage key")
 		}

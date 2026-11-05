@@ -2,9 +2,7 @@ package recovery
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -32,12 +30,13 @@ type recoveryInventory struct {
 	runtime          *contractrecovery.Runtime
 	manifest         *contractrecovery.Manifest
 	copied           map[string]string
+	requirements     map[contractrecovery.Requirement]bool
 	bytes            int64
 	checkSpace       func(string, int64) error
 }
 
 func newRecoveryInventory(ctx context.Context, source, snapshot string, inputs *contractrecovery.Runtime, manifest *contractrecovery.Manifest) *recoveryInventory {
-	return &recoveryInventory{ctx: ctx, source: source, snapshot: snapshot, runtime: inputs, manifest: manifest, copied: map[string]string{}}
+	return &recoveryInventory{ctx: ctx, source: source, snapshot: snapshot, runtime: inputs, manifest: manifest, copied: map[string]string{}, requirements: map[contractrecovery.Requirement]bool{}}
 }
 
 func (c *recoveryInventory) collect(db *sql.DB) error {
@@ -85,6 +84,11 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 		return errors.New("unknown management TLS mode for recovery inventory")
 	}
 	if err := store.NewNodeStore(db).RangeForRecovery(c.ctx, func(node nodecontract.Node) error {
+		if !node.Enabled && node.Validate() != nil {
+			if err := c.requirement(contractrecovery.Requirement{Kind: "inactive_node_configuration", NodeID: node.ID}); err != nil {
+				return err
+			}
+		}
 		if err := c.fileReferences(node); err != nil {
 			return fmt.Errorf("node %s dependencies: %w", node.ID, err)
 		}
@@ -92,7 +96,14 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 	}); err != nil {
 		return err
 	}
-	if err := store.NewInboundStore(db).RangeForRecovery(c.ctx, func(inbound inboundcontract.Inbound) error { return c.fileReferences(inbound) }); err != nil {
+	if err := store.NewInboundStore(db).RangeForRecovery(c.ctx, func(inbound inboundcontract.Inbound) error {
+		if !inbound.Enabled && inbound.Validate() != nil {
+			if err := c.requirement(contractrecovery.Requirement{Kind: "inactive_inbound_configuration", NodeID: inbound.ID}); err != nil {
+				return err
+			}
+		}
+		return c.fileReferences(inbound)
+	}); err != nil {
 		return fmt.Errorf("inbound dependencies: %w", err)
 	}
 	gateway, err := store.NewGatewayStore(db).Load(c.ctx)
@@ -108,7 +119,13 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 		if err == nil && filepath.IsLocal(relative) {
 			return errors.New("external web assets cannot contain the deployment data directory")
 		}
-		if err := filepath.WalkDir(directory, func(path string, entry fs.DirEntry, err error) error {
+		if err := missingDependency(directory); errors.Is(err, os.ErrNotExist) {
+			if err := c.requirement(contractrecovery.Requirement{Kind: "missing_web_assets", Path: directory}); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else if err := filepath.WalkDir(directory, func(path string, entry fs.DirEntry, err error) error {
 			if cancelErr := c.ctx.Err(); cancelErr != nil {
 				return cancelErr
 			}
@@ -128,6 +145,15 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 		}
 	}
 	slices.SortFunc(c.manifest.Files, func(a, b contractrecovery.File) int { return strings.Compare(a.Path, b.Path) })
+	slices.SortFunc(c.manifest.Requirements, func(a, b contractrecovery.Requirement) int {
+		if order := strings.Compare(a.Kind, b.Kind); order != 0 {
+			return order
+		}
+		if order := strings.Compare(a.NodeID, b.NodeID); order != 0 {
+			return order
+		}
+		return strings.Compare(a.Path, b.Path)
+	})
 	return nil
 }
 
@@ -143,17 +169,26 @@ func (c *recoveryInventory) protocols(nodeID string, chain []nodecontract.Protoc
 			files, err = tailscale.RecoveryFiles(c.source, *protocol.Tailscale)
 		case protocol.ZeroTier != nil:
 			files, err = zerotier.RecoveryFiles(c.source, *protocol.ZeroTier)
-			if err == nil && protocol.ZeroTier.LibraryPath != "" {
-				_, err = c.copy(protocol.ZeroTier.LibraryPath, "dependency", false)
-			}
 		case protocol.Nebula != nil:
-			paths, dependencyErr := nebula.RecoveryFiles(*protocol.Nebula)
+			inventory, dependencyErr := nebula.RecoveryInventory(*protocol.Nebula)
+			paths := inventory.Files
 			if dependencyErr != nil {
 				return fmt.Errorf("nebula node %s recovery dependencies: %w", nodeID, dependencyErr)
 			}
-			for _, path := range paths {
-				if _, err := c.copy(path, "dependency", false); err != nil {
+			if inventory.NeedsReconfiguration {
+				if err := c.requirement(contractrecovery.Requirement{Kind: "protocol_reconfiguration", NodeID: nodeID}); err != nil {
 					return err
+				}
+			}
+			for _, path := range paths {
+				missing, err := c.configuredFile(path)
+				if err != nil {
+					return err
+				}
+				if missing {
+					if err := c.requirement(contractrecovery.Requirement{Kind: "protocol_reconfiguration", NodeID: nodeID}); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -161,10 +196,9 @@ func (c *recoveryInventory) protocols(nodeID string, chain []nodecontract.Protoc
 			return fmt.Errorf("node %s identity inventory: %w", nodeID, err)
 		}
 		if (protocol.Tailscale != nil || protocol.ZeroTier != nil) && len(files) == 0 {
-			if len(c.manifest.Requirements) >= backuparchive.MaxFiles {
-				return errors.New("too many recovery requirements")
+			if err := c.requirement(contractrecovery.Requirement{Kind: "identity_not_initialized", NodeID: nodeID}); err != nil {
+				return err
 			}
-			c.manifest.Requirements = append(c.manifest.Requirements, contractrecovery.Requirement{Kind: "identity_not_initialized", NodeID: nodeID})
 		}
 		for _, path := range files {
 			if _, err := c.copy(path, "protocol_identity", true); err != nil {
@@ -207,7 +241,11 @@ func (c *recoveryInventory) fileReferences(document any) error {
 				if isRecoveryFileReference(key) {
 					name, ok := child.(string)
 					if ok && name != "" {
-						if _, err := c.copy(name, "dependency", false); err != nil {
+						if key == "library_path" {
+							if err := c.requirement(contractrecovery.Requirement{Kind: "external_runtime", Path: c.absolute(name)}); err != nil {
+								return err
+							}
+						} else if _, err := c.configuredFile(name); err != nil {
 							return err
 						}
 					}
@@ -247,6 +285,9 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 	if path, ok := c.copied[source]; ok {
 		return path, nil
 	}
+	if c.requirements[contractrecovery.Requirement{Kind: "missing_dependency", Path: source}] {
+		return "", errors.New("dependency appeared after absence was inventoried")
+	}
 	if len(c.manifest.Files) >= backuparchive.MaxFiles {
 		return "", errors.New("recovery file count exceeds limit")
 	}
@@ -271,8 +312,7 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 		if owned {
 			return "", errors.New("protocol-owned identity escaped its deployment directory")
 		}
-		digest := sha256.Sum256([]byte(source))
-		archivePath = "dependencies/" + hex.EncodeToString(digest[:]) + ".bin"
+		archivePath = recoveryDependencyPath(source)
 		original = source
 	}
 	if owned {
@@ -354,4 +394,58 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 	c.copied[source] = archivePath
 	c.manifest.Files = append(c.manifest.Files, contractrecovery.File{Path: archivePath, Role: role, SourcePath: original})
 	return archivePath, nil
+}
+
+// Configured certificate references may be dormant, generated later, or have
+// inline fallbacks. Account for absence, but never downgrade read/copy failures.
+func (c *recoveryInventory) configuredFile(name string) (bool, error) {
+	source := c.absolute(name)
+	if _, exists := c.copied[source]; exists {
+		return false, nil
+	}
+	if c.requirements[contractrecovery.Requirement{Kind: "missing_dependency", Path: source}] {
+		return true, nil
+	}
+	if err := missingDependency(source); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return false, err
+		}
+		return true, c.requirement(contractrecovery.Requirement{Kind: "missing_dependency", Path: source})
+	}
+	_, err := c.copy(name, "dependency", false)
+	return false, err
+}
+
+// An absent leaf below real directories is different from a dangling symlink.
+// Existing certificate symlinks remain materialized by copy, as before.
+func missingDependency(name string) error {
+	for current := name; ; current = filepath.Dir(current) {
+		info, err := os.Lstat(current)
+		if err == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				if _, err := os.Stat(current); err != nil {
+					return fmt.Errorf("unresolved dependency symlink: %v", err)
+				}
+			}
+			if current == name {
+				return nil
+			}
+			return os.ErrNotExist
+		}
+		if !errors.Is(err, os.ErrNotExist) || filepath.Dir(current) == current {
+			return err
+		}
+	}
+}
+
+func (c *recoveryInventory) requirement(item contractrecovery.Requirement) error {
+	if c.requirements[item] {
+		return nil
+	}
+	if len(c.manifest.Requirements) >= backuparchive.MaxFiles {
+		return errors.New("too many recovery requirements")
+	}
+	c.requirements[item] = true
+	c.manifest.Requirements = append(c.manifest.Requirements, item)
+	return nil
 }

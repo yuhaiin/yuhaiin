@@ -136,7 +136,7 @@ approval of identity/credential replacement.
 
 ## Preview and controlled offline restore
 
-Use a trusted complete v2 archive, stop the service and all external writers,
+Use a trusted complete v2/v3 archive, stop the service and all external writers,
 and create the target data directory if it does not exist. Preview never writes
 the target deployment; it decrypts/rebinds a disposable private staging copy:
 
@@ -335,7 +335,7 @@ The authenticated plaintext is a simple uncompressed length-framed archive:
 
 1. Magic bytes `YUHAIIN-RECOVERY\0\1`.
 2. Four-byte big-endian JSON manifest length.
-3. Strict versioned JSON manifest (`format=yuhaiin-recovery`, `version=2`).
+3. Strict versioned JSON manifest (`format=yuhaiin-recovery`, `version=2` or `version=3`).
 4. Each declared regular file's exact bytes in manifest order.
 5. Authenticated EOF, with no additional plaintext or ciphertext accepted.
 
@@ -506,3 +506,56 @@ after every writer has stopped, and adds no migration. Original-instance recover
 retains the source schedules. `TestRecoveryMonitoringSchedulesPreservedForOriginalAndDisabledForClone`
 restores a real encrypted archive in both modes and verifies these settings,
 revisions and unchanged manual policies. It runs with both PureGo and linked CGO SQLite.
+
+## File dependencies and recovery requirements
+
+Inventory is a capture operation, not a test that every saved resource can be
+activated. A saved Inbound can refer to a certificate that has not been issued
+or has already been removed. TLS termination can also fall back to inline
+material. Such references no longer prevent a full encrypted backup.
+
+| Resource | Capture policy | Restore policy |
+| --- | --- | --- |
+| Configured Node, Inbound and Gateway certificate files | Copy existing files, including credentials in disabled configurations. An absent file becomes `missing_dependency`. | Rebind an absent reference into a unique, confined unavailable-resource namespace; disable the affected resource in original and clone modes. Review it before enabling, including any inline fallback. |
+| Actual management TLS startup material | Remains required for self-signed/file modes; managed certificate records and material must exist. | Restore the captured startup inputs. Missing required material still fails capture. |
+| Tailscale / ZeroTier identity state | Preserve all existing protocol-owned identity files, including disabled nodes. No client is constructed. A never-initialized identity remains `identity_not_initialized`. | Original recovery retains protocol enrollment semantics; clone removes captured machine identities and requires enrollment. |
+| ZeroTier `library_path` | Always `external_runtime`, whether or not installed; native code is target-environment software, not a persistent identity. It is not copied. | Rebind to a confined unavailable path, disable the node, and require the operator to provide a suitable library and configure its path. Default library discovery without an explicit path is unchanged. |
+| Nebula PKI | Inspect explicit PKI references without activation-only tunnel validation; preserve inline material and existing files. Missing inputs or PKCS#11 keys add `protocol_reconfiguration`. Hardware key bytes are never claimed as captured. | Original and clone retain the configuration but disable the affected node until PKI is supplied. PKCS#11 locators remain inspectable; they do not imply a restored private key. |
+| External Web | Copy existing trees, rejecting symlinks. An absent root adds `missing_web_assets`; other walk/read errors remain fatal. | Clear the startup directory override and use normal built-in UI selection. Redeploy external assets before selecting them again. |
+| Invalid inactive activation metadata | Preserve decodable supported Node/Inbound layouts and their credentials, recording `inactive_node_configuration` / `inactive_inbound_configuration`. | Retain the original document with the resource disabled. Saving/enabling still applies normal validation. |
+
+Malformed JSON, unknown or ambiguous protocol/identity layouts, mismatched stored
+IDs/enabled state and opaque historical resources still fail closed: their
+persistent files cannot be inventoried safely. Disabled status does not authorize
+silently omitting an existing identity. This change does not make arbitrary
+unrecognized historical data safe for automatic recovery.
+
+Only absence found before copying a configured dependency is relaxed. Permission
+errors, I/O failures, non-regular sources, dangling dependency symlinks, escaping
+protocol-owned identity paths, changes during copying, size/space limits, database
+integrity checks, authenticated digests and atomic restoration remain enforced.
+A file disappearing during copy still fails capture. Existing certificate symlinks
+continue to be materialized as ordinary archive files; they are never recreated
+as symlinks or used to write outside the restore directory.
+
+`completeInventory` means the supported source resources have all been accounted
+for, either as captured files or explicit authenticated `requirements`. It does
+not claim that unavailable keys were captured, that all configured services can
+start, or that external hardware is recoverable. Preview displays obligations;
+restoration never silently reads a missing dependency from the source machine or
+reuses an unrelated target secret. The source configuration is not changed.
+
+### Archive compatibility
+
+Readers accept archive manifests v1, v2 and v3. Existing v1 archives still verify
+but lack the complete inventory needed for automatic deployment restoration.
+Existing v2 archives retain their previous restoration behavior. The framing and
+age encryption have not changed.
+
+Writers continue producing v2 when its existing semantics suffice, including
+`identity_not_initialized`. An archive containing any of the new requirement
+kinds uses **manifest v3**. Old v2 tools intentionally reject v3 instead of
+misinterpreting an omitted resource. Use a binary from this change or newer to
+verify/preview/restore v3 archives, including recovery from a protected update;
+retain that recovery tool together with the source executable and external age
+identity. No SQLite schema change is introduced.

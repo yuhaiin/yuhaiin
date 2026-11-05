@@ -22,7 +22,7 @@ import (
 
 const (
 	RecoveryFormat   = "yuhaiin-recovery"
-	RecoveryVersion  = 2
+	RecoveryVersion  = 3
 	MaxFiles         = 4096
 	MaxManifestBytes = 1 << 20
 	MaxDataBytes     = contractrecovery.MaxDataBytes
@@ -87,7 +87,15 @@ func Write(ctx context.Context, dst io.Writer, sourceDirectory string, manifest 
 	if err := ctx.Err(); err != nil {
 		return manifest, err
 	}
-	manifest.Format, manifest.Version = RecoveryFormat, RecoveryVersion
+	// Keep writing v2 for inventories expressible by old readers. New recovery
+	// obligations require v3 so older tools refuse rather than misrestore them.
+	manifest.Format, manifest.Version = RecoveryFormat, 2
+	for _, requirement := range manifest.Requirements {
+		if requirement.Kind != "identity_not_initialized" {
+			manifest.Version = RecoveryVersion
+			break
+		}
+	}
 	if len(manifest.Files) == 0 || len(manifest.Files) > MaxFiles {
 		return manifest, errors.New("invalid recovery file count")
 	}

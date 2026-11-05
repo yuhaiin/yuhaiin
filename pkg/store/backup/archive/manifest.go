@@ -16,7 +16,7 @@ import (
 )
 
 func ValidateManifest(manifest contractrecovery.Manifest) error {
-	if manifest.Format != RecoveryFormat || (manifest.Version != 1 && manifest.Version != RecoveryVersion) {
+	if manifest.Format != RecoveryFormat || (manifest.Version < 1 || manifest.Version > RecoveryVersion) {
 		return errors.New("unsupported recovery format or version")
 	}
 	for _, id := range []string{manifest.ID, manifest.InstanceID} {
@@ -55,8 +55,21 @@ func ValidateManifest(manifest contractrecovery.Manifest) error {
 		return errors.New("too many recovery requirements")
 	}
 	for _, requirement := range manifest.Requirements {
-		if requirement.Kind != "identity_not_initialized" || len(requirement.NodeID) > 256 || len(requirement.Path) > 4096 {
+		if len(requirement.NodeID) > 256 || len(requirement.Path) > 4096 {
 			return errors.New("invalid recovery requirement")
+		}
+		switch requirement.Kind {
+		case "identity_not_initialized":
+		case "missing_dependency", "external_runtime", "missing_web_assets":
+			if manifest.Version < 3 || !recoverySourcePath(requirement.Path) || requirement.NodeID != "" {
+				return errors.New("invalid recovery dependency requirement")
+			}
+		case "protocol_reconfiguration", "inactive_node_configuration", "inactive_inbound_configuration":
+			if manifest.Version < 3 || requirement.NodeID == "" || requirement.Path != "" {
+				return errors.New("invalid recovery resource requirement")
+			}
+		default:
+			return errors.New("unsupported recovery requirement")
 		}
 	}
 	names := make(map[string]struct{}, len(manifest.Files))

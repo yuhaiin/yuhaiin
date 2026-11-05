@@ -122,7 +122,7 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 	}
 	manifest := prepared.Manifest
 	if !manifest.CompleteInventory || manifest.Runtime == nil || manifest.Version < 2 {
-		return empty, nil, errors.New("automatic restore requires a complete version-2 deployment inventory")
+		return empty, nil, errors.New("automatic restore requires a complete version-2 or version-3 deployment inventory")
 	}
 	if manifest.Build.Platform != runtime.GOOS || manifest.Build.Architecture != runtime.GOARCH {
 		return empty, nil, errors.New("restore platform/architecture differs; use a reviewed offline migration")
@@ -167,6 +167,23 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 	if err := projectRecoveryTailnetIdentities(ctx, prepared.Directory(), manifest, &projection); err != nil {
 		return empty, nil, err
 	}
+	unavailable := map[string]bool{}
+	for _, requirement := range manifest.Requirements {
+		if requirement.Kind == "missing_dependency" || requirement.Kind == "external_runtime" {
+			mapped := projection.sources[filepath.Clean(requirement.Path)]
+			exists, err := backupfs.Destination(root, filepath.FromSlash(mapped), false)
+			if err != nil {
+				return empty, nil, err
+			}
+			if exists {
+				return empty, nil, errors.New("unavailable recovery dependency destination already exists")
+			}
+			unavailable[filepath.Join(directory, filepath.FromSlash(mapped))] = true
+		}
+		if !slices.Contains(preview.Warnings, requirement.Kind) {
+			preview.Warnings = append(preview.Warnings, requirement.Kind)
+		}
+	}
 	resolve := func(value string) (string, error) {
 		original := recoveryAbsolute(manifest.Runtime.WorkingDirectory, value)
 		mapped, ok := projection.sources[original]
@@ -190,12 +207,17 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 		}
 	}
 	if preview.Runtime.ExternalWebDirectory != "" {
-		preview.Runtime.ExternalWebDirectory = filepath.Join(directory, filepath.FromSlash(projection.web))
+		missing := slices.ContainsFunc(manifest.Requirements, func(item contractrecovery.Requirement) bool { return item.Kind == "missing_web_assets" })
+		if missing {
+			preview.Runtime.ExternalWebDirectory = ""
+		} else {
+			preview.Runtime.ExternalWebDirectory = filepath.Join(directory, filepath.FromSlash(projection.web))
+		}
 	}
 	if err := relocateRecoveryFiles(prepared.Directory(), projection.files); err != nil {
 		return empty, nil, err
 	}
-	if err := rewriteRecoveryConfiguration(ctx, prepared.Directory(), preview.InstanceID, &preview.Runtime, resolve, mode); err != nil {
+	if err := rewriteRecoveryConfiguration(ctx, prepared.Directory(), preview.InstanceID, &preview.Runtime, resolve, mode, unavailable); err != nil {
 		return empty, nil, err
 	}
 	tx := &recoveryTransaction{Version: 1, ID: uuid.New().String(), BackupID: manifest.ID, InstanceID: preview.InstanceID, Phase: "activating", Stage: filepath.Base(prepared.Directory()), CreatedAt: time.Now().UTC(), Runtime: preview.Runtime}

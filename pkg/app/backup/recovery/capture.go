@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -181,18 +182,19 @@ func Capture(ctx context.Context, directory, id string, service Service) (result
 			}
 			expected := current.State
 			current.State, current.ErrorCode, current.CompletedAt = "failed", "capture_failed", time.Now().UTC()
+			current.FailureStage, current.FailureCode = captureFailureDetails(resultErr)
 			return owner.SaveRecoveryJob(failed, current, expected)
 		})
 	}()
 	if err := service.Stop(ctx); err != nil {
-		return err
+		return &captureFailure{stage: "service_stop", cause: err}
 	}
 	return CaptureStopped(ctx, directory, id, operation)
 }
 
 // CaptureStopped reuses the coherent collector while an update coordinator
 // already owns maintenance and has stopped the service. It never starts a service.
-func CaptureStopped(ctx context.Context, directory, id string, operation *os.File) error {
+func CaptureStopped(ctx context.Context, directory, id string, operation *os.File) (resultErr error) {
 	if operation == nil {
 		return errors.New("capture requires the maintenance owner")
 	}
@@ -227,6 +229,29 @@ func CaptureStopped(ctx context.Context, directory, id string, operation *os.Fil
 	}); err != nil {
 		return err
 	}
+
+	// Protected upgrades call this directly, so publish structured failures here
+	// as well as in the ordinary maintenance service wrapper.
+	defer func() {
+		if resultErr == nil {
+			return
+		}
+		failed, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = withRecoveryJobStore(failed, directory, func(owner *backupstore.Store) error {
+			current, err := owner.RecoveryJob(failed, id)
+			if err != nil {
+				return err
+			}
+			if current.State != "capturing" {
+				return nil
+			}
+			expected := current.State
+			current.State, current.ErrorCode, current.CompletedAt = "failed", "capture_failed", time.Now().UTC()
+			current.FailureStage, current.FailureCode = captureFailureDetails(resultErr)
+			return owner.SaveRecoveryJob(failed, current, expected)
+		})
+	}()
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(job.Policy.TimeoutMinutes)*time.Minute)
 	defer cancel()
 	root, err := os.OpenRoot(directory)
@@ -257,6 +282,13 @@ func CaptureStopped(ctx context.Context, directory, id string, operation *os.Fil
 		return err
 	}
 	job.BackupID, job.InstanceID = manifest.ID, manifest.InstanceID
+	job.RequirementCount = len(manifest.Requirements)
+	for _, item := range manifest.Requirements {
+		found := slices.Contains(job.Warnings, item.Kind)
+		if !found {
+			job.Warnings = append(job.Warnings, item.Kind)
+		}
+	}
 	job.State, job.Verification, job.CompletedAt = "local_ready", "ciphertext_sha256", time.Now().UTC()
 	job.ObjectKey = "recovery/" + manifest.InstanceID + "/" + manifest.ID + ".yhb"
 	return withOfflineBackupStore(ctx, directory, func(owner *backupstore.Store) error {

@@ -381,3 +381,38 @@ func TestPreparedImportPreservesNativeIdentityProjectionAndRollback(t *testing.T
 		})
 	}
 }
+
+func TestPreparedImportPreservesMissingDependencyObligations(t *testing.T) {
+	directory, key := testfixture.BasicDeployment(t)
+	if err := os.Remove(filepath.Join(directory, "site.crt")); err != nil {
+		t.Fatal(err)
+	}
+	source := preparedImportSourceFrom(t, directory, key)
+	for _, mode := range []string{"original", "clone"} {
+		t.Run(mode, func(t *testing.T) {
+			target, item, request, _ := source.prepare(t, mode, false)
+			if item.Preview.Manifest.Version != 3 || len(item.Preview.Manifest.Requirements) != 1 {
+				t.Fatal("prepared import omitted v3 obligations")
+			}
+			if err := ValidateImportActivation(t.Context(), item, request); err != nil {
+				t.Fatal(err)
+			}
+			result, err := ActivateImport(t.Context(), target, item, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lifecycle, err := lockfile.Acquire(filepath.Join(target, ".configuration.lock"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lifecycle.Close()
+			startup, err := PrepareStartup(target, lifecycle, result.Runtime)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := startup.Abort(); err != nil {
+				t.Fatal("rollback failed for a partial resource inventory", err)
+			}
+		})
+	}
+}
