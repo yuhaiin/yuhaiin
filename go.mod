@@ -34,11 +34,11 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/purego-sqlite v0.0.0-20261105053831-8f97af508a4f
+	github.com/yuhaiin/purego-sqlite v0.0.0-20261105112659-37f07d7891db
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104135523-4121a04c61b8
 	github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261105134542-e377ae94c684
-	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
+	github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.58.0
