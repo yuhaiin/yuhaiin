@@ -40,8 +40,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261104063045-003194ad05e5
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0
-	go.yaml.in/yaml/v3 v3.0.5
-	go.yaml.in/yaml/v4 v4.0.0
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867

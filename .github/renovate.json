@@ -17,5 +17,30 @@
         "github.com/Asutorufa/tailscale",
         "github.com/apernet/quic-go",
         "github.com/tailscale/wireguard-go"
+    ],
+    "packageRules": [
+        {
+            "description": "Keep explicitly pinned Ubuntu GitHub-hosted runner versions; upgrade them deliberately",
+            "matchDatasources": [
+                "github-runners"
+            ],
+            "matchPackageNames": [
+                "ubuntu"
+            ],
+            "enabled": false
+        },
+        {
+            "description": "Go YAML v4 requires explicit import-path and compatibility migration",
+            "matchManagers": [
+                "gomod"
+            ],
+            "matchPackageNames": [
+                "go.yaml.in/yaml/v3"
+            ],
+            "matchUpdateTypes": [
+                "major"
+            ],
+            "enabled": false
+        }
     ]
 }
