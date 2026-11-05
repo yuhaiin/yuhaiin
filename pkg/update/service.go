@@ -171,6 +171,7 @@ func (s *Service) Check(ctx context.Context, channel string) (contractupdate.Che
 	result.ReleaseNotes = selected.Notes
 	result.PublishedAt = selected.PublishedAt
 	result.AssetName = selected.Asset.Name
+	result.AssetURL = selected.Asset.URL
 	checksum, err := s.assetChecksum(ctx, selected.Asset)
 	if err != nil {
 		return result, err

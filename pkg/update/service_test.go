@@ -139,7 +139,7 @@ func TestServiceCheckAndApplyVerifiesChecksum(t *testing.T) {
 	installer := &testInstaller{dir: dir, done: make(chan struct{})}
 	svc := NewService(Options{HTTPClient: &http.Client{Transport: transport}, ReleasesURL: "https://test/releases", Installer: installer, CurrentVersion: "v1.0.0", TargetOS: "linux", TargetArch: "amd64"})
 	result, err := svc.Check(t.Context(), "stable")
-	if err != nil || !result.UpdateAvailable || result.AssetSHA256 != hex.EncodeToString(hash[:]) {
+	if err != nil || !result.UpdateAvailable || result.AssetSHA256 != hex.EncodeToString(hash[:]) || result.AssetURL != "https://test/binary" {
 		t.Fatalf("check = %#v, %v", result, err)
 	}
 	if err := svc.Apply(t.Context(), contractupdate.ApplyRequest{TargetTag: "v2.0.0"}); err != nil {

@@ -49,6 +49,7 @@ type CheckResult struct {
 	ReleaseNotes    string               `json:"releaseNotes"`
 	PublishedAt     time.Time            `json:"publishedAt"`
 	AssetName       string               `json:"assetName"`
+	AssetURL        string               `json:"assetUrl"`
 	AssetSHA256     string               `json:"assetSha256"`
 	UpdateAvailable bool                 `json:"updateAvailable"`
 	Reason          string               `json:"reason"`

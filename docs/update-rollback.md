@@ -259,3 +259,47 @@ independent helper to finish its pinned HTTPS/PID check; the startup receipt by
 itself does not release renewal. Missing acknowledgement, cancellation or a
 foreign operation/PID fails the startup. Original-instance recovery preserves the
 managed identity; clone recovery uses a new self-signed management certificate.
+
+## Manual upgrade on unsupported hosts
+
+A host without protected-update supervision can perform same-schema Web
+updates after the configured consent. A database-migrating target requires
+manual maintenance on that host; enabling encrypted backups alone does not
+add a missing service supervisor. The Web UI should offer the selected platform
+asset, its reviewed SHA-256, and these instructions instead of sending users
+back to backup setup.
+
+1. Before stopping the working service, download the correct platform asset
+   and `checksums.txt` from the release. Verify the downloaded binary against
+   the SHA-256 shown during update review. Rolling `main` files can change;
+   recheck the release if the digest no longer matches.
+2. Stop the installed service and every other writer. Preserve the exact old
+   executable and create a full database/dependency recovery archive using the
+   [offline recovery CLI](recovery-archive.md#working-cli-operations). Verify
+   that archive with the external recovery identity before replacing anything.
+   A live copy of just a SQLite main file is not a complete backup.
+3. Replace the executable with the verified target and start the same installed
+   service. Normal startup applies known migrations; do not edit SQLite schema
+   versions or migration history by hand. Check startup, management access,
+   proxy connectivity, and DNS before treating maintenance as complete.
+4. If startup fails after the target may have opened databases, keep it stopped.
+   Restore the matching verified recovery archive together with the old
+   executable using the documented original-instance recovery procedure.
+   Replacing only the binary does not undo a database migration.
+
+For the default macOS system service, use `bootout` to stop it; merely killing
+its process would allow launchd KeepAlive to restart it during backup:
+
+```sh
+sudo launchctl bootout system /Library/LaunchDaemons/com.asutorufa.yuhaiin.plist
+# Preserve /usr/local/bin/yuhaiin and create/verify the full offline archive.
+# Default data directory: /Library/Application Support/yuhaiin
+# After those steps succeed, install the already verified downloaded binary:
+sudo install -m 755 ./yuhaiin-darwin-arm64 /usr/local/bin/yuhaiin
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.asutorufa.yuhaiin.plist
+```
+
+These paths apply to the default arm64 installation. Use the actual service,
+CPU architecture, data directory, startup arguments, and external dependencies
+for other installations. Keep the source executable and verified archive until
+the target has been exercised successfully.
