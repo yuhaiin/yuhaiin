@@ -54,7 +54,11 @@ func TestConfigurationChangeMigrationsAreAtomicAndRestartable(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !schemaObjectExists(t, upgraded.DB(), "configuration_changes") || queryInt(t, upgraded.DB(), `SELECT count(*) FROM migrate`) != int64(test.next.Version) {
+				latest, err := SupportedSchemaVersion(test.name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !schemaObjectExists(t, upgraded.DB(), "configuration_changes") || queryInt(t, upgraded.DB(), `SELECT count(*) FROM migrate`) != int64(latest) {
 					t.Fatal("migration missing or repeated")
 				}
 				if test.name == "configuration" && schemaObjectExists(t, upgraded.DB(), "management_users") {

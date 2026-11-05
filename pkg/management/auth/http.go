@@ -311,6 +311,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 			Owner     string       `json:"owner"`
 			Scopes    []Permission `json:"scopes"`
 			ExpiresAt int64        `json:"expiresAt"`
+			Name      string       `json:"name"`
+			Note      string       `json:"note"`
 		}
 		if !decode(r, w, &request) {
 			return
@@ -319,12 +321,21 @@ func (s *Server) Register(mux *http.ServeMux) {
 		if request.Owner == "" {
 			request.Owner = p.UserID
 		}
-		token, err := s.Store.IssueToken(r.Context(), p, request.Owner, request.Scopes, request.ExpiresAt)
+		token, err := s.Store.IssueLabeledToken(r.Context(), p, request.Owner, request.Scopes, request.ExpiresAt, TokenLabels{Name: request.Name, Note: request.Note})
 		respond(w, token, err)
 	})
 	register("DELETE /api/v2/auth/tokens/{id}", TokensOwn, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, struct{}{}, s.Store.Revoke(r.Context(), p, r.PathValue("id")))
+	})
+	register("PATCH /api/v2/auth/tokens/{id}", TokensOwn, func(w http.ResponseWriter, r *http.Request) {
+		var labels TokenLabels
+		if !decode(r, w, &labels) {
+			return
+		}
+		p, _ := FromContext(r.Context())
+		out, err := s.Store.UpdateTokenLabels(r.Context(), p, r.PathValue("id"), labels)
+		respond(w, out, err)
 	})
 	register("POST /api/v2/auth/tokens/{id}/rotate", TokensOwn, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
