@@ -40,7 +40,7 @@ require (
 	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261104063045-003194ad05e5
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0
-	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
@@ -131,6 +131,7 @@ require (
 	github.com/tailscale/web-client-prebuilt v0.0.0-20260917222731-e0ed2d0d0fea // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb // indirect
 	golang.org/x/tools v0.52.0 // indirect

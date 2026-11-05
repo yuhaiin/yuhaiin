@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // RebindRecoveryFiles changes only PKI filename scalars recognized by this
