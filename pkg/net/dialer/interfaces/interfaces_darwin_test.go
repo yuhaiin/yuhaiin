@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -113,5 +114,20 @@ func TestDarwinRouteChangesTriggerReconciliation(t *testing.T) {
 func TestDarwinMulticastEventIgnored(t *testing.T) {
 	if !skipMessage(&route.InterfaceMulticastAddrMessage{}) {
 		t.Fatal("multicast address updates should not trigger a refresh")
+	}
+}
+
+func TestSameRouteInterfaceNames(t *testing.T) {
+	ifaces := map[int]Interface{
+		1: {Interface: &net.Interface{Index: 1, Name: "en0"}},
+		2: {Interface: &net.Interface{Index: 2, Name: "utun0"}},
+	}
+	names := map[int]string{1: "en0", 2: "utun0"}
+	if !sameRouteInterfaceNames(names, ifaces) {
+		t.Fatal("same interface names must reuse parsed route snapshot")
+	}
+	ifaces[2] = Interface{Interface: &net.Interface{Index: 2, Name: "utun1"}}
+	if sameRouteInterfaceNames(names, ifaces) {
+		t.Fatal("renamed interface must invalidate parsed route snapshot")
 	}
 }

@@ -280,9 +280,9 @@ func reGetDefaultInterface(reason string) error {
 	next := snapshotNetwork(name, addresses, routes)
 	prev := lastNetworkState.Load()
 	changed := oldName != name || (prev != nil && networkStateChanged(*prev, next))
-	// A poll can observe the same routes repeatedly. Keep the published trie
-	// until the complete IPv4/IPv6 routing table actually changes.
-	if lastPublishedRoutes == nil || !lastPublishedRoutes.equal(routes) {
+	// Keep the published trie when the effective prefix-to-interface mapping
+	// is unchanged, even if gateway metadata or RIB ordering changes.
+	if lastPublishedRoutes == nil || !lastPublishedRoutes.sameTrie(routes) {
 		defaultrouter.Store(routes.ToTrie())
 		lastPublishedRoutes = &routes
 	}

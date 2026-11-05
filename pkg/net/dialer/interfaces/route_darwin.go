@@ -1,12 +1,36 @@
 package interfaces
 
 import (
+	"bytes"
 	"net"
 	"net/netip"
+	"sync"
 
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
 )
+
+// parsedRIB retains the last macOS route snapshot. Network notifications can
+// arrive frequently with no actual RIB changes; skip the expensive ParseRIB
+// and route conversion in that case. Interface names are part of the key.
+var parsedRIB struct {
+	sync.Mutex
+	raw    []byte
+	names  map[int]string
+	routes router
+}
+
+func sameRouteInterfaceNames(names map[int]string, ifaces map[int]Interface) bool {
+	if len(names) != len(ifaces) {
+		return false
+	}
+	for index, iface := range ifaces {
+		if names[index] != iface.Name {
+			return false
+		}
+	}
+	return true
+}
 
 func routes() (router, error) {
 	ifaces, err := interfacesMap()
@@ -17,6 +41,12 @@ func routes() (router, error) {
 	messages, err := route.FetchRIB(unix.AF_UNSPEC, unix.NET_RT_DUMP, 0)
 	if err != nil {
 		return router{}, err
+	}
+
+	parsedRIB.Lock()
+	defer parsedRIB.Unlock()
+	if parsedRIB.raw != nil && bytes.Equal(parsedRIB.raw, messages) && sameRouteInterfaceNames(parsedRIB.names, ifaces) {
+		return parsedRIB.routes, nil
 	}
 
 	msgs, err := route.ParseRIB(unix.NET_RT_DUMP, messages)
@@ -85,5 +115,12 @@ func routes() (router, error) {
 		}
 	}
 
+	// Route snapshots are immutable after publication.
+	parsedRIB.raw = messages
+	parsedRIB.names = make(map[int]string, len(ifaces))
+	for index, iface := range ifaces {
+		parsedRIB.names[index] = iface.Name
+	}
+	parsedRIB.routes = ret
 	return ret, nil
 }

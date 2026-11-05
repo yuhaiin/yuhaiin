@@ -1,9 +1,6 @@
 package cidr
 
-import (
-	"math"
-	"net"
-)
+import "net"
 
 type Trie[T any] struct {
 	mark  T
@@ -12,60 +9,53 @@ type Trie[T any] struct {
 	last  bool
 }
 
-// Insert insert node to tree
+// Insert adds a CIDR prefix. Existing more-specific prefixes must survive
+// inserting or updating a parent prefix.
 func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
-	r := t
-	for i := range ip {
-		for b := byte(128); b != 0; b = b >> 1 {
-			if ip[i]&b != 0 {
-				if r.right == nil {
-					r.right = new(Trie[T])
-				}
-				r = r.right
-			} else {
-				if r.left == nil {
-					r.left = new(Trie[T])
-				}
-				r = r.left
-			}
-
-			if i*8+int(math.Log2(float64(128/b)))+1 == maskSize {
-				r.mark = mark
-				r.last = true
-				r.left = new(Trie[T])
-				r.right = new(Trie[T])
-				return
-			}
-		}
+	if maskSize < 0 || maskSize > len(ip)*8 {
+		return
 	}
+	node := t
+	for depth := range maskSize {
+		var child **Trie[T]
+		if ip[depth/8]&(0x80>>uint(depth%8)) != 0 {
+			child = &node.right
+		} else {
+			child = &node.left
+		}
+		if *child == nil {
+			*child = new(Trie[T])
+		}
+		node = *child
+	}
+	node.mark = mark
+	node.last = true
 }
 
-// Search search from trie tree
+// Search performs longest-prefix matching, including /0 at the root.
 func (t *Trie[T]) Search(ip net.IP) (mark T, ok bool) {
-	r := t
-out:
-	for i := range ip {
-		for b := byte(128); b != 0; b = b >> 1 {
-			if ip[i]&b != 0 { // bit = 1
-				r = r.right
-			} else { // bit = 0
-				r = r.left
+	node := t
+	mark, ok = node.mark, node.last
+	for _, octet := range ip {
+		for bit := byte(128); bit != 0; bit >>= 1 {
+			if octet&bit != 0 {
+				node = node.right
+			} else {
+				node = node.left
 			}
-			if r == nil {
-				break out
+			if node == nil {
+				return mark, ok
 			}
-			if r.last {
-				mark, ok = r.mark, true
+			if node.last {
+				mark, ok = node.mark, true
 			}
 		}
 	}
-	return
+	return mark, ok
 }
 
-// Search search from trie tree
 func (t *Trie[T]) Remove(ip net.IP) {
-	//TODO
+	// TODO: implement removal.
 }
 
-// NewTrieTree create a new trie tree
 func NewTrieTree[T any]() Trie[T] { return Trie[T]{} }
