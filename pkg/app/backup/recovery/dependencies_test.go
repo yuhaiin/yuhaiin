@@ -107,6 +107,17 @@ func TestRecoveryDependencyObligationsRoundTrip(t *testing.T) {
 			if !slices.Equal(prepared.Manifest.Requirements, manifest.Requirements) {
 				t.Fatal("authenticated obligations changed")
 			}
+			if scenario == "disabled_inbound" {
+				// An authenticated archive cannot use an optional-file warning
+				// to satisfy a mandatory management startup input.
+				inputs := *prepared.Manifest.Runtime
+				inputs.ManagementTLS = "files"
+				inputs.CertificateFile, inputs.KeyFile = missing, "site.key"
+				prepared.Manifest.Runtime = &inputs
+				if _, _, err := prepareRecoveryRestore(t.Context(), t.TempDir(), prepared, "original"); err == nil {
+					t.Fatal("missing management TLS certificate accepted during preview")
+				}
+			}
 			if err := prepared.Close(); err != nil {
 				t.Fatal(err)
 			}

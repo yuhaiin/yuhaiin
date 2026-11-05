@@ -64,7 +64,7 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 				sourceHashes[name] = sha256.Sum256(data)
 			}
 			destination := filepath.Join(t.TempDir(), "full.yhb")
-			denied := errors.New("fixture filesystem cannot preserve its reserve")
+			denied := backupfs.ErrInsufficientStagingSpace
 			positive, rejected := 0, false
 			options := CreateOptions{ConfirmedMaintenance: true, checkSpace: func(path string, bytes int64) error {
 				stage := strings.HasPrefix(filepath.Base(path), ".recovery-snapshot-")
@@ -86,6 +86,9 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 			_, err := Create(t.Context(), directory, destination, backuparchive.Encryption{Recipient: key.Recipient().String()}, options)
 			if !errors.Is(err, denied) || !rejected {
 				t.Fatal("space rejection was bypassed", boundary, positive, err)
+			}
+			if _, code := captureFailureDetails(err); code != "insufficient_space" {
+				t.Fatal("space rejection lost its structured diagnostic", code)
 			}
 			if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
 				t.Fatal("failed capture published an archive", err)

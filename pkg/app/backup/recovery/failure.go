@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"syscall"
+
+	"github.com/Asutorufa/yuhaiin/pkg/app/backup/internal/backupfs"
 )
 
 // captureFailure retains the detailed cause for offline logs. Only allowlisted
@@ -30,7 +32,7 @@ func captureFailureDetails(err error) (string, string) {
 		return stage, "timeout"
 	case errors.Is(err, fs.ErrPermission):
 		return stage, "permission_denied"
-	case errors.Is(err, syscall.ENOSPC):
+	case errors.Is(err, syscall.ENOSPC), errors.Is(err, backupfs.ErrInsufficientStagingSpace):
 		return stage, "insufficient_space"
 	case errors.Is(err, fs.ErrNotExist):
 		return stage, "required_file_missing"

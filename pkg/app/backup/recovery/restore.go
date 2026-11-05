@@ -205,6 +205,9 @@ func prepareRecoveryRestore(ctx context.Context, directory string, prepared *bac
 		if err != nil {
 			return empty, nil, err
 		}
+		if unavailable[preview.Runtime.CertificateFile] || unavailable[preview.Runtime.KeyFile] {
+			return empty, nil, errors.New("required management TLS files were not captured")
+		}
 	}
 	if preview.Runtime.ExternalWebDirectory != "" {
 		missing := slices.ContainsFunc(manifest.Requirements, func(item contractrecovery.Requirement) bool { return item.Kind == "missing_web_assets" })

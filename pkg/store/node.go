@@ -229,7 +229,7 @@ func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractno
 			// Recovery preserves decodable inactive documents even when their
 			// activation metadata is obsolete. Unknown protocol/identity layouts
 			// still fail: their persistent credentials cannot be inventoried.
-			err = json.Unmarshal([]byte(dataJSON), &node, json.RejectUnknownMembers(true))
+			err = json.Unmarshal([]byte(dataJSON), &node)
 			if err == nil {
 				if node.Enabled != enabled {
 					err = errors.New("node enabled state differs from storage")
@@ -243,8 +243,7 @@ func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractno
 					}
 				}
 			}
-		}
-		if !strict {
+		} else {
 			node, err = decodeNodeContract(dataJSON)
 		}
 		if strict && err == nil && node.ID != id {
