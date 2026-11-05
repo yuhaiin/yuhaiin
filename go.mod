@@ -12,16 +12,16 @@ require (
 	filippo.io/age v1.3.2
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
-	github.com/aws/aws-sdk-go-v2 v1.47.5
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.13
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
+	github.com/aws/aws-sdk-go-v2 v1.47.6
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.14
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.7
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/go-jose/go-jose/v4 v4.1.7
+	github.com/go-jose/go-jose/v4 v4.1.8
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
-	github.com/google/pprof v0.0.0-20261026192309-dbd0ed30aa88
+	github.com/google/pprof v0.0.0-20261105003125-4bf881d7fb0b
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/oschwald/maxminddb-golang/v2 v2.9.0
 	github.com/pires/go-proxyproto v0.16.0
@@ -34,10 +34,10 @@ require (
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261014101318-83f621788ca8
-	github.com/yuhaiin/purego-sqlite v0.0.0-20261104125355-eedc669e5bf7
-	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104081830-4c4a60e5eb53
+	github.com/yuhaiin/purego-sqlite v0.0.0-20261105053831-8f97af508a4f
+	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104135523-4121a04c61b8
 	github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261102135307-508f41359c93
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261104063045-003194ad05e5
 	github.com/yuhaiin/zerotier-go v0.0.0-20261019131011-17140b61ce29
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v3 v3.0.6
@@ -69,15 +69,15 @@ require (
 	github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.25 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.8 // indirect
-	github.com/aws/smithy-go v1.28.7 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.26 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.9 // indirect
+	github.com/aws/smithy-go v1.28.8 // indirect
 	github.com/axiomhq/hyperloglog v0.2.6 // indirect
 	github.com/benbjohnson/immutable v0.4.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
