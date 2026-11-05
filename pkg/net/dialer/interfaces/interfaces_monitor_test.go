@@ -114,3 +114,42 @@ func TestRouterEquality(t *testing.T) {
 		t.Fatal("an unrelated route must invalidate the trie")
 	}
 }
+
+// Gateway-only changes and reordered distinct prefixes do not change Trie
+// lookups. Duplicate-prefix last-write-wins semantics must still be preserved.
+func TestRouterSameTrie(t *testing.T) {
+	defaultPrefix := netip.MustParsePrefix("0.0.0.0/0")
+	privatePrefix := netip.MustParsePrefix("10.0.0.0/8")
+	a := router{v4: []rtInfo{
+		{Dst: defaultPrefix, OutputIface: "en0", Gateway: netip.MustParseAddr("192.0.2.1")},
+		{Dst: privatePrefix, OutputIface: "utun0"},
+	}}
+	b := router{v4: []rtInfo{
+		{Dst: privatePrefix, OutputIface: "utun0"},
+		{Dst: defaultPrefix, OutputIface: "en0", Gateway: netip.MustParseAddr("192.0.2.254")},
+	}}
+	if !a.sameTrie(b) {
+		t.Fatal("gateway and distinct-prefix ordering changed the effective trie")
+	}
+	b.v4[0].OutputIface = "utun1"
+	if a.sameTrie(b) {
+		t.Fatal("changed output interface incorrectly reused the trie")
+	}
+	b.v4[0].OutputIface = "utun0"
+	b.v4[0].Dst = netip.MustParsePrefix("10.1.0.0/16")
+	if a.sameTrie(b) {
+		t.Fatal("changed prefix incorrectly reused the trie")
+	}
+	dup := router{v4: []rtInfo{
+		{Dst: privatePrefix, OutputIface: "en0"},
+		{Dst: privatePrefix, OutputIface: "utun0"},
+	}}
+	last := router{v4: []rtInfo{{Dst: privatePrefix, OutputIface: "utun0"}}}
+	if !dup.sameTrie(last) {
+		t.Fatal("duplicate prefix should use the final interface")
+	}
+	dup.v4[0], dup.v4[1] = dup.v4[1], dup.v4[0]
+	if dup.sameTrie(last) {
+		t.Fatal("reversed duplicate prefix must invalidate the trie")
+	}
+}
