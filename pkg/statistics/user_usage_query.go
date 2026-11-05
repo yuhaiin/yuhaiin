@@ -231,6 +231,9 @@ func (r *UserUsage) Audit(ctx context.Context, q usage.Query) (usage.AuditPage, 
 		where += ` AND (started_at<? OR (started_at=? AND id<?))`
 		args = append(args, cursor.Time, cursor.Time, cursor.ID)
 	}
+	r.mu.Lock()
+	r.queueLiveAuditLocked(time.Now())
+	r.mu.Unlock()
 	if err := r.Flush(ctx); err != nil {
 		return usage.AuditPage{}, err
 	}

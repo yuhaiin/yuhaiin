@@ -311,12 +311,15 @@ func TestUserUsageRestartRetainsHistoryAndMarksInterrupted(t *testing.T) {
 	if err := r.recoverSessions(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	page, err := r.Audit(t.Context(), usage.Query{UserID: "alice"})
-	if err != nil {
+	// Read the recovered row directly: Audit() refreshes this runtime's live
+	// sessions first, while real recovery only runs before any session exists.
+	var result string
+	var endedAt int64
+	if err := r.db.QueryRowContext(t.Context(), `SELECT result, json_extract(data_json,'$.endedAt') FROM user_usage_audit WHERE user_id='alice'`).Scan(&result, &endedAt); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 1 || page.Items[0].Result != "interrupted" || page.Items[0].EndedAt == 0 {
-		t.Fatalf("audit=%+v", page)
+	if result != "interrupted" || endedAt == 0 {
+		t.Fatalf("result=%s endedAt=%d", result, endedAt)
 	}
 	s.end()
 	if err := r.Close(); err != nil {
@@ -491,5 +494,46 @@ func TestUserUsageQuotaFailuresAndTermination(t *testing.T) {
 		if err != nil || len(page.Items) != 1 || page.Items[0].Reason != "quota_exhausted" {
 			t.Fatalf("%s quota audit=%+v err=%v", result, page, err)
 		}
+	}
+}
+
+func TestUserUsageCheckpointsLiveAuditAndRefreshesOnRead(t *testing.T) {
+	r := usageTestRecorder(t)
+	c := new(usageTestCounter)
+	s := r.register(usageInfo("alice", "token", "node"), c, nil)
+	queued := func() time.Time { r.mu.Lock(); defer r.mu.Unlock(); return s.auditQueued }
+	t0 := time.Now()
+	r.sample(t0)
+	if first := queued(); first.IsZero() {
+		t.Fatal("first sample did not queue the audit row")
+	}
+	first := queued()
+	c.download.Add(10)
+	r.sample(first.Add(5 * time.Second))
+	if got := queued(); !got.Equal(first) {
+		t.Fatalf("live audit re-queued after 5s: %v", got.Sub(first))
+	}
+	r.sample(first.Add(usageAuditCheckpoint + time.Second))
+	if got := queued(); !got.After(first) {
+		t.Fatal("live audit not checkpointed after the interval")
+	}
+	// Reads are current even between checkpoints.
+	c.download.Add(5)
+	r.sample(queued().Add(time.Second))
+	page, err := r.Audit(t.Context(), usage.Query{UserID: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Download != "15" || page.Items[0].Result != "active" {
+		t.Fatalf("audit=%+v", page.Items)
+	}
+	s.end()
+	r.sample(time.Now())
+	page, err = r.Audit(t.Context(), usage.Query{UserID: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Result != "closed" {
+		t.Fatalf("ended audit=%+v", page.Items)
 	}
 }

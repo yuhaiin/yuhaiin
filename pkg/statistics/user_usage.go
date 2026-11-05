@@ -23,6 +23,12 @@ import (
 
 const usagePendingAuditLimit = 8192
 
+// usageAuditCheckpoint bounds how often a live session's audit row is
+// re-encoded and upserted. Totals are persisted on every flush regardless;
+// this only limits how stale an active row's counters can be after a crash.
+// Audit queries refresh every live row first, so reads are never stale.
+const usageAuditCheckpoint = 30 * time.Second
+
 // UsageOptions bounds retained on-disk history, independently of configuration
 // and credential lifetimes. Runtime observations never contain reusable secrets.
 type UsageOptions = usage.Options
@@ -122,6 +128,8 @@ type usageSession struct {
 	identity         context.Context
 	up, down, millis uint64
 	ended            bool
+	// auditQueued is when the audit snapshot was last queued for persistence.
+	auditQueued time.Time
 }
 
 func newUsageBatch() *usageBatch {
@@ -346,6 +354,15 @@ func (r *UserUsage) event(info contractconnection.Connection, result, reason str
 	r.signal()
 }
 
+// queueLiveAuditLocked queues the latest snapshot of every live session so a
+// following Flush makes active audit rows current before they are read.
+func (r *UserUsage) queueLiveAuditLocked(now time.Time) {
+	for s := range r.sessions {
+		r.auditLocked(s.audit)
+		s.auditQueued = now
+	}
+}
+
 func (r *UserUsage) auditLocked(a usage.Audit) {
 	if _, exists := r.pending.audit[a.ID]; !exists && len(r.pending.audit) >= usagePendingAuditLimit {
 		r.dropped++
@@ -398,7 +415,13 @@ func (r *UserUsage) sample(now time.Time) {
 			l.upload += u
 			l.download += d
 		}
-		r.auditLocked(s.audit)
+		// Re-encoding every live session's audit JSON each flush dominated
+		// allocations with many long-lived connections. Queue a checkpoint
+		// at most every usageAuditCheckpoint, and the final state on end.
+		if s.ended || s.auditQueued.IsZero() || now.Sub(s.auditQueued) >= usageAuditCheckpoint {
+			r.auditLocked(s.audit)
+			s.auditQueued = now
+		}
 		if s.ended {
 			delete(r.sessions, s)
 		}

@@ -114,10 +114,13 @@ func (r *UserUsage) persistUsage(ctx context.Context, batch *usageBatch) error {
 		if _, err := totals.ExecContext(ctx, args...); err != nil {
 			return err
 		}
-		if _, err := buckets.ExecContext(ctx, append([]any{"hour", key.hour}, args...)...); err != nil {
+		// Reuse one argument slice for the hour and day buckets.
+		bucketArgs := append([]any{"hour", key.hour}, args...)
+		if _, err := buckets.ExecContext(ctx, bucketArgs...); err != nil {
 			return err
 		}
-		if _, err := buckets.ExecContext(ctx, append([]any{"day", key.hour / 86400 * 86400}, args...)...); err != nil {
+		bucketArgs[0], bucketArgs[1] = "day", key.hour/86400*86400
+		if _, err := buckets.ExecContext(ctx, bucketArgs...); err != nil {
 			return err
 		}
 	}
