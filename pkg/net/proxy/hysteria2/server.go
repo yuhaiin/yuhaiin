@@ -119,13 +119,24 @@ func newServerPacketConn(ctx context.Context, source net.Addr, handler netapi.Ha
 }
 
 func (p *serverPacketConn) ReadFrom(b []byte) (int, string, error) {
+	packet, err := p.readPacket()
+	if err != nil {
+		return 0, "", err
+	}
+	n := copy(b, packet.data)
+	pool.PutBytes(packet.data)
+	return n, packet.addr, nil
+}
+
+// readPacket hands the queued pooled reply to the caller, which must return
+// packet.data with pool.PutBytes. This avoids a full-size read buffer for
+// every UDP session that only exists to copy the payload once more.
+func (p *serverPacketConn) readPacket() (datagram, error) {
 	select {
 	case <-p.done:
-		return 0, "", net.ErrClosed
+		return datagram{}, net.ErrClosed
 	case packet := <-p.packets:
-		n := copy(b, packet.data)
-		pool.PutBytes(packet.data)
-		return n, packet.addr, nil
+		return packet, nil
 	}
 }
 

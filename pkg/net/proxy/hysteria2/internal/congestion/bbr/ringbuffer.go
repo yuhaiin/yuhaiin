@@ -108,6 +108,32 @@ func (r *RingBuffer[T]) grow() {
 	r.headPos, r.tailPos, r.full = 0, len(oldRing), false
 }
 
+// shrink halves the capacity when at most a quarter of it is in use, never
+// below minSize. grow only ever doubles, so without this a single burst of
+// in-flight packets would pin the peak capacity for the connection lifetime.
+// The quarter threshold leaves the halved buffer at most half full, so a
+// shrink is never immediately followed by a grow.
+func (r *RingBuffer[T]) shrink(minSize int) {
+	size := len(r.ring)
+	n := r.Len()
+	if size <= minSize || n > size/4 {
+		return
+	}
+	newSize := max(size/2, minSize)
+	ring := make([]T, newSize)
+	if n > 0 {
+		if r.headPos < r.tailPos {
+			copy(ring, r.ring[r.headPos:r.tailPos])
+		} else {
+			headLen := copy(ring, r.ring[r.headPos:])
+			copy(ring[headLen:], r.ring[:r.tailPos])
+		}
+	}
+	// n <= size/4 < newSize, so the result is never full.
+	r.ring = ring
+	r.headPos, r.tailPos, r.full = 0, n, false
+}
+
 // Clear removes all elements.
 func (r *RingBuffer[T]) Clear() {
 	var zeroValue T

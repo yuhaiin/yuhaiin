@@ -6,6 +6,7 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/hysteria2/internal/wire"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/apernet/quic-go"
 )
 
@@ -82,16 +83,25 @@ func (m *nativeServerUDP) run() {
 
 func (m *nativeServerUDP) sendReplies(entry *nativeServerUDPSession) {
 	defer m.wg.Done()
-	buf := make([]byte, 65535)
+	// Send each pooled reply directly. A session may stay idle for a minute and
+	// a QUIC connection may hold thousands of sessions, so a per-session 64 KiB
+	// read buffer dominated server memory under UDP-heavy clients.
 	var packetID uint16
 	for {
-		n, addr, err := entry.conn.ReadFrom(buf)
+		packet, err := entry.conn.readPacket()
 		if err != nil {
 			return
 		}
-		msg := wire.UDPMessage{SessionID: entry.id, PacketID: packetID, FragmentCount: 1, Address: addr, Data: buf[:n]}
+		if len(packet.data) > wire.MaxPacket {
+			// Not representable on the wire; drop it rather than end the session.
+			pool.PutBytes(packet.data)
+			continue
+		}
+		msg := wire.UDPMessage{SessionID: entry.id, PacketID: packetID, FragmentCount: 1, Address: packet.addr, Data: packet.data}
 		packetID++
-		if err := sendNativeDatagram(m.conn, msg); err != nil {
+		err = sendNativeDatagram(m.conn, msg)
+		pool.PutBytes(packet.data)
+		if err != nil {
 			return
 		}
 	}

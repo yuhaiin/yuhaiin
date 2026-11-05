@@ -35,11 +35,14 @@ type packetNumberIndexedQueue[T any] struct {
 	entries                RingBuffer[entryWrapper[T]]
 	numberOfPresentEntries int
 	firstPacket            congestion.PacketNumber
+	// minSize is the initial capacity; the ring never shrinks below it.
+	minSize int
 }
 
 func newPacketNumberIndexedQueue[T any](size int) *packetNumberIndexedQueue[T] {
 	q := &packetNumberIndexedQueue[T]{
 		firstPacket: invalidPacketNumber,
+		minSize:     size,
 	}
 
 	q.entries.Init(size)
@@ -174,6 +177,7 @@ func (p *packetNumberIndexedQueue[T]) clearup() {
 	if p.entries.Empty() {
 		p.firstPacket = invalidPacketNumber
 	}
+	p.entries.shrink(p.minSize)
 }
 
 func (p *packetNumberIndexedQueue[T]) getEntryWraper(packetNumber congestion.PacketNumber) *entryWrapper[T] {
