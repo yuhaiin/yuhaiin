@@ -18,7 +18,7 @@ var (
 	AdvTunDriverKey                         = `Tun Driver`
 	AdvTunStackKey                          = `android_tun_stack`
 	AdvTunCongestionControlKey              = `android_tun_congestion_control`
-	AdvTunLossRecoveryKey                    = `android_tun_loss_recovery`
+	AdvTunLossRecoveryKey                   = `android_tun_loss_recovery`
 	AdvTunOutputSchedulerKey                = `android_tun_output_scheduler`
 	AdvUDPIdleProfileKey                    = `udp_idle_profile`
 	AdvVPNMTUProfileKey                     = `vpn_mtu_profile`
