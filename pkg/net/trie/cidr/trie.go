@@ -16,7 +16,7 @@ func (t *Trie[T]) Insert(ip net.IP, maskSize int, mark T) {
 		return
 	}
 	node := t
-	for depth := 0; depth < maskSize; depth++ {
+	for depth := range maskSize {
 		var child **Trie[T]
 		if ip[depth/8]&(0x80>>uint(depth%8)) != 0 {
 			child = &node.right
