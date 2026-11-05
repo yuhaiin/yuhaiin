@@ -148,6 +148,7 @@ func (a *App) Start(opt *Opts) error {
 		GetStore().GetString(AdvTunStackKey),
 		GetStore().GetString(AdvTunCongestionControlKey),
 		GetStore().GetString(AdvTunOutputSchedulerKey),
+		GetStore().GetString(AdvTunLossRecoveryKey),
 	); err != nil {
 		_ = setting.Close()
 		return fmt.Errorf("configure Android TUN before startup: %w", err)
@@ -263,7 +264,7 @@ func listenAndroidHTTP() (net.Listener, error) {
 // supplied by Android's VpnService. The plain model has a disabled desktop TUN
 // by default, while Android starts this process only after VpnService created
 // a TUN device.
-func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, _ string, stack, congestionControl, outputScheduler string) error {
+func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, _ string, stack, congestionControl, outputScheduler, lossRecovery string) error {
 	if tun == nil {
 		return errors.New("android TUN options are nil")
 	}
@@ -274,7 +275,7 @@ func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, 
 	stack = "lightweight"
 	driver := TunDriverChannelValue
 	if err := lightweighttun.Validate(device.TunConfig{
-		Driver: device.DriverChannel, MTU: tun.MTU, PortalV6: tun.PortalV6, CongestionControl: congestionControl, OutputScheduler: outputScheduler,
+		Driver: device.DriverChannel, MTU: tun.MTU, PortalV6: tun.PortalV6, CongestionControl: congestionControl, OutputScheduler: outputScheduler, LossRecovery: lossRecovery,
 	}); err != nil {
 		return fmt.Errorf("invalid Android lightweight TUN configuration: %w", err)
 	}
@@ -293,6 +294,7 @@ func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, 
 		Stack:             stack,
 		CongestionControl: congestionControl,
 		OutputScheduler:   outputScheduler,
+		LossRecovery:      lossRecovery,
 		Name:              fmt.Sprintf("fd://%d", tun.FD),
 		MTU:               tun.MTU,
 		SkipMulticast:     true,
