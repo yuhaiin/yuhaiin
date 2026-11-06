@@ -158,6 +158,19 @@ func (m *Manager) InterfaceUnavailable(index int) Event {
 // AddressUnavailable handles authoritative DELADDR before event coalescing can
 // hide a remove/re-add cycle. Other sources/families keep their path tokens.
 func (m *Manager) AddressUnavailable(index int, address netip.Addr) Event {
+	return m.removeAddresses(index, func(ip netip.Addr) bool { return ip == address.Unmap() })
+}
+
+// FamilyUnavailable is used when the OS removes one IP interface while the
+// adapter's other family remains connected (notably Windows IP interfaces).
+func (m *Manager) FamilyUnavailable(index int, family uint8) Event {
+	if family != 4 && family != 6 {
+		return Event{}
+	}
+	return m.removeAddresses(index, func(ip netip.Addr) bool { return family == 4 && ip.Is4() || family == 6 && ip.Is6() })
+}
+
+func (m *Manager) removeAddresses(index int, remove func(netip.Addr) bool) Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	old := m.current.Load()
@@ -168,7 +181,7 @@ func (m *Manager) AddressUnavailable(index int, address netip.Addr) Event {
 		if n.Index == index {
 			raw.Addresses = raw.Addresses[:0]
 			for ip := range n.addresses {
-				if ip == address.Unmap() {
+				if remove(ip) {
 					changed = true
 				} else {
 					raw.Addresses = append(raw.Addresses, ip)

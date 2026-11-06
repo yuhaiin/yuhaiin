@@ -64,6 +64,9 @@ func readNetworkSnapshot() (netstate.Snapshot, error) {
 				n.Addresses = append(n.Addresses, ip.Unmap())
 			}
 		}
+		if err := completeInterfaceNetwork(&n); err != nil {
+			return netstate.Snapshot{}, err
+		}
 		s.Networks = append(s.Networks, n)
 	}
 	return s, nil

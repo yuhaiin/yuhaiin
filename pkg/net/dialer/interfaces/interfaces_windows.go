@@ -201,10 +201,17 @@ func NewMonitor(onAddressChange func(*winipcfg.MibUnicastIPAddressRow), onRouteC
 
 func (m *monitor) Start() error {
 	ic, err := winipcfg.RegisterInterfaceChangeCallback(func(kind winipcfg.MibNotificationType, row *winipcfg.MibIPInterfaceRow) {
-		// Family-specific availability is reconciled from source addresses.
-		// Only adapter deletion proves loss of both families immediately.
-		if kind == winipcfg.MibDeleteInstance {
-			logLifecycleEvent(netstate.Default.InterfaceUnavailable(int(row.InterfaceIndex)), "interface unavailable")
+		// NotifyIpInterfaceChange describes an IP interface, not necessarily
+		// loss of the entire adapter. Its other family can still be healthy.
+		if row != nil && kind == winipcfg.MibDeleteInstance {
+			var family uint8
+			switch row.Family {
+			case windows.AF_INET:
+				family = 4
+			case windows.AF_INET6:
+				family = 6
+			}
+			logLifecycleEvent(netstate.Default.FamilyUnavailable(int(row.InterfaceIndex), family), "IP interface unavailable")
 		}
 		m.onAddressChange(nil)
 	})
@@ -212,7 +219,7 @@ func (m *monitor) Start() error {
 		return err
 	}
 	ac, err := winipcfg.RegisterUnicastAddressChangeCallback(func(notificationType winipcfg.MibNotificationType, unicastAddress *winipcfg.MibUnicastIPAddressRow) {
-		if notificationType == winipcfg.MibDeleteInstance {
+		if unicastAddress != nil && notificationType == winipcfg.MibDeleteInstance {
 			logLifecycleEvent(netstate.Default.AddressUnavailable(int(unicastAddress.InterfaceIndex), unicastAddress.Address.Addr()), "source address removed")
 		}
 		m.onAddressChange(unicastAddress)

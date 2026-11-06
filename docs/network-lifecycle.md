@@ -17,7 +17,11 @@ An unknown selected underlying network also cannot prove a switch.
   and address deletion retire tokens immediately, before route debounce can hide
   a delete/recreate cycle. Interface names are binding/diagnostic metadata.
 * Windows uses interface LUID, interface/address callbacks, and complete address
-  reconciliation. Removing an IPv4 source does not retire an IPv6 source.
+  reconciliation. IP-interface deletion is scoped to its family, rather than
+  treated as removal of the whole adapter. Complete IP-interface and unicast
+  address rows filter disconnected families and invalid/tentative/duplicate
+  sources; deprecated usable addresses remain valid. Removing an IPv4 source
+  does not retire an IPv6 source.
 * macOS uses interface index, interface/address route-socket messages, and actual
   local source addresses. Existing default/underlying-interface selection is
   preserved; a route-socket message or stale utun delegation alone proves nothing

@@ -207,6 +207,22 @@ func TestUnknownSelectionIsNotAConfirmedSwitch(t *testing.T) {
 	}
 }
 
+func TestIPInterfaceDeletionPreservesOtherFamily(t *testing.T) {
+	m := NewManager()
+	n := network("luid:1", "Ethernet", 2, "192.0.2.2", "2001:db8::2")
+	m.Apply(Snapshot{Networks: []Network{n}}, false)
+	v4 := m.Capture(n.Name, netip.Addr{}, 4)
+	v6 := m.Capture(n.Name, netip.Addr{}, 6)
+	m.FamilyUnavailable(2, 4)
+	if m.Valid(v4) || !m.Valid(v6) {
+		t.Fatal("IPv4 IP-interface deletion invalidated IPv6 adapter paths")
+	}
+	m.FamilyUnavailable(2, 6)
+	if m.Valid(v6) {
+		t.Fatal("IPv6 IP-interface deletion was ignored")
+	}
+}
+
 func TestConcurrentRegistrationAndCallbackReentry(t *testing.T) {
 	m := NewManager()
 	s := Snapshot{Networks: []Network{network("a", "a", 2, "192.0.2.2")}}
