@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // PacketIO transfers complete IP packets, without link/virtio headers. ReadPacket
@@ -211,6 +212,7 @@ func (s *Stack) Close() error {
 		select {
 		case p := <-s.forwarded:
 			s.release(len(p.Payload) + receiveCharge)
+			pool.PutBytes(p.Payload)
 		default:
 			goto pings
 		}

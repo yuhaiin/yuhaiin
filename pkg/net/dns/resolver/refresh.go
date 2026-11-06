@@ -2,26 +2,16 @@ package resolver
 
 import (
 	"context"
-	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-const (
-	backgroundRefreshLimit = 4
-	refreshRetryInitial    = 5 * time.Second
-	refreshRetryMaximum    = time.Minute
-)
-
-type refreshFailure struct {
-	retryAt time.Time
-	delay   time.Duration
-}
+const backgroundRefreshLimit = 4
 
 // Refresh work is optional: return stale answers without queueing goroutines when
-// offline or busy. New questions still query immediately.
+// busy. A completed failure does not delay the next lookup's refresh attempt.
 func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string) {
 	if c.refreshContext.Err() != nil {
 		return
@@ -30,13 +20,6 @@ func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string
 		return
 	}
 
-	// Read cooldown only after reserving the key: a preceding refresh may have
-	// failed between a stale lookup and this reservation.
-	failure, _ := c.refreshFailures.Load(key)
-	if time.Now().Before(failure.retryAt) {
-		c.refreshBackground.Delete(key)
-		return
-	}
 	select {
 	case c.refreshSlots <- struct{}{}:
 	default:
@@ -62,19 +45,8 @@ func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string
 		if limiter != nil {
 			defer limiter.Release(1)
 		}
-		_, err = c.queryWithMetrics(queryCtx, req)
-		if err == nil {
-			c.refreshFailures.Delete(key)
-			return
+		if _, err := c.queryWithMetrics(queryCtx, req); err != nil && c.refreshContext.Err() == nil {
+			log.Error("refresh domain background failed", "req", req, "err", err)
 		}
-		if c.refreshContext.Err() != nil {
-			return
-		}
-		delay := refreshRetryInitial
-		if failure.delay > 0 {
-			delay = min(failure.delay*2, refreshRetryMaximum)
-		}
-		c.refreshFailures.Add(key, refreshFailure{retryAt: time.Now().Add(delay), delay: delay})
-		log.Error("refresh domain background failed", "req", req, "err", err)
 	}()
 }
