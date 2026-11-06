@@ -39,7 +39,7 @@ type Manifest struct {
 
 func Describe(ctx context.Context, path, platform, architecture string) (Manifest, error) {
 	m := Manifest{Format: "yuhaiin-update", Version: 1, Asset: filepath.Base(path), Platform: platform, Architecture: architecture, StartupGuard: 1, ManagedTLS: true, Schemas: make(map[string][]sqlite.MigrationDescriptor)}
-	if platform == "linux" {
+	if platform == "linux" || platform == "darwin" {
 		m.UpdateGuard = 1
 	}
 	for _, kind := range []string{"configuration", "management"} {

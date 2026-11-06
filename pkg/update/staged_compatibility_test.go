@@ -78,15 +78,30 @@ func TestStagedCompatibilityGuardsRealExecutableAndLiveDatabaseChanges(t *testin
 }
 
 func TestHistoryStoresOwnCapabilitiesAndRefusesInventedLegacyMetadata(t *testing.T) {
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		t.Skip("Linux amd64 helper fixture")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("Unix installed helper fixture")
 	}
 	directory := t.TempDir()
 	self, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := SaveHistory(directory, self, "fixture", "commit"); err != nil {
+	// The launchd supervisor runs a separate copy of the installed image.
+	// Identical bytes must preserve the running helper's capability descriptor.
+	source, err := os.Open(self)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	installed, err := os.CreateTemp(t.TempDir(), "installed-image")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = io.Copy(installed, source)
+	if err := errors.Join(err, installed.Close()); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveHistory(directory, installed.Name(), "fixture", "commit"); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := ListHistory(directory)

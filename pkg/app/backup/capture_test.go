@@ -310,4 +310,18 @@ func TestRecoveryCrashRestartRespectsConcurrentMaintenanceAndJobOwnership(t *tes
 	if err := recovery.RestartService(t.Context(), b.dir, job.ID, service); err != nil || starts != 1 {
 		t.Fatal("rejected maintenance restarted an unrelated service owner", err)
 	}
+	// The helper can die before stopping the service. In that case a
+	// successful, idempotent Start does not run the startup reconciler.
+	interrupted := backupstore.RecoveryJob{
+		ID: uuid.New().String(), State: "queued", Target: "local", CreatedAt: time.Now().UTC()}
+	if err := b.store.EnqueueRecovery(t.Context(), interrupted); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovery.RestartService(t.Context(), b.dir, interrupted.ID, service); err != nil {
+		t.Fatal(err)
+	}
+	got, err := b.store.RecoveryJob(t.Context(), interrupted.ID)
+	if err != nil || got.State != "failed" || got.ErrorCode != "capture_interrupted" {
+		t.Fatal("abandoned request still blocks the backup queue", got.State, got.ErrorCode, err)
+	}
 }

@@ -1,0 +1,41 @@
+name: macOS launchd maintenance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cmd/yuhaiin/**'
+      - 'pkg/app/backup/**'
+      - 'pkg/update/**'
+      - 'go.*'
+      - '.github/workflows/test-launchd.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'cmd/yuhaiin/**'
+      - 'pkg/app/backup/**'
+      - 'pkg/update/**'
+      - 'go.*'
+      - '.github/workflows/test-launchd.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  launchd:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: macos-launchd
+      - name: Test isolated system LaunchDaemons
+        run: |
+          go test -race -c -o "$RUNNER_TEMP/yuhaiin-launchd.test" ./cmd/yuhaiin/internal/servicehost
+          sudo -n env YUHAIIN_TEST_SYSTEM_LAUNCHD=1 "$RUNNER_TEMP/yuhaiin-launchd.test" -test.v -test.timeout=4m
+      - name: Test protected update and recovery coordination
+        run: |
+          TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          export TMPDIR
+          go test -race ./cmd/yuhaiin/internal/update ./cmd/yuhaiin/internal/recovery ./pkg/update/...

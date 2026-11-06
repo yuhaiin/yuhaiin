@@ -5,6 +5,7 @@ import (
 	"os"
 
 	recoverycmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/recovery"
+	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/servicehost"
 	updatecmd "github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/update"
 	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -95,6 +96,9 @@ func main() {
 		return
 	case "update-status":
 		do(updatecmd.Status)
+		return
+	case "launchd-maintenance-supervisor":
+		do(servicehost.SuperviseDarwin)
 		return
 	case "update-protected-helper":
 		do(updatecmd.ProtectedInstall)

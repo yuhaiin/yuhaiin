@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	buildversion "github.com/Asutorufa/yuhaiin/internal/version"
@@ -14,30 +15,33 @@ import (
 // Only the running helper can describe its own binary's migration catalog.
 // Unknown older history entries remain unknown; metadata is never invented by
 // looking at a version string or executing an archived program.
-func saveCurrentCompatibility(executable, archived string) error {
+func saveCurrentCompatibility(archived, digest string, size int64) error {
 	running, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	source, err := os.Stat(executable)
-	if err != nil {
+	// Most archives are a different image. Reject on size before hashing the
+	// whole running executable a second time.
+	if info, err := os.Stat(running); err != nil {
 		return err
-	}
-	self, err := os.Stat(running)
-	if err != nil {
-		return err
-	}
-	if !os.SameFile(source, self) {
+	} else if info.Size() != size {
 		return nil
 	}
 	architecture := buildversion.ReleaseArch
 	if architecture == "" {
 		architecture = runtime.GOARCH
 	}
-	manifest, err := compatibility.Describe(context.Background(), archived, runtime.GOOS, architecture)
+	manifest, err := compatibility.Describe(context.Background(), running, runtime.GOOS, architecture)
 	if err != nil {
 		return err
 	}
+	// The launchd helper runs a byte-for-byte copy of the installed image.
+	// Compare the archived bytes, so separate inodes are handled without
+	// assigning our migration catalog to an unrelated history entry.
+	if manifest.SHA256 != digest {
+		return nil
+	}
+	manifest.Asset = filepath.Base(archived)
 	// A repeated archive of the same executable can already have the same sealed
 	// descriptor. Never replace a differing sidecar silently.
 	old, err := readCompatibilityFile(archived + compatibility.Suffix)

@@ -86,3 +86,52 @@ func TestIndependentUpdateRecoveryAtEachDurableBoundary(t *testing.T) {
 		})
 	}
 }
+
+func TestIndependentRecoveryRetriesInterruptedServiceAction(t *testing.T) {
+	source, target := binaries(t)
+	for _, tc := range []struct{ name, phase, code, final string }{
+		{"source_restart_once", "failed", sourceRestartPending, "preparation_failed_source_preserved"},
+		{"target_stop_once", "manual_recovery", targetStopPending, "startup_failed_restore_point_required"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			directory, r, host, _ := deployment(t, source, target)
+			host.fault = tc.name
+			if err := host.Stop(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if tc.phase == "manual_recovery" {
+				for _, phase := range []string{"capturing", "backup_ready", "swapping"} {
+					if err := SetPhase(t.Context(), directory, r.ID, phase, ""); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := swapExecutable(r); err != nil {
+					t.Fatal(err)
+				}
+				if err := SetPhase(t.Context(), directory, r.ID, "starting", ""); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := Recover(t.Context(), directory, r.ID, host); err == nil {
+				t.Fatal("service action failure was swallowed")
+			}
+			current, err := Read(directory)
+			if err != nil || current.Phase != tc.phase || current.ErrorCode != tc.code {
+				t.Fatal("pending service action was lost", current, err)
+			}
+			if err := Recover(t.Context(), directory, r.ID, host); err != nil {
+				t.Fatal(err)
+			}
+			current, err = Read(directory)
+			if err != nil || current.Phase != tc.phase || current.ErrorCode != tc.final {
+				t.Fatal("service action was not completed", current, err)
+			}
+			if tc.phase == "failed" && host.starts != 2 {
+				t.Fatal("source restart was not retried")
+			}
+			if tc.phase == "manual_recovery" && (host.starts != 0 || host.stops != 3) {
+				t.Fatal("target stop was not retried safely")
+			}
+		})
+	}
+}

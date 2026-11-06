@@ -75,6 +75,11 @@ func RestartService(ctx context.Context, directory, id string, service Service) 
 	if job.ErrorCode == "maintenance_busy" {
 		return nil
 	}
+	// A crash before Stop can leave the original service running. Its
+	// idempotent Start will not reconcile a request abandoned by this helper.
+	if job.State == "queued" || job.State == "capturing" {
+		return errors.Join(FailCapture(ctx, directory, id, "capture_interrupted"), service.Start(ctx))
+	}
 	return service.Start(ctx)
 }
 

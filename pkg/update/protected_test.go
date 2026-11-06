@@ -41,8 +41,8 @@ func (h *protectionFixture) QueueUpdateRecovery(context.Context) (contractrecove
 func (h *protectionFixture) CancelUpdateRecovery(context.Context, string) error { return nil }
 
 func TestProtectedHandoffRetainsAmbiguousAdmissionAndOnlyCancelsBeforeClaim(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("installed protected update host uses Linux")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("no installed protected update host on this platform")
 	}
 	self, err := os.Executable()
 	if err != nil {

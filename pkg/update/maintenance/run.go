@@ -228,6 +228,30 @@ func Recover(ctx context.Context, directory, id string, host Host) error {
 	_ = os.Remove(r.StagedPath + compatibility.Suffix)
 	return nil
 }
+
+const (
+	sourceRestartPending = "preparation_source_restart_pending"
+	targetStopPending    = "startup_failed_target_stop_pending"
+)
+
+func resumeRecoveredSource(ctx context.Context, directory, id string, host Host) error {
+	if err := host.Start(ctx); err != nil {
+		return err
+	}
+	return SetPhase(ctx, directory, id, "failed", "preparation_failed_source_preserved")
+}
+
+func stopFailedTarget(ctx context.Context, directory string, r *Record, host Host) error {
+	if err := host.Stop(ctx); err != nil {
+		return err
+	}
+	code := "startup_failed_restore_point_required"
+	if r.BackupJobID == "" {
+		code = "startup_failed_no_recovery_point"
+	}
+	return SetPhase(ctx, directory, r.ID, "manual_recovery", code)
+}
+
 func recoverOperation(ctx context.Context, directory, id string, host Host) error {
 	r, err := Read(directory)
 	if err != nil {
@@ -236,18 +260,26 @@ func recoverOperation(ctx context.Context, directory, id string, host Host) erro
 	if r == nil || r.ID != id {
 		return errors.New("update recovery operation changed")
 	}
+	// Persist the service action before attempting it. The independent
+	// supervisor can then retry after a failed launchctl call or process death.
+	if r.Phase == "failed" && r.ErrorCode == sourceRestartPending {
+		if err := verify(ctx, r.TargetPath, r.Source); err != nil {
+			return err
+		}
+		return resumeRecoveredSource(ctx, directory, id, host)
+	}
+	if r.Phase == "manual_recovery" && r.ErrorCode == targetStopPending {
+		return stopFailedTarget(ctx, directory, r, host)
+	}
 	if Terminal(r.Phase) {
 		return nil
 	}
 	if r.Phase == "starting" || r.Phase == "healthy" {
-		stopErr := host.Stop(ctx)
 		// Never run the source binary after the target may have opened its stores.
-		code := "startup_failed_restore_point_required"
-		if r.BackupJobID == "" {
-			code = "startup_failed_no_recovery_point"
+		if err := SetPhase(ctx, directory, id, "manual_recovery", targetStopPending); err != nil {
+			return err
 		}
-		markErr := SetPhase(ctx, directory, id, "manual_recovery", code)
-		return errors.Join(stopErr, markErr)
+		return stopFailedTarget(ctx, directory, r, host)
 	}
 	if r.Phase == "swapping" {
 		backup := r.TargetPath + ".update-backup"
@@ -280,8 +312,8 @@ func recoverOperation(ctx context.Context, directory, id string, host Host) erro
 	if r.BackupJobID != "" {
 		_ = recovery.FailCapture(ctx, directory, r.BackupJobID, "update_preparation_failed")
 	}
-	if err := SetPhase(ctx, directory, id, "failed", "preparation_failed_source_preserved"); err != nil {
+	if err := SetPhase(ctx, directory, id, "failed", sourceRestartPending); err != nil {
 		return err
 	}
-	return host.Start(ctx)
+	return resumeRecoveredSource(ctx, directory, id, host)
 }

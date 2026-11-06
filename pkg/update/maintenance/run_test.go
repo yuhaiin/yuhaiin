@@ -36,6 +36,9 @@ type hostFixture struct {
 
 func (h *hostFixture) Stop(context.Context) error {
 	h.stops++
+	if h.fault == "target_stop_once" && h.stops == 2 {
+		return errors.New("target stop interrupted")
+	}
 	if h.database != nil {
 		err := h.database.Close()
 		h.database = nil
@@ -65,6 +68,9 @@ func (h *hostFixture) Prune(context.Context, Record) error {
 }
 func (h *hostFixture) Start(ctx context.Context) error {
 	h.starts++
+	if h.fault == "source_restart_once" && h.starts == 1 {
+		return errors.New("source restart interrupted")
+	}
 	r, err := Read(h.directory)
 	if err != nil {
 		return err
