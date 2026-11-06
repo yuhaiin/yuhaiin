@@ -15,10 +15,17 @@ import (
 // Only the running helper can describe its own binary's migration catalog.
 // Unknown older history entries remain unknown; metadata is never invented by
 // looking at a version string or executing an archived program.
-func saveCurrentCompatibility(archived, digest string) error {
+func saveCurrentCompatibility(archived, digest string, size int64) error {
 	running, err := os.Executable()
 	if err != nil {
 		return err
+	}
+	// Most archives are a different image. Reject on size before hashing the
+	// whole running executable a second time.
+	if info, err := os.Stat(running); err != nil {
+		return err
+	} else if info.Size() != size {
+		return nil
 	}
 	architecture := buildversion.ReleaseArch
 	if architecture == "" {
