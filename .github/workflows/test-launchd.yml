@@ -36,5 +36,6 @@ jobs:
           sudo -n env YUHAIIN_TEST_SYSTEM_LAUNCHD=1 "$RUNNER_TEMP/yuhaiin-launchd.test" -test.v -test.timeout=4m
       - name: Test protected update and recovery coordination
         run: |
-          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          export TMPDIR
           go test -race ./cmd/yuhaiin/internal/update ./cmd/yuhaiin/internal/recovery ./pkg/update/...
