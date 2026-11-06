@@ -1,9 +1,9 @@
 # DNS cache admission and bounded upstream work
 
-Measured on 2026-11-06 against `6dbb7b6f8627bc3d169582523fc119c25785a6e7`
+Measured on 2026-11-06 against `17a72978e8d67b46537be48b3320cdb06adf4aee`
 (main before this change), using the same benchmark fixtures on both versions.
 Linux amd64, AMD Ryzen 5 5600G, Go 1.27.3, `GOMAXPROCS=4`, ten samples per case.
-The before and after runs were sequential, without other builds/tests running.
+The runs were sequential; this task ran no validation builds/tests concurrently.
 
 The change protects cached/local answers during upstream stalls. It is not a
 universal throughput improvement: cold requests pay for a cache probe, preserved
@@ -18,15 +18,15 @@ numeric comparison is in [summary.json](data/dns-admission-2026-11-06/summary.js
 
 | Case | Before | After | Latency change | Allocs before → after |
 | --- | ---: | ---: | ---: | ---: |
-| Cached datagram | 4.698 µs | 1.188 µs | -74.7% | 17 → 15 |
-| Cached datagram, Prometheus enabled | 4.650 µs | 1.303 µs | -72.0% | 17 → 15 |
-| Cached answer behind a 1 ms upstream stall | 1.075 ms | 4.946 µs | -99.5% | 30 → 19 |
-| In-memory zero-TTL cold query | 6.033 µs | 9.497 µs | +57.4% | 29 → 39 |
-| In-memory cold query, Prometheus enabled | 6.278 µs | 10.608 µs | +69.0% | 29 → 39 |
-| Real loopback UDP zero-TTL cold query | 48.277 µs | 55.379 µs | +14.7% | 62 → 71 |
-| Cached pipeline with 10,000 custom rules | 5.418 µs | 1.922 µs | -64.5% | 20 → 18 |
-| Hosts pipeline with 10,000 custom rules | 5.398 µs | 1.846 µs | -65.8% | 23 → 21 |
-| FakeIP pipeline with 10,000 custom rules | 6.112 µs | 2.326 µs | -62.0% | 26 → 24 |
+| Cached datagram | 4.796 µs | 1.194 µs | -75.1% | 17 → 15 |
+| Cached datagram, Prometheus enabled | 4.580 µs | 1.304 µs | -71.5% | 17 → 15 |
+| Cached answer behind a 1 ms upstream stall | 1.075 ms | 4.996 µs | -99.5% | 30 → 19 |
+| In-memory zero-TTL cold query | 5.699 µs | 6.630 µs | +16.4% | 29 → 39 |
+| In-memory cold query, Prometheus enabled | 5.861 µs | 7.418 µs | +26.6% | 29 → 39 |
+| Real loopback UDP zero-TTL cold query | 49.455 µs | 53.627 µs | +8.4% | 62 → 71 |
+| Cached pipeline with 10,000 custom rules | 5.333 µs | 1.903 µs | -64.3% | 20 → 18 |
+| Hosts pipeline with 10,000 custom rules | 5.372 µs | 1.829 µs | -66.0% | 23 → 21 |
+| FakeIP pipeline with 10,000 custom rules | 6.067 µs | 2.325 µs | -61.7% | 26 → 24 |
 
 The isolated saturation case uses one query permit, holds it with an uncached
 query, then submits an already cached question. A timer releases the slow query
@@ -40,7 +40,7 @@ IP-based policy nor reuse the wrong Resolver after a route change. Cold UDP uses
 a real loopback socket, echoes the question, and sets TTL to zero, so every
 iteration sends an upstream query. In-memory cold results intentionally expose
 admission overhead without hiding it behind network latency. Byte allocations
-also increase on cold misses (1,929 → 2,810 B/op in memory; 3,611 → 4,391 B/op over
+also increase on cold misses (1,929 → 2,810 B/op in memory; 3,612 → 4,390 B/op over
 loopback UDP); cache-hit bytes are roughly unchanged (1,208 → 1,216 B/op).
 
 These results qualify the intended benefit: cached/local DNS remains responsive
@@ -94,7 +94,7 @@ For a baseline without changing the active checkout:
 
 ```sh
 dns_before_dir=$(mktemp -d /tmp/yuhaiin-dns-before.XXXXXX)
-git archive 6dbb7b6f8627bc3d169582523fc119c25785a6e7 | tar -x -C "$dns_before_dir"
+git archive 17a72978e8d67b46537be48b3320cdb06adf4aee | tar -x -C "$dns_before_dir"
 cp pkg/net/dns/server/admission_fixture_test.go \
   pkg/net/dns/server/admission_benchmark_test.go "$dns_before_dir/pkg/net/dns/server/"
 ```
