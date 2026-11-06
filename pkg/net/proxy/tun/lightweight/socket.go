@@ -23,15 +23,27 @@ func notify(ch *chan struct{}) {
 }
 func waitSocket(ch, done <-chan struct{}, deadline time.Time) error {
 	var timer *time.Timer
+	return waitSocketTimer(ch, done, deadline, &timer)
+}
+
+// waitSocketTimer reuses *timer when it is non-nil and stores a newly created
+// one there, so a socket can keep one timer across blocked reads. With Go
+// 1.23+ timer semantics, Reset after Stop never observes a stale expiry.
+func waitSocketTimer(ch, done <-chan struct{}, deadline time.Time, timer **time.Timer) error {
 	var timeout <-chan time.Time
 	if !deadline.IsZero() {
 		d := time.Until(deadline)
 		if d <= 0 {
 			return os.ErrDeadlineExceeded
 		}
-		timer = time.NewTimer(d)
-		defer timer.Stop()
-		timeout = timer.C
+		if *timer == nil {
+			*timer = time.NewTimer(d)
+		} else {
+			(*timer).Reset(d)
+		}
+		t := *timer
+		defer t.Stop()
+		timeout = t.C
 	}
 	select {
 	case <-done:
