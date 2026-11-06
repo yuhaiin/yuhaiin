@@ -26,8 +26,7 @@ func sampleNodeTotals() nodeTotals {
 }
 
 func cloneNodeTotals(v nodeTotals) nodeTotals {
-	var c nodeTotals
-	c = v
+	c := v
 	c.ThroughputHistory = append([]contract.ThroughputMeasurement(nil), v.ThroughputHistory...)
 	c.TCPHealth = copyHealth(v.TCPHealth)
 	c.UDPHealth = copyHealth(v.UDPHealth)
