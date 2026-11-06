@@ -428,12 +428,13 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 		return err
 	}
 	deadline := time.Now().Add(configuration.ResolverTimeout)
-	var query dns.Msg
-	query.Data = req.Question.GetPayload()
+	// The parsed query is read-only and its wire data is the packet payload,
+	// which the queued request retains (IncRef) until complete; no copy needed.
+	query := &dns.Msg{Data: req.Question.GetPayload()}
 	if err := query.Unpack(); err != nil {
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
-	data := &doData{query: &query, Question: req.Question.GetPayload(), WriteBack: req.WriteBack, Stream: req.Stream, ForceFakeIP: req.ForceFakeIP}
+	data := &doData{query: query, Question: req.Question.GetPayload(), WriteBack: req.WriteBack, Stream: req.Stream, ForceFakeIP: req.ForceFakeIP}
 	err := d.doWithCache(ctx, data, true)
 	if !errors.Is(err, netapi.ErrDNSCacheMiss) {
 		if err == nil {
@@ -453,7 +454,7 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 		metrics.Counter.AddDNSAdmissionResult("budget_full")
 		return errors.New("dns request budget is full")
 	}
-	queued := &queuedRequest{request: req, ctx: data.context, deadline: deadline, query: query.Copy()}
+	queued := &queuedRequest{request: req, ctx: data.context, deadline: deadline, query: query}
 	req.Question.IncRef()
 	if !d.reqBuffer.Push(queued) {
 		req.Question.DecRef()

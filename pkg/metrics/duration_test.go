@@ -33,6 +33,10 @@ func TestLatencyMetricsUseSeconds(t *testing.T) {
 		delete(wants, family.GetName())
 		for _, metric := range family.GetMetric() {
 			if h := metric.GetHistogram(); h != nil {
+				// Fixed-label children are pre-registered and exported at zero.
+				if h.GetSampleCount() == 0 && h.GetSampleSum() == 0 {
+					continue
+				}
 				if h.GetSampleCount() != 1 || h.GetSampleSum() != want.sum {
 					t.Fatalf("%s count/sum=%d/%g", family.GetName(), h.GetSampleCount(), h.GetSampleSum())
 				}

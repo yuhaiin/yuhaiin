@@ -127,8 +127,12 @@ func (m *EmptyMetrics) AddTrieMatchDuration(time.Duration)        {}
 func (m *EmptyMetrics) AddGeoCountry(string)                      {}
 
 type Prometheus struct {
-	DNSAdmissionResults          *prometheus.CounterVec
-	DNSAdmissionWaitSeconds      *prometheus.HistogramVec
+	DNSAdmissionResults     *prometheus.CounterVec
+	DNSAdmissionWaitSeconds *prometheus.HistogramVec
+	// Fixed label children, resolved once so the per-packet DNS path skips
+	// the CounterVec/HistogramVec label hash and lock. Read-only after init.
+	dnsAdmissionResults          map[string]prometheus.Counter
+	dnsAdmissionWaits            map[string]prometheus.Observer
 	TotalReceiveUDPPacket        prometheus.Counter
 	TotalSendUDPPacket           prometheus.Counter
 	TotalReceiveUDPDroppedPacket prometheus.Counter
@@ -339,8 +343,22 @@ func newPrometheus(registerer prometheus.Registerer) *Prometheus {
 		}),
 	}
 
+	p.dnsAdmissionResults = make(map[string]prometheus.Counter, len(dnsAdmissionResultLabels))
+	for _, label := range dnsAdmissionResultLabels {
+		p.dnsAdmissionResults[label] = p.DNSAdmissionResults.WithLabelValues(label)
+	}
+	p.dnsAdmissionWaits = make(map[string]prometheus.Observer, len(dnsAdmissionWaitLabels))
+	for _, label := range dnsAdmissionWaitLabels {
+		p.dnsAdmissionWaits[label] = p.DNSAdmissionWaitSeconds.WithLabelValues(label)
+	}
+
 	return p
 }
+
+var (
+	dnsAdmissionResultLabels = []string{"cache_hit", "queued", "budget_full", "queue_full", "expired", "canceled"}
+	dnsAdmissionWaitLabels   = []string{"queue", "upstream"}
+)
 
 func (p *Prometheus) AddConnection(addr string) {
 	p.TotalConnection.Inc()
@@ -457,8 +475,17 @@ func (p *Prometheus) AddGeoCountry(country string) {
 }
 
 func (p *Prometheus) AddDNSAdmissionResult(result string) {
+	if c, ok := p.dnsAdmissionResults[result]; ok {
+		c.Inc()
+		return
+	}
 	p.DNSAdmissionResults.WithLabelValues(result).Inc()
 }
+
 func (p *Prometheus) ObserveDNSAdmissionWait(stage string, duration time.Duration) {
+	if o, ok := p.dnsAdmissionWaits[stage]; ok {
+		o.Observe(duration.Seconds())
+		return
+	}
 	p.DNSAdmissionWaitSeconds.WithLabelValues(stage).Observe(duration.Seconds())
 }
