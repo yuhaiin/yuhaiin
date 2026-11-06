@@ -77,7 +77,7 @@ func (c *UDPConn) Closed() bool {
 	if c.closed.Load() {
 		return true
 	}
-	rc, err := c.UDPConn.SyscallConn()
+	rc, err := c.SyscallConn()
 	if err != nil {
 		return true
 	}
