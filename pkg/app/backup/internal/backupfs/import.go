@@ -10,6 +10,8 @@ import (
 
 const recoveryDiskReserve = 256 << 20
 
+var ErrInsufficientStagingSpace = errors.New("insufficient recovery staging space; preserve at least 256 MiB for the active deployment")
+
 func ImportPath(id string) (string, error) {
 	value, err := uuid.Parse(id)
 	if err != nil || value == (uuid.UUID{}) || value.String() != id {
@@ -28,7 +30,7 @@ func CheckStagingSpace(directory string, bytes int64) error {
 		return errors.New("cannot establish available recovery staging space")
 	}
 	if available < uint64(bytes)+recoveryDiskReserve {
-		return errors.New("insufficient recovery staging space; preserve at least 256 MiB for the active deployment")
+		return ErrInsufficientStagingSpace
 	}
 	return nil
 }

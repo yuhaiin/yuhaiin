@@ -7,15 +7,17 @@ const MaxDataBytes = int64(100 << 30)
 // Manifest is authenticated inside the encrypted archive. It contains
 // inventory and build metadata only; keys and credential contents are file data.
 type Manifest struct {
-	Format            string        `json:"format"`
-	Version           int           `json:"version"`
-	ID                string        `json:"id"`
-	InstanceID        string        `json:"instanceId"`
-	CreatedAt         time.Time     `json:"createdAt"`
-	Consistency       string        `json:"consistency"`
-	IncludesHistory   bool          `json:"includesHistory"`
-	Build             Build         `json:"build"`
-	Files             []File        `json:"files"`
+	Format          string    `json:"format"`
+	Version         int       `json:"version"`
+	ID              string    `json:"id"`
+	InstanceID      string    `json:"instanceId"`
+	CreatedAt       time.Time `json:"createdAt"`
+	Consistency     string    `json:"consistency"`
+	IncludesHistory bool      `json:"includesHistory"`
+	Build           Build     `json:"build"`
+	Files           []File    `json:"files"`
+	// CompleteInventory accounts for supported resources, including explicit
+	// Requirements. It does not promise all credentials exist or startup succeeds.
 	CompleteInventory bool          `json:"completeInventory,omitzero"`
 	SourceDirectory   string        `json:"sourceDirectory,omitempty"`
 	Runtime           *Runtime      `json:"runtime,omitzero"`

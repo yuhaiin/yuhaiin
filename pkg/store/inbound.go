@@ -132,7 +132,7 @@ func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contrac
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, data_json
+		SELECT id, data_json, enabled
 		FROM inbounds_v2
 		ORDER BY name, id
 	`)
@@ -143,12 +143,31 @@ func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contrac
 
 	for rows.Next() {
 		var id, dataJSON string
-		if err := rows.Scan(&id, &dataJSON); err != nil {
+		var enabled bool
+		if err := rows.Scan(&id, &dataJSON, &enabled); err != nil {
 			return fmt.Errorf("scan inbound failed: %w", err)
 		}
 		inbound, err := decodeInbound(dataJSON)
 		if strict && err == nil {
-			err = inbound.Validate()
+			if inbound.Enabled != enabled {
+				err = errors.New("inbound enabled state differs from storage")
+			} else if enabled {
+				err = inbound.Validate()
+			} else {
+				// Preserve invalid inactive activation options, but only for
+				// known resource layouts whose dependencies can be inspected.
+				err = inbound.Network.Validate()
+				if err == nil {
+					err = inbound.Protocol.Validate()
+				}
+				if err == nil {
+					for _, transport := range inbound.Transports {
+						if err = transport.Validate(); err != nil {
+							break
+						}
+					}
+				}
+			}
 			if err == nil && inbound.ID != id {
 				err = errors.New("inbound identity differs from storage key")
 			}

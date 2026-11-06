@@ -17,7 +17,9 @@ import (
 	"filippo.io/age"
 	"github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
+	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
+	"github.com/Asutorufa/yuhaiin/pkg/store"
 	backupstore "github.com/Asutorufa/yuhaiin/pkg/store/backup"
 	backuparchive "github.com/Asutorufa/yuhaiin/pkg/store/backup/archive"
 	"github.com/Asutorufa/yuhaiin/pkg/update/compatibility"
@@ -86,6 +88,15 @@ func (h *hostFixture) Start(ctx context.Context) error {
 		}
 		return errors.New("target migrated and failed before readiness")
 	}
+	if h.fault == "missing_dependency" {
+		management, err := sqlite.OpenManagement(ctx, filepath.Join(h.directory, "management.db"))
+		if err != nil {
+			return err
+		}
+		if err := management.Close(); err != nil {
+			return err
+		}
+	}
 	if h.fault == "no_receipt" {
 		h.cancel()
 		return nil
@@ -94,8 +105,8 @@ func (h *hostFixture) Start(ctx context.Context) error {
 }
 func binaries(t testing.TB) (string, string) {
 	t.Helper()
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		t.Skip("installed supervisor fixture uses Linux amd64")
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("coordinator fixture needs Unix executable activation")
 	}
 	directory := t.TempDir()
 	result := []string{}
@@ -106,7 +117,7 @@ func binaries(t testing.TB) (string, string) {
 		}
 		executable := filepath.Join(directory, name)
 		build := exec.CommandContext(t.Context(), "go", "build", "-o", executable, source)
-		build.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "GOAMD64=v1", "CGO_ENABLED=0")
+		build.Env = append(os.Environ(), "GOOS="+runtime.GOOS, "GOARCH="+runtime.GOARCH, "GOAMD64=v1", "CGO_ENABLED=0")
 		if output, err := build.CombinedOutput(); err != nil {
 			t.Fatalf("build fixture: %v: %s", err, output)
 		}
@@ -167,14 +178,17 @@ func deployment(t testing.TB, source, target string) (string, Record, *hostFixtu
 	active, staged := filepath.Join(executableDir, "yuhaiin"), filepath.Join(executableDir, "yuhaiin-update-fixture")
 	copyExecutable(t, source, active)
 	copyExecutable(t, target, staged)
-	old, err := compatibility.Describe(t.Context(), active, "linux", "amd64")
+	old, err := compatibility.Describe(t.Context(), active, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := compatibility.Describe(t.Context(), staged, "linux", "amd64")
+	next, err := compatibility.Describe(t.Context(), staged, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The fake host implements coordinated updates independently of the native
+	// service manager. This does not advertise production launchd support.
+	old.UpdateGuard, next.UpdateGuard = 1, 1
 	r := Record{ID: uuid.New().String(), Source: old, Target: next, TargetPath: active, StagedPath: staged, BackupJobID: job.ID}
 	if err := Begin(t.Context(), directory, r); err != nil {
 		t.Fatal(err)
@@ -188,10 +202,33 @@ func deployment(t testing.TB, source, target string) (string, Record, *hostFixtu
 
 func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *testing.T) {
 	source, target := binaries(t)
-	for _, fault := range []string{"none", "preserve", "startup", "no_receipt", "listener", "prune"} {
+	for _, fault := range []string{"none", "preserve", "startup", "no_receipt", "listener", "prune", "missing_dependency"} {
 		t.Run(fault, func(t *testing.T) {
 			directory, r, host, key := deployment(t, source, target)
 			host.fault = fault
+			if fault == "missing_dependency" {
+				// Exercise the real management 14 -> 15 migration after a
+				// complete encrypted point with absent inactive TLS inputs.
+				identity, err := sqlite.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := identity.DB().ExecContext(t.Context(), "ALTER TABLE management_credentials DROP COLUMN name; ALTER TABLE management_credentials DROP COLUMN note; DELETE FROM migrate WHERE version=15; UPDATE metadata SET value='14' WHERE key='schema_version'"); err != nil {
+					t.Fatal(err)
+				}
+				if err := identity.Close(); err != nil {
+					t.Fatal(err)
+				}
+				if err := change(t.Context(), directory, r.ID, func(record *Record) error {
+					record.Source.Schemas["management"] = record.Source.Schemas["management"][:14]
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				if err := store.NewNodeStore(host.database.DB()).Save(t.Context(), nodecontract.Node{ID: "inactive", Name: "TLS", Origin: "manual", Chain: []nodecontract.Protocol{{Type: "tls_termination", TLSTermination: &nodecontract.TLSTermination{TLS: nodecontract.ServerTLS{Certificates: []nodecontract.Certificate{{CertFilePath: "not-created.crt", KeyFilePath: "not-created.key"}}}}}}}, 0); err != nil {
+					t.Fatal(err)
+				}
+			}
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			host.cancel = cancel
@@ -201,7 +238,7 @@ func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *tes
 				t.Fatal(readErr)
 			}
 			switch fault {
-			case "none", "prune":
+			case "none", "prune", "missing_dependency":
 				if err != nil || current.Phase != "completed" || host.starts != 1 {
 					t.Fatal("healthy startup not committed", err, current.Phase, host.starts)
 				}
@@ -236,6 +273,24 @@ func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *tes
 				t.Fatal("paired archive does not authenticate", err)
 			}
 			defer prepared.Close()
+			if fault == "missing_dependency" {
+				catalog, err := sqlite.InspectStoreCatalog(t.Context(), filepath.Join(directory, "management.db"), "management")
+				if err != nil || catalog[len(catalog)-1].Version != 15 {
+					t.Fatal("target did not migrate management schema", err)
+				}
+				found := false
+				for _, file := range prepared.Manifest.Files {
+					if file.Path == "management.db" && file.SchemaVersion == 14 {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatal("recovery point did not preserve pre-migration management database")
+				}
+			}
+			if fault == "missing_dependency" && (prepared.Manifest.Version != 3 || len(prepared.Manifest.Requirements) != 2) {
+				t.Fatal("upgrade lost missing resource obligations")
+			}
 			if !prepared.Manifest.CompleteInventory || prepared.Manifest.ID != current.BackupID {
 				t.Fatal("wrong paired deployment archive")
 			}

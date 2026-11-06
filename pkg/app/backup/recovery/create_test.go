@@ -64,7 +64,7 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 				sourceHashes[name] = sha256.Sum256(data)
 			}
 			destination := filepath.Join(t.TempDir(), "full.yhb")
-			denied := errors.New("fixture filesystem cannot preserve its reserve")
+			denied := backupfs.ErrInsufficientStagingSpace
 			positive, rejected := 0, false
 			options := CreateOptions{ConfirmedMaintenance: true, checkSpace: func(path string, bytes int64) error {
 				stage := strings.HasPrefix(filepath.Base(path), ".recovery-snapshot-")
@@ -86,6 +86,9 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 			_, err := Create(t.Context(), directory, destination, backuparchive.Encryption{Recipient: key.Recipient().String()}, options)
 			if !errors.Is(err, denied) || !rejected {
 				t.Fatal("space rejection was bypassed", boundary, positive, err)
+			}
+			if _, code := captureFailureDetails(err); code != "insufficient_space" {
+				t.Fatal("space rejection lost its structured diagnostic", code)
 			}
 			if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
 				t.Fatal("failed capture published an archive", err)
@@ -235,7 +238,7 @@ func TestFullRecoveryExcludesActiveOwnersAndHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestFullRecoveryCapturesExternalDependenciesAndRejectsMissingOnes(t *testing.T) {
+func TestFullRecoveryCapturesExternalDependenciesAndRecordsMissingOnes(t *testing.T) {
 	directory, key := testfixture.Deployment(t)
 	outside := filepath.Join(t.TempDir(), "external.pem")
 	if err := os.WriteFile(outside, []byte("external certificate fixture"), 0o600); err != nil {
@@ -275,8 +278,18 @@ func TestFullRecoveryCapturesExternalDependenciesAndRejectsMissingOnes(t *testin
 	if err := os.Remove(outside); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Create(t.Context(), directory, filepath.Join(t.TempDir(), "broken.yhb"), backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true}); err == nil {
-		t.Fatal("missing required dependency silently omitted")
+	missing, err := Create(t.Context(), directory, filepath.Join(t.TempDir(), "missing.yhb"), backuparchive.Encryption{Recipient: key.Recipient().String()}, CreateOptions{ConfirmedMaintenance: true})
+	if err != nil {
+		t.Fatal("configured missing certificate blocked full backup", err)
+	}
+	found = false
+	for _, requirement := range missing.Requirements {
+		if requirement.Kind == "missing_dependency" && requirement.Path == outside {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("missing certificate was not recorded in authenticated requirements")
 	}
 }
 

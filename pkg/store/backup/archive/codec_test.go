@@ -257,7 +257,7 @@ func TestRecoveryManifestAndUntrustedInventory(t *testing.T) {
 		})
 	}
 	for _, mutate := range []func(*contractrecovery.Manifest){
-		func(m *contractrecovery.Manifest) { m.Version++ },
+		func(m *contractrecovery.Manifest) { m.Version = RecoveryVersion + 1 },
 		func(m *contractrecovery.Manifest) { m.Files = nil },
 		func(m *contractrecovery.Manifest) { m.Files[0].Size = math.MaxInt64 },
 		func(m *contractrecovery.Manifest) { m.Files[0].Size = -1 },
@@ -431,5 +431,40 @@ func TestRecoveryCreationRejectsSourceGrowthWhileStreaming(t *testing.T) {
 	}
 	if writer.append != nil {
 		t.Fatal("fixture did not grow the active source")
+	}
+}
+
+func TestRecoveryRequirementVersionBoundary(t *testing.T) {
+	_, valid, _ := encryptedRecoveryFixture(t)
+	if valid.Version != 2 {
+		t.Fatal("ordinary archives must remain readable by v2 readers")
+	}
+	for _, kind := range []string{"missing_dependency", "external_runtime", "missing_web_assets", "protocol_reconfiguration", "inactive_node_configuration", "inactive_inbound_configuration"} {
+		item := contractrecovery.Requirement{Kind: kind, Path: "/source/not-captured.pem"}
+		if kind == "protocol_reconfiguration" || strings.HasPrefix(kind, "inactive_") {
+			item.Path = ""
+			item.NodeID = "node"
+		}
+		manifest := valid
+		manifest.Requirements = []contractrecovery.Requirement{item}
+		if err := ValidateManifest(manifest); err == nil {
+			t.Fatal("new semantics accepted under old version", kind)
+		}
+		manifest.Version = 3
+		if err := ValidateManifest(manifest); err != nil {
+			t.Fatal(kind, err)
+		}
+		manifest.Version = 1
+		if err := ValidateManifest(manifest); err == nil {
+			t.Fatal("legacy manifest admitted new semantics")
+		}
+	}
+	for _, source := range []string{"relative/key", "/path/\x00key", "/path/\nkey"} {
+		manifest := valid
+		manifest.Version = 3
+		manifest.Requirements = []contractrecovery.Requirement{{Kind: "missing_dependency", Path: source}}
+		if err := ValidateManifest(manifest); err == nil {
+			t.Fatal("unsafe requirement admitted")
+		}
 	}
 }

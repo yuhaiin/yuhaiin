@@ -45,6 +45,10 @@ type Backup struct {
 	ObjectKey        string    `json:"objectKey,omitempty"`
 	Verification     string    `json:"verification,omitempty"`
 	ErrorCode        string    `json:"errorCode,omitempty"`
+	FailureStage     string    `json:"failureStage,omitempty"`
+	FailureCode      string    `json:"failureCode,omitempty"`
+	Warnings         []string  `json:"warnings,omitempty"`
+	RequirementCount int       `json:"requirementCount,omitzero"`
 	IncludesHistory  bool      `json:"includesHistory"`
 	UploadAttempts   int       `json:"uploadAttempts"`
 	ArchiveCheck     string    `json:"archiveCheck,omitempty"`

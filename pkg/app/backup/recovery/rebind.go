@@ -23,7 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/store/certificates"
 )
 
-func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string, inputs *contractrecovery.Runtime, resolve func(string) (string, error), mode string) error {
+func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string, inputs *contractrecovery.Runtime, resolve func(string) (string, error), mode string, unavailable map[string]bool) error {
 	db, err := sqlite.Open(ctx, filepath.Join(stage, "state.db"))
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 		return err
 	}
 	for _, table := range []string{"nodes_v2", "inbounds_v2", "gateway_configuration"} {
-		if err := rewriteRecoveryTable(ctx, db.DB(), table, resolve, mode); err != nil {
+		if err := rewriteRecoveryTable(ctx, db.DB(), table, resolve, mode, unavailable); err != nil {
 			return err
 		}
 	}
@@ -158,7 +158,7 @@ func disableClonedSelectorMonitoring(ctx context.Context, db *sql.DB) error {
 	}
 }
 
-func rewriteRecoveryTable(ctx context.Context, db *sql.DB, table string, resolve func(string) (string, error), mode string) error {
+func rewriteRecoveryTable(ctx context.Context, db *sql.DB, table string, resolve func(string) (string, error), mode string, unavailable map[string]bool) error {
 	// Keyset iteration releases each cursor before writing on the single
 	// connection and retains only one configuration document in memory.
 	last, first := "", true
@@ -184,12 +184,24 @@ func rewriteRecoveryTable(ctx context.Context, db *sql.DB, table string, resolve
 		if err := rebindRecoveryDocument(document, resolve, mode); err != nil {
 			return err
 		}
+		disableUnavailableRecoveryResources(document, unavailable)
 		data, err := json.Marshal(document)
 		if err != nil {
 			return err
 		}
-		if _, err := db.ExecContext(ctx, "UPDATE "+table+" SET data_json=? WHERE id=?", string(data), id); err != nil {
-			return err
+		if table == "gateway_configuration" {
+			if _, err := db.ExecContext(ctx, "UPDATE "+table+" SET data_json=? WHERE id=?", string(data), id); err != nil {
+				return err
+			}
+		} else {
+			resource, ok := document.(map[string]any)
+			if !ok {
+				return errors.New("invalid recovery resource object")
+			}
+			enabled, _ := resource["enabled"].(bool)
+			if _, err := db.ExecContext(ctx, "UPDATE "+table+" SET data_json=?,enabled=? WHERE id=?", string(data), enabled, id); err != nil {
+				return err
+			}
 		}
 		last, first = id, false
 	}
@@ -289,4 +301,46 @@ func recoveryIdentityReplacements(ctx context.Context, stage, target string) ([]
 	}
 	err = store.NewNodeStore(db).RangeForRecovery(ctx, func(node nodecontract.Node) error { return walk(node.Chain) })
 	return removals, err
+}
+
+// Disable only resources containing unavailable inputs. Their original document
+// remains inspectable; no key material or target-machine dependency is invented.
+func disableUnavailableRecoveryResources(value any, unavailable map[string]bool) bool {
+	missing := false
+	switch value := value.(type) {
+	case map[string]any:
+		for key, child := range value {
+			if text, ok := child.(string); ok {
+				if isRecoveryFileReference(key) && unavailable[text] {
+					missing = true
+				}
+				if key == "config_yaml" {
+					inventory, err := nebula.RecoveryInventory(nodecontract.Nebula{ConfigYAML: text})
+					if err == nil && inventory.NeedsReconfiguration {
+						missing = true
+					}
+					for _, path := range inventory.Files {
+						if unavailable[path] {
+							missing = true
+						}
+					}
+				}
+			}
+			if disableUnavailableRecoveryResources(child, unavailable) {
+				missing = true
+			}
+		}
+		if missing {
+			if _, exists := value["enabled"]; exists {
+				value["enabled"] = false
+			}
+		}
+	case []any:
+		for _, child := range value {
+			if disableUnavailableRecoveryResources(child, unavailable) {
+				missing = true
+			}
+		}
+	}
+	return missing
 }

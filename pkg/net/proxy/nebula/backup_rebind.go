@@ -14,6 +14,9 @@ func RebindRecoveryFiles(raw string, resolve func(string) (string, error)) (stri
 	if _, err := RecoveryFiles(contract.Nebula{ConfigYAML: raw}); err != nil {
 		return "", err
 	}
+	if strings.TrimSpace(raw) == "" {
+		return raw, nil
+	}
 	var document yaml.Node
 	if err := yaml.Unmarshal([]byte(raw), &document); err != nil || len(document.Content) != 1 {
 		return "", errors.New("invalid Nebula recovery configuration")
@@ -24,6 +27,9 @@ func RebindRecoveryFiles(raw string, resolve func(string) (string, error)) (stri
 			continue
 		}
 		pki := root.Content[i+1]
+		if pki.Kind == yaml.ScalarNode && pki.Tag == "!!null" {
+			continue
+		}
 		if pki.Kind != yaml.MappingNode {
 			return "", errors.New("nebula recovery PKI must be a mapping")
 		}
@@ -35,7 +41,7 @@ func RebindRecoveryFiles(raw string, resolve func(string) (string, error)) (stri
 			if value.Kind != yaml.ScalarNode {
 				return "", errors.New("nebula recovery PKI must use explicit scalar values")
 			}
-			if strings.Contains(value.Value, "-----BEGIN") {
+			if value.Tag == "!!null" || value.Value == "" || strings.HasPrefix(value.Value, "pkcs11:") || strings.Contains(value.Value, "-----BEGIN") {
 				continue
 			}
 			mapped, err := resolve(value.Value)

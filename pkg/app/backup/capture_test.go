@@ -42,7 +42,7 @@ func (s recoveryServiceTest) Stop(ctx context.Context) error  { return s.stop(ct
 func (s recoveryServiceTest) Start(ctx context.Context) error { return s.start(ctx) }
 
 func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing.T) {
-	for _, fault := range []string{"none", "stop", "cancel", "existing-archive", "restart"} {
+	for _, fault := range []string{"none", "stop", "cancel", "existing-archive", "restart", "missing-optional", "missing-required"} {
 		t.Run(fault, func(t *testing.T) {
 			directory, key := testfixture.Deployment(t)
 			db, err := testfixture.OpenState(t.Context(), filepath.Join(directory, "state.db"))
@@ -85,6 +85,16 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 				t.Fatal("concurrent full captures accepted")
 			}
 			archive, _ := backupfs.ArchivePath(directory, queued.ID)
+			if fault == "missing-optional" {
+				if err := os.Remove(filepath.Join(directory, "site.crt")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if fault == "missing-required" {
+				if err := os.Remove(filepath.Join(directory, "management-tls.pem")); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if fault == "existing-archive" {
 				if err := os.MkdirAll(filepath.Dir(archive), 0700); err != nil {
 					t.Fatal(err)
@@ -138,7 +148,7 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 				},
 			}
 			err = recovery.Capture(ctx, directory, queued.ID, service)
-			if (fault == "none") != (err == nil) {
+			if (fault == "none" || fault == "missing-optional") != (err == nil) {
 				t.Fatalf("capture result: fault=%s err=%v", fault, err)
 			}
 			if !started {
@@ -152,7 +162,13 @@ func TestManagedRecoveryCaptureCoordinatesRealOwnersAndPrivateArchive(t *testing
 			if err := errors.Join(readErr, recorded.Close()); err != nil {
 				t.Fatal(err)
 			}
-			if fault == "none" || fault == "restart" {
+			if fault == "missing-optional" && (result.RequirementCount != 1 || len(result.Warnings) != 1 || result.Warnings[0] != "missing_dependency") {
+				t.Fatal("successful capture warning lost", result.Backup)
+			}
+			if fault == "missing-required" && (result.ErrorCode != "capture_failed" || result.FailureStage != "dependency_inventory" || result.FailureCode != "required_file_missing") {
+				t.Fatal("structured capture failure lost", result.Backup)
+			}
+			if fault == "none" || fault == "restart" || fault == "missing-optional" {
 				if result.State != "local_ready" || result.Size < 1 || result.SHA256 == "" {
 					t.Fatal("complete archive not recorded", result.State)
 				}

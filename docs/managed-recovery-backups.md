@@ -586,3 +586,20 @@ readiness after migration, helper SIGKILL and explicit paired CLI recovery.
 CI runs the full drill with the 256 MiB resource case. `--recovery-only` omits
 repeating the independent update scenarios while profiling sizes.
 [Raw measurements and exact scope](benchmarks/data/recovery-2026-10-28/maintenance.json).
+
+### Capture failures and recovery obligations
+
+`capture_failed` remains the compatible top-level history status. New
+`failureStage` and `failureCode` fields describe the failed boundary and a fixed
+error category, such as dependency inventory / permission denied. Public history
+contains no raw exception, filesystem path, private key, PKCS#11 locator, or
+credential-bearing provider response. The maintenance log retains the detailed
+cause for local diagnosis. Required-file failures remain distinct from optional
+missing references, which now complete with warnings.
+
+Successful jobs record `requirementCount` and distinct requirement-kind `warnings`.
+These are separate from ciphertext checks and S3 readback. Verifying/decrypting
+an archive or opening its restore preview exposes the authenticated requirement
+paths/resource IDs to the authorized operator. Archive authentication does not
+remove these obligations or mean that absent private keys have been restored.
+See [dependency policy and format compatibility](recovery-archive.md#file-dependencies-and-recovery-requirements).

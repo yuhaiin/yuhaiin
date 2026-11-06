@@ -66,6 +66,26 @@ func projectRecoveryFiles(manifest contractrecovery.Manifest) (recoveryProjectio
 		projection.files[destination] = file.Path
 		projection.sources[original] = destination
 	}
+	unavailableSources := map[string]bool{}
+	for _, requirement := range manifest.Requirements {
+		if requirement.Kind != "missing_dependency" && requirement.Kind != "external_runtime" {
+			continue
+		}
+		source := filepath.Clean(requirement.Path)
+		if unavailableSources[source] {
+			continue
+		}
+		unavailableSources[source] = true
+		if _, exists := projection.sources[source]; exists {
+			return projection, errors.New("recovery requirement conflicts with a captured file")
+		}
+		// Never reuse a source-machine path or an existing target secret.
+		destination := "dependencies/unavailable/" + manifest.ID + "/" + filepath.Base(recoveryDependencyPath(source))
+		if err := backuparchive.ValidateDestination(destination); err != nil {
+			return projection, err
+		}
+		projection.sources[source] = destination
+	}
 	return projection, nil
 }
 
@@ -158,4 +178,9 @@ func projectRecoveryTailnetIdentities(ctx context.Context, stage string, manifes
 		projection.sources[filepath.Join(manifest.SourceDirectory, filepath.FromSlash(old))] = destination
 	}
 	return nil
+}
+
+func recoveryDependencyPath(source string) string {
+	digest := sha256.Sum256([]byte(source))
+	return "dependencies/" + hex.EncodeToString(digest[:]) + ".bin"
 }

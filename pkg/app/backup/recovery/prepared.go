@@ -102,7 +102,7 @@ func readImportPlan(item backupstore.RecoveryImportRecord) (*preparedImportPlan,
 		return nil, errors.New("prepared recovery plan does not match its owned import")
 	}
 	preview := &plan.Preview
-	if item.Preview == nil || preview.Mode != "original" && preview.Mode != "clone" || tx.BackupID != preview.Manifest.ID || tx.InstanceID != preview.InstanceID || tx.Runtime != preview.Runtime || !preview.Manifest.CompleteInventory || preview.Manifest.Version != 2 {
+	if item.Preview == nil || preview.Mode != "original" && preview.Mode != "clone" || tx.BackupID != preview.Manifest.ID || tx.InstanceID != preview.InstanceID || tx.Runtime != preview.Runtime || !preview.Manifest.CompleteInventory || (preview.Manifest.Version < 2 || preview.Manifest.Version > backuparchive.RecoveryVersion) {
 		return nil, errors.New("prepared recovery preview is inconsistent")
 	}
 	if err := backuparchive.ValidateManifest(preview.Manifest); err != nil {
