@@ -9,26 +9,43 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
 
 // Datagram owns Payload; ReceiveUDP transfers ownership to the caller.
-// Forwarding is stateless, so short-lived destinations create no flow entries.
+// The payload comes from pkg/pool, so the caller may return it with
+// pool.PutBytes once done. Forwarding is stateless, so short-lived
+// destinations create no flow entries.
 type Datagram struct {
 	Source, Destination netip.AddrPort
 	Payload             []byte
 }
+
+// udpDatagram is a queued socket datagram. Its payload lives in a stack
+// buffer that returns to the stack cache once ReadFrom copies it out.
+type udpDatagram struct {
+	source netip.AddrPort
+	owner  *ownedBuffer
+}
 type flowAddress struct{ addr netip.Addr }
 type UDPConn struct {
-	stack                       *Stack
-	local, remote               netip.AddrPort
-	mu                          sync.Mutex
-	changed                     chan struct{}
-	queue                       []Datagram
+	stack         *Stack
+	local, remote netip.AddrPort
+	mu            sync.Mutex
+	changed       chan struct{}
+	// queue[head:] holds pending datagrams; the backing array is reused
+	// once the queue drains instead of sliding forward and reallocating.
+	queue                       []udpDatagram
+	head                        int
 	bytes                       int
 	closed                      bool
 	dualStack                   bool
 	err                         error
 	readDeadline, writeDeadline time.Time
+	// readTimer is reused by blocked ReadFrom calls with a deadline;
+	// a concurrent second reader allocates its own.
+	readTimer *time.Timer
 }
 
 var _ net.PacketConn = (*UDPConn)(nil)
@@ -150,8 +167,8 @@ func (s *Stack) handleUDP(p Packet) {
 		s.drops.Add(1)
 		return
 	}
-	data := make([]byte, len(b)-8)
-	copy(data, b[8:])
+	// The consumer (netapi.Packet) returns the payload to pkg/pool.
+	data := pool.Clone(b[8:])
 	select {
 	case s.forwarded <- Datagram{src, dst, data}:
 	default:
@@ -165,15 +182,24 @@ func (u *UDPConn) deliver(d Datagram) {
 	if u.closed || u.remote.IsValid() && u.remote != d.Source {
 		return
 	}
-	if len(u.queue) >= 64 || u.bytes+len(d.Payload) > u.stack.config.ReceiveBuffer || !u.stack.reserve(len(d.Payload)+receiveCharge) {
+	if len(u.queue)-u.head >= 64 || u.bytes+len(d.Payload) > u.stack.config.ReceiveBuffer || !u.stack.reserve(receiveCharge) {
 		u.stack.drops.Add(1)
 		return
 	}
-	b := make([]byte, len(d.Payload))
-	copy(b, d.Payload)
-	d.Payload = b
-	u.queue = append(u.queue, d)
-	u.bytes += len(b)
+	// The stack buffer carries its own memory charge; receiveCharge covers
+	// the queue entry, as for TCP receive chunks.
+	owner, err := u.stack.buffers.get(len(d.Payload))
+	if err != nil {
+		u.stack.release(receiveCharge)
+		u.stack.drops.Add(1)
+		return
+	}
+	copy(owner.data, d.Payload)
+	if u.head > 0 && u.head == len(u.queue) {
+		u.queue, u.head = u.queue[:0], 0
+	}
+	u.queue = append(u.queue, udpDatagram{source: d.Source, owner: owner})
+	u.bytes += len(owner.data)
 	notify(&u.changed)
 }
 func (s *Stack) ReceiveUDP(ctx context.Context) (Datagram, error) {
@@ -255,45 +281,74 @@ func fillUDPPayload(payload []byte, src, dst netip.AddrPort, data []byte) {
 	binary.BigEndian.PutUint16(payload[6:8], sum)
 }
 func (u *UDPConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, from, err := u.ReadFromUDPAddrPort(b)
+	if err != nil {
+		return n, nil, err
+	}
+	return n, net.UDPAddrFromAddrPort(from), nil
+}
+
+// ReadFromUDPAddrPort is ReadFrom without allocating a *net.UDPAddr,
+// matching (*net.UDPConn).ReadFromUDPAddrPort.
+func (u *UDPConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	for {
 		if !u.readDeadline.IsZero() && !time.Now().Before(u.readDeadline) {
-			return 0, nil, os.ErrDeadlineExceeded
+			return 0, netip.AddrPort{}, os.ErrDeadlineExceeded
 		}
 		if u.closed {
-			return 0, nil, net.ErrClosed
+			return 0, netip.AddrPort{}, net.ErrClosed
 		}
 		if u.err != nil {
 			err := u.err
 			u.err = nil
-			return 0, nil, err
+			return 0, netip.AddrPort{}, err
 		}
-		if len(u.queue) > 0 {
-			d := u.queue[0]
-			u.queue[0] = Datagram{}
-			u.queue = u.queue[1:]
-			n := copy(b, d.Payload)
-			u.bytes -= len(d.Payload)
-			u.stack.release(len(d.Payload) + receiveCharge)
-			return n, net.UDPAddrFromAddrPort(d.Source), nil
+		if u.head < len(u.queue) {
+			d := u.queue[u.head]
+			u.queue[u.head] = udpDatagram{}
+			u.head++
+			if u.head == len(u.queue) {
+				u.queue, u.head = u.queue[:0], 0
+			}
+			n := copy(b, d.owner.data)
+			u.bytes -= len(d.owner.data)
+			d.owner.release()
+			u.stack.release(receiveCharge)
+			return n, d.source, nil
 		}
 		ch, at := watch(&u.changed), u.readDeadline
+		var timer *time.Timer
+		if !at.IsZero() {
+			timer, u.readTimer = u.readTimer, nil
+		}
 		u.mu.Unlock()
-		err := waitSocket(ch, u.stack.done, at)
+		err := waitSocketTimer(ch, u.stack.done, at, &timer)
 		u.mu.Lock()
+		if timer != nil && u.readTimer == nil {
+			u.readTimer = timer
+		}
 		if err != nil {
-			return 0, nil, err
+			return 0, netip.AddrPort{}, err
 		}
 	}
 }
-func (u *UDPConn) Read(b []byte) (int, error) { n, _, err := u.ReadFrom(b); return n, err }
+func (u *UDPConn) Read(b []byte) (int, error) { n, _, err := u.ReadFromUDPAddrPort(b); return n, err }
 func (u *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	dst, ok := addr.(*net.UDPAddr)
 	if !ok || dst == nil || dst.Port < 1 || dst.Port > 65535 || dst.Zone != "" {
 		return 0, ErrMalformed
 	}
-	destination := dst.AddrPort()
+	return u.WriteToUDPAddrPort(b, dst.AddrPort())
+}
+
+// WriteToUDPAddrPort is WriteTo without a *net.UDPAddr, matching
+// (*net.UDPConn).WriteToUDPAddrPort.
+func (u *UDPConn) WriteToUDPAddrPort(b []byte, destination netip.AddrPort) (int, error) {
+	if !destination.IsValid() || destination.Port() == 0 || destination.Addr().Zone() != "" {
+		return 0, ErrMalformed
+	}
 	destination = netip.AddrPortFrom(destination.Addr().Unmap(), destination.Port())
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -316,7 +371,7 @@ func (u *UDPConn) Write(b []byte) (int, error) {
 	if !u.remote.IsValid() {
 		return 0, errors.New("lightweight: UDP socket is not connected")
 	}
-	return u.WriteTo(b, net.UDPAddrFromAddrPort(u.remote))
+	return u.WriteToUDPAddrPort(b, u.remote)
 }
 func (u *UDPConn) Close() error {
 	u.mu.Lock()
@@ -325,11 +380,13 @@ func (u *UDPConn) Close() error {
 		return nil
 	}
 	u.closed = true
-	for _, d := range u.queue {
-		u.stack.release(len(d.Payload) + receiveCharge)
+	for _, d := range u.queue[u.head:] {
+		d.owner.release()
+		u.stack.release(receiveCharge)
 	}
-	u.queue = nil
+	u.queue, u.head = nil, 0
 	u.bytes = 0
+	u.readTimer = nil
 	notify(&u.changed)
 	u.mu.Unlock()
 	u.stack.mu.Lock()
