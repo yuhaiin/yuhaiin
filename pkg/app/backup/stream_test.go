@@ -321,17 +321,24 @@ func TestConfigurationS3SnapshotRejectsUnknownGatewayFields(t *testing.T) {
 	}
 }
 
-func TestConfigurationS3SnapshotRejectsUnknownEndpointFields(t *testing.T) {
+func TestConfigurationS3SnapshotDropsUnknownEndpointFields(t *testing.T) {
 	for _, tc := range []struct {
-		name, query, document string
+		name, query, document, table, id string
 	}{
-		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`},
-		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`},
-		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`},
+		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`, "nodes_v2", "n"},
+		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`, "nodes_v2", "n"},
+		{"removed protocol", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"direct","direct":{}},{"type":"http_termination","http_termination":{"headers":{"Authorization":"sensitive-marker"}}}]}`, "nodes_v2", "n"},
+		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`, "inbounds_v2", "i"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var calls atomic.Int32
-			b, _ := streamingBackup(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+			var object []byte
+			b, _ := streamingBackup(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					object, _ = io.ReadAll(r.Body)
+					return
+				}
+				_, _ = w.Write(object)
+			})
 			db, err := testfixture.OpenState(t.Context(), paths.PathGenerator.State(b.dir))
 			if err != nil {
 				t.Fatal(err)
@@ -340,11 +347,24 @@ func TestConfigurationS3SnapshotRejectsUnknownEndpointFields(t *testing.T) {
 			if _, err := db.DB().ExecContext(t.Context(), tc.query, tc.document); err != nil {
 				t.Fatal(err)
 			}
-			if err := b.Run(t.Context()); err == nil || strings.Contains(err.Error(), "sensitive-marker") {
-				t.Fatal("snapshot must reject unknown fields without disclosing their values")
+			if err := b.Run(t.Context()); err != nil {
+				t.Fatal(err)
 			}
-			if calls.Load() != 0 {
-				t.Fatal("unsafe endpoint snapshot reached S3")
+			if len(object) == 0 || bytes.Contains(object, []byte("sensitive-marker")) || bytes.Contains(object, []byte("futureVerifier")) {
+				t.Fatal("S3 snapshot retained an unknown endpoint member")
+			}
+			path := filepath.Join(t.TempDir(), "s3.db")
+			if err := os.WriteFile(path, object, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := testfixture.OpenState(t.Context(), path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer snapshot.Close()
+			var enabled int
+			if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM `+tc.table+` WHERE id=?`, tc.id).Scan(&enabled); err != nil || enabled != 0 {
+				t.Fatal("endpoint with dropped members remained enabled", enabled, err)
 			}
 		})
 	}

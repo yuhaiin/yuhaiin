@@ -556,13 +556,17 @@ func TestConfigurationExportRejectsUnknownGatewayFields(t *testing.T) {
 	}
 }
 
-func TestConfigurationExportRejectsUnknownEndpointFields(t *testing.T) {
+// Members the current schema does not know (future fields, removed protocols)
+// may hold credentials. Export drops them and disables the endpoint instead of
+// failing the whole backup.
+func TestConfigurationExportDropsUnknownEndpointFields(t *testing.T) {
 	for _, tc := range []struct {
-		name, query, document string
+		name, query, document, table, id string
 	}{
-		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`},
-		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`},
-		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`},
+		{"node", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"ssh","ssh":{"user":"a","host_key":"public","futureVerifier":"sensitive-marker"}}]}`, "nodes_v2", "n"},
+		{"unknown sibling after cleared aliases", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"wireguard","wireguard":{"Private_Key":"sensitive-marker","Pre_Shared_Key":"sensitive-marker","futureVerifier":"sensitive-marker"}}]}`, "nodes_v2", "n"},
+		{"removed protocol", `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('n','Node','','manual',1,'[]',0,?)`, `{"id":"n","name":"Node","enabled":true,"chain":[{"type":"direct","direct":{}},{"type":"http_termination","http_termination":{"headers":{"Authorization":"sensitive-marker"}}}]}`, "nodes_v2", "n"},
+		{"inbound", `INSERT INTO inbounds_v2(id,name,enabled,network_type,protocol_type,transport_types_json,updated_at,data_json) VALUES('i','Inbound',1,'tcp','http','[]',0,?)`, `{"id":"i","name":"Inbound","enabled":true,"protocol":{"type":"http","http":{"username":"a","futureVerifier":"sensitive-marker"}}}`, "inbounds_v2", "i"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
@@ -574,11 +578,23 @@ func TestConfigurationExportRejectsUnknownEndpointFields(t *testing.T) {
 				t.Fatal(err)
 			}
 			data, err := ExportConfig(t.Context(), db.DB())
-			if err == nil || len(data) != 0 {
-				t.Fatal("unknown endpoint field may contain credentials and must not be exported")
+			if err != nil {
+				t.Fatal(err)
 			}
-			if strings.Contains(err.Error(), "sensitive-marker") {
-				t.Fatal("export error disclosed an unknown field value")
+			if bytes.Contains(data, []byte("sensitive-marker")) || bytes.Contains(data, []byte("futureVerifier")) || bytes.Contains(data, []byte(`"http_termination":`)) {
+				t.Fatal("export retained an unknown endpoint member")
+			}
+			target, err := Open(t.Context(), filepath.Join(t.TempDir(), "target.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer target.Close()
+			if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+				t.Fatal(err)
+			}
+			var enabled int
+			if err := target.DB().QueryRowContext(t.Context(), `SELECT enabled FROM `+tc.table+` WHERE id=?`, tc.id).Scan(&enabled); err != nil || enabled != 0 {
+				t.Fatal("endpoint with dropped members remained enabled", enabled, err)
 			}
 		})
 	}
