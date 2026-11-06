@@ -13,6 +13,7 @@ func TestLatencyMetricsUseSeconds(t *testing.T) {
 	p.AddStreamConnectDuration(250 * time.Millisecond)
 	p.AddDnsQueryDuration("test", 125*time.Millisecond)
 	p.AddTrieMatchDuration(75 * time.Microsecond)
+	p.ObserveDNSAdmissionWait("upstream", 125*time.Millisecond)
 	families, err := registry.Gather()
 	if err != nil {
 		t.Fatal(err)
@@ -20,6 +21,7 @@ func TestLatencyMetricsUseSeconds(t *testing.T) {
 	wants := map[string]struct{ sum, bucket float64 }{
 		"yuhaiin_stream_connect_duration_seconds": {0.25, 0.3},
 		"yuhaiin_stream_connect_summary_seconds":  {0.25, 0},
+		"yuhaiin_dns_admission_wait_seconds":      {0.125, 1},
 		"yuhaiin_dns_query_duration_seconds":      {0.125, 0.2},
 		"yuhaiin_trie_match_duration_seconds":     {0.000075, 0.0001},
 	}
@@ -78,6 +80,7 @@ func BenchmarkObserveLatency(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
 			p.AddTrieMatchDuration(75 * time.Microsecond)
+			p.ObserveDNSAdmissionWait("upstream", 125*time.Millisecond)
 		}
 	})
 }

@@ -54,11 +54,18 @@ func (r *RingBuffer[T]) Push(t T) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	limit := max(0, r.maxCap())
+	size := r.tailPos - r.headPos
 	if r.full {
-		if len(r.ring) >= r.maxCap() {
-			return false
-		}
-		r.grow()
+		size = len(r.ring)
+	} else if size < 0 {
+		size += len(r.ring)
+	}
+	if size >= limit {
+		return false
+	}
+	if r.full {
+		r.grow(limit)
 	}
 
 	r.ring[r.tailPos] = t
@@ -109,9 +116,9 @@ func (r *RingBuffer[T]) Peek() (T, bool) {
 
 // Grow the maximum size of the queue.
 // This method assume the queue is full.
-func (r *RingBuffer[T]) grow() {
+func (r *RingBuffer[T]) grow(limit int) {
 	oldRing := r.ring
-	newSize := len(oldRing) * 2
+	newSize := min(len(oldRing)*2, limit)
 	if newSize == 0 {
 		newSize = 1
 	}

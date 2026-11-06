@@ -55,7 +55,14 @@ func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string
 			return
 		}
 
-		_, err := c.queryWithMetrics(ctx, req)
+		queryCtx, limiter, err := netapi.AcquireDNSQuery(ctx)
+		if err != nil {
+			return
+		}
+		if limiter != nil {
+			defer limiter.Release(1)
+		}
+		_, err = c.queryWithMetrics(queryCtx, req)
 		if err == nil {
 			c.refreshFailures.Delete(key)
 			return

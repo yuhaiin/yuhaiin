@@ -167,10 +167,18 @@ func (f *FakeDNS) newAnswerMessage(req netapi.DNSQuestion, code int, resource ..
 }
 
 func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return f.raw(ctx, req, netapi.RawDNS)
+}
+
+func (f *FakeDNS) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return f.raw(ctx, req, netapi.CachedDNS)
+}
+
+func (f *FakeDNS) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.DNSLookupFunc) (*dns.Msg, error) {
 	switch req.Qtype {
 	case dns.TypeA, dns.TypeAAAA, dns.TypePTR, dns.TypeHTTPS:
 	default:
-		return f.Resolver.Raw(ctx, req)
+		return lookup(ctx, f.Resolver, req)
 	}
 
 	if !system.IsDomainName(req.Name) {
@@ -180,7 +188,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 	domain := req.Name[:len(req.Name)-1]
 
 	if net.ParseIP(domain) != nil {
-		return f.Resolver.Raw(ctx, req)
+		return lookup(ctx, f.Resolver, req)
 	}
 
 	switch req.Qtype {
@@ -192,7 +200,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 
 		domain, err := f.LookupPtr(ip)
 		if err != nil {
-			return f.Resolver.Raw(ctx, req)
+			return lookup(ctx, f.Resolver, req)
 		}
 
 		msg := f.newAnswerMessage(
@@ -208,7 +216,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 		return msg, nil
 
 	case dns.TypeHTTPS:
-		msg, err := f.Resolver.Raw(ctx, req)
+		msg, err := lookup(ctx, f.Resolver, req)
 		if err != nil || msg == nil || msg.Rcode != dns.RcodeSuccess {
 			return msg, err
 		}
@@ -245,7 +253,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 		}
 
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
-			msg, err := f.Resolver.Raw(ctx, req)
+			msg, err := lookup(ctx, f.Resolver, req)
 			if err != nil {
 				return nil, err
 			}
@@ -269,7 +277,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 
 	case dns.TypeA:
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
-			msg, err := f.Resolver.Raw(ctx, req)
+			msg, err := lookup(ctx, f.Resolver, req)
 			if err != nil {
 				return nil, err
 			}
@@ -292,7 +300,7 @@ func (f *FakeDNS) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 		}), nil
 	}
 
-	return f.Resolver.Raw(ctx, req)
+	return lookup(ctx, f.Resolver, req)
 }
 
 func (f *FakeDNS) existAnswer(msg *dns.Msg, t uint16) bool {

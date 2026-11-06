@@ -32,6 +32,14 @@ type ResolverOptions struct {
 	fakeIPSkipCheckUpstream bool
 }
 
+// RouteIPError reports why IP-dependent routing could not resolve its target.
+func (c *ConnOptions) RouteIPError() error {
+	if c.routeCache != nil {
+		return c.routeCache.Err
+	}
+	return nil
+}
+
 func (r *ResolverOptions) SetResolver(resolver Resolver) *ResolverOptions {
 	if r.isResolver && r.resolver != nil {
 		return r
@@ -230,7 +238,13 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 		return nil, errors.New("not found resolver")
 	}
 
-	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	var ips *IPs
+	var err error
+	if DNSCacheOnly(ctx) {
+		ips, err = CachedLookupIP(ctx, matchResolver, addr.Hostname())
+	} else {
+		ips, err = matchResolver.LookupIP(ctx, addr.Hostname())
+	}
 	s.setRouteCache(ips, err)
 	if err != nil {
 		return nil, errors.New("not found ips")

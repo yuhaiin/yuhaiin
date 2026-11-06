@@ -413,7 +413,17 @@ func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 }
 
 func (f *Route) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
-	return f.Resolver(ctx, system.RelDomain(req.Name)).Raw(ctx, req)
+	return netapi.RawDNS(ctx, f.Resolver(ctx, system.RelDomain(req.Name)), req)
+}
+
+func (f *Route) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	ctx = netapi.WithDNSCacheOnly(ctx)
+	ctx, store := netapi.GetOrNewContext(ctx)
+	selected := f.Resolver(ctx, system.RelDomain(req.Name))
+	if errors.Is(store.ConnOptions().RouteIPError(), netapi.ErrDNSCacheMiss) {
+		return nil, netapi.ErrDNSCacheMiss
+	}
+	return netapi.CachedDNS(ctx, selected, req)
 }
 
 func (f *Route) Close() error { return nil }
