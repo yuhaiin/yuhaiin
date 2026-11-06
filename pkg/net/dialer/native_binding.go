@@ -13,6 +13,8 @@ import (
 // this separately from protect(), which is also used for inbound listeners.
 var SocketNetworkBinder func(fd int32, interfaceName string) (string, error)
 
+const unknownNativeNetwork = "native:unknown"
+
 type nativeBinding struct {
 	manager      *netstate.Manager
 	ctx          context.Context
@@ -47,6 +49,10 @@ func (b *nativeBinding) control(c syscall.RawConn, opts *Options) error {
 	if opts.networkID != "" {
 		b.path = b.manager.CaptureNetwork(opts.networkID, netip.Addr{}, b.family)
 		b.registration = b.manager.Register(b.path, func(netstate.Event) { b.cancel(netstate.ErrInvalidated) })
+	} else {
+		// The binder explicitly could not establish identity. Do not later
+		// assign an Android Network from a potentially stale matching IP.
+		opts.networkID = unknownNativeNetwork
 	}
 	return nil
 }

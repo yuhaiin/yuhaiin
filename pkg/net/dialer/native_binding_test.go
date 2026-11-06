@@ -67,10 +67,16 @@ func TestNativeBindingUsesActualNetworkInsteadOfSelection(t *testing.T) {
 }
 
 func TestUnobservedNativeNetworkDoesNotBorrowAnotherNetworksAddress(t *testing.T) {
+	for _, id := range []string{"android:new", ""} {
+		t.Run("identity="+id, func(t *testing.T) { testUnknownNativeNetwork(t, id) })
+	}
+}
+
+func testUnknownNativeNetwork(t *testing.T, id string) {
 	m, s := socketManager(t)
 	m.Apply(s, false)
 	ctx, cancel := context.WithCancelCause(t.Context())
-	scope := &nativeBinding{manager: m, ctx: ctx, cancel: cancel, family: 4, bind: func(int32, string) (string, error) { return "android:new", nil }}
+	scope := &nativeBinding{manager: m, ctx: ctx, cancel: cancel, family: 4, bind: func(int32, string) (string, error) { return id, nil }}
 	defer scope.close()
 	opts := &Options{}
 	if err := scope.control(bindingRawConn{}, opts); err != nil {
