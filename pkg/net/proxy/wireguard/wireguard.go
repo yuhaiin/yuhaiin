@@ -194,6 +194,11 @@ func (w *Wireguard) recoverNetwork(dev *device.Device) {
 			if current == nil || !current.invalid.Load() || w.bind.stopped.Load() {
 				continue
 			}
+			// An unknown replacement path can be a transient race (the native
+			// binder chose a Network not yet published) or a stable state where
+			// no affinity is observable. Back off so the latter does not tear
+			// down a working socket every few seconds indefinitely.
+			delay := 5 * time.Second
 			for !w.bind.stopped.Load() {
 				netstate.RecoveryAttempts.Inc()
 				err := dev.BindUpdate()
@@ -208,8 +213,9 @@ func (w *Wireguard) recoverNetwork(dev *device.Device) {
 					break
 				}
 				netstate.RecoveryFailures.Inc()
-				log.Debug("wireguard network rebind pending", "err", err)
-				timer := time.NewTimer(5 * time.Second)
+				log.Debug("wireguard network rebind pending", "err", err, "retry", delay)
+				timer := time.NewTimer(delay)
+				delay = min(delay*2, 5*time.Minute)
 				select {
 				case <-w.networkStop:
 					timer.Stop()

@@ -173,7 +173,10 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 				for t.needsNetworkRecovery() && t.ctx.Err() == nil {
 					netstate.RecoveryAttempts.Inc()
 					s.Sys().MagicSock.Get().Rebind()
-					if t.needsNetworkRecovery() {
+					if !t.needsNetworkRecovery() {
+						netstate.RecoverySuccesses.Inc()
+					} else {
+						netstate.RecoveryFailures.Inc()
 						timer := time.NewTimer(5 * time.Second)
 						select {
 						case <-t.ctx.Done():
@@ -266,6 +269,9 @@ func (t *Tailscale) Close() error {
 	}
 	t.networkWG.Wait()
 	t.networkMu.Lock()
+	for pc := range t.networkSockets {
+		_ = pc.Close() // releases lifecycle registrations
+	}
 	clear(t.networkSockets)
 	t.networkMu.Unlock()
 	if t.stateDir != "" {

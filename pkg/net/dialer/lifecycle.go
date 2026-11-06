@@ -70,7 +70,19 @@ func (c *UDPConn) SetNetworkRecovery(handler func()) {
 	}
 }
 
-func (c *UDPConn) Closed() bool { return c.closed.Load() }
+// Closed also reports closure of the embedded socket, so an owner that hands
+// the concrete *net.UDPConn to a library (for batching/GSO) still observes
+// that library closing it during its own rebind.
+func (c *UDPConn) Closed() bool {
+	if c.closed.Load() {
+		return true
+	}
+	rc, err := c.UDPConn.SyscallConn()
+	if err != nil {
+		return true
+	}
+	return rc.Control(func(uintptr) {}) != nil
+}
 
 func (c *UDPConn) NetworkInvalidated() bool { return c.invalid.Load() }
 

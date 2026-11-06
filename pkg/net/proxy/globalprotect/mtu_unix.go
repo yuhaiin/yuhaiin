@@ -4,16 +4,21 @@ package globalprotect
 
 import (
 	"net"
+	"syscall"
 
 	"golang.org/x/sys/unix"
 )
 
 func tcpMSS(conn net.Conn) (mss int) {
-	tcpConn, ok := conn.(*net.TCPConn)
+	// syscall.Conn, not *net.TCPConn: dialer wrappers embed the TCP socket.
+	if _, ok := conn.LocalAddr().(*net.TCPAddr); !ok {
+		return 0
+	}
+	sc, ok := conn.(syscall.Conn)
 	if !ok {
 		return 0
 	}
-	rawConn, err := tcpConn.SyscallConn()
+	rawConn, err := sc.SyscallConn()
 	if err != nil {
 		return 0
 	}

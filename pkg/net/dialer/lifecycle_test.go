@@ -169,3 +169,20 @@ func TestUDPSelectiveCloseAndConcurrentOwnerClose(t *testing.T) {
 		t.Fatalf("unaffected replacement UDP closed: %v", err)
 	}
 }
+
+func TestUDPConnClosedObservesEmbeddedSocket(t *testing.T) {
+	raw, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &UDPConn{UDPConn: raw}
+	if c.Closed() {
+		t.Fatal("open socket reported closed")
+	}
+	// A library holding only the concrete *net.UDPConn (magicsock) closes it.
+	_ = raw.Close()
+	if !c.Closed() {
+		t.Fatal("closure of the embedded socket was not observed")
+	}
+	_ = c.Close()
+}

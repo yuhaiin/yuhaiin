@@ -177,6 +177,28 @@ func (m *multipleReaderTCPConn) Read(b []byte) (int, error) {
 	return m.mr.Read(b)
 }
 
+// WriteTo must not be promoted from *net.TCPConn: that would read the socket
+// directly and skip the buffered prefix.
+func (m *multipleReaderTCPConn) WriteTo(w io.Writer) (int64, error) {
+	return io.Copy(w, m.mr)
+}
+
+// closeWriteConn covers TCP wrappers (for example the dialer's lifecycle
+// TCPConn) so a buffered prefix does not drop half-close support.
+type closeWriteConn interface {
+	net.Conn
+	CloseWrite() error
+}
+
+type multipleReaderCloseWriteConn struct {
+	closeWriteConn
+	mr io.Reader
+}
+
+func (m *multipleReaderCloseWriteConn) Read(b []byte) (int, error) {
+	return m.mr.Read(b)
+}
+
 type multipleReaderConn struct {
 	net.Conn
 	mr io.Reader
@@ -186,6 +208,9 @@ func newMultipleReaderConn(c net.Conn, r io.Reader) net.Conn {
 	tc, ok := c.(*net.TCPConn)
 	if ok {
 		return &multipleReaderTCPConn{tc, r}
+	}
+	if cw, ok := c.(closeWriteConn); ok {
+		return &multipleReaderCloseWriteConn{cw, r}
 	}
 
 	return &multipleReaderConn{c, r}

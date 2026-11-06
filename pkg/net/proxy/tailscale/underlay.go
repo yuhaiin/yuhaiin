@@ -285,6 +285,9 @@ func (u *underlay) ListenPacket(ctx context.Context, network, address string) (n
 			}
 			for old := range u.owner.networkSockets {
 				if old.Closed() {
+					// Release the lifecycle registration of a socket that
+					// magicsock closed through the concrete *net.UDPConn.
+					_ = old.Close()
 					delete(u.owner.networkSockets, old)
 				}
 			}
@@ -296,6 +299,10 @@ func (u *underlay) ListenPacket(ctx context.Context, network, address string) (n
 				default:
 				}
 			})
+			// magicsock enables Linux batching, GRO/GSO and RXQ overflow
+			// accounting only for a concrete *net.UDPConn. Recovery state stays
+			// on the wrapper, which observes closure of the embedded socket.
+			return udp.UDPConn, nil
 		}
 		return native, nil
 	}
