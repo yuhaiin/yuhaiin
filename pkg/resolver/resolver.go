@@ -233,11 +233,19 @@ func (d *dnsWrap) LookupIP(ctx context.Context, host string, opts ...func(*netap
 }
 
 func (d *dnsWrap) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
-	msg, err := d.Resolver.Raw(ctx, req)
+	msg, err := netapi.RawDNS(ctx, d.Resolver, req)
 	if err != nil {
 		return nil, fmt.Errorf("[%s] do raw dns request failed: %w", d.Name(), err)
 	}
 
+	return msg, nil
+}
+
+func (d *dnsWrap) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	msg, err := netapi.CachedDNS(ctx, d.Resolver, req)
+	if err != nil {
+		return nil, fmt.Errorf("[%s] do cached dns request failed: %w", d.Name(), err)
+	}
 	return msg, nil
 }
 

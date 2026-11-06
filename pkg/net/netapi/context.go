@@ -32,6 +32,14 @@ type ResolverOptions struct {
 	fakeIPSkipCheckUpstream bool
 }
 
+// RouteIPError reports why IP-dependent routing could not resolve its target.
+func (c *ConnOptions) RouteIPError() error {
+	if c.routeCache != nil {
+		return c.routeCache.Err
+	}
+	return nil
+}
+
 func (r *ResolverOptions) SetResolver(resolver Resolver) *ResolverOptions {
 	if r.isResolver && r.resolver != nil {
 		return r
@@ -117,6 +125,12 @@ type ConnOptions struct {
 	routeCache     *struct {
 		IPs *IPs
 		Err error
+	}
+	// dnsRoute carries a resolver route decision from the cache-only probe to
+	// the queued upstream query of the same request, so route matching runs once.
+	dnsRoute *struct {
+		domain   string
+		decision any
 	}
 	lists     []string
 	listNames map[string]string
@@ -220,6 +234,25 @@ func (s *ConnOptions) setRouteCache(ips *IPs, err error) *ConnOptions {
 	return s
 }
 
+// SetDNSRouteDecision records the route decision for domain made by a cache-only
+// probe. It is consumed at most once by TakeDNSRouteDecision.
+func (s *ConnOptions) SetDNSRouteDecision(domain string, decision any) {
+	s.dnsRoute = &struct {
+		domain   string
+		decision any
+	}{domain, decision}
+}
+
+// TakeDNSRouteDecision returns and clears a decision recorded for domain.
+func (s *ConnOptions) TakeDNSRouteDecision(domain string) (any, bool) {
+	r := s.dnsRoute
+	if r == nil || r.domain != domain {
+		return nil, false
+	}
+	s.dnsRoute = nil
+	return r.decision, true
+}
+
 func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) {
 	if rc := s.routeCache; rc != nil {
 		return rc.IPs, rc.Err
@@ -230,7 +263,13 @@ func (s *ConnOptions) RouteIPs(ctx context.Context, addr Address) (*IPs, error) 
 		return nil, errors.New("not found resolver")
 	}
 
-	ips, err := matchResolver.LookupIP(ctx, addr.Hostname())
+	var ips *IPs
+	var err error
+	if DNSCacheOnly(ctx) {
+		ips, err = CachedLookupIP(ctx, matchResolver, addr.Hostname())
+	} else {
+		ips, err = matchResolver.LookupIP(ctx, addr.Hostname())
+	}
 	s.setRouteCache(ips, err)
 	if err != nil {
 		return nil, errors.New("not found ips")

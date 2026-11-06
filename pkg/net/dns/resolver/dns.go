@@ -40,6 +40,9 @@ type nopCloser struct {
 }
 
 func (n nopCloser) Close() error { return nil }
+func (n nopCloser) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return netapi.CachedDNS(ctx, n.Resolver, req)
+}
 
 func (n nopCloser) DNSCacheEntries() []netapi.DNSCacheEntry {
 	provider, ok := n.Resolver.(netapi.DNSCacheProvider)
@@ -423,7 +426,15 @@ func (c *client) iphintToCache(name string, ttl uint32, vv svcb.Pair) {
 }
 
 func (c *client) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
-	rawmsg, err := c.raw(ctx, req)
+	return c.rawResponse(ctx, req, false)
+}
+
+func (c *client) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return c.rawResponse(ctx, req, true)
+}
+
+func (c *client) rawResponse(ctx context.Context, req netapi.DNSQuestion, cachedOnly bool) (*dns.Msg, error) {
+	rawmsg, err := c.rawWithCache(ctx, req, cachedOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -437,6 +448,11 @@ func (c *client) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, err
 }
 
 func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return c.rawWithCache(ctx, req, false)
+}
+
+func (c *client) rawWithCache(ctx context.Context, req netapi.DNSQuestion, cachedOnly bool) (*dns.Msg, error) {
+	cachedOnly = cachedOnly || netapi.DNSCacheOnly(ctx)
 	if !system.IsDomainName(req.Name) {
 		return nil, fmt.Errorf("invalid domain: %s", req.Name)
 	}
@@ -449,12 +465,22 @@ func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, err
 
 	rawmsg, expired, ok := c.rawStore.LoadOptimistically(cacheKey)
 	if !ok {
+		if cachedOnly {
+			return nil, netapi.ErrDNSCacheMiss
+		}
 		var err error
 		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (*dns.Msg, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			msg, err := c.queryWithMetrics(ctx, req)
+			queryCtx, limiter, err := netapi.AcquireDNSQuery(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if limiter != nil {
+				defer limiter.Release(1)
+			}
+			msg, err := c.queryWithMetrics(queryCtx, req)
 			if err != nil {
 				return nil, fmt.Errorf("query with metrics failed: %w", err)
 			}

@@ -190,6 +190,9 @@ func (e ErrorResolver) Close() error { return nil }
 func (e ErrorResolver) Raw(_ context.Context, req DNSQuestion) (*dns.Msg, error) {
 	return NewDNSMsg(req), nil
 }
+func (e ErrorResolver) RawCached(ctx context.Context, req DNSQuestion) (*dns.Msg, error) {
+	return e.Raw(ctx, req)
+}
 func (e ErrorResolver) Name() string { return "ErrorResolver" }
 
 // dnsConn is a net.PacketConn suitable for returning from
@@ -290,7 +293,11 @@ func (r *DynamicResolver) Close() error {
 }
 
 func (r *DynamicResolver) Raw(ctx context.Context, req DNSQuestion) (*dns.Msg, error) {
-	return r.getResolver().Raw(ctx, req)
+	return RawDNS(ctx, r.getResolver(), req)
+}
+
+func (r *DynamicResolver) RawCached(ctx context.Context, req DNSQuestion) (*dns.Msg, error) {
+	return CachedDNS(ctx, r.getResolver(), req)
 }
 
 func (r *DynamicResolver) DNSCacheEntries() []DNSCacheEntry {
@@ -353,7 +360,17 @@ func (b *bootstrapResolver) Raw(ctx context.Context, req DNSQuestion) (*dns.Msg,
 		return nil, errors.New("bootstrap resolver is not initialized")
 	}
 
-	return r.Raw(ctx, req)
+	return RawDNS(ctx, r, req)
+}
+
+func (b *bootstrapResolver) RawCached(ctx context.Context, req DNSQuestion) (*dns.Msg, error) {
+	b.mu.RLock()
+	r := b.r
+	b.mu.RUnlock()
+	if r == nil {
+		return nil, errors.New("bootstrap resolver is not initialized")
+	}
+	return CachedDNS(ctx, r, req)
 }
 
 func (b *bootstrapResolver) DNSCacheEntries() []DNSCacheEntry {

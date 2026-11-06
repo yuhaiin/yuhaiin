@@ -57,6 +57,8 @@ func SetFlowCounter(c FlowCounter) {
 var Counter Metrics = &EmptyMetrics{}
 
 type Metrics interface {
+	AddDNSAdmissionResult(string)
+	ObserveDNSAdmissionWait(string, time.Duration)
 	AddReceiveUDPPacket()
 	AddSendUDPPacket()
 	AddReceiveUDPDroppedPacket()
@@ -92,6 +94,9 @@ type Metrics interface {
 
 type EmptyMetrics struct{}
 
+func (*EmptyMetrics) AddDNSAdmissionResult(string)                  {}
+func (*EmptyMetrics) ObserveDNSAdmissionWait(string, time.Duration) {}
+
 func (m *EmptyMetrics) AddReceiveUDPPacket()                      {}
 func (m *EmptyMetrics) AddSendUDPPacket()                         {}
 func (m *EmptyMetrics) AddReceiveUDPDroppedPacket()               {}
@@ -122,6 +127,13 @@ func (m *EmptyMetrics) AddTrieMatchDuration(time.Duration)        {}
 func (m *EmptyMetrics) AddGeoCountry(string)                      {}
 
 type Prometheus struct {
+	DNSAdmissionResults     *prometheus.CounterVec
+	DNSAdmissionWaitSeconds *prometheus.HistogramVec
+	// Fixed label children, resolved on first use so the per-packet DNS path
+	// skips the CounterVec/HistogramVec label hash and lock without exporting
+	// zero series for stages that never happen. The maps are read-only.
+	dnsAdmissionResults          map[string]*lazyChild[prometheus.Counter]
+	dnsAdmissionWaits            map[string]*lazyChild[prometheus.Observer]
 	TotalReceiveUDPPacket        prometheus.Counter
 	TotalSendUDPPacket           prometheus.Counter
 	TotalReceiveUDPDroppedPacket prometheus.Counter
@@ -174,6 +186,8 @@ func newPrometheus(registerer prometheus.Registerer) *Prometheus {
 	}
 
 	p := &Prometheus{
+		DNSAdmissionResults:     factory.NewCounterVec(prometheus.CounterOpts{Name: "yuhaiin_dns_admission_results_total", Help: "DNS cache hits, queued requests, overload rejections and canceled or expired completions", ConstLabels: labels}, []string{"result"}),
+		DNSAdmissionWaitSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{Name: "yuhaiin_dns_admission_wait_seconds", Help: "Time waiting in the DNS dispatch queue or for an upstream query permit", ConstLabels: labels, Buckets: []float64{.00001, .0001, .001, .01, .1, 1, 5, 10}}, []string{"stage"}),
 		TotalReceiveUDPPacket: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_udp_receive_packets_total",
 			Help:        "The total number of udp receive packets",
@@ -330,8 +344,33 @@ func newPrometheus(registerer prometheus.Registerer) *Prometheus {
 		}),
 	}
 
+	p.dnsAdmissionResults = make(map[string]*lazyChild[prometheus.Counter], len(dnsAdmissionResultLabels))
+	for _, label := range dnsAdmissionResultLabels {
+		p.dnsAdmissionResults[label] = &lazyChild[prometheus.Counter]{}
+	}
+	p.dnsAdmissionWaits = make(map[string]*lazyChild[prometheus.Observer], len(dnsAdmissionWaitLabels))
+	for _, label := range dnsAdmissionWaitLabels {
+		p.dnsAdmissionWaits[label] = &lazyChild[prometheus.Observer]{}
+	}
+
 	return p
 }
+
+// lazyChild caches one labeled child of a metric vector, created on first use.
+type lazyChild[T any] struct {
+	once  sync.Once
+	child T
+}
+
+func (l *lazyChild[T]) get(create func() T) T {
+	l.once.Do(func() { l.child = create() })
+	return l.child
+}
+
+var (
+	dnsAdmissionResultLabels = []string{"cache_hit", "queued", "budget_full", "queue_full", "expired", "canceled"}
+	dnsAdmissionWaitLabels   = []string{"queue", "upstream"}
+)
 
 func (p *Prometheus) AddConnection(addr string) {
 	p.TotalConnection.Inc()
@@ -445,4 +484,20 @@ func (p *Prometheus) AddTrieMatchDuration(t time.Duration) {
 
 func (p *Prometheus) AddGeoCountry(country string) {
 	p.TotalGeoCountry.WithLabelValues(country).Inc()
+}
+
+func (p *Prometheus) AddDNSAdmissionResult(result string) {
+	if c, ok := p.dnsAdmissionResults[result]; ok {
+		c.get(func() prometheus.Counter { return p.DNSAdmissionResults.WithLabelValues(result) }).Inc()
+		return
+	}
+	p.DNSAdmissionResults.WithLabelValues(result).Inc()
+}
+
+func (p *Prometheus) ObserveDNSAdmissionWait(stage string, duration time.Duration) {
+	if o, ok := p.dnsAdmissionWaits[stage]; ok {
+		o.get(func() prometheus.Observer { return p.DNSAdmissionWaitSeconds.WithLabelValues(stage) }).Observe(duration.Seconds())
+		return
+	}
+	p.DNSAdmissionWaitSeconds.WithLabelValues(stage).Observe(duration.Seconds())
 }

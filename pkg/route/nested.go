@@ -360,9 +360,16 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 			state.SetGeo("")
 			state.ConnOptions().SetMaxminddb(nil)
 		}
+		probe := newCacheProbe(ctx)
+		if probe.deferred() {
+			return ProxyMode
+		}
 		// Resolving an address may route a DNS connection recursively. Do not
 		// hold the rule or index lock across resolver calls.
 		hosts := s.list.SearchHost(ctx, addr)
+		if probe.deferred() {
+			return ProxyMode
+		}
 		processes := s.list.ProcessTrie().Search(ctx, addr)
 		s.mu.RLock()
 		if generation != s.generation {
@@ -386,6 +393,10 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 				mode.config = config
 				return mode
 			}
+			if probe.deferred() {
+				s.mu.RUnlock()
+				return ProxyMode
+			}
 		}
 		s.mu.RUnlock()
 		mode := ProxyMode
@@ -398,6 +409,28 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 		}
 		return mode
 	}
+}
+
+// cacheProbe reports that a cache-only DNS probe needs addresses that
+// are not cached. Its decision will be discarded and re-made on the upstream
+// path, so the remaining GeoIP, list, process and rule work is skipped.
+//
+// The context lookups happen once per Match; the per-rule check is a field read.
+type cacheProbe struct{ store *netapi.Context }
+
+func newCacheProbe(ctx context.Context) cacheProbe {
+	if !netapi.DNSCacheOnly(ctx) {
+		return cacheProbe{}
+	}
+	return cacheProbe{netapi.GetContextOrNil(ctx)}
+}
+
+func (p cacheProbe) deferred() bool {
+	if p.store == nil {
+		return false
+	}
+	err := p.store.ConnOptions().RouteIPError()
+	return err != nil && errors.Is(err, netapi.ErrDNSCacheMiss)
 }
 
 type List string

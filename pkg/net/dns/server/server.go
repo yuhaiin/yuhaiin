@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
+	"sync/atomic"
+	"time"
 
 	"codeberg.org/miekg/dns"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
@@ -31,9 +32,20 @@ type dnsServer struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	notifyChan chan struct{}
-	reqBuffer  *ringbuffer.RingBuffer[*netapi.DNSRawRequest]
+	reqBuffer  *ringbuffer.RingBuffer[*queuedRequest]
 
 	udpSemaphore semaphore.Semaphore
+	outstanding  atomic.Int64
+}
+
+// Query wait is measured only by the singleflight owner, not by each duplicate.
+type querySemaphore struct{ semaphore.Semaphore }
+
+func (s *querySemaphore) Acquire(ctx context.Context, n int64) error {
+	started := time.Now()
+	err := s.Semaphore.Acquire(ctx, n)
+	metrics.Counter.ObserveDNSAdmissionWait("upstream", time.Since(started))
+	return err
 }
 
 func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
@@ -43,8 +55,8 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
 		cancel:       cancel,
 		resolver:     process,
 		notifyChan:   make(chan struct{}, 1),
-		udpSemaphore: semaphore.NewSemaphore(configuration.DNSProcessThread.Load()),
-		reqBuffer:    ringbuffer.NewRingBuffer[*netapi.DNSRawRequest](8, configuration.MaxUDPUnprocessedPackets.Load),
+		udpSemaphore: &querySemaphore{semaphore.NewSemaphore(max(1, configuration.DNSProcessThread.Load()))},
+		reqBuffer:    ringbuffer.NewRingBuffer[*queuedRequest](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
 	d.local, _ = process.(netapi.LocalDNSResponder)
 
@@ -103,10 +115,7 @@ func (d *dnsServer) cancelQueued() {
 		if !ok {
 			return
 		}
-		if req.Done != nil {
-			req.Done(d.ctx.Err())
-		}
-		req.Question.DecRef()
+		d.complete(req, d.ctx.Err())
 	}
 }
 
@@ -135,29 +144,15 @@ func (d *dnsServer) startUDP(listener net.PacketConn) {
 					return
 				}
 
-				if err := d.udpSemaphore.Acquire(context.TODO(), 1); err != nil {
-					log.Warn("dns udp server handle acquiring semaphore failed", "err", err)
-					continue
+				packet := netapi.NewPacket(addr, netapi.EmptyAddr, pool.Clone(buf[:n]), nil)
+				err = d.DoDatagram(d.ctx, &netapi.DNSRawRequest{
+					Question:  packet,
+					WriteBack: func(b []byte) error { _, err := listener.WriteTo(b, addr); return err },
+				})
+				packet.DecRef()
+				if err != nil {
+					log.Debug("dns UDP request rejected", "err", err)
 				}
-
-				go func(b []byte) {
-					defer d.udpSemaphore.Release(1)
-
-					defer pool.PutBytes(b)
-
-					err := d.do(context.TODO(), &doData{
-						Question: b,
-						WriteBack: func(b []byte) error {
-							if _, err = listener.WriteTo(b, addr); err != nil {
-								return fmt.Errorf("write dns response to client failed: %w", err)
-							}
-							return nil
-						},
-					})
-					if err != nil {
-						log.Error("dns server handle data failed", slog.Any("err", err))
-					}
-				}(pool.Clone(buf[:n]))
 			}
 		}()
 	}
@@ -242,6 +237,9 @@ func (d *dnsServer) HandleUDP(ctx context.Context, l net.PacketConn) error {
 }
 
 type doData struct {
+	context     context.Context
+	prepared    bool
+	query       *dns.Msg
 	WriteBack   func([]byte) error
 	Question    []byte
 	Stream      bool
@@ -249,12 +247,22 @@ type doData struct {
 }
 
 func (d *dnsServer) do(ctx context.Context, req *doData) error {
-	var qmsg dns.Msg
-	// The stream buffer or retained packet remains alive until do returns.
-	// Unpack reads the query without changing it; another copy is unnecessary.
-	qmsg.Data = req.Question
-	if err := qmsg.Unpack(); err != nil {
-		return fmt.Errorf("dns server parse failed: %w", err)
+	return d.doWithCache(ctx, req, false)
+}
+
+func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var parsed dns.Msg
+	qmsg := req.query
+	if qmsg == nil {
+		// A retained packet/stream buffer stays alive until do returns.
+		parsed.Data = req.Question
+		if err := parsed.Unpack(); err != nil {
+			return fmt.Errorf("dns server parse failed: %w", err)
+		}
+		qmsg = &parsed
 	}
 
 	if len(qmsg.Question) == 0 {
@@ -274,15 +282,35 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 	if !local {
 		ctx, store := netapi.GetOrNewContext(ctx)
 		store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
-		ctx, cancel := context.WithTimeout(ctx, configuration.ResolverTimeout)
-		defer cancel()
+		if !req.prepared {
+			ctx = netapi.WithDNSQueryLimiter(ctx, d.udpSemaphore)
+		}
+		req.context = ctx
 		var err error
-		msg, err = d.resolver.Raw(ctx, question)
+		if cachedOnly {
+			msg, err = netapi.CachedDNS(ctx, d.resolver, question)
+		} else {
+			var cancel context.CancelFunc
+			if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > configuration.ResolverTimeout {
+				ctx, cancel = context.WithTimeout(ctx, configuration.ResolverTimeout)
+				defer cancel()
+			}
+			msg, err = netapi.RawDNS(ctx, d.resolver, question)
+		}
 		if err != nil {
+			if cachedOnly {
+				return err
+			}
 			return fmt.Errorf("do raw request (%v:%v) failed: %w", question.Name, question.Qtype, err)
+		}
+		if cachedOnly {
+			metrics.Counter.AddDNSProcess(question.Name)
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	msg.ID = qmsg.ID
 	// Pack into a buffer owned by this request. Cached messages may share their
 	// previous wire bytes, and callback consumers finish before this returns.
@@ -335,68 +363,115 @@ func (d *dnsServer) startHandleReqData() {
 	}
 }
 
+// queuedRequest retains the caller's values, cancellation and the receipt-time
+// deadline. No per-request goroutine or timer is needed for a cache hit.
+type queuedRequest struct {
+	query    *dns.Msg
+	request  *netapi.DNSRawRequest
+	ctx      context.Context
+	deadline time.Time
+}
+
+func (d *dnsServer) complete(req *queuedRequest, err error) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		metrics.Counter.AddDNSAdmissionResult("expired")
+	} else if errors.Is(err, context.Canceled) {
+		metrics.Counter.AddDNSAdmissionResult("canceled")
+	}
+	req.request.Question.DecRef()
+	d.outstanding.Add(-1)
+	if req.request.Done != nil {
+		req.request.Done(err)
+	}
+}
+
 func (d *dnsServer) handle() {
 	for {
 		req, ok := d.reqBuffer.Pop()
 		if !ok {
 			return
 		}
-
-		if err := d.udpSemaphore.Acquire(d.ctx, 1); err != nil {
-			log.Warn("handle dns request acquire semaphore failed", "err", err)
-			if req.Done != nil {
-				req.Done(err)
-			}
-			req.Question.DecRef()
+		metrics.Counter.ObserveDNSAdmissionWait("queue", time.Since(req.deadline.Add(-configuration.ResolverTimeout)))
+		if err := req.ctx.Err(); err != nil {
+			d.complete(req, err)
 			continue
 		}
-
+		if !time.Now().Before(req.deadline) {
+			d.complete(req, context.DeadlineExceeded)
+			continue
+		}
+		if err := d.ctx.Err(); err != nil {
+			d.complete(req, err)
+			continue
+		}
+		// Bound retained packets separately from actual upstream query permits.
+		// Singleflight waiters consume packet budget, but no upstream permit.
 		go func() {
-			defer d.udpSemaphore.Release(1)
-
-			err := d.do(d.ctx, &doData{
-				Question:    req.Question.GetPayload(),
-				WriteBack:   req.WriteBack,
-				Stream:      req.Stream,
-				ForceFakeIP: req.ForceFakeIP,
-			})
-			if err != nil {
-				log.Error("handle dns request failed", "err", err, "len", len(req.Question.GetPayload()))
+			ctx, cancel := context.WithDeadline(req.ctx, req.deadline)
+			stop := context.AfterFunc(d.ctx, cancel)
+			defer stop()
+			defer cancel()
+			if d.ctx.Err() != nil {
+				cancel()
 			}
-			if req.Done != nil {
-				req.Done(err)
-			}
-
-			req.Question.DecRef()
+			err := d.do(ctx, &doData{prepared: true, query: req.query, Question: req.request.Question.GetPayload(), WriteBack: req.request.WriteBack, Stream: req.request.Stream, ForceFakeIP: req.request.ForceFakeIP})
+			d.complete(req, err)
 		}()
 	}
 }
 
 func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-d.ctx.Done():
-		return d.ctx.Err()
-	default:
-		req.Question.IncRef()
-		if !d.reqBuffer.Push(req) {
-			req.Question.DecRef()
-			metrics.Counter.AddReceiveUDPDroppedPacket()
-			return fmt.Errorf("dns request buffer is full")
-		}
-		// Close may drain the queue between the context check and Push.
-		// Once accepted, this side owns completion even across that race.
-		if d.ctx.Err() != nil {
-			d.cancelQueued()
-			return nil
-		}
-
-		select {
-		case d.notifyChan <- struct{}{}:
-		default:
-		}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-
+	if err := d.ctx.Err(); err != nil {
+		return err
+	}
+	deadline := time.Now().Add(configuration.ResolverTimeout)
+	// The parsed query is read-only and its wire data is the packet payload,
+	// which the queued request retains (IncRef) until complete; no copy needed.
+	query := &dns.Msg{Data: req.Question.GetPayload()}
+	if err := query.Unpack(); err != nil {
+		return fmt.Errorf("dns server parse failed: %w", err)
+	}
+	data := &doData{query: query, Question: req.Question.GetPayload(), WriteBack: req.WriteBack, Stream: req.Stream, ForceFakeIP: req.ForceFakeIP}
+	err := d.doWithCache(ctx, data, true)
+	if !errors.Is(err, netapi.ErrDNSCacheMiss) {
+		if err == nil {
+			metrics.Counter.AddDNSAdmissionResult("cache_hit")
+			if req.Done != nil {
+				req.Done(nil)
+			}
+		}
+		return err
+	}
+	// Active queries plus the configured waiting budget is a hard bound on all
+	// retained packets/goroutines, including duplicate requests waiting on a result.
+	limit := d.udpSemaphore.Weight() + int64(max(0, configuration.MaxUDPUnprocessedPackets.Load()))
+	if d.outstanding.Add(1) > limit {
+		d.outstanding.Add(-1)
+		metrics.Counter.AddReceiveUDPDroppedPacket()
+		metrics.Counter.AddDNSAdmissionResult("budget_full")
+		return errors.New("dns request budget is full")
+	}
+	queued := &queuedRequest{request: req, ctx: data.context, deadline: deadline, query: query}
+	req.Question.IncRef()
+	if !d.reqBuffer.Push(queued) {
+		req.Question.DecRef()
+		d.outstanding.Add(-1)
+		metrics.Counter.AddReceiveUDPDroppedPacket()
+		metrics.Counter.AddDNSAdmissionResult("queue_full")
+		return errors.New("dns request buffer is full")
+	}
+	metrics.Counter.AddDNSAdmissionResult("queued")
+	// Close may have drained before Push. Exactly one pop owns completion.
+	if d.ctx.Err() != nil {
+		d.cancelQueued()
+		return nil
+	}
+	select {
+	case d.notifyChan <- struct{}{}:
+	default:
+	}
 	return nil
 }

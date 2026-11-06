@@ -38,7 +38,14 @@ func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string
 			return
 		}
 
-		if _, err := c.queryWithMetrics(ctx, req); err != nil && c.refreshContext.Err() == nil {
+		queryCtx, limiter, err := netapi.AcquireDNSQuery(ctx)
+		if err != nil {
+			return
+		}
+		if limiter != nil {
+			defer limiter.Release(1)
+		}
+		if _, err := c.queryWithMetrics(queryCtx, req); err != nil && c.refreshContext.Err() == nil {
 			log.Error("refresh domain background failed", "req", req, "err", err)
 		}
 	}()

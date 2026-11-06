@@ -1,0 +1,420 @@
+{
+  "BenchmarkDNSDatagramAdmission/cached-4": {
+    "main": {
+      "ns": 4478.0,
+      "bytes": 1208.0,
+      "allocs": 17.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1195.5,
+      "bytes": 1216.0,
+      "allocs": 15.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1208.0,
+      "bytes": 1216.0,
+      "allocs": 15.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -73.02,
+    "change_vs_pr_before_fix_percent": 1.05
+  },
+  "BenchmarkDNSDatagramAdmission/uncached-4": {
+    "main": {
+      "ns": 5693.5,
+      "bytes": 1929.0,
+      "allocs": 29.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 6738.0,
+      "bytes": 2601.0,
+      "allocs": 38.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 6708.5,
+      "bytes": 2601.0,
+      "allocs": 38.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 17.83,
+    "change_vs_pr_before_fix_percent": -0.44
+  },
+  "BenchmarkDNSDatagramAdmissionPrometheus/cached-4": {
+    "main": {
+      "ns": 4534.5,
+      "bytes": 1208.0,
+      "allocs": 17.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1218.0,
+      "bytes": 1216.0,
+      "allocs": 15.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1229.5,
+      "bytes": 1216.0,
+      "allocs": 15.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -72.89,
+    "change_vs_pr_before_fix_percent": 0.94
+  },
+  "BenchmarkDNSDatagramAdmissionPrometheus/uncached-4": {
+    "main": {
+      "ns": 5864.5,
+      "bytes": 1929.0,
+      "allocs": 29.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 7403.5,
+      "bytes": 2601.0,
+      "allocs": 38.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 7441.0,
+      "bytes": 2601.0,
+      "allocs": 38.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 26.88,
+    "change_vs_pr_before_fix_percent": 0.51
+  },
+  "BenchmarkDNSDatagramUDPMiss-4": {
+    "main": {
+      "ns": 36725.0,
+      "bytes": 3609.0,
+      "allocs": 62.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 41033.0,
+      "bytes": 4179.0,
+      "allocs": 70.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 41066.5,
+      "bytes": 4179.0,
+      "allocs": 70.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 11.82,
+    "change_vs_pr_before_fix_percent": 0.08
+  },
+  "BenchmarkDNSCachedBehindSlowQuery-4": {
+    "main": {
+      "ns": 1074277.5,
+      "bytes": 2142.0,
+      "allocs": 30.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 4654.5,
+      "bytes": 1421.0,
+      "allocs": 19.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 4925.5,
+      "bytes": 1421.5,
+      "allocs": 19.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -99.54,
+    "change_vs_pr_before_fix_percent": 5.82
+  },
+  "BenchmarkDNSDatagramPipeline/cache/rules=0/wrap=false-4": {
+    "main": {
+      "ns": 4857.5,
+      "bytes": 1297.0,
+      "allocs": 20.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1615.0,
+      "bytes": 1304.0,
+      "allocs": 18.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1614.0,
+      "bytes": 1304.0,
+      "allocs": 18.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -66.77,
+    "change_vs_pr_before_fix_percent": -0.06
+  },
+  "BenchmarkDNSDatagramPipeline/cache/rules=0/wrap=true-4": {
+    "main": {
+      "ns": 4897.0,
+      "bytes": 1297.0,
+      "allocs": 20.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1649.5,
+      "bytes": 1304.0,
+      "allocs": 18.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1656.0,
+      "bytes": 1304.0,
+      "allocs": 18.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -66.18,
+    "change_vs_pr_before_fix_percent": 0.39
+  },
+  "BenchmarkDNSDatagramPipeline/cache/rules=10000/wrap=true-4": {
+    "main": {
+      "ns": 5233.5,
+      "bytes": 1296.0,
+      "allocs": 20.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1900.5,
+      "bytes": 1304.0,
+      "allocs": 18.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1905.0,
+      "bytes": 1304.0,
+      "allocs": 18.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -63.6,
+    "change_vs_pr_before_fix_percent": 0.24
+  },
+  "BenchmarkDNSDatagramPipeline/nxdomain/rules=10/wrap=true-4": {
+    "main": {
+      "ns": 3001.0,
+      "bytes": 632.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 978.4,
+      "bytes": 816.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 974.7,
+      "bytes": 816.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -67.52,
+    "change_vs_pr_before_fix_percent": -0.38
+  },
+  "BenchmarkDNSDatagramPipeline/nxdomain/rules=1000/wrap=true-4": {
+    "main": {
+      "ns": 3042.5,
+      "bytes": 632.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1027.5,
+      "bytes": 816.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1032.0,
+      "bytes": 816.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -66.08,
+    "change_vs_pr_before_fix_percent": 0.44
+  },
+  "BenchmarkDNSDatagramPipeline/nxdomain/rules=10000/wrap=true-4": {
+    "main": {
+      "ns": 3063.5,
+      "bytes": 632.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1050.5,
+      "bytes": 816.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1034.5,
+      "bytes": 816.0,
+      "allocs": 9.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -66.23,
+    "change_vs_pr_before_fix_percent": -1.52
+  },
+  "BenchmarkDNSDatagramPipeline/aaaa/rules=10000/wrap=true-4": {
+    "main": {
+      "ns": 3459.0,
+      "bytes": 632.0,
+      "allocs": 11.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1234.0,
+      "bytes": 816.0,
+      "allocs": 11.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1217.5,
+      "bytes": 816.0,
+      "allocs": 11.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -64.8,
+    "change_vs_pr_before_fix_percent": -1.34
+  },
+  "BenchmarkDNSDatagramPipeline/hosts/rules=10000/wrap=true-4": {
+    "main": {
+      "ns": 5173.0,
+      "bytes": 1408.0,
+      "allocs": 23.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 1861.0,
+      "bytes": 1416.0,
+      "allocs": 21.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 1860.0,
+      "bytes": 1416.0,
+      "allocs": 21.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -64.04,
+    "change_vs_pr_before_fix_percent": -0.05
+  },
+  "BenchmarkDNSDatagramPipeline/fakeip/rules=10000/wrap=true-4": {
+    "main": {
+      "ns": 5872.5,
+      "bytes": 1680.0,
+      "allocs": 26.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 2306.5,
+      "bytes": 1688.0,
+      "allocs": 24.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 2296.5,
+      "bytes": 1688.0,
+      "allocs": 24.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": -60.89,
+    "change_vs_pr_before_fix_percent": -0.43
+  },
+  "BenchmarkDNSRoutedMiss/evidence-cached/rules=10-4": {
+    "main": {
+      "ns": 13444.5,
+      "bytes": 5685.0,
+      "allocs": 69.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 19780.5,
+      "bytes": 10320.0,
+      "allocs": 98.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 17002.5,
+      "bytes": 6909.0,
+      "allocs": 81.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 26.46,
+    "change_vs_pr_before_fix_percent": -14.04
+  },
+  "BenchmarkDNSRoutedMiss/cold/rules=10-4": {
+    "main": {
+      "ns": 18097.5,
+      "bytes": 7076.0,
+      "allocs": 96.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 33697.5,
+      "bytes": 11457.0,
+      "allocs": 129.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 28781.0,
+      "bytes": 8089.5,
+      "allocs": 116.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 59.03,
+    "change_vs_pr_before_fix_percent": -14.59
+  },
+  "BenchmarkDNSRoutedMiss/evidence-cached/rules=200-4": {
+    "main": {
+      "ns": 36905.0,
+      "bytes": 58620.0,
+      "allocs": 263.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 68008.5,
+      "bytes": 121923.0,
+      "allocs": 482.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 41149.0,
+      "bytes": 59828.0,
+      "allocs": 275.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 11.5,
+    "change_vs_pr_before_fix_percent": -39.49
+  },
+  "BenchmarkDNSRoutedMiss/cold/rules=200-4": {
+    "main": {
+      "ns": 48292.0,
+      "bytes": 60061.5,
+      "allocs": 290.0,
+      "samples": 10
+    },
+    "pr_before_fix": {
+      "ns": 93533.5,
+      "bytes": 123217.0,
+      "allocs": 514.0,
+      "samples": 10
+    },
+    "after": {
+      "ns": 60491.5,
+      "bytes": 61089.5,
+      "allocs": 310.0,
+      "samples": 10
+    },
+    "change_vs_main_percent": 25.26,
+    "change_vs_pr_before_fix_percent": -35.33
+  }
+}

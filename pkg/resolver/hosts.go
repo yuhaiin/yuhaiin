@@ -131,10 +131,18 @@ func (h *Hosts) newDnsMsg(req netapi.DNSQuestion) *dns.Msg {
 }
 
 func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return h.raw(ctx, req, netapi.RawDNS)
+}
+
+func (h *Hosts) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return h.raw(ctx, req, netapi.CachedDNS)
+}
+
+func (h *Hosts) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.DNSLookupFunc) (*dns.Msg, error) {
 	if req.Qtype == dns.TypePTR {
 		ip, err := fakeip.RetrieveIPFromPtr(req.Name)
 		if err != nil {
-			return h.resolver.Raw(ctx, req)
+			return lookup(ctx, h.resolver, req)
 		}
 
 		ipaddr, _ := netip.AddrFromSlice(ip)
@@ -144,7 +152,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 		h.mu.RUnlock()
 		domains := append(ptrs, system.LookupStaticAddr(ip)...)
 		if len(domains) == 0 {
-			return h.resolver.Raw(ctx, req)
+			return lookup(ctx, h.resolver, req)
 		}
 
 		msg := h.newDnsMsg(req)
@@ -165,7 +173,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 	}
 
 	if req.Qtype != dns.TypeAAAA && req.Qtype != dns.TypeA {
-		return h.resolver.Raw(ctx, req)
+		return lookup(ctx, h.resolver, req)
 	}
 
 	domain := req.Name[:len(req.Name)-1]
@@ -176,14 +184,14 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 	}
 
 	if !addr.IsFqdn() {
-		return h.resolver.Raw(ctx, req)
+		return lookup(ctx, h.resolver, req)
 	}
 
 	addr = h.dispatchAddr(ctx, addr)
 
 	if addr.IsFqdn() {
 		req.Name = system.AbsDomain(addr.Hostname())
-		return h.resolver.Raw(ctx, req)
+		return lookup(ctx, h.resolver, req)
 	}
 
 	ip := addr.(netapi.IPAddress).AddrPort().Addr()
@@ -204,7 +212,7 @@ func (h *Hosts) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 	}
 
 	if !ip.Is4() {
-		return h.resolver.Raw(ctx, req)
+		return lookup(ctx, h.resolver, req)
 	}
 
 	msg := h.newDnsMsg(req)

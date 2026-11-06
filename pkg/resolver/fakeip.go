@@ -172,7 +172,9 @@ func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
-	metrics.Counter.AddDNSProcess(domain)
+	if !netapi.DNSCacheOnly(ctx) {
+		metrics.Counter.AddDNSProcess(domain)
+	}
 
 	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
@@ -196,6 +198,14 @@ func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*net
 }
 
 func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return f.raw(ctx, req, netapi.RawDNS)
+}
+
+func (f *Fakedns) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	return f.raw(netapi.WithDNSCacheOnly(ctx), req, netapi.CachedDNS)
+}
+
+func (f *Fakedns) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.DNSLookupFunc) (*dns.Msg, error) {
 	f.fakeMu.RLock()
 	defer f.fakeMu.RUnlock()
 
@@ -204,7 +214,7 @@ func (f *Fakedns) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, er
 			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
 		}
 	}
-	return f.resolver(ctx, req.Name).Raw(ctx, req)
+	return lookup(ctx, f.resolver(ctx, req.Name), req)
 }
 
 func (f *Fakedns) Close() error {

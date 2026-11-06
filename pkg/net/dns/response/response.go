@@ -119,7 +119,14 @@ func (r *Resolver) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 	if msg, ok := r.LocalResponse(req); ok {
 		return msg, nil
 	}
-	return r.upstream.Raw(ctx, req)
+	return netapi.RawDNS(ctx, r.upstream, req)
+}
+
+func (r *Resolver) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
+	if msg, ok := r.LocalResponse(req); ok {
+		return msg, nil
+	}
+	return netapi.CachedDNS(ctx, r.upstream, req)
 }
 
 func (r *Resolver) LookupIP(ctx context.Context, name string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
