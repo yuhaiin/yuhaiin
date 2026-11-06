@@ -40,9 +40,58 @@ func udpCacheKey(id uint16, question netapi.DNSQuestion) string {
 }
 
 type udpresp struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	msg    atomic.Pointer[dns.Msg]
+	ctx     context.Context
+	cancel  context.CancelFunc
+	msg     atomic.Pointer[dns.Msg]
+	session atomic.Pointer[udpSession]
+	failure atomic.Pointer[error]
+}
+
+func (r *udpresp) fail(err error) {
+	r.failure.CompareAndSwap(nil, new(err))
+	r.cancel()
+}
+
+// udpSession owns only the queries sent on this exact socket. A reader from
+// an obsolete socket cannot cancel requests or clear the replacement socket.
+type udpSession struct {
+	net.PacketConn
+	mu      sync.Mutex
+	pending map[*udpresp]struct{}
+	closed  bool
+}
+
+func (s *udpSession) add(r *udpresp) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return net.ErrClosed
+	}
+	s.pending[r] = struct{}{}
+	r.session.Store(s)
+	return nil
+}
+
+func (s *udpSession) remove(r *udpresp) {
+	s.mu.Lock()
+	delete(s.pending, r)
+	s.mu.Unlock()
+}
+
+func (s *udpSession) closeWithError(err error) {
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.closed = true
+	pending := s.pending
+	s.pending = nil
+	s.mu.Unlock()
+	_ = s.Close()
+	for r := range pending {
+		r.fail(err)
+	}
 }
 
 func (r *udpresp) setMsg(msg *dns.Msg) {
@@ -54,6 +103,7 @@ func (r *udpresp) setMsg(msg *dns.Msg) {
 type udpPacket struct {
 	ctx      context.Context
 	question []byte
+	response *udpresp
 }
 
 type udp struct {
@@ -65,15 +115,21 @@ type udp struct {
 	wchan  chan *udpPacket
 	config Config
 
-	sender syncmap.SyncMap[string, *udpresp]
+	sender  syncmap.SyncMap[string, *udpresp]
+	done    chan struct{}
+	readers sync.WaitGroup
 }
 
 func (u *udp) Close() error {
 	u.cancel()
+	if u.done != nil {
+		<-u.done
+		u.readers.Wait()
+	}
 	return nil
 }
 
-func (u *udp) handleResponse(packet net.PacketConn) {
+func (u *udp) handleResponse(packet *udpSession) error {
 	buf := pool.GetBytes(nat.MaxSegmentSize)
 	defer pool.PutBytes(buf)
 
@@ -85,7 +141,7 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 			if !errors.Is(err, os.ErrDeadlineExceeded) {
 				log.Warn("dns udp read failed, try to re-dial", "err", err)
 			}
-			return
+			return err
 		}
 
 		msg := &dns.Msg{}
@@ -104,26 +160,31 @@ func (u *udp) handleResponse(packet net.PacketConn) {
 		if !ok || send == nil {
 			continue
 		}
+		if send.session.Load() != packet {
+			continue
+		}
 
 		send.setMsg(msg)
 	}
 }
 
 func (u *udp) loopWrite() {
+	defer close(u.done)
 	var mu sync.RWMutex
-	var packetConn net.PacketConn
+	var packetConn *udpSession
 
-	close := func() {
+	retire := func(old *udpSession, err error) {
 		mu.Lock()
-		defer mu.Unlock()
-
-		if packetConn != nil {
-			packetConn.Close()
+		if packetConn == old {
 			packetConn = nil
+		}
+		mu.Unlock()
+		if old != nil {
+			old.closeWithError(err)
 		}
 	}
 
-	dial := func() (net.PacketConn, error) {
+	dial := func() (*udpSession, error) {
 		mu.RLock()
 		pc := packetConn
 		mu.RUnlock()
@@ -147,16 +208,17 @@ func (u *udp) loopWrite() {
 		ctx, cancel := context.WithTimeout(u.ctx, configuration.Timeout)
 		defer cancel()
 
-		packetConn, err = u.config.Dialer.PacketConn(ctx, addr)
+		raw, err := u.config.Dialer.PacketConn(ctx, addr)
 		if err != nil {
 			return nil, fmt.Errorf("get packetConn failed: %w", err)
 		}
 
-		go func(packetConn net.PacketConn) {
-			defer close()
-			defer packetConn.Close()
-			u.handleResponse(packetConn)
-		}(packetConn)
+		packetConn = &udpSession{PacketConn: raw, pending: make(map[*udpresp]struct{})}
+		session := packetConn
+		u.readers.Go(func() {
+			err := u.handleResponse(session)
+			retire(session, err)
+		})
 
 		return packetConn, nil
 	}
@@ -171,6 +233,10 @@ func (u *udp) loopWrite() {
 		if err != nil {
 			return fmt.Errorf("resolve udp addr failed: %w", err)
 		}
+		if err := pk.add(p.response); err != nil {
+			retire(pk, err)
+			return err
+		}
 
 		if err := pk.SetWriteDeadline(time.Now().Add(configuration.ResolverTimeout)); err != nil {
 			return fmt.Errorf("set packetConn write deadline: %w", err)
@@ -180,7 +246,7 @@ func (u *udp) loopWrite() {
 			err = resetErr
 		}
 		if err != nil {
-			close()
+			retire(pk, err)
 			return fmt.Errorf("write to packetConn failed: %w", err)
 		}
 
@@ -195,12 +261,16 @@ func (u *udp) loopWrite() {
 				continue
 			default:
 				if err := write(p); err != nil {
+					p.response.fail(err)
 					log.Warn("udp dns write failed", "err", err)
 				}
 			}
 
 		case <-u.ctx.Done():
-			close()
+			mu.RLock()
+			old := packetConn
+			mu.RUnlock()
+			retire(old, context.Canceled)
 			return
 		}
 	}
@@ -243,6 +313,11 @@ func (u *udp) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 		return &udpresp{ctx: uctx, cancel: cancel}, nil
 	})
 	defer cancel()
+	defer func() {
+		if s := resp.session.Load(); s != nil {
+			s.remove(resp)
+		}
+	}()
 	if !ok {
 		defer u.sender.CompareAndDelete(reqKey, resp)
 
@@ -251,7 +326,7 @@ func (u *udp) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 			return nil, ctx.Err()
 		case <-u.ctx.Done():
 			return nil, u.ctx.Err()
-		case u.wchan <- &udpPacket{ctx, req.Bytes()}:
+		case u.wchan <- &udpPacket{ctx: ctx, question: req.Bytes(), response: resp}:
 		}
 	}
 
@@ -266,6 +341,9 @@ func (u *udp) Do(ctx context.Context, req *Request) (*dns.Msg, error) {
 	case <-resp.ctx.Done():
 		if msg := resp.msg.Load(); msg != nil {
 			return msg, nil
+		}
+		if err := resp.failure.Load(); err != nil {
+			return nil, fmt.Errorf("UDP query socket failed: %w", *err)
 		}
 		return nil, fmt.Errorf("response ctx is canceled: %w", resp.ctx.Err())
 	}
@@ -284,6 +362,7 @@ func NewDoU(config Config) (Transport, error) {
 		ctx:    ctx,
 		cancel: cancel,
 		wchan:  make(chan *udpPacket, 200),
+		done:   make(chan struct{}),
 	}
 	if !addr.IsFqdn() {
 		udp.staticAddr = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())

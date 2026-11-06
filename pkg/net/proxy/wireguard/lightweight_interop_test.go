@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/tailscale/wireguard-go/conn"
 	wgdevice "github.com/tailscale/wireguard-go/device"
@@ -83,16 +84,18 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close() })
 	// Use an unmarked loopback socket so host routing/firewall policies do not
 	// redirect the test's encrypted transport to the default external interface.
-	transport, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	client.bind.listenPacket = func(context.Context, string, string, ...func(*dialer.Options)) (net.PacketConn, error) {
+		pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		// Tailscale's reference engine obtains peer endpoints from configuration.
+		if err := peer.IpcSet(fmt.Sprintf("public_key=%s\nendpoint=%s\n", hex.EncodeToString(clientKey.PublicKey().Bytes()), pc.LocalAddr())); err != nil {
+			_ = pc.Close()
+			return nil, err
+		}
+		return pc, nil
 	}
-	// Tailscale's engine obtains peer endpoints from configuration, not roaming.
-	if err := peer.IpcSet(fmt.Sprintf("public_key=%s\nendpoint=%s\n", hex.EncodeToString(clientKey.PublicKey().Bytes()), transport.LocalAddr())); err != nil {
-		t.Fatal(err)
-	}
-	client.bind.conn = loopbackTransport{transport}
-	t.Cleanup(func() { _ = transport.Close() })
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	for _, addr := range []string{"192.0.2.2:18080", "[2001:db8::2]:18080"} {
@@ -128,6 +131,17 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer accepted.Close()
+			// A confirmed invalidation must rebind only the outer UDP socket,
+			// preserving this already-established inner TCP stream and stack.
+			before, stack, dev := client.bind.active.Load(), client.net, client.device
+			client.bind.changed(before)
+			deadline := time.Now().Add(time.Second)
+			for client.bind.active.Load() == before && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if after := client.bind.active.Load(); after == nil || after == before || client.net != stack || client.device != dev {
+				t.Fatal("network recovery did not preserve the running WireGuard stack")
+			}
 			_ = local.SetDeadline(time.Now().Add(10 * time.Second))
 			_ = accepted.SetDeadline(time.Now().Add(10 * time.Second))
 			payload := bytes.Repeat([]byte("encrypted lightweight TCP data\n"), 7000)

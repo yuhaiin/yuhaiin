@@ -169,7 +169,9 @@ func getInterfaces(ifs Interfaces) ([]netmon.Interface, error) {
 			m := net.CIDRMask(int(addr.Mask), ipAddr.BitLen())
 			addr16 := ipAddr.As16()
 
-			ipnet := &net.IPNet{IP: net.IP(addr16[:]).Mask(m), Mask: m}
+			// Keep the actual local source address. Masking it here reports the
+			// subnet address and makes precise socket affinity impossible.
+			ipnet := &net.IPNet{IP: net.IP(addr16[:]), Mask: m}
 			newIf.AltAddrs = append(newIf.AltAddrs, ipnet)
 
 			log.Debug("get new address",

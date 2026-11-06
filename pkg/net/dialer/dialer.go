@@ -12,6 +12,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 )
 
@@ -48,7 +49,7 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 	return config.Listen(ctx, network, address)
 }
 
-func DialTCPContext(ctx context.Context, address netip.AddrPort, opts ...func(*Options)) (*net.TCPConn, error) {
+func DialTCPContext(ctx context.Context, address netip.AddrPort, opts ...func(*Options)) (*TCPConn, error) {
 	opt := &Options{
 		InterfaceName: DefaultInterfaceName(),
 		MarkSymbol:    DefaultMarkSymbol,
@@ -65,7 +66,16 @@ var SkipInterface = func() *set.Set[string] {
 	return set.NewSet[string]()
 }
 
-func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts *Options) (*net.TCPConn, error) {
+func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts *Options) (*TCPConn, error) {
+	opts.networkID = ""
+	var native *nativeBinding
+	if address.Addr().IsGlobalUnicast() {
+		native = newNativeBinding(ctx, addressFamily(address.Addr()))
+	}
+	defer native.close()
+	if native != nil {
+		ctx = native.ctx
+	}
 	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
 	if iface != "" {
 		opts.InterfaceName = iface
@@ -85,7 +95,10 @@ func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts
 		// the TCP keealive interval and time parameters.
 		LocalAddr: opts.LocalAddr,
 		Control: func(network, address string, c syscall.RawConn) error {
-			return setSocketOptions(network, address, c, opts)
+			if err := setSocketOptions(network, address, c, opts); err != nil {
+				return err
+			}
+			return native.control(c, opts)
 		},
 	}
 
@@ -109,7 +122,20 @@ func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts
 		store.SetInterface(iface)
 	}
 
-	return d.DialTCP(ctx, "tcp", netip.AddrPort{}, address)
+	before := dialPath(netstate.Default, opts.InterfaceName, localIP(opts.LocalAddr), address.Addr())
+	if native != nil {
+		before = netstate.Path{}
+	}
+	ctx, release := pendingDial(ctx, netstate.Default, before)
+	defer release()
+	raw, err := d.DialTCP(ctx, "tcp", netip.AddrPort{}, address)
+	if err != nil {
+		return nil, dialError(ctx, err)
+	}
+	if native != nil {
+		before = native.path
+	}
+	return trackTCP(netstate.Default, raw, before, opts.networkID)
 }
 
 func getInterface(address netip.AddrPort) (string, error) {
@@ -152,6 +178,9 @@ func ListenPacket(ctx context.Context, network, address string, opts ...func(*Op
 const socketBufferSize = 7 << 20
 
 func ListenPacketWithOptions(ctx context.Context, network, address string, opts *Options) (net.PacketConn, error) {
+	opts.networkID = ""
+	var native *nativeBinding
+	defer func() { native.close() }()
 	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
 	if iface != "" {
 		opts.InterfaceName = iface
@@ -170,7 +199,10 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 		// KeepAlive field to a negative value above, results in OS defaults for
 		// the TCP keealive interval and time parameters.
 		Control: func(network, address string, c syscall.RawConn) error {
-			return setSocketOptions(network, address, c, opts)
+			if err := setSocketOptions(network, address, c, opts); err != nil {
+				return err
+			}
+			return native.control(c, opts)
 		},
 	}
 
@@ -202,15 +234,48 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 		store.SetInterface(iface)
 	}
 
+	var family uint8
+	if opts.PacketConnHintAddress != nil {
+		family = addressFamily(localIP(opts.PacketConnHintAddress))
+	}
+	switch network {
+	case "udp4":
+		family = 4
+	case "udp6":
+		family = 6
+	}
+	before := netstate.Default.Capture(opts.InterfaceName, netip.Addr{}, family)
+	bindNative := !opts.listener
+	if hint := opts.PacketConnHintAddress; hint != nil && !localIP(hint).IsGlobalUnicast() {
+		bindNative = false
+	}
+	if host, _, err := net.SplitHostPort(address); err == nil {
+		if ip, err := netip.ParseAddr(host); err == nil && !ip.IsUnspecified() && !ip.IsGlobalUnicast() {
+			bindNative = false
+			before = netstate.Path{}
+		}
+	}
+	if bindNative {
+		native = newNativeBinding(ctx, family)
+		if native != nil {
+			ctx = native.ctx
+		}
+	}
 	pc, err := lc.ListenPacket(ctx, network, address)
 	if err != nil {
 		return nil, err
+	}
+	if native != nil {
+		before = native.path
 	}
 
 	// copy from https://github.com/tailscale/tailscale/blob/cf739256caa86d8ba48f107bb22c623de0d0822d/net/udprelay/server.go#L459C1-L459C33
 	if up, ok := pc.(*net.UDPConn); ok {
 		_ = up.SetWriteBuffer(socketBufferSize)
 		_ = up.SetReadBuffer(socketBufferSize)
+		if !opts.listener {
+			return trackUDP(netstate.Default, up, opts, before, family)
+		}
 	}
 
 	// if opts.tryUpgradeToBatch && runtime.GOOS == "linux" {
@@ -230,7 +295,12 @@ var (
 )
 
 type Options struct {
-	LocalAddr net.Addr
+	networkID string // actual native binding, populated only by Control
+	// OnNetworkInvalidated replaces automatic UDP socket closure for owners
+	// with native roaming support. It must only signal bounded owner work,
+	// and must capture/check the old socket rather than close a mutable slot.
+	OnNetworkInvalidated func()
+	LocalAddr            net.Addr
 
 	// RoutingMark is the mark for each packet sent through this
 	// socket. Changing the mark can be used for mark-based routing

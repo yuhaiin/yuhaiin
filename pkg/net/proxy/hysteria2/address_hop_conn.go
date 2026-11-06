@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 )
@@ -47,6 +48,7 @@ type addressHopPacketConn struct {
 	readBufferSize  int
 	writeBufferSize int
 	closed          bool
+	networkWake     chan net.PacketConn
 }
 
 func newAddressHopPacketConn(setup, lifetime context.Context, addr *addressHopAddr, interval hopInterval, listen func(context.Context, net.Addr) (net.PacketConn, error)) (*addressHopPacketConn, error) {
@@ -54,6 +56,7 @@ func newAddressHopPacketConn(setup, lifetime context.Context, addr *addressHopAd
 	c := &addressHopPacketConn{
 		addr: addr, interval: interval, listen: listen, ctx: ctx, cancel: cancel,
 		packets: make(chan hopPacket, 128), done: make(chan struct{}),
+		networkWake:  make(chan net.PacketConn, 1),
 		readDeadline: pipe.MakePipeDeadline(), targetIndex: rand.IntN(len(addr.targets)),
 	}
 	remote := c.remote(c.targetIndex)
@@ -63,6 +66,7 @@ func newAddressHopPacketConn(setup, lifetime context.Context, addr *addressHopAd
 		return nil, err
 	}
 	c.current = hopSocket{conn: conn, remote: remote}
+	c.watchNetwork(conn)
 	c.wg.Add(2)
 	go c.receive(conn)
 	go c.hopLoop()
@@ -85,6 +89,31 @@ func (c *addressHopPacketConn) hopLoop() {
 		case <-timer.C:
 			c.hop()
 			timer.Reset(c.nextInterval())
+		case <-c.networkWake:
+			for c.ctx.Err() == nil {
+				c.mu.Lock()
+				old := c.current.conn
+				owner, supported := old.(networkHopOwner)
+				current := !c.closed && supported && owner.NetworkInvalidated()
+				c.mu.Unlock()
+				if !current {
+					break
+				}
+				netstate.RecoveryAttempts.Inc()
+				if c.hopFrom(old) {
+					netstate.RecoverySuccesses.Inc()
+					_ = old.Close()
+					break
+				}
+				netstate.RecoveryFailures.Inc()
+				retry := time.NewTimer(5 * time.Second)
+				select {
+				case <-c.ctx.Done():
+					retry.Stop()
+					return
+				case <-retry.C:
+				}
+			}
 		}
 	}
 }
@@ -96,12 +125,21 @@ func (c *addressHopPacketConn) nextInterval() time.Duration {
 	return c.interval.Min + time.Duration(rand.Int64N(int64(c.interval.Max-c.interval.Min)+1))
 }
 
-func (c *addressHopPacketConn) hop() {
+func (c *addressHopPacketConn) hop() bool {
+	return c.hopFrom(nil)
+}
+
+func (c *addressHopPacketConn) hopFrom(expected net.PacketConn) bool {
 	c.mu.Lock()
 	if c.closed || c.ctx.Err() != nil {
 		c.mu.Unlock()
-		return
+		return false
 	}
+	if expected != nil && c.current.conn != expected {
+		c.mu.Unlock()
+		return true
+	}
+	initial := c.current.conn
 	index := c.targetIndex
 	if count := len(c.addr.targets); count > 1 {
 		// Always change IP when multiple resolved relay IPs are available.
@@ -113,18 +151,23 @@ func (c *addressHopPacketConn) hop() {
 	defer cancel()
 	conn, err := c.listen(ctx, remote)
 	if err != nil {
-		return // Keep the current path if opening a new socket fails.
+		return false // Keep the current path if opening a new socket fails.
 	}
 	c.mu.Lock()
+	if c.current.conn != initial {
+		c.mu.Unlock()
+		_ = conn.Close()
+		return true
+	}
 	if c.closed || c.ctx.Err() != nil {
 		c.mu.Unlock()
 		_ = conn.Close()
-		return
+		return false
 	}
 	if err := conn.SetWriteDeadline(c.writeDeadline); err != nil {
 		c.mu.Unlock()
 		_ = conn.Close()
-		return
+		return false
 	}
 	if c.readBufferSize != 0 {
 		_ = setHopReadBuffer(conn, c.readBufferSize)
@@ -139,8 +182,27 @@ func (c *addressHopPacketConn) hop() {
 	c.wg.Add(1)
 	go c.receive(conn)
 	c.mu.Unlock()
+	c.watchNetwork(conn)
 	if previous != nil {
 		_ = previous.Close()
+	}
+	return true
+}
+
+type networkHopOwner interface {
+	NetworkPath() netstate.Path
+	SetNetworkRecovery(func())
+	NetworkInvalidated() bool
+}
+
+func (c *addressHopPacketConn) watchNetwork(conn net.PacketConn) {
+	if owner, ok := conn.(networkHopOwner); ok && owner.NetworkPath().Known() {
+		owner.SetNetworkRecovery(func() {
+			select {
+			case c.networkWake <- conn:
+			default:
+			}
+		})
 	}
 }
 
@@ -150,6 +212,9 @@ func (c *addressHopPacketConn) receive(conn net.PacketConn) {
 	for {
 		n, _, err := conn.ReadFrom(buf[:])
 		if err != nil {
+			if owner, ok := conn.(networkHopOwner); ok && owner.NetworkPath().Known() && errors.Is(err, netstate.ErrInvalidated) {
+				return
+			} // owner hopLoop performs native migration
 			c.mu.Lock()
 			current := !c.closed && c.current.conn == conn
 			c.mu.Unlock()

@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 	"tailscale.com/tsconst"
@@ -177,6 +178,7 @@ func getPACWindows() string {
 }
 
 type monitor struct {
+	iface   *winipcfg.InterfaceChangeCallback
 	address *winipcfg.UnicastAddressChangeCallback
 	route   *winipcfg.RouteChangeCallback
 
@@ -198,10 +200,25 @@ func NewMonitor(onAddressChange func(*winipcfg.MibUnicastIPAddressRow), onRouteC
 }
 
 func (m *monitor) Start() error {
+	ic, err := winipcfg.RegisterInterfaceChangeCallback(func(kind winipcfg.MibNotificationType, row *winipcfg.MibIPInterfaceRow) {
+		// Family-specific availability is reconciled from source addresses.
+		// Only adapter deletion proves loss of both families immediately.
+		if kind == winipcfg.MibDeleteInstance {
+			logLifecycleEvent(netstate.Default.InterfaceUnavailable(int(row.InterfaceIndex)), "interface unavailable")
+		}
+		m.onAddressChange(nil)
+	})
+	if err != nil {
+		return err
+	}
 	ac, err := winipcfg.RegisterUnicastAddressChangeCallback(func(notificationType winipcfg.MibNotificationType, unicastAddress *winipcfg.MibUnicastIPAddressRow) {
+		if notificationType == winipcfg.MibDeleteInstance {
+			logLifecycleEvent(netstate.Default.AddressUnavailable(int(unicastAddress.InterfaceIndex), unicastAddress.Address.Addr()), "source address removed")
+		}
 		m.onAddressChange(unicastAddress)
 	})
 	if err != nil {
+		ic.Unregister()
 		return err
 	}
 
@@ -209,16 +226,21 @@ func (m *monitor) Start() error {
 		m.onRouteChange(route)
 	})
 	if err != nil {
+		ic.Unregister()
 		ac.Unregister()
 		return err
 	}
 
 	m.address = ac
+	m.iface = ic
 	m.route = rc
 	return nil
 }
 
 func (m *monitor) Stop() error {
+	if m.iface != nil {
+		m.iface.Unregister()
+	}
 	if m.address != nil {
 		m.address.Unregister()
 	}

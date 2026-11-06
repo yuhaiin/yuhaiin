@@ -16,6 +16,7 @@ import (
 	"uuid"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trie/cidr"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -139,10 +140,75 @@ func networkStateChanged(a, b networkState) bool {
 		!slices.Equal(a.gateways, b.gateways)
 }
 
+type monitorOwnerSet struct {
+	sync.Mutex
+	shared *sharedMonitor
+}
+
+var monitorOwners monitorOwnerSet
+
+type sharedMonitor struct {
+	refs     int
+	stopping bool
+	stopped  chan struct{}
+	stop     networkMonitorCloser
+}
+
+// StartNetworkMonitor shares the platform monitor and lifecycle worker among
+// core instances. The final owner waits for shutdown; restart cannot overlap
+// old platform callbacks with a fresh monitor lifetime.
 func StartNetworkMonitor() networkMonitorCloser {
+	return monitorOwners.acquire(startNetworkMonitor)
+}
+
+func (owners *monitorOwnerSet) acquire(start func() networkMonitorCloser) networkMonitorCloser {
+	for {
+		owners.Lock()
+		s := owners.shared
+		if s != nil && s.stopping {
+			owners.Unlock()
+			<-s.stopped
+			continue
+		}
+		if s == nil {
+			s = &sharedMonitor{stopped: make(chan struct{}), stop: start()}
+			owners.shared = s
+		}
+		s.refs++
+		owners.Unlock()
+		return networkMonitorCloser(sync.OnceFunc(func() {
+			owners.Lock()
+			s.refs--
+			last := s.refs == 0
+			if last {
+				s.stopping = true
+			}
+			owners.Unlock()
+			if last {
+				_ = s.stop.Close()
+				owners.Lock()
+				owners.shared = nil
+				close(s.stopped)
+				owners.Unlock()
+			}
+		}))
+	}
+}
+
+func startNetworkMonitor() networkMonitorCloser {
 	log.Info("start network monitor")
+	// Prime affinity before application startup creates any outbound resources.
+	// Failed discovery leaves unknown paths untouched; the worker retries it.
+	if !externalNetworkState.Load() {
+		if s, err := readNetworkSnapshot(); err == nil {
+			netstate.Default.Apply(s, false)
+		}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	workerDone := make(chan struct{})
+	go func() { defer close(workerDone); netstate.Default.Run(ctx) }()
 	events := make(chan string, 1)
 	// Initial reconciliation matters when an event was missed before startup.
 	events <- "startup"
@@ -157,6 +223,7 @@ func StartNetworkMonitor() networkMonitorCloser {
 	})
 
 	go func() {
+		defer close(done)
 		defer func() {
 			if err := nm.Stop(); err != nil {
 				log.Error("stop network monitor failed", "err", err)
@@ -166,7 +233,7 @@ func StartNetworkMonitor() networkMonitorCloser {
 			750*time.Millisecond, 5*time.Second, time.Minute)
 	}()
 
-	return networkMonitorCloser(cancel)
+	return networkMonitorCloser(func() { cancel(); <-done; <-workerDone })
 }
 
 // runNetworkMonitor owns its timer. Route socket callbacks never Reset it.
@@ -250,6 +317,13 @@ func runNetworkMonitor(
 }
 
 func reGetDefaultInterface(reason string) error {
+	// Snapshot failure is unknown state. Keep previous lifecycle affinity;
+	// route cache refresh below remains independent of lifecycle discovery.
+	var lifecycle netstate.Snapshot
+	var lifecycleErr error
+	if !externalNetworkState.Load() {
+		lifecycle, lifecycleErr = readNetworkSnapshot()
+	}
 	// Collect all observations before publishing any of them. A transient
 	// failure must not produce a mixed old/new cache.
 	routes, err := routes()
@@ -280,22 +354,30 @@ func reGetDefaultInterface(reason string) error {
 	next := snapshotNetwork(name, addresses, routes)
 	prev := lastNetworkState.Load()
 	changed := oldName != name || (prev != nil && networkStateChanged(*prev, next))
+	routeChanged := lastPublishedRoutes == nil || !lastPublishedRoutes.equal(routes)
 	updateDefaultRouter(routes)
 	localAddresses.Store(&addresses)
 	defaultInterfaceName.Store(&name)
 	lastNetworkState.Store(&next)
 	defaultInterfaceNameMu.Unlock()
 
-	if !changed {
-		return nil
+	if !externalNetworkState.Load() && lifecycleErr == nil {
+		logLifecycleEvent(netstate.Default.Apply(lifecycle, routeChanged), reason)
 	}
-	log.Info("network state changed", "new", name, "old", oldName, "reason", reason)
+	if lifecycleErr != nil {
+		lifecycleErr = fmt.Errorf("read lifecycle snapshot: %w", lifecycleErr)
+	}
+
+	if !changed {
+		return lifecycleErr
+	}
+	log.Debug("legacy network monitor state updated", "new", name, "old", oldName, "reason", reason)
 	for _, notify := range networkMonitors.Range {
 		if notify != nil {
 			notify(name)
 		}
 	}
-	return nil
+	return lifecycleErr
 }
 
 // updateDefaultRouter is called with defaultInterfaceNameMu held.

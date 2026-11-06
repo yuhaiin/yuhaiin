@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	netdialer "github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/ikev2/ike"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/dataplane"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/vpnkit/session"
@@ -38,6 +40,7 @@ func init() { client.Register("ikev2", parseOptions) }
 
 // Config describes how to reach and authenticate to an IKEv2 server.
 type Config struct {
+	DialUDP     func(*net.UDPAddr) (*net.UDPConn, error)
 	DialContext func(context.Context, string, string) (net.Conn, error)
 	// Server is the VPN server host or IP (required).
 	Server string
@@ -284,8 +287,34 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 		return nil, client.Result{}, fmt.Errorf("ikev2: %w", err)
 	}
 	logger := vlog.From(cfg.Logger)
+	ctx, setupCancel := context.WithCancelCause(ctx)
+	defer setupCancel(context.Canceled)
+	lifecycle := &udpDialLifecycle{manager: netstate.Default, cancel: setupCancel}
+	lifecycle.pending.Store(true)
+	defer func() { _ = lifecycle.finish() }()
+	if cfg.DialUDP == nil {
+		lifecycle.dial = func(remote *net.UDPAddr) (*net.UDPConn, netstate.Path, error) {
+			parent := context.Background()
+			if lifecycle.pending.Load() {
+				parent = ctx
+			}
+			dialCtx, cancel := context.WithTimeout(parent, 10*time.Second)
+			defer cancel()
+			return netdialer.DialUDPContextWithPath(dialCtx, remote.AddrPort())
+		}
+	} else {
+		lifecycle.dial = func(remote *net.UDPAddr) (*net.UDPConn, netstate.Path, error) {
+			raw, err := cfg.DialUDP(remote)
+			if err != nil {
+				return nil, netstate.Path{}, err
+			}
+			local := raw.LocalAddr().(*net.UDPAddr).AddrPort().Addr().WithZone("").Unmap()
+			return raw, netstate.Default.Capture("", local, 0), nil
+		}
+	}
 
 	ikeCfg := ike.ClientConfig{
+		DialUDP:     lifecycle.Dial,
 		ServerHost:  cfg.Server,
 		ServerPort:  cfg.Port,
 		NATTPort:    nattPort(cfg),
@@ -332,6 +361,12 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 		c.Close()
 		return nil, client.Result{}, err
 	}
+	if err := lifecycle.finish(); err != nil {
+		return fail(err)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return fail(err)
+	}
 
 	// Switch the IKE client to post-handshake control mode: the data-path read
 	// loop below now owns the socket, so it delivers received IKE datagrams
@@ -367,16 +402,17 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 	}
 
 	s := &session{
-		ike:          c,
-		tun:          tun,
-		logger:       logger,
-		tunnel:       tunnel,
-		stream:       stream,
-		childInSPI:   res.InboundSPI,
-		done:         make(chan struct{}),
-		stopKA:       make(chan struct{}),
-		stopRekey:    make(chan struct{}),
-		stopIKERekey: make(chan struct{}),
+		socketAffinity: lifecycle.path,
+		ike:            c,
+		tun:            tun,
+		logger:         logger,
+		tunnel:         tunnel,
+		stream:         stream,
+		childInSPI:     res.InboundSPI,
+		done:           make(chan struct{}),
+		stopKA:         make(chan struct{}),
+		stopRekey:      make(chan struct{}),
+		stopIKERekey:   make(chan struct{}),
 	}
 
 	var (
@@ -517,6 +553,7 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 	}
 	logger.Printf("ikev2: tunnel up on %s, internal IP %s / %s, DNS %v",
 		out.TUNName, out.AssignedIP, out.AssignedIP6, out.DNS)
+	s.startNetworkRecovery()
 	return s, out, nil
 }
 
@@ -539,9 +576,14 @@ type session struct {
 	stream *ike.TCPStream
 	logger *vlog.Logger
 
-	roamMu  sync.Mutex  // serializes Roam
-	roaming atomic.Bool // a socket swap is in progress
-	closing atomic.Bool // Close was called; read-loop errors are terminal
+	roamMu              sync.Mutex             // serializes Roam
+	roaming             atomic.Bool            // a socket swap is in progress
+	closing             atomic.Bool            // Close was called; read-loop errors are terminal
+	networkRegistration *netstate.Registration // guarded by roamMu
+	socketAffinity      func(*net.UDPConn) netstate.Path
+	networkAffinity     atomic.Pointer[networkAffinity]
+	networkWake         chan *net.UDPConn
+	networkDone         chan struct{}
 
 	// rekeyMu guards the Child SA data-path swap: tunnel and childInSPI track the
 	// currently-installed ESP SA so a rekey can retire exactly the SA it
@@ -667,6 +709,10 @@ func (s *session) readStream(pump *dataplane.Pump) {
 // negotiated with the server. Safe to call from any goroutine; calls are
 // serialized.
 func (s *session) Roam() error {
+	return s.roamFrom(nil)
+}
+
+func (s *session) roamFrom(expected *net.UDPConn) error {
 	if !s.ike.MobikeEnabled() {
 		return fmt.Errorf("ikev2: MOBIKE was not negotiated with the server")
 	}
@@ -674,6 +720,9 @@ func (s *session) Roam() error {
 	defer s.roamMu.Unlock()
 	if s.closing.Load() {
 		return fmt.Errorf("ikev2: session closed")
+	}
+	if expected != nil && s.conn.Load() != expected {
+		return nil
 	}
 
 	// Signal the read loop that an imminent socket close is a roam, not a
@@ -688,6 +737,7 @@ func (s *session) Roam() error {
 	newConn := s.ike.DataConn()
 	s.sendBC.Store(dataplane.NewBatchConn(newConn))
 	s.conn.Store(newConn)
+	s.trackNetworkLocked()
 	s.logger.Printf("ikev2: MOBIKE roamed to local %s", newConn.LocalAddr())
 	return nil
 }
@@ -811,6 +861,12 @@ func (s *session) Close() error {
 		// inbound read loop.
 		if s.ike != nil {
 			s.closeErr = s.ike.Close()
+		}
+		s.roamMu.Lock()
+		_ = s.networkRegistration.Close()
+		s.roamMu.Unlock()
+		if s.networkDone != nil {
+			<-s.networkDone
 		}
 	})
 	return s.closeErr

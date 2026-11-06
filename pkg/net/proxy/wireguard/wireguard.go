@@ -16,11 +16,13 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/semaphore"
@@ -38,6 +40,12 @@ type Wireguard struct {
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once        sync.Once
+	lifecycleMu sync.Mutex
+	closed      bool
+	closeOnce   sync.Once
+	networkWake chan *bindSocket
+	networkStop chan struct{}
+	networkDone chan struct{}
 }
 
 func init() {
@@ -100,6 +108,7 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 	}
 
 	w := &Wireguard{
+		networkWake: make(chan *bindSocket, 1), networkStop: make(chan struct{}),
 		conf:            conf,
 		net:             tun,
 		diagnosticStack: tun.Stack(),
@@ -108,12 +117,24 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}, dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewEmptySemaphore())),
 	}
+	w.bind.changed = func(old *bindSocket) {
+		old.invalid.Store(true)
+		select {
+		case w.networkWake <- old:
+		default:
+		}
+	}
 
 	return w, nil
 }
 
 func (w *Wireguard) init() {
 	w.once.Do(func() {
+		w.lifecycleMu.Lock()
+		defer w.lifecycleMu.Unlock()
+		if w.closed {
+			return
+		}
 		dev, err := makeVirtualTun(w.conf, w.bind, w.net)
 		if err != nil {
 			log.Error("makeVirtualTun error", "error", err)
@@ -121,6 +142,8 @@ func (w *Wireguard) init() {
 		}
 
 		w.device = dev
+		w.networkDone = make(chan struct{})
+		go w.recoverNetwork(dev)
 	})
 }
 
@@ -134,27 +157,68 @@ func (w *Wireguard) StackDiagnostic(limit int) lightweight.StackDiagnostics {
 }
 
 func (w *Wireguard) Close() error {
-	log.Debug("wireguard closing")
-	device := w.device
-	if device != nil {
-		device.Close()
-		w.device = nil
-	}
-
-	bind := w.bind
-	if bind != nil {
-		_ = bind.Close()
-		w.bind = nil
-	}
-
-	net := w.net
-	if net != nil {
-		_ = net.Close()
-		w.net = nil
-	}
-
-	log.Debug("wireguard closed")
+	w.closeOnce.Do(func() {
+		w.lifecycleMu.Lock()
+		w.closed = true
+		close(w.networkStop)
+		dev, done := w.device, w.networkDone
+		w.bind.stopped.Store(true)
+		w.lifecycleMu.Unlock()
+		if done != nil {
+			<-done
+		}
+		if dev != nil {
+			dev.Close()
+		}
+		_ = w.bind.Close()
+		if w.net != nil {
+			_ = w.net.Close()
+		}
+	})
 	return nil
+}
+
+// Rebind sockets through the native device API; keys, peers, packet stack and
+// existing inner streams survive. A delayed event must still name the active
+// bind socket before it can cause another rebind.
+func (w *Wireguard) recoverNetwork(dev *device.Device) {
+	defer close(w.networkDone)
+	for {
+		select {
+		case <-w.networkStop:
+			return
+		case <-w.networkWake:
+			w.bind.mu.Lock()
+			current := w.bind.active.Load()
+			w.bind.mu.Unlock()
+			if current == nil || !current.invalid.Load() || w.bind.stopped.Load() {
+				continue
+			}
+			for !w.bind.stopped.Load() {
+				netstate.RecoveryAttempts.Inc()
+				err := dev.BindUpdate()
+				known := true
+				if state := w.bind.active.Load(); state != nil {
+					if owner, ok := state.conn.(interface{ NetworkPath() netstate.Path }); ok {
+						known = owner.NetworkPath().Known()
+					}
+				}
+				if err == nil && known {
+					netstate.RecoverySuccesses.Inc()
+					break
+				}
+				netstate.RecoveryFailures.Inc()
+				log.Debug("wireguard network rebind pending", "err", err)
+				timer := time.NewTimer(5 * time.Second)
+				select {
+				case <-w.networkStop:
+					timer.Stop()
+					return
+				case <-timer.C:
+				}
+			}
+		}
+	}
 }
 
 func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
