@@ -14,6 +14,8 @@ type packetIO struct {
 	buffers      [][]byte
 	sizes        []int
 	count, next  int
+	bufferSize   int
+	mtuSized     bool
 	pendingErr   error
 	writeBuffers [1][]byte
 	viewReader   lightweight.PacketViewReader
@@ -45,17 +47,41 @@ func newPacketIO(d netlink.Tun) (*packetIO, error) {
 		return nil, errors.New("lightweight: invalid device batch/offset")
 	}
 	p := &packetIO{device: d, buffers: make([][]byte, n), sizes: make([]int, n)}
+	p.bufferSize, p.mtuSized = readBufferSize(d)
 	if offloadAware {
 		p.writer = writer
 	}
 	if reader, ok := d.(lightweight.PacketViewReader); ok && n == 1 {
 		p.viewReader = reader
 	} else {
-		for i := range p.buffers {
-			p.buffers[i] = make([]byte, 65575+d.Offset())
-		}
+		p.allocBuffers()
 	}
 	return p, nil
+}
+
+// readSlack tolerates link headers or small MTU disagreements beyond the
+// configured MTU. A read that fills an MTU-sized buffer is treated as possibly
+// truncated and dropped.
+const readSlack = 256
+
+// readBufferSize returns the per-packet payload capacity. Without offload a
+// TUN never delivers packets above its MTU, so batch devices (macOS utun up to
+// 128 packets) need not reserve 64KiB per slot.
+func readBufferSize(d netlink.Tun) (int, bool) {
+	const maxPacket = 65575
+	mtu := d.MTU()
+	if d.GSOEnabled() || mtu <= 0 || mtu+readSlack >= maxPacket {
+		return maxPacket, false
+	}
+	return mtu + readSlack, true
+}
+
+func (p *packetIO) allocBuffers() {
+	size := p.bufferSize + p.device.Offset()
+	slab := make([]byte, size*len(p.buffers))
+	for i := range p.buffers {
+		p.buffers[i] = slab[i*size : (i+1)*size : (i+1)*size]
+	}
 }
 func (p *packetIO) ReadPacket(b []byte) (int, error) {
 	// The complete-packet API must not discard partial-checksum metadata from
@@ -74,9 +100,7 @@ func (p *packetIO) ReadPacketView() ([]byte, bool, error) {
 }
 func (p *packetIO) readDevicePacketView() ([]byte, bool, error) {
 	if p.buffers[0] == nil {
-		for i := range p.buffers {
-			p.buffers[i] = make([]byte, 65575+p.device.Offset())
-		}
+		p.allocBuffers()
 	}
 	if p.next == p.count {
 		if p.pendingErr != nil {
@@ -99,7 +123,8 @@ func (p *packetIO) readDevicePacketView() ([]byte, bool, error) {
 	p.next++
 	n := p.sizes[i]
 	offset := p.device.Offset()
-	if n < 1 || n > len(p.buffers[i])-offset {
+	limit := len(p.buffers[i]) - offset
+	if n < 1 || n > limit || (p.mtuSized && n == limit) {
 		return nil, false, io.ErrShortBuffer
 	}
 	return p.buffers[i][offset : offset+n], false, nil

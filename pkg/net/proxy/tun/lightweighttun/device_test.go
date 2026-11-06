@@ -193,3 +193,25 @@ func TestPacketDeviceDrainsPartialBatchBeforeError(t *testing.T) {
 		t.Fatalf("pending batch error: %v", err)
 	}
 }
+
+func TestPacketDeviceMTUSizedBuffers(t *testing.T) {
+	d := &testTun{offset: 4, packets: [][]byte{bytes.Repeat([]byte{1}, 1500+readSlack), []byte("next")}}
+	p, err := newPacketIO(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range p.buffers {
+		if len(b) != 1500+readSlack+4 || cap(b) != len(b) {
+			t.Fatalf("buffer len/cap = %d/%d", len(b), cap(b))
+		}
+	}
+	if _, _, err := p.ReadPacketView(); !errors.Is(err, io.ErrShortBuffer) {
+		t.Fatalf("possibly truncated packet accepted: %v", err)
+	}
+	if b, _, err := p.ReadPacketView(); err != nil || string(b) != "next" {
+		t.Fatalf("next packet = %q, %v", b, err)
+	}
+	if size, mtuSized := readBufferSize(&testTun{gso: true}); size != 65575 || mtuSized {
+		t.Fatalf("GSO buffer size = %d, %v", size, mtuSized)
+	}
+}

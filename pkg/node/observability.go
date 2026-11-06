@@ -7,7 +7,6 @@ import (
 	"errors"
 	"maps"
 	"net"
-	"reflect"
 	"slices"
 	"strconv"
 	"sync"
@@ -90,6 +89,37 @@ func (v *nodeTotals) lastErrorAndProbes(n *nodeCounters) {
 	v.Throughput, v.UploadThroughput = n.throughput, n.uploadThroughput
 	v.ThroughputHistory = slices.Clone(n.throughputHistory)
 }
+
+// equal replaces reflect.DeepEqual in the periodic flush: boxing these large
+// structs into interfaces copied both to the heap for every node every tick.
+// Empty and nil collections compare equal; both persist as omitted JSON.
+func (v *nodeTotals) equal(o *nodeTotals) bool {
+	return v.UploadBytes == o.UploadBytes && v.DownloadBytes == o.DownloadBytes &&
+		v.UDPSentPackets == o.UDPSentPackets && v.UDPRecvPackets == o.UDPRecvPackets &&
+		v.TCPAttempts == o.TCPAttempts && v.TCPConnections == o.TCPConnections &&
+		v.UDPAttempts == o.UDPAttempts && v.UDPSessions == o.UDPSessions &&
+		v.PingAttempts == o.PingAttempts && v.Failures == o.Failures &&
+		v.LastSuccessAt == o.LastSuccessAt && v.LastFailureAt == o.LastFailureAt &&
+		v.LastUsedAt == o.LastUsedAt && v.LastError == o.LastError &&
+		v.Throughput == o.Throughput && v.UploadThroughput == o.UploadThroughput &&
+		slices.Equal(v.ThroughputHistory, o.ThroughputHistory) &&
+		healthEqual(&v.TCPHealth, &o.TCPHealth) && healthEqual(&v.UDPHealth, &o.UDPHealth) &&
+		maps.EqualFunc(v.Probes, o.Probes, probeEqual)
+}
+
+func healthEqual(a, b *contract.ChannelHealth) bool {
+	return a.Sequence == b.Sequence && a.State == b.State &&
+		a.ConsecutiveFailures == b.ConsecutiveFailures && a.ConsecutiveSuccesses == b.ConsecutiveSuccesses &&
+		slices.Equal(a.Samples, b.Samples) && slices.Equal(a.LatencySamples, b.LatencySamples)
+}
+
+func probeEqual(a, b contract.ProbeStatus) bool {
+	x, y := a.Result, b.Result
+	return a.CheckedAt == b.CheckedAt && x.OK == y.OK && x.LatencyMS == y.LatencyMS && x.Error == y.Error &&
+		ptrEqual(x.IP, y.IP) && ptrEqual(x.STUN, y.STUN)
+}
+
+func ptrEqual[T comparable](a, b *T) bool { return a == b || (a != nil && b != nil && *a == *b) }
 
 func (n *nodeCounters) restore(v nodeTotals) {
 	n.upload.Store(v.UploadBytes)
@@ -334,7 +364,7 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 			n.downloadBps.Store(uint64(float64(v.DownloadBytes-last[1]) / elapsed))
 		}
 		o.lastRates[id] = [2]uint64{v.UploadBytes, v.DownloadBytes}
-		if saved, ok := o.saved[id]; !ok || !reflect.DeepEqual(saved, v) {
+		if saved, ok := o.saved[id]; !ok || !saved.equal(&v) {
 			changed[id] = v
 		}
 	}
