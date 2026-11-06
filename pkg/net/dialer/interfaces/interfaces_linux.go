@@ -262,7 +262,7 @@ func (m *monitor) Start() error {
 					addrCh = nil
 					schedule(2)
 				} else {
-					if !msg.NewAddr {
+					if !msg.NewAddr || !usableLinuxAddress(msg.Flags) {
 						if ip, ok := netip.AddrFromSlice(msg.LinkAddress.IP); ok {
 							logLifecycleEvent(netstate.Default.AddressUnavailable(msg.LinkIndex, ip), "source address removed")
 						}

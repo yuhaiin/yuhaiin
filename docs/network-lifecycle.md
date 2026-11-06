@@ -15,7 +15,9 @@ An unknown selected underlying network also cannot prove a switch.
 
 * Linux uses ifindex within the monitor's network namespace. Link deletion/down
   and address deletion retire tokens immediately, before route debounce can hide
-  a delete/recreate cycle. Interface names are binding/diagnostic metadata.
+  a delete/recreate cycle. Netlink address flags exclude failed DAD and
+  non-optimistic tentative sources while keeping deprecated/optimistic usable
+  sources. Interface names are binding/diagnostic metadata.
 * Windows uses interface LUID, interface/address callbacks, and complete address
   reconciliation. IP-interface deletion is scoped to its family, rather than
   treated as removal of the whole adapter. Complete IP-interface and unicast
