@@ -388,11 +388,21 @@ func (s *Route) getResolverFallback(mode ModeEnum) string {
 }
 
 func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
+	mode, failed := s.matchResolver(ctx, domain)
+	if failed != nil {
+		return failed
+	}
+	return s.resolverFor(mode)
+}
+
+// matchResolver runs route matching for a DNS name. A non-nil resolver is an
+// immediate failure for an unparsable name.
+func (s *Route) matchResolver(ctx context.Context, domain string) (ModeEnum, netapi.Resolver) {
 	ctx, _ = netapi.GetOrNewContext(ctx)
 
 	host, err := netapi.ParseAddressPort("", domain, 0)
 	if err != nil {
-		return netapi.ErrorResolver(func(domain string) error { return err })
+		return ModeEnum{}, netapi.ErrorResolver(func(domain string) error { return err })
 	}
 
 	if s.ms.hasGateway.Load() {
@@ -405,6 +415,12 @@ func (s *Route) Resolver(ctx context.Context, domain string) netapi.Resolver {
 		s.Push(ctx, "dns", domain)
 	}
 
+	return mode, nil
+}
+
+// resolverFor is resolved at use time so a decision carried across the queue
+// never holds a resolver instance that a reload has since replaced.
+func (s *Route) resolverFor(mode ModeEnum) netapi.Resolver {
 	return s.r.Get(mode.Resolver(), s.getResolverFallback(mode))
 }
 
@@ -413,17 +429,37 @@ func (f *Route) LookupIP(ctx context.Context, domain string, opts ...func(*netap
 }
 
 func (f *Route) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
-	return netapi.RawDNS(ctx, f.Resolver(ctx, system.RelDomain(req.Name)), req)
+	domain := system.RelDomain(req.Name)
+	// A cache-only probe of this request already matched the route; reuse it
+	// instead of repeating GeoIP, list, process and rule matching on a miss.
+	if store := netapi.GetContextOrNil(ctx); store != nil {
+		if decision, ok := store.ConnOptions().TakeDNSRouteDecision(domain); ok {
+			if mode, ok := decision.(ModeEnum); ok {
+				return netapi.RawDNS(ctx, f.resolverFor(mode), req)
+			}
+		}
+	}
+	return netapi.RawDNS(ctx, f.Resolver(ctx, domain), req)
 }
 
 func (f *Route) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	ctx = netapi.WithDNSCacheOnly(ctx)
 	ctx, store := netapi.GetOrNewContext(ctx)
-	selected := f.Resolver(ctx, system.RelDomain(req.Name))
+	domain := system.RelDomain(req.Name)
+	mode, failed := f.matchResolver(ctx, domain)
+	if failed != nil {
+		return netapi.CachedDNS(ctx, failed, req)
+	}
+	// IP-dependent rules lacked cached addresses: the decision itself is
+	// incomplete and must be re-made once the upstream path may resolve them.
 	if errors.Is(store.ConnOptions().RouteIPError(), netapi.ErrDNSCacheMiss) {
 		return nil, netapi.ErrDNSCacheMiss
 	}
-	return netapi.CachedDNS(ctx, selected, req)
+	msg, err := netapi.CachedDNS(ctx, f.resolverFor(mode), req)
+	if errors.Is(err, netapi.ErrDNSCacheMiss) {
+		store.ConnOptions().SetDNSRouteDecision(domain, mode)
+	}
+	return msg, err
 }
 
 func (f *Route) Close() error { return nil }
