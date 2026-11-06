@@ -87,7 +87,7 @@ func TestConfigureAndroidTUNEnablesPersistedInbound(t *testing.T) {
 		MTU:      1500,
 		Portal:   "10.0.0.1/24",
 		PortalV6: "fd00::1/64",
-	}, "channel", "", "", ""); err != nil {
+	}, "channel", "", "", "", ""); err != nil {
 		t.Fatalf("configure Android TUN: %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestConfigureAndroidTUNLegacySettingsBecomeLightweight(t *testing.T) {
 			}
 			if err := configureAndroidTUN(ctx, state,
 				&TUN{FD: 42, MTU: 1500, Portal: "10.0.0.1/24", PortalV6: "fd00::1/64"},
-				tt.driver, tt.stack, "bbr", "fq_codel"); err != nil {
+				tt.driver, tt.stack, "bbr", "fq_codel", "rack-tlp"); err != nil {
 				t.Fatal(err)
 			}
 			db, err := state.SQLDB(ctx)
@@ -174,7 +174,7 @@ func TestConfigureAndroidTUNLegacySettingsBecomeLightweight(t *testing.T) {
 			for _, in := range items {
 				if in.Protocol.Type == contractinbound.ProtocolTun {
 					got := in.Protocol.Tun
-					if got.Stack != "lightweight" || got.Driver != "channel" || got.CongestionControl != "bbr" || got.OutputScheduler != "fq_codel" {
+					if got.Stack != "lightweight" || got.Driver != "channel" || got.CongestionControl != "bbr" || got.OutputScheduler != "fq_codel" || got.LossRecovery != "rack-tlp" {
 						t.Fatalf("invalid legacy migration: %+v", got)
 					}
 					return
