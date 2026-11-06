@@ -21,6 +21,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/lru"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/singleflight"
@@ -257,6 +258,9 @@ func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (
 	if err == nil {
 		metrics.Counter.AddDnsQueryDuration(c.config.Name, time.Duration(system.CheapNowNano()-now))
 	} else {
+		if errors.Is(err, netstate.ErrInvalidated) {
+			netstate.DNSCancellations.Inc()
+		}
 		metrics.Counter.AddDnsQueryError(c.config.Name)
 	}
 	return msg, err

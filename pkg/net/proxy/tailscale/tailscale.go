@@ -21,7 +21,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
@@ -51,15 +53,19 @@ func init() {
 
 type Tailscale struct {
 	netapi.EmptyDispatch
-	dialer   netapi.Proxy
-	config   Config
-	ctx      context.Context
-	cancel   context.CancelFunc
-	mu       sync.Mutex
-	tsnet    *tsnet.Server
-	closed   bool
-	stateDir string
-	sf       singleflight.Group
+	dialer         netapi.Proxy
+	config         Config
+	ctx            context.Context
+	cancel         context.CancelFunc
+	mu             sync.Mutex
+	tsnet          *tsnet.Server
+	closed         bool
+	stateDir       string
+	sf             singleflight.Group
+	networkWake    chan *dialer.UDPConn
+	networkWG      sync.WaitGroup
+	networkMu      sync.Mutex
+	networkSockets map[*dialer.UDPConn]struct{}
 }
 
 type Config struct {
@@ -81,7 +87,7 @@ func New(c Config, upstream netapi.Proxy) (netapi.Proxy, error) {
 		upstream = direct.Default
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Tailscale{dialer: upstream, config: c, ctx: ctx, cancel: cancel}, nil
+	return &Tailscale{dialer: upstream, config: c, ctx: ctx, cancel: cancel, networkWake: make(chan *dialer.UDPConn, 1)}, nil
 }
 
 // statePath derives a deterministic opaque identity without exposing a fast
@@ -155,6 +161,34 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 		return nil, err
 	}
 	t.tsnet, t.stateDir = s, dir
+	t.networkWG.Go(func() {
+		for {
+			select {
+			case <-t.ctx.Done():
+				return
+			case <-t.networkWake:
+				if t.ctx.Err() != nil {
+					return
+				}
+				for t.needsNetworkRecovery() && t.ctx.Err() == nil {
+					netstate.RecoveryAttempts.Inc()
+					s.Sys().MagicSock.Get().Rebind()
+					if !t.needsNetworkRecovery() {
+						netstate.RecoverySuccesses.Inc()
+					} else {
+						netstate.RecoveryFailures.Inc()
+						timer := time.NewTimer(5 * time.Second)
+						select {
+						case <-t.ctx.Done():
+							timer.Stop()
+							return
+						case <-timer.C:
+						}
+					}
+				}
+			}
+		}
+	})
 	return s, nil
 }
 
@@ -233,6 +267,13 @@ func (t *Tailscale) Close() error {
 	if t.tsnet != nil {
 		err = t.tsnet.Close()
 	}
+	t.networkWG.Wait()
+	t.networkMu.Lock()
+	for pc := range t.networkSockets {
+		_ = pc.Close() // releases lifecycle registrations
+	}
+	clear(t.networkSockets)
+	t.networkMu.Unlock()
 	if t.stateDir != "" {
 		stateOwners.Lock()
 		delete(stateOwners.paths, t.stateDir)

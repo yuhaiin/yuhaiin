@@ -36,6 +36,9 @@ var errNotAttached = errors.New("ike: client not attached for control exchanges"
 
 // ClientConfig configures an IKEv2 client (initiator).
 type ClientConfig struct {
+	// DialUDP is reused for handshake, NAT-T float and MOBIKE so roaming
+	// retains the embedding application's socket protection/binding policy.
+	DialUDP     func(*net.UDPAddr) (*net.UDPConn, error)
 	DialContext func(context.Context, string, string) (net.Conn, error)
 	// ServerHost is the VPN server address (IP or hostname). Port defaults to
 	// 500 for IKE; NAT-T floats to 4500 automatically.
@@ -335,7 +338,7 @@ func (c *Client) dial() error {
 		if rerr != nil {
 			return fmt.Errorf("resolve server: %w", rerr)
 		}
-		if conn, err = net.DialUDP("udp", nil, raddr); err != nil {
+		if conn, err = c.dialUDP(raddr); err != nil {
 			return fmt.Errorf("dial server: %w", err)
 		}
 	}
@@ -403,7 +406,7 @@ func (c *Client) remoteAddr() *net.UDPAddr {
 // one socket on 4500.
 func (c *Client) floatToNATT() error {
 	srv := c.remoteAddr()
-	nconn, err := net.DialUDP("udp", nil, &net.UDPAddr{IP: srv.IP, Port: c.cfg.NATTPort})
+	nconn, err := c.dialUDP(&net.UDPAddr{IP: srv.IP, Zone: srv.Zone, Port: c.cfg.NATTPort})
 	if err != nil {
 		return err
 	}
@@ -1203,7 +1206,7 @@ func (c *Client) Roam() error {
 
 	// New socket from a fresh local port to the same server (a NAT-T responder
 	// tracks the peer's current source address, so a new local port is fine).
-	nconn, err := net.DialUDP("udp", nil, srv)
+	nconn, err := c.dialUDP(srv)
 	if err != nil {
 		return fmt.Errorf("ike: roam dial: %w", err)
 	}
@@ -1234,6 +1237,13 @@ func (c *Client) Roam() error {
 	old.Close()
 	_ = c.conn.SetReadDeadline(time.Time{})
 	return nil
+}
+
+func (c *Client) dialUDP(remote *net.UDPAddr) (*net.UDPConn, error) {
+	if c.cfg.DialUDP != nil {
+		return c.cfg.DialUDP(remote)
+	}
+	return net.DialUDP("udp", nil, remote)
 }
 
 // sendUpdateSAAddresses performs the UPDATE_SA_ADDRESSES exchange over the

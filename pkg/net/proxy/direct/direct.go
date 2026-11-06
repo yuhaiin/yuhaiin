@@ -9,6 +9,7 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
 
@@ -117,6 +118,26 @@ func (p *bufferPacketConn) SetWriteBuffer(int) error { return nil }
 type UDPPacketConn struct {
 	resolver *netapi.ResolverOptions
 	BufferPacketConn
+}
+
+func (p *UDPPacketConn) NetworkPath() netstate.Path {
+	if c, ok := p.BufferPacketConn.(interface{ NetworkPath() netstate.Path }); ok {
+		return c.NetworkPath()
+	}
+	return netstate.Path{}
+}
+
+func (p *UDPPacketConn) SetNetworkRecovery(handler func()) {
+	if c, ok := p.BufferPacketConn.(interface{ SetNetworkRecovery(func()) }); ok {
+		c.SetNetworkRecovery(handler)
+	}
+}
+
+func (p *UDPPacketConn) NetworkInvalidated() bool {
+	if c, ok := p.BufferPacketConn.(interface{ NetworkInvalidated() bool }); ok {
+		return c.NetworkInvalidated()
+	}
+	return false
 }
 
 func (p *UDPPacketConn) WriteTo(b []byte, addr net.Addr) (_ int, err error) {

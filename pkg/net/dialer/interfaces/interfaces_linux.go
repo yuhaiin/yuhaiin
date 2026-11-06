@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func defaultRoute() (d DefaultRouteDetails, err error) {
@@ -148,6 +151,7 @@ func defaultRouteInterfaceProcNet() (string, error) {
 type monitor struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+	done   chan struct{}
 
 	onRouteUpdate func(netlink.Route)
 	onLinkUpdate  func(netlink.Link)
@@ -175,68 +179,104 @@ func NewMonitor(onRouteUpdate func(netlink.Route), onLinkUpdate func(netlink.Lin
 }
 
 func (m *monitor) Start() error {
+	m.done = make(chan struct{})
 	go func() {
-		var (
-			routeCh  chan netlink.RouteUpdate
-			routeLin chan netlink.LinkUpdate
-			addrCh   chan netlink.AddrUpdate
-		)
-
-		routeSubscribe := func() {
-			routeCh = make(chan netlink.RouteUpdate, 10)
-			if err := netlink.RouteSubscribe(routeCh, m.ctx.Done()); err != nil {
+		defer close(m.done)
+		var routeCh chan netlink.RouteUpdate
+		var linkCh chan netlink.LinkUpdate
+		var addrCh chan netlink.AddrUpdate
+		var retry [3]*time.Timer
+		var retryCh [3]<-chan time.Time
+		defer func() {
+			for _, timer := range retry {
+				if timer != nil {
+					timer.Stop()
+				}
+			}
+		}()
+		schedule := func(i int) {
+			if retry[i] != nil {
+				retry[i].Stop()
+			}
+			retry[i] = time.NewTimer(5 * time.Second)
+			retryCh[i] = retry[i].C
+		}
+		routes := func() {
+			retryCh[0] = nil
+			ch := make(chan netlink.RouteUpdate, 10)
+			if err := netlink.RouteSubscribe(ch, m.ctx.Done()); err != nil {
 				log.Error("subscribe route failed", "err", err)
-				time.AfterFunc(time.Second*5, func() { close(routeCh) })
+				routeCh = nil
+				schedule(0)
+			} else {
+				routeCh = ch
 			}
 		}
-
-		linkSubscribe := func() {
-			routeLin = make(chan netlink.LinkUpdate, 10)
-			if err := netlink.LinkSubscribe(routeLin, m.ctx.Done()); err != nil {
+		links := func() {
+			retryCh[1] = nil
+			ch := make(chan netlink.LinkUpdate, 10)
+			if err := netlink.LinkSubscribe(ch, m.ctx.Done()); err != nil {
 				log.Error("subscribe link failed", "err", err)
-				time.AfterFunc(time.Second*5, func() { close(routeLin) })
+				linkCh = nil
+				schedule(1)
+			} else {
+				linkCh = ch
 			}
 		}
-
-		addrSubscribe := func() {
+		addresses := func() {
+			retryCh[2] = nil
 			if m.onAddrUpdate == nil {
 				return
 			}
 			ch := make(chan netlink.AddrUpdate, 10)
-			addrCh = ch
 			if err := netlink.AddrSubscribe(ch, m.ctx.Done()); err != nil {
 				log.Error("subscribe address failed", "err", err)
-				time.AfterFunc(time.Second*5, func() { close(ch) })
+				addrCh = nil
+				schedule(2)
+			} else {
+				addrCh = ch
 			}
 		}
-
-		routeSubscribe()
-		linkSubscribe()
-		addrSubscribe()
-
+		routes()
+		links()
+		addresses()
 		for {
 			select {
 			case <-m.ctx.Done():
 				return
+			case <-retryCh[0]:
+				routes()
+			case <-retryCh[1]:
+				links()
+			case <-retryCh[2]:
+				addresses()
 			case msg, ok := <-routeCh:
 				if !ok {
-					log.Warn("check route listener is stopped, reconnect")
-					routeSubscribe()
+					routeCh = nil
+					schedule(0)
 				} else {
 					m.onRouteUpdate(msg.Route)
 				}
 			case msg, ok := <-addrCh:
 				if !ok {
-					log.Warn("address listener stopped, reconnect")
-					addrSubscribe()
+					addrCh = nil
+					schedule(2)
 				} else {
+					if !msg.NewAddr || !usableLinuxAddress(msg.Flags) {
+						if ip, ok := netip.AddrFromSlice(msg.LinkAddress.IP); ok {
+							logLifecycleEvent(netstate.Default.AddressUnavailable(msg.LinkIndex, ip), "source address removed")
+						}
+					}
 					m.onAddrUpdate(msg)
 				}
-			case msg, ok := <-routeLin:
+			case msg, ok := <-linkCh:
 				if !ok {
-					log.Warn("check link listener is stopped, reconnect")
-					linkSubscribe()
+					linkCh = nil
+					schedule(1)
 				} else {
+					if msg.Header.Type == unix.RTM_DELLINK || msg.Attrs().Flags&net.FlagUp == 0 || msg.Attrs().OperState == netlink.OperDown || msg.Attrs().OperState == netlink.OperLowerLayerDown {
+						logLifecycleEvent(netstate.Default.InterfaceUnavailable(msg.Attrs().Index), "interface unavailable")
+					}
 					m.onLinkUpdate(msg.Link)
 				}
 			}
@@ -247,6 +287,9 @@ func (m *monitor) Start() error {
 
 func (m *monitor) Stop() error {
 	m.cancel()
+	if m.done != nil {
+		<-m.done
+	}
 	return nil
 }
 

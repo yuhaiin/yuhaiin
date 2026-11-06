@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/netstate
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkUnchangedSnapshot-12    	19258116	        61.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnchangedSnapshot-12    	19594005	        61.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnchangedSnapshot-12    	19608504	        61.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegistration-12         	16019065	        75.39 ns/op	     128 B/op	       1 allocs/op
+BenchmarkRegistration-12         	15778405	        75.40 ns/op	     128 B/op	       1 allocs/op
+BenchmarkRegistration-12         	15430593	        75.65 ns/op	     128 B/op	       1 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/netstate	7.148s

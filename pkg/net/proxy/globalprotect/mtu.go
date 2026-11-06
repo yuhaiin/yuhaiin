@@ -20,10 +20,8 @@ func calculateMTU(conn *tls.Conn, configured int) int {
 	}
 
 	ipHeader := 20
-	if tcpConn, ok := conn.NetConn().(*net.TCPConn); ok {
-		if addr, ok := tcpConn.RemoteAddr().(*net.TCPAddr); ok && addr.IP.To4() == nil {
-			ipHeader = 40
-		}
+	if addr, ok := conn.NetConn().RemoteAddr().(*net.TCPAddr); ok && addr.IP.To4() == nil {
+		ipHeader = 40
 	}
 
 	// Match OpenConnect's fallback: use its conservative 1406-byte outer MTU

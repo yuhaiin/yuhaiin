@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"reflect"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/pool"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"golang.org/x/net/route"
@@ -424,6 +426,21 @@ func startMonitor(onChange func(reason string)) NetworkMonitor {
 		messageTypes := set.NewSet[string]()
 		nSkip := 0
 		for _, msg := range msgs {
+			switch m := msg.(type) {
+			case *route.InterfaceMessage:
+				if m.Flags&unix.IFF_UP == 0 {
+					logLifecycleEvent(netstate.Default.InterfaceUnavailable(m.Index), "interface unavailable")
+				}
+			case *route.InterfaceAddrMessage:
+				if m.Type == unix.RTM_DELADDR {
+					switch addr := addrType(m.Addrs, unix.RTAX_IFA).(type) {
+					case *route.Inet4Addr:
+						logLifecycleEvent(netstate.Default.AddressUnavailable(m.Index, netip.AddrFrom4(addr.IP)), "source address removed")
+					case *route.Inet6Addr:
+						logLifecycleEvent(netstate.Default.AddressUnavailable(m.Index, netip.AddrFrom16(addr.IP)), "source address removed")
+					}
+				}
+			}
 			if skipMessage(msg) {
 				nSkip++
 			} else {

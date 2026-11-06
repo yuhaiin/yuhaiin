@@ -278,9 +278,46 @@ func (u *underlay) ListenPacket(ctx context.Context, network, address string) (n
 		}
 	}
 	if native, ok := pc.(nettype.PacketConn); ok {
+		if udp, ok := pc.(*dialer.UDPConn); ok {
+			u.owner.networkMu.Lock()
+			if u.owner.networkSockets == nil {
+				u.owner.networkSockets = make(map[*dialer.UDPConn]struct{})
+			}
+			for old := range u.owner.networkSockets {
+				if old.Closed() {
+					// Release the lifecycle registration of a socket that
+					// magicsock closed through the concrete *net.UDPConn.
+					_ = old.Close()
+					delete(u.owner.networkSockets, old)
+				}
+			}
+			u.owner.networkSockets[udp] = struct{}{}
+			u.owner.networkMu.Unlock()
+			udp.SetNetworkRecovery(func() {
+				select {
+				case u.owner.networkWake <- udp:
+				default:
+				}
+			})
+			// magicsock enables Linux batching, GRO/GSO and RXQ overflow
+			// accounting only for a concrete *net.UDPConn. Recovery state stays
+			// on the wrapper, which observes closure of the embedded socket.
+			return udp.UDPConn, nil
+		}
 		return native, nil
 	}
 	return &nettypePacketConn{PacketConn: pc}, nil
+}
+
+func (t *Tailscale) needsNetworkRecovery() bool {
+	t.networkMu.Lock()
+	defer t.networkMu.Unlock()
+	for pc := range t.networkSockets {
+		if !pc.Closed() && pc.NetworkInvalidated() {
+			return true
+		}
+	}
+	return false
 }
 
 type nettypePacketConn struct{ net.PacketConn }

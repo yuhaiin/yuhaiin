@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -98,7 +97,7 @@ func (c *SettingsController) Apply(settings contractsettings.Settings) {
 		}
 		log.Info("update happyeyeballs semaphore", "value", happyEyeballsSemaphore)
 		dialer.DefaultHappyEyeballsv2Dialer.Store(dialer.NewDefaultHappyEyeballsv2Dialer(
-			dialer.WithHappyEyeballsSemaphore[*net.TCPConn](semaphore.NewSemaphore(int64(happyEyeballsSemaphore)))))
+			dialer.WithHappyEyeballsSemaphore[*dialer.TCPConn](semaphore.NewSemaphore(int64(happyEyeballsSemaphore)))))
 	}
 }
 

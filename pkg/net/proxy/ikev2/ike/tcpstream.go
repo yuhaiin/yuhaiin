@@ -73,7 +73,8 @@ func dialTCPStream(host string, port int, timeout time.Duration, dial func(conte
 	// Nagle would hold a small IKE message waiting for more to send, which on a
 	// request/response control exchange means waiting for the answer to the
 	// message it is holding.
-	if tc, ok := c.(*net.TCPConn); ok {
+	// An interface, not *net.TCPConn: dialer wrappers embed the TCP socket.
+	if tc, ok := c.(interface{ SetNoDelay(bool) error }); ok {
 		_ = tc.SetNoDelay(true)
 	}
 	if _, err := c.Write([]byte(tcpStreamPrefix)); err != nil {

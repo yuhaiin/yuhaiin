@@ -16,11 +16,18 @@ type Opts struct {
 }
 
 type TUN struct {
+	SocketBind    SocketBind
 	SocketProtect SocketProtect
 	Portal        string `json:"portal"`
 	PortalV6      string `json:"portal_v6"`
 	FD            int32  `json:"fd"`
 	MTU           int32  `json:"mtu"`
+}
+
+// SocketBind binds only outbound sockets, independently of VPN protection.
+// Return the actual Network handle, zero if unknown, or -1 on binding failure.
+type SocketBind interface {
+	Bind(socket int32, interfaceName string) int64
 }
 
 type SocketProtect interface {

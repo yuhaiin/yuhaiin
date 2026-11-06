@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -29,12 +30,22 @@ func (e Endpoint) DstIP() netip.Addr { return (netip.AddrPort)(e).Addr() }
 func (e Endpoint) SrcIP() netip.Addr { return netip.Addr{} }
 
 type netBindClient struct {
-	conn      net.PacketConn
-	batchConn *Batch
+	listenPacket func(context.Context, string, string, ...func(*dialer.Options)) (net.PacketConn, error)
+	active       atomic.Pointer[bindSocket]
+	stopped      atomic.Bool
+	changed      func(*bindSocket)
+	conn         net.PacketConn
+	batchConn    *Batch
 
 	openAddr *net.UDPAddr
 	reserved []byte
 	mu       sync.Mutex
+}
+
+type bindSocket struct {
+	conn    net.PacketConn
+	batch   *Batch
+	invalid atomic.Bool
 }
 
 func newNetBindClient(reserved []byte) *netBindClient {
@@ -48,6 +59,7 @@ func newNetBindClient(reserved []byte) *netBindClient {
 func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 	addrPort, err := netip.ParseAddrPort(s)
 	if err == nil {
+		n.openAddr = net.UDPAddrFromAddrPort(addrPort)
 		return Endpoint(addrPort), nil
 	}
 
@@ -95,18 +107,29 @@ func (bind *netBindClient) Open(uint16) ([]conn.ReceiveFunc, uint16, error) {
 	}
 
 	if bind.BatchSize() > 1 {
-		return []conn.ReceiveFunc{bind.receiveBatch}, addr.Port(), nil
+		batch := bind.active.Load().batch
+		return []conn.ReceiveFunc{func(slab []byte, packets []conn.ReceivedPacket) (int, error) {
+			return bind.receiveBatchFrom(batch, slab, packets)
+		}}, addr.Port(), nil
 	}
 
-	return []conn.ReceiveFunc{bind.receive}, addr.Port(), nil
+	return []conn.ReceiveFunc{func(slab []byte, packets []conn.ReceivedPacket) (int, error) {
+		return bind.receiveFrom(pc, slab, packets)
+	}}, addr.Port(), nil
 }
 
 func (bind *netBindClient) Close() error {
-	if bind.conn != nil {
-		_ = bind.conn.Close()
+	bind.mu.Lock()
+	old := bind.active.Swap(nil)
+	if old != nil {
+		bind.conn, bind.batchConn = nil, nil
 	}
-	if bind.batchConn != nil {
-		_ = bind.batchConn.Close()
+	bind.mu.Unlock()
+	if old != nil {
+		_ = old.conn.Close()
+		if old.batch != nil {
+			_ = old.batch.Close()
+		}
 	}
 	return nil
 }
@@ -117,48 +140,62 @@ func (bind *netBindClient) connectBatch() (*Batch, error) {
 		return nil, err
 	}
 
-	bc := bind.batchConn
-	if bc == nil {
+	state := bind.active.Load()
+	if state == nil || state.batch == nil {
 		return nil, fmt.Errorf("batch conn is nil")
 	}
 
-	return bc, nil
+	return state.batch, nil
 }
 
 func (bind *netBindClient) connect() (net.PacketConn, error) {
-	conn := bind.conn
-	if conn != nil {
-		return conn, nil
+	if bind.stopped.Load() {
+		return nil, net.ErrClosed
+	}
+	if state := bind.active.Load(); state != nil {
+		return state.conn, nil
 	}
 
 	bind.mu.Lock()
 	defer bind.mu.Unlock()
 
-	if bind.conn != nil {
-		return bind.conn, nil
+	if bind.stopped.Load() {
+		return nil, net.ErrClosed
+	}
+	if state := bind.active.Load(); state != nil {
+		return state.conn, nil
 	}
 
-	pc, err := dialer.ListenPacket(context.TODO(), "udp", "", func(o *dialer.Options) {
-		o.PacketConnHintAddress = bind.openAddr
-	})
-	if err != nil {
-		return nil, err
+	state := &bindSocket{conn: bind.conn} // preconfigured transports in tests
+	if state.conn == nil {
+		listen := bind.listenPacket
+		if listen == nil {
+			listen = dialer.ListenPacket
+		}
+		pc, err := listen(context.TODO(), "udp", "", func(o *dialer.Options) {
+			o.PacketConnHintAddress = bind.openAddr
+			if bind.changed != nil {
+				o.OnNetworkInvalidated = func() { bind.changed(state) }
+			}
+		})
+		if err != nil {
+			return nil, err
+		}
+		state.conn = pc
 	}
 
-	bind.conn = pc
+	bind.conn = state.conn
 
 	if bind.BatchSize() > 1 {
-		bind.batchConn = NewIPv6Batch(8, pc)
+		state.batch = NewIPv6Batch(8, state.conn)
+		bind.batchConn = state.batch
 	}
+	bind.active.Store(state)
 
 	return bind.conn, nil
 }
 
-func (bind *netBindClient) receiveBatch(slab []byte, packets []conn.ReceivedPacket) (n int, err error) {
-	batch, err := bind.connectBatch()
-	if err != nil {
-		return 0, err
-	}
+func (bind *netBindClient) receiveBatchFrom(batch *Batch, slab []byte, packets []conn.ReceivedPacket) (n int, err error) {
 
 	bufs := make([][]byte, len(packets))
 	sizes := make([]int, len(packets))
@@ -179,6 +216,10 @@ func (bind *netBindClient) receive(slab []byte, packets []conn.ReceivedPacket) (
 	if err != nil {
 		return 0, err
 	}
+	return bind.receiveFrom(pc, slab, packets)
+}
+
+func (bind *netBindClient) receiveFrom(pc net.PacketConn, slab []byte, packets []conn.ReceivedPacket) (n int, err error) {
 
 	n, addr, err := pc.ReadFrom(slab)
 	if err != nil {

@@ -135,6 +135,19 @@ func (a *App) Start(opt *Opts) error {
 	// }
 
 	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
+	dialer.SocketNetworkBinder = nil
+	if opt.TUN.SocketBind != nil {
+		dialer.SocketNetworkBinder = func(fd int32, iface string) (string, error) {
+			handle := opt.TUN.SocketBind.Bind(fd, iface)
+			if handle < 0 {
+				return "", fmt.Errorf("bind protected socket to Android Network failed")
+			}
+			if handle == 0 {
+				return "", nil
+			}
+			return "android:" + strconv.FormatInt(handle, 10), nil
+		}
+	}
 	applyRuntimeProfile()
 
 	// Initialize SQLite schema before reading Android preferences.

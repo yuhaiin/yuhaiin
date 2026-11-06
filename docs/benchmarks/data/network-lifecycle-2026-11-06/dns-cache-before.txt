@@ -1,0 +1,21 @@
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkClientRawCached-12    	 5767742	       202.9 ns/op	     288 B/op	       4 allocs/op
+BenchmarkClientRawCached-12    	 6045865	       199.6 ns/op	     288 B/op	       4 allocs/op
+BenchmarkClientRawCached-12    	 6000308	       200.5 ns/op	     288 B/op	       4 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/dns/resolver	3.586s
+time=2026-11-06T18:16:36.363+08:00 level=INFO source=server.go:68 msg="dns server is empty, skip to listen tcp and udp"
+goos: linux
+goarch: amd64
+pkg: github.com/Asutorufa/yuhaiin/pkg/net/dns/server
+cpu: AMD Ryzen 5 5600G with Radeon Graphics
+BenchmarkDNSCachedBehindSlowQuery-12    	    1000	      5171 ns/op	    1425 B/op	      19 allocs/op
+BenchmarkDNSCachedBehindSlowQuery-12    	time=2026-11-06T18:16:37.491+08:00 level=INFO source=server.go:68 msg="dns server is empty, skip to listen tcp and udp"
+    1000	      5025 ns/op	    1431 B/op	      19 allocs/op
+BenchmarkDNSCachedBehindSlowQuery-12    	time=2026-11-06T18:16:38.621+08:00 level=INFO source=server.go:68 msg="dns server is empty, skip to listen tcp and udp"
+    1000	      5364 ns/op	    1428 B/op	      19 allocs/op
+PASS
+ok  	github.com/Asutorufa/yuhaiin/pkg/net/dns/server	3.391s
