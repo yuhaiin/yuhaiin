@@ -296,9 +296,8 @@ func TestRecoveryCrashRestartRespectsConcurrentMaintenanceAndJobOwnership(t *tes
 	}
 	// The helper can die before stopping the service. In that case a
 	// successful, idempotent Start does not run the startup reconciler.
-	interrupted := backupstore.RecoveryJob{Backup: contractrecovery.Backup{
-		ID: uuid.New().String(), State: "queued", Target: "local", CreatedAt: time.Now().UTC(),
-	}}
+	interrupted := backupstore.RecoveryJob{
+		ID: uuid.New().String(), State: "queued", Target: "local", CreatedAt: time.Now().UTC()}
 	if err := b.store.EnqueueRecovery(t.Context(), interrupted); err != nil {
 		t.Fatal(err)
 	}
