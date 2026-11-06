@@ -143,9 +143,7 @@ type client struct {
 	rawStore          *lru.SyncLru[string, *dns.Msg]
 	config            Config
 	rawSingleflight   singleflight.GroupSync[string, *dns.Msg]
-	queryFailures     *lru.SyncLru[string, queryFailure]
 	refreshBackground syncmap.SyncMap[string, struct{}]
-	refreshFailures   *lru.SyncLru[string, refreshFailure]
 	refreshSlots      chan struct{}
 	refreshContext    context.Context
 	cancelRefresh     context.CancelFunc
@@ -173,19 +171,11 @@ func NewClient(config Config, dialer Transport) netapi.Resolver {
 
 	refreshContext, cancelRefresh := context.WithCancel(context.Background())
 	c := &client{
-		queryFailures: lru.NewSyncLru(
-			lru.WithCapacity[string, queryFailure](int(configuration.DNSCache)),
-			lru.WithDefaultTimeout[string, queryFailure](10*time.Minute),
-		),
 		refreshContext: refreshContext,
 		cancelRefresh:  cancelRefresh,
 		refreshSlots:   make(chan struct{}, backgroundRefreshLimit),
-		refreshFailures: lru.NewSyncLru(
-			lru.WithCapacity[string, refreshFailure](int(configuration.DNSCache)),
-			lru.WithDefaultTimeout[string, refreshFailure](10*time.Minute),
-		),
-		dialer: dialer,
-		config: config,
+		dialer:         dialer,
+		config:         config,
 		rawStore: lru.NewSyncLru(
 			lru.WithCapacity[string, *dns.Msg](int(configuration.DNSCache)),
 			lru.WithDefaultTimeout[string, *dns.Msg](time.Second*600),
@@ -461,7 +451,10 @@ func (c *client) raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, err
 	if !ok {
 		var err error
 		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (*dns.Msg, error) {
-			msg, err := c.queryUncached(ctx, req, cacheKey)
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			msg, err := c.queryWithMetrics(ctx, req)
 			if err != nil {
 				return nil, fmt.Errorf("query with metrics failed: %w", err)
 			}
@@ -625,7 +618,6 @@ func (c *client) ClearDNSCache(domain string) int {
 	for _, key := range keys {
 		c.rawStore.Delete(key)
 	}
-	c.clearQueryFailures(domain)
 	return len(keys)
 }
 
