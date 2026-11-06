@@ -129,10 +129,11 @@ func (m *EmptyMetrics) AddGeoCountry(string)                      {}
 type Prometheus struct {
 	DNSAdmissionResults     *prometheus.CounterVec
 	DNSAdmissionWaitSeconds *prometheus.HistogramVec
-	// Fixed label children, resolved once so the per-packet DNS path skips
-	// the CounterVec/HistogramVec label hash and lock. Read-only after init.
-	dnsAdmissionResults          map[string]prometheus.Counter
-	dnsAdmissionWaits            map[string]prometheus.Observer
+	// Fixed label children, resolved on first use so the per-packet DNS path
+	// skips the CounterVec/HistogramVec label hash and lock without exporting
+	// zero series for stages that never happen. The maps are read-only.
+	dnsAdmissionResults          map[string]*lazyChild[prometheus.Counter]
+	dnsAdmissionWaits            map[string]*lazyChild[prometheus.Observer]
 	TotalReceiveUDPPacket        prometheus.Counter
 	TotalSendUDPPacket           prometheus.Counter
 	TotalReceiveUDPDroppedPacket prometheus.Counter
@@ -343,16 +344,27 @@ func newPrometheus(registerer prometheus.Registerer) *Prometheus {
 		}),
 	}
 
-	p.dnsAdmissionResults = make(map[string]prometheus.Counter, len(dnsAdmissionResultLabels))
+	p.dnsAdmissionResults = make(map[string]*lazyChild[prometheus.Counter], len(dnsAdmissionResultLabels))
 	for _, label := range dnsAdmissionResultLabels {
-		p.dnsAdmissionResults[label] = p.DNSAdmissionResults.WithLabelValues(label)
+		p.dnsAdmissionResults[label] = &lazyChild[prometheus.Counter]{}
 	}
-	p.dnsAdmissionWaits = make(map[string]prometheus.Observer, len(dnsAdmissionWaitLabels))
+	p.dnsAdmissionWaits = make(map[string]*lazyChild[prometheus.Observer], len(dnsAdmissionWaitLabels))
 	for _, label := range dnsAdmissionWaitLabels {
-		p.dnsAdmissionWaits[label] = p.DNSAdmissionWaitSeconds.WithLabelValues(label)
+		p.dnsAdmissionWaits[label] = &lazyChild[prometheus.Observer]{}
 	}
 
 	return p
+}
+
+// lazyChild caches one labeled child of a metric vector, created on first use.
+type lazyChild[T any] struct {
+	once  sync.Once
+	child T
+}
+
+func (l *lazyChild[T]) get(create func() T) T {
+	l.once.Do(func() { l.child = create() })
+	return l.child
 }
 
 var (
@@ -476,7 +488,7 @@ func (p *Prometheus) AddGeoCountry(country string) {
 
 func (p *Prometheus) AddDNSAdmissionResult(result string) {
 	if c, ok := p.dnsAdmissionResults[result]; ok {
-		c.Inc()
+		c.get(func() prometheus.Counter { return p.DNSAdmissionResults.WithLabelValues(result) }).Inc()
 		return
 	}
 	p.DNSAdmissionResults.WithLabelValues(result).Inc()
@@ -484,7 +496,7 @@ func (p *Prometheus) AddDNSAdmissionResult(result string) {
 
 func (p *Prometheus) ObserveDNSAdmissionWait(stage string, duration time.Duration) {
 	if o, ok := p.dnsAdmissionWaits[stage]; ok {
-		o.Observe(duration.Seconds())
+		o.get(func() prometheus.Observer { return p.DNSAdmissionWaitSeconds.WithLabelValues(stage) }).Observe(duration.Seconds())
 		return
 	}
 	p.DNSAdmissionWaitSeconds.WithLabelValues(stage).Observe(duration.Seconds())

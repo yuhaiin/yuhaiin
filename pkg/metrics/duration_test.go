@@ -33,10 +33,6 @@ func TestLatencyMetricsUseSeconds(t *testing.T) {
 		delete(wants, family.GetName())
 		for _, metric := range family.GetMetric() {
 			if h := metric.GetHistogram(); h != nil {
-				// Fixed-label children are pre-registered and exported at zero.
-				if h.GetSampleCount() == 0 && h.GetSampleSum() == 0 {
-					continue
-				}
 				if h.GetSampleCount() != 1 || h.GetSampleSum() != want.sum {
 					t.Fatalf("%s count/sum=%d/%g", family.GetName(), h.GetSampleCount(), h.GetSampleSum())
 				}
@@ -87,4 +83,39 @@ func BenchmarkObserveLatency(b *testing.B) {
 			p.ObserveDNSAdmissionWait("upstream", 125*time.Millisecond)
 		}
 	})
+}
+
+// Admission stages that never happened must not be exported as zero series.
+func TestDNSAdmissionMetricsCreateSeriesOnUse(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	p := newPrometheus(registry)
+	p.AddDNSAdmissionResult("cache_hit")
+	p.AddDNSAdmissionResult("cache_hit")
+	p.ObserveDNSAdmissionWait("upstream", time.Millisecond)
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	series := map[string][]string{}
+	for _, family := range families {
+		switch family.GetName() {
+		case "yuhaiin_dns_admission_results_total", "yuhaiin_dns_admission_wait_seconds":
+			for _, metric := range family.GetMetric() {
+				for _, label := range metric.GetLabel() {
+					if label.GetName() == "result" || label.GetName() == "stage" {
+						series[family.GetName()] = append(series[family.GetName()], label.GetValue())
+					}
+				}
+				if c := metric.GetCounter(); c != nil && c.GetValue() != 2 {
+					t.Fatalf("cache_hit=%v", c.GetValue())
+				}
+			}
+		}
+	}
+	if got := series["yuhaiin_dns_admission_results_total"]; len(got) != 1 || got[0] != "cache_hit" {
+		t.Fatalf("result series=%v", got)
+	}
+	if got := series["yuhaiin_dns_admission_wait_seconds"]; len(got) != 1 || got[0] != "upstream" {
+		t.Fatalf("stage series=%v", got)
+	}
 }
