@@ -50,30 +50,41 @@ func Endpoint(data string) (string, bool, error) {
 }
 
 // Node and Inbound validate current-format documents after credential removal.
-// A future field may itself contain a secret, so an older exporter must refuse
-// it instead of silently placing its contents in an unencrypted backup.
+// Members the current schema does not recognize are dropped rather than
+// exported: a removed protocol or a future field may itself contain a secret.
+// A pruned endpoint is disabled like a redacted one.
 func Node(data string) (string, bool, error) {
-	redacted, changed, err := Endpoint(data)
-	if err != nil {
-		return "", false, err
-	}
-	var value contractnode.Node
-	if err := validateEndpoint(redacted, &value); err != nil {
-		return "", false, errors.New("unsupported node configuration in export")
-	}
-	return redacted, changed, nil
+	return currentEndpoint(data, &contractnode.Node{}, "unsupported node configuration in export")
 }
 
 func Inbound(data string) (string, bool, error) {
+	return currentEndpoint(data, &contractinbound.Inbound{}, "unsupported inbound configuration in export")
+}
+
+func currentEndpoint(data string, target any, unsupported string) (string, bool, error) {
 	redacted, changed, err := Endpoint(data)
 	if err != nil {
 		return "", false, err
 	}
-	var value contractinbound.Inbound
-	if err := validateEndpoint(redacted, &value); err != nil {
-		return "", false, errors.New("unsupported inbound configuration in export")
+	value, pruned, err := validateEndpoint(redacted, target)
+	if err != nil {
+		return "", false, errors.New(unsupported)
 	}
-	return redacted, changed, nil
+	if !pruned {
+		return redacted, changed, nil
+	}
+	var document map[string]jsontext.Value
+	if err := json.Unmarshal(value, &document); err != nil || document == nil {
+		return "", false, errors.New(unsupported)
+	}
+	if _, present := document["enabled"]; present {
+		document["enabled"] = jsontext.Value("false")
+	}
+	result, err := json.Marshal(document, json.Deterministic(true))
+	if err != nil {
+		return "", false, errors.New("cannot encode pruned endpoint configuration")
+	}
+	return string(result), true, nil
 }
 
 func redactEndpointCredentials(document map[string]jsontext.Value, parent string, depth int) (bool, error) {

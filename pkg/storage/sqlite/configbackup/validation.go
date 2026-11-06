@@ -8,37 +8,45 @@ import (
 	"strconv"
 )
 
-// Validation operates on a private copy. Old documents can contain a known
-// credential alias outside the current schema; Endpoint has already cleared
-// its value. Ignore only those empty aliases while still rejecting every other
-// unrecognized member, including unknown siblings and descendants.
-func validateEndpoint(data string, target any) error {
+// Validation decodes against the current schema and returns the document that
+// may be exported. Old documents can contain a known credential alias outside
+// the current schema; Endpoint has already cleared its value, so those empty
+// aliases are removed silently. Any other unrecognized member (a removed
+// protocol, a field from a newer version) is dropped from the export: it may
+// hold a secret this exporter cannot recognize, and the current version cannot
+// use it anyway. pruned reports that such content was discarded.
+func validateEndpoint(data string, target any) (jsontext.Value, bool, error) {
 	value := jsontext.Value(data)
+	pruned := false
 	for attempt := 0; ; attempt++ {
 		err := json.Unmarshal(value, target, json.RejectUnknownMembers(true), json.MatchCaseInsensitiveNames(true))
 		if err == nil {
-			return nil
+			return value, pruned, nil
 		}
 		semantic, ok := errors.AsType[*json.SemanticError](err)
 		if !ok || !errors.Is(semantic.Err, json.ErrUnknownName) {
-			return err
+			return nil, false, err
 		}
-		if attempt == 128 {
-			return errors.New("too many legacy credential aliases in export")
+		if attempt == 1024 {
+			return nil, false, errors.New("too many unrecognized members in export")
 		}
 		tokens := slices.Collect(semantic.JSONPointer.Tokens())
-		if len(tokens) < 2 || !sensitiveEndpointField(tokens[len(tokens)-2], tokens[len(tokens)-1]) {
-			return err
+		var updated jsontext.Value
+		removed := false
+		if len(tokens) >= 2 && sensitiveEndpointField(tokens[len(tokens)-2], tokens[len(tokens)-1]) {
+			updated, removed = removeValidationMember(value, tokens, true)
 		}
-		var removed bool
-		value, removed = removeEmptyValidationMember(value, tokens)
 		if !removed {
-			return err
+			if updated, removed = removeValidationMember(value, tokens, false); !removed {
+				return nil, false, err
+			}
+			pruned = true
 		}
+		value = updated
 	}
 }
 
-func removeEmptyValidationMember(value jsontext.Value, path []string) (jsontext.Value, bool) {
+func removeValidationMember(value jsontext.Value, path []string, emptyOnly bool) (jsontext.Value, bool) {
 	if len(path) == 0 {
 		return nil, false
 	}
@@ -53,12 +61,12 @@ func removeEmptyValidationMember(value jsontext.Value, path []string) (jsontext.
 			return nil, false
 		}
 		if len(path) == 1 {
-			if string(child) != `""` && string(child) != "null" && string(child) != "[]" {
+			if emptyOnly && string(child) != `""` && string(child) != "null" && string(child) != "[]" {
 				return nil, false
 			}
 			delete(object, path[0])
 		} else {
-			updated, removed := removeEmptyValidationMember(child, path[1:])
+			updated, removed := removeValidationMember(child, path[1:], emptyOnly)
 			if !removed {
 				return nil, false
 			}
@@ -72,7 +80,7 @@ func removeEmptyValidationMember(value jsontext.Value, path []string) (jsontext.
 		if err != nil || json.Unmarshal(value, &items) != nil || index < 0 || index >= len(items) {
 			return nil, false
 		}
-		updated, removed := removeEmptyValidationMember(items[index], path[1:])
+		updated, removed := removeValidationMember(items[index], path[1:], emptyOnly)
 		if !removed {
 			return nil, false
 		}

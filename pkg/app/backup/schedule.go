@@ -163,7 +163,13 @@ func (b *Backup) schedule() {
 			operationErr = b.Run(ctx)
 		}
 		if operationErr != nil && ctx.Err() == nil && !errors.Is(operationErr, errBackupBusy) {
-			log.Warn("scheduled backup did not complete; consult backup history")
+			if full {
+				log.Warn("scheduled backup did not complete; consult backup history")
+			} else {
+				// The S3 configuration sync keeps no history; its error is the
+				// same text the manual backup.run RPC returns.
+				log.Warn("scheduled S3 configuration backup failed", "err", operationErr)
+			}
 		}
 		cancel()
 		b.scheduleMu.Lock()
