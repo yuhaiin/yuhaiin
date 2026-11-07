@@ -111,6 +111,24 @@ func toAddrPort(ad net.IP, port uint16, zone string) netip.AddrPort {
 	return netip.AddrPortFrom(addr, port)
 }
 
+// SysAddrComparable returns the [Address.Comparable] hash of ad without
+// boxing a parsed [Address], which costs one allocation per UDP packet.
+func SysAddrComparable(ad net.Addr) (uint64, error) {
+	switch ad := ad.(type) {
+	case Address:
+		return ad.Comparable(), nil
+	case *net.UDPAddr:
+		return IPAddr{AddressNetwork: UDP, AddrPortX: toAddrPort(ad.IP, uint16(ad.Port), ad.Zone)}.Comparable(), nil
+	case *net.TCPAddr:
+		return IPAddr{AddressNetwork: TCP, AddrPortX: toAddrPort(ad.IP, uint16(ad.Port), ad.Zone)}.Comparable(), nil
+	}
+	addr, err := ParseSysAddr(ad)
+	if err != nil {
+		return 0, err
+	}
+	return addr.Comparable(), nil
+}
+
 func ParseSysAddr(ad net.Addr) (Address, error) {
 	if ad == nil {
 		return nil, errors.New("invalid address")

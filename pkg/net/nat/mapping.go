@@ -31,11 +31,10 @@ type addressMapper struct {
 func newAddressMapper() *addressMapper { return &addressMapper{targets: make(map[uint64]net.Addr)} }
 
 func (m *addressMapper) remember(original netapi.Address, real net.Addr) error {
-	addr, err := netapi.ParseSysAddr(real)
+	key, err := netapi.SysAddrComparable(real)
 	if err != nil {
 		return err
 	}
-	key := addr.Comparable()
 	if key != original.Comparable() {
 		if _, exists := m.reverse.Load(key); !exists {
 			if m.reverseCount >= maxCachedDestinations {
@@ -58,11 +57,11 @@ func (m *addressMapper) replyAddr(from net.Addr) net.Addr {
 	if !m.hasReverse.Load() {
 		return from
 	}
-	addr, err := netapi.ParseSysAddr(from)
+	key, err := netapi.SysAddrComparable(from)
 	if err != nil {
 		return from
 	}
-	if original, ok := m.reverse.Load(addr.Comparable()); ok {
+	if original, ok := m.reverse.Load(key); ok {
 		return original
 	}
 	return from

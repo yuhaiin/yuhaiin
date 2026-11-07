@@ -37,3 +37,20 @@ func TestKey(t *testing.T) {
 
 	t.Log(z1, z2, z3)
 }
+
+func TestSysAddrComparableMatchesParseSysAddr(t *testing.T) {
+	for _, addr := range []net.Addr{
+		&net.UDPAddr{IP: net.IPv4(1, 2, 3, 4), Port: 53},
+		&net.UDPAddr{IP: net.ParseIP("fe80::1"), Port: 443, Zone: "eth0"},
+		&net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 80},
+		DomainAddr{HostnameX: "example.com", PortX: 443, AddressNetwork: UDP},
+	} {
+		parsed, err := ParseSysAddr(addr)
+		assert.NoError(t, err)
+		got, err := SysAddrComparable(addr)
+		assert.NoError(t, err)
+		assert.Equal(t, parsed.Comparable(), got)
+	}
+	u := &net.UDPAddr{IP: net.IPv4(1, 2, 3, 4), Port: 53}
+	assert.Equal(t, float64(0), testing.AllocsPerRun(100, func() { _, _ = SysAddrComparable(u) }))
+}
