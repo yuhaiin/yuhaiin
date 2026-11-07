@@ -135,8 +135,10 @@ func TestLightweightWireGuardInterop(t *testing.T) {
 			// preserving this already-established inner TCP stream and stack.
 			before, stack, dev := client.bind.active.Load(), client.net, client.device
 			client.bind.changed(before)
-			deadline := time.Now().Add(time.Second)
-			for client.bind.active.Load() == before && time.Now().Before(deadline) {
+			// BindUpdate closes the old socket (active == nil) before opening the
+			// replacement, so wait for a new socket rather than any change.
+			deadline := time.Now().Add(5 * time.Second)
+			for a := client.bind.active.Load(); (a == nil || a == before) && time.Now().Before(deadline); a = client.bind.active.Load() {
 				time.Sleep(time.Millisecond)
 			}
 			if after := client.bind.active.Load(); after == nil || after == before || client.net != stack || client.device != dev {
