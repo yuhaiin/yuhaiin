@@ -323,7 +323,12 @@ func TestOfflineRecoveryPreviewRestoreAndRollbackExistingInstance(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if preview.TargetInstanceID == manifest.InstanceID || preview.TargetInstanceID == "unreadable" || preview.Runtime.WorkingDirectory != target {
+	// Preview reports the canonical deployment (macOS temp dirs are /var aliases).
+	canonicalTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.TargetInstanceID == manifest.InstanceID || preview.TargetInstanceID == "unreadable" || preview.Runtime.WorkingDirectory != canonicalTarget {
 		t.Fatal("wrong target/original identity or unresolved startup inputs", preview)
 	}
 	after, err := os.ReadFile(filepath.Join(target, "state.db"))
@@ -352,7 +357,7 @@ func TestOfflineRecoveryPreviewRestoreAndRollbackExistingInstance(t *testing.T) 
 		t.Fatal(err)
 	}
 	stored, err := store.NewNodeStore(db).Get(t.Context(), "tls")
-	if err != nil || stored.Chain[0].TLSTermination.TLS.Certificates[0].CertFilePath != filepath.Join(target, "site.crt") {
+	if err != nil || stored.Chain[0].TLSTermination.TLS.Certificates[0].CertFilePath != filepath.Join(canonicalTarget, "site.crt") {
 		t.Fatal("relative file dependency was not rebound to restored deployment", stored, err)
 	}
 	if err := db.Close(); err != nil {

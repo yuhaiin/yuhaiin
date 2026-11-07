@@ -64,6 +64,11 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 				sourceHashes[name] = sha256.Sum256(data)
 			}
 			destination := filepath.Join(t.TempDir(), "full.yhb")
+			// Create reserves space on the canonical source (macOS /var alias).
+			canonicalDirectory, err := backupfs.CanonicalDirectory(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
 			denied := backupfs.ErrInsufficientStagingSpace
 			positive, rejected := 0, false
 			options := CreateOptions{ConfirmedMaintenance: true, checkSpace: func(path string, bytes int64) error {
@@ -71,7 +76,7 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 				if stage && bytes > 0 {
 					positive++
 				}
-				fail := boundary == "source_reserve" && path == directory && bytes == 0 ||
+				fail := boundary == "source_reserve" && path == canonicalDirectory && bytes == 0 ||
 					boundary == "destination_reserve" && path == filepath.Dir(destination) && bytes == 0 ||
 					boundary == "configuration_snapshot" && stage && positive == 1 ||
 					boundary == "management_snapshot" && stage && positive == 2 ||
@@ -83,7 +88,7 @@ func TestFullRecoveryRefusesInsufficientSpaceAtEveryOutputBoundary(t *testing.T)
 				}
 				return nil
 			}}
-			_, err := Create(t.Context(), directory, destination, backuparchive.Encryption{Recipient: key.Recipient().String()}, options)
+			_, err = Create(t.Context(), directory, destination, backuparchive.Encryption{Recipient: key.Recipient().String()}, options)
 			if !errors.Is(err, denied) || !rejected {
 				t.Fatal("space rejection was bypassed", boundary, positive, err)
 			}
