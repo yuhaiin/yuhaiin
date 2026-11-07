@@ -33,7 +33,7 @@ func TestManagementDatabasePrivateSeparateAndIdempotent(t *testing.T) {
 	if queryInt(t, db.DB(), `SELECT count(*) FROM management_users`) != 1 {
 		t.Fatal("migration replaced identities")
 	}
-	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != int64(managementTokenLabelsMigration.Version) {
+	if queryInt(t, db.DB(), `SELECT count(*) FROM migrate`) != int64(managementPasswordKDFMigration.Version) {
 		t.Fatal("migration applied more than once")
 	}
 	info, err := os.Stat(path)
@@ -102,12 +102,12 @@ func TestManagementSSTPMigrationPreservesExistingCredentialsAndSnapshots(t *test
 	if err := upgraded.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != managementTokenLabelsMigration.Version || catalog[5].Name != "sstp_proxy_verifiers" || catalog[6].Name != "management_passkeys" {
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != managementPasswordKDFMigration.Version || catalog[5].Name != "sstp_proxy_verifiers" || catalog[6].Name != "management_passkeys" {
 		t.Fatalf("upgraded management catalog = %v: %v", catalog, err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
 	version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30)
-	if err != nil || version != managementTokenLabelsMigration.Version {
+	if err != nil || version != managementPasswordKDFMigration.Version {
 		t.Fatalf("snapshot of upgraded management store: version=%d err=%v", version, err)
 	}
 	reopened, err := OpenManagement(t.Context(), path)
@@ -151,11 +151,11 @@ func TestManagementPasskeyMigrationUpgradesVersionSix(t *testing.T) {
 	if err := upgraded.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != managementTokenLabelsMigration.Version || catalog[6].Name != "management_passkeys" {
+	if catalog, err := InspectStoreCatalog(t.Context(), path, "management"); err != nil || len(catalog) != managementPasswordKDFMigration.Version || catalog[6].Name != "management_passkeys" {
 		t.Fatalf("catalog = %v: %v", catalog, err)
 	}
 	snapshot := filepath.Join(t.TempDir(), "snapshot.db")
-	if version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30); err != nil || version != managementTokenLabelsMigration.Version {
+	if version, err := SnapshotRecoveryDatabase(t.Context(), path, snapshot, "management", 1<<30); err != nil || version != managementPasswordKDFMigration.Version {
 		t.Fatalf("snapshot version=%d err=%v", version, err)
 	}
 	reader, err := OpenSnapshotReader(t.Context(), snapshot)

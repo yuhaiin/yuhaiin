@@ -240,3 +240,60 @@ func TestBrowserReferenceNeverTransmitsPassword(t *testing.T) {
 		t.Fatal("browser login failed or raw password leaked on wire")
 	}
 }
+
+func TestLegacyServerKDFUpgradesOnLogin(t *testing.T) {
+	s := testStore(t)
+	u, enrollment, err := s.CreateUser(t.Context(), "local", "admin", Admin, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := NewPasswordService(t.Context(), s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, err := p.EnrollmentParameters(t.Context(), enrollment.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential := clientCredential(t, "legacy password", params)
+	if err := p.Enroll(t.Context(), enrollment.Secret, credential); err != nil {
+		t.Fatal(err)
+	}
+	var kdf string
+	if err := s.db.QueryRowContext(t.Context(), `SELECT password_kdf FROM management_users WHERE id=?`, u.ID).Scan(&kdf); err != nil || kdf != currentServerKDF {
+		t.Fatalf("enrollment kdf = %q, %v", kdf, err)
+	}
+	// Rewrite the verifier as a pre-v2 database would have stored it.
+	legacySalt := clientSalt()
+	legacy, err := p.hash(t.Context(), credential, legacySalt, serverKDFv1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(t.Context(), `UPDATE management_users SET credential=?,server_salt=?,password_kdf=? WHERE id=?`, legacy, legacySalt, serverKDFv1, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	var generation int64
+	if err := s.db.QueryRowContext(t.Context(), `SELECT generation FROM management_users WHERE id=?`, u.ID).Scan(&generation); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Login(t.Context(), "admin", clientCredential(t, "wrong password", params)); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("wrong legacy login: %v", err)
+	}
+	if err := s.db.QueryRowContext(t.Context(), `SELECT password_kdf FROM management_users WHERE id=?`, u.ID).Scan(&kdf); err != nil || kdf != serverKDFv1 {
+		t.Fatalf("failed login upgraded kdf: %q, %v", kdf, err)
+	}
+	if _, err := p.Login(t.Context(), "admin", credential); err != nil {
+		t.Fatal(err)
+	}
+	var verifier, salt []byte
+	var after int64
+	if err := s.db.QueryRowContext(t.Context(), `SELECT credential,server_salt,password_kdf,generation FROM management_users WHERE id=?`, u.ID).Scan(&verifier, &salt, &kdf, &after); err != nil {
+		t.Fatal(err)
+	}
+	if kdf != currentServerKDF || bytes.Equal(verifier, legacy) || bytes.Equal(salt, legacySalt) || after != generation {
+		t.Fatalf("legacy verifier not upgraded in place: kdf=%q generation %d->%d", kdf, generation, after)
+	}
+	if _, err := p.Login(t.Context(), "admin", credential); err != nil {
+		t.Fatalf("login after upgrade: %v", err)
+	}
+}

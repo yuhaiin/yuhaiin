@@ -19,8 +19,25 @@ import (
 )
 
 const clientIterations = 600000
-const serverMemory = 64 * 1024
-const serverIterations = 3
+
+// Server KDF IDs name immutable Argon2id parameter sets. v1 allocated 64 MiB per
+// login; v2 follows the OWASP m=9MiB,t=4,p=1 profile, which is ample on top of
+// the client's PBKDF2 stretching. v1 verifiers are upgraded on next login.
+const (
+	serverKDFv1      = "argon2id-v1"
+	serverKDFv2      = "argon2id-v2"
+	currentServerKDF = serverKDFv2
+)
+
+func serverKDFParameters(kdf string) (iterations, memory uint32, ok bool) {
+	switch kdf {
+	case serverKDFv1:
+		return 3, 64 * 1024, true
+	case serverKDFv2:
+		return 4, 9 * 1024, true
+	}
+	return 0, 0, false
+}
 
 type rateWindow struct {
 	start time.Time
@@ -122,8 +139,9 @@ func (p *PasswordService) Parameters(ctx context.Context, login string) (Passwor
 	return parameters(salt), nil
 }
 
-func (p *PasswordService) hash(ctx context.Context, credential string, salt []byte) ([]byte, error) {
-	if len(credential) != 43 {
+func (p *PasswordService) hash(ctx context.Context, credential string, salt []byte, kdf string) ([]byte, error) {
+	iterations, memory, ok := serverKDFParameters(kdf)
+	if !ok || len(credential) != 43 {
 		return nil, ErrUnauthorized
 	}
 	material, err := base64.RawURLEncoding.Strict().DecodeString(credential)
@@ -136,28 +154,37 @@ func (p *PasswordService) hash(ctx context.Context, credential string, salt []by
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	return argon2.IDKey(material, salt, serverIterations, serverMemory, 1, 32), nil
+	return argon2.IDKey(material, salt, iterations, memory, 1, 32), nil
 }
 
 func (p *PasswordService) Login(ctx context.Context, login, credential string) (IssuedCredential, error) {
 	if len(login) > 64 {
 		return IssuedCredential{}, ErrUnauthorized
 	}
-	var id string
+	var id, kdf string
 	var salt, verifier []byte
 	var generation int64
-	err := p.store.db.QueryRowContext(ctx, `SELECT id,server_salt,credential,generation FROM management_users WHERE login=? COLLATE NOCASE AND disabled=0 AND credential IS NOT NULL`, login).Scan(&id, &salt, &verifier, &generation)
+	err := p.store.db.QueryRowContext(ctx, `SELECT id,server_salt,credential,generation,password_kdf FROM management_users WHERE login=? COLLATE NOCASE AND disabled=0 AND credential IS NOT NULL`, login).Scan(&id, &salt, &verifier, &generation, &kdf)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return IssuedCredential{}, err
 		}
 		salt = p.key[:16]
 		verifier = make([]byte, 32)
+		kdf = currentServerKDF
 	}
-	actual, err := p.hash(ctx, credential, salt)
+	actual, err := p.hash(ctx, credential, salt, kdf)
 	if err != nil || subtle.ConstantTimeCompare(actual, verifier) != 1 || id == "" {
 		p.store.audit(ctx, "login.failed", "", "")
 		return IssuedCredential{}, ErrUnauthorized
+	}
+	// Hash outside the write transaction; an upgrade failure never blocks login.
+	var upgradedSalt, upgraded []byte
+	if kdf != currentServerKDF {
+		upgradedSalt = clientSalt()
+		if upgraded, err = p.hash(ctx, credential, upgradedSalt, currentServerKDF); err != nil {
+			upgraded = nil
+		}
 	}
 	tx, err := p.store.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -168,6 +195,12 @@ func (p *PasswordService) Login(ctx context.Context, login, credential string) (
 	err = tx.QueryRowContext(ctx, `SELECT generation FROM management_users WHERE id=? AND disabled=0 AND credential IS NOT NULL`, id).Scan(&current)
 	if err != nil || current != generation {
 		return IssuedCredential{}, ErrUnauthorized
+	}
+	if upgraded != nil {
+		// Same password, so the generation (and existing sessions) is unchanged.
+		if _, err := tx.ExecContext(ctx, `UPDATE management_users SET credential=?,server_salt=?,password_kdf=? WHERE id=? AND generation=? AND password_kdf=?`, upgraded, upgradedSalt, currentServerKDF, id, generation, kdf); err != nil {
+			return IssuedCredential{}, err
+		}
 	}
 	session, err := issueCredential(ctx, tx, id, "session", nil, time.Now().Add(8*time.Hour).Unix())
 	if err != nil {
@@ -217,7 +250,7 @@ func (p *PasswordService) Enroll(ctx context.Context, secret, credential string)
 		return err
 	}
 	salt := clientSalt() // independent server-side salt, never the client KDF salt
-	verifier, err := p.hash(ctx, credential, salt)
+	verifier, err := p.hash(ctx, credential, salt, currentServerKDF)
 	if err != nil {
 		return ErrInvalid
 	}
@@ -234,7 +267,7 @@ func (p *PasswordService) Enroll(ctx context.Context, secret, credential string)
 	if n, _ := result.RowsAffected(); n != 1 {
 		return ErrUnauthorized
 	}
-	result, err = tx.ExecContext(ctx, `UPDATE management_users SET credential=?,server_salt=?,client_salt=?,generation=generation+1,updated_at=? WHERE id=? AND generation=? AND disabled=0`, verifier, salt, newClientSalt, time.Now().Unix(), id, generation)
+	result, err = tx.ExecContext(ctx, `UPDATE management_users SET credential=?,server_salt=?,password_kdf=?,client_salt=?,generation=generation+1,updated_at=? WHERE id=? AND generation=? AND disabled=0`, verifier, salt, currentServerKDF, newClientSalt, time.Now().Unix(), id, generation)
 	if err != nil {
 		return err
 	}
