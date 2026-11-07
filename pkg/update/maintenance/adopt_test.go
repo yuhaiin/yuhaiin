@@ -87,7 +87,9 @@ func adopt(ctx context.Context, directory, executable string, dryRun bool) (*Ado
 	return Adopt(ctx, directory, AdoptOptions{Executable: executable, Platform: runtime.GOOS, Architecture: runtime.GOARCH, DryRun: dryRun})
 }
 
-func requireBlocked(t *testing.T, err error, executable string) *StartupBlockedError {
+// requireBlocked returns the refusal's next steps; returning the error value
+// itself would make every call site an unchecked error return.
+func requireBlocked(t *testing.T, err error, executable string) []string {
 	t.Helper()
 	blocked, ok := IsStartupBlocked(err)
 	if !ok {
@@ -96,7 +98,7 @@ func requireBlocked(t *testing.T, err error, executable string) *StartupBlockedE
 	if blocked.Executable != executable || len(blocked.NextSteps) == 0 {
 		t.Fatalf("blocked startup classified %q, want %q (%v)", blocked.Executable, executable, blocked.NextSteps)
 	}
-	return blocked
+	return blocked.NextSteps
 }
 
 func TestPreparationFailureStartupByInstalledExecutable(t *testing.T) {
@@ -138,9 +140,9 @@ func TestPreparationFailureStartupByInstalledExecutable(t *testing.T) {
 		before := evidence(t, directory)
 		replaceInstalled(t, r.TargetPath, manual)
 		_, err := PrepareStartup(t.Context(), directory, r.TargetPath, "", "")
-		blocked := requireBlocked(t, err, "unrecorded")
-		if !slices.ContainsFunc(blocked.NextSteps, func(step string) bool { return strings.Contains(step, "update-adopt") }) {
-			t.Fatal("blocked startup did not name the adoption command", blocked.NextSteps)
+		steps := requireBlocked(t, err, "unrecorded")
+		if !slices.ContainsFunc(steps, func(step string) bool { return strings.Contains(step, "update-adopt") }) {
+			t.Fatal("blocked startup did not name the adoption command", steps)
 		}
 		if _, err := adopt(t.Context(), directory, manual, false); err == nil || !strings.Contains(err.Error(), "from the installed executable") {
 			t.Fatal("an executable other than the installed image adopted itself", err)
