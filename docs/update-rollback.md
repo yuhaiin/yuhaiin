@@ -115,8 +115,9 @@ health checks before the result becomes `recovered`.
 never opened the databases. Startup still verifies the recorded source. Any
 other installed executable is refused **before** stores open; the process then
 logs the operation, its executable classification (`recorded_source`,
-`recorded_target`, `adopted`, `unrecorded`) and concrete next steps once, and
-waits instead of exiting. That ends the launchd `KeepAlive` / systemd
+`recorded_target`, `adopted`, `unrecorded`) and concrete next steps once and,
+when started by launchd or systemd, waits instead of exiting (a direct
+invocation still exits nonzero with the same message). That ends the launchd `KeepAlive` / systemd
 `Restart=on-failure` loop that repeated the same error every ~10 seconds. The
 wait holds no database, listener or lifecycle lock, and exits only when the
 journal, `.update-adoption.json` or the executable changes (the service manager

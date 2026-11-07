@@ -55,9 +55,25 @@ func TestBlockedUpdateStartupWaitsInsteadOfRestartLoop(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// A direct invocation (no service manager) exits at once with the
+			// refusal and its next steps, as offline recovery drills expect.
+			unsupervised := startedByServiceManager
+			startedByServiceManager = func() bool { return false }
+			direct := make(chan error, 1)
+			go func() { direct <- run([]string{"-path", directory, "-host", "127.0.0.1:0", "-https=false"}) }()
+			select {
+			case err := <-direct:
+				if _, ok := updatemaintenance.IsStartupBlocked(err); !ok {
+					t.Fatal("direct invocation did not report the update refusal", err)
+				}
+			case <-time.After(30 * time.Second):
+				t.Fatal("direct invocation waited instead of exiting")
+			}
+
 			previous := blockedStartupPoll
 			blockedStartupPoll = 20 * time.Millisecond
-			t.Cleanup(func() { blockedStartupPoll = previous })
+			startedByServiceManager = func() bool { return true }
+			t.Cleanup(func() { blockedStartupPoll, startedByServiceManager = previous, unsupervised })
 
 			done := make(chan error, 1)
 			go func() { done <- run([]string{"-path", directory, "-host", "127.0.0.1:0", "-https=false"}) }()

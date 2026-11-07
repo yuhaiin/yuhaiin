@@ -46,6 +46,15 @@ var recoveryStartupCheckpoint func(string)
 // journal, adoption record or executable changed. Tests shorten it.
 var blockedStartupPoll = 5 * time.Second
 
+// startedByServiceManager reports whether a restart supervisor owns this
+// process: systemd sets INVOCATION_ID for every unit (system and user), and
+// launchd daemons and system units are children of PID 1. A direct operator
+// or test invocation must not wait; it exits nonzero with the next steps.
+// Tests replace it to exercise the supervised path in-process.
+var startedByServiceManager = func() bool {
+	return os.Getenv("INVOCATION_ID") != "" || os.Getppid() == 1
+}
+
 var errBlockedStartupChanged = errors.New("update startup state changed; exiting so the service manager re-evaluates startup")
 
 // waitBlockedStartup turns a terminal update refusal into one logged state
@@ -173,7 +182,7 @@ func run(args []string) (resultErr error) {
 	updateStartup, err := updatemaintenance.PrepareStartup(context.Background(), *path, executable, recoveryStartup.BackupID(), recoveryStartup.InstanceID())
 	if err != nil {
 		_ = recoveryStartup.Abort()
-		if blocked, ok := updatemaintenance.IsStartupBlocked(err); ok && runtime.GOOS != "windows" {
+		if blocked, ok := updatemaintenance.IsStartupBlocked(err); ok && runtime.GOOS != "windows" && startedByServiceManager() {
 			// Release the lifecycle owner so update-adopt or offline recovery can
 			// run while this process keeps launchd/systemd from restart-looping.
 			if lifecycle != nil {
