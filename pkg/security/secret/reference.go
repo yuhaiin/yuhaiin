@@ -60,7 +60,9 @@ func enterResource(next, old reflect.Value, c Capabilities) (Capabilities, error
 
 func childPath(c Capabilities, part string) Capabilities {
 	if c.bindReferences || c.resolveReferences {
-		c.path = append(slices.Clone(c.path), part)
+		// The full slice expression makes append copy once into a fresh array, so
+		// sibling fields never share a backing array (Clone+append copied twice).
+		c.path = append(c.path[:len(c.path):len(c.path)], part)
 	}
 	return c
 }
