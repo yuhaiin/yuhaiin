@@ -34,7 +34,7 @@ curl --fail --location --retry 3 --silent --show-error --output "$archive" \
   "https://github.com/$repo/releases/download/$tag/freebsd-arm64-toolchain.tar.zst" >&2
 echo "$digest  $archive" | sha256sum --check >&2
 
-rm -rf "$root/bin" "$root/sysroot" "$root/toolchain" "$root/.complete"
+rm -rf "${root:?}/bin" "${root:?}/sysroot" "${root:?}/toolchain" "${root:?}/.complete"
 tar --extract --zstd --file "$archive" --directory "$root"
 "$compiler" -fuse-ld=bfd -Wl,--version >&2
 touch "$root/.complete"
