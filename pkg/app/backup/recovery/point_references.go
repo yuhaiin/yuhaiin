@@ -136,10 +136,10 @@ func pinConfiguredPoints(ctx context.Context, directory string, pins map[string]
 			return err
 		}
 		return protocols(node.Chain)
-	}); err != nil {
+	}, func(resource store.UnsupportedResource) error { return walk(resource.Document) }); err != nil {
 		return err
 	}
-	if err := store.NewInboundStore(db).RangeForRecovery(ctx, func(inbound inboundcontract.Inbound) error { return document(inbound) }); err != nil {
+	if err := store.NewInboundStore(db).RangeForRecovery(ctx, func(inbound inboundcontract.Inbound) error { return document(inbound) }, func(resource store.UnsupportedResource) error { return walk(resource.Document) }); err != nil {
 		return err
 	}
 	gateway, err := store.NewGatewayStore(db).Load(ctx)

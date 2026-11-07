@@ -29,10 +29,10 @@ func rewriteRecoveryConfiguration(ctx context.Context, stage, instanceID string,
 		return err
 	}
 	defer db.Close()
-	if err := store.NewNodeStore(db.DB()).RangeForRecovery(ctx, func(nodecontract.Node) error { return nil }); err != nil {
+	if err := store.NewNodeStore(db.DB()).RangeForRecovery(ctx, func(nodecontract.Node) error { return nil }, func(store.UnsupportedResource) error { return nil }); err != nil {
 		return err
 	}
-	if err := store.NewInboundStore(db.DB()).RangeForRecovery(ctx, func(inboundcontract.Inbound) error { return nil }); err != nil {
+	if err := store.NewInboundStore(db.DB()).RangeForRecovery(ctx, func(inboundcontract.Inbound) error { return nil }, func(store.UnsupportedResource) error { return nil }); err != nil {
 		return err
 	}
 	for _, table := range []string{"nodes_v2", "inbounds_v2", "gateway_configuration"} {
@@ -299,7 +299,7 @@ func recoveryIdentityReplacements(ctx context.Context, stage, target string) ([]
 		}
 		return nil
 	}
-	err = store.NewNodeStore(db).RangeForRecovery(ctx, func(node nodecontract.Node) error { return walk(node.Chain) })
+	err = store.NewNodeStore(db).RangeForRecovery(ctx, func(node nodecontract.Node) error { return walk(node.Chain) }, func(store.UnsupportedResource) error { return nil })
 	return removals, err
 }
 

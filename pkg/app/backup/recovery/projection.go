@@ -169,7 +169,7 @@ func projectRecoveryTailnetIdentities(ctx context.Context, stage string, manifes
 		}
 		return nil
 	}
-	if err := store.NewNodeStore(db).RangeForRecovery(ctx, func(node nodecontract.Node) error { return walk(node.Chain) }); err != nil {
+	if err := store.NewNodeStore(db).RangeForRecovery(ctx, func(node nodecontract.Node) error { return walk(node.Chain) }, func(store.UnsupportedResource) error { return nil }); err != nil {
 		return err
 	}
 	for old, destination := range assigned {

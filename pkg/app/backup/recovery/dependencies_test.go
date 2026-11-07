@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -20,7 +21,7 @@ import (
 )
 
 func TestRecoveryDependencyObligationsRoundTrip(t *testing.T) {
-	for _, scenario := range []string{"disabled_inbound", "active_inbound", "disabled_node", "uninitialized_identities", "dynamic_library", "nebula_empty", "nebula_missing", "nebula_hardware", "missing_web", "inactive_metadata", "inactive_inbound_metadata"} {
+	for _, scenario := range []string{"disabled_inbound", "active_inbound", "disabled_node", "uninitialized_identities", "dynamic_library", "nebula_empty", "nebula_missing", "nebula_hardware", "missing_web", "inactive_metadata", "inactive_inbound_metadata", "removed_protocol_node", "removed_protocol_inbound"} {
 		t.Run(scenario, func(t *testing.T) {
 			source, key := testfixture.BasicDeployment(t)
 			db, err := testfixture.OpenState(t.Context(), filepath.Join(source, "state.db"))
@@ -75,6 +76,20 @@ func TestRecoveryDependencyObligationsRoundTrip(t *testing.T) {
 			case "missing_web":
 				want = "missing_web_assets"
 				err = backupstore.New(db.DB()).RecordRecoveryRuntime(t.Context(), contractrecovery.Runtime{ManagementTLS: "self_signed", ManagementAuth: true, WorkingDirectory: source, ExternalWebDirectory: missing})
+			case "removed_protocol_node":
+				// An enabled node still carrying a protocol removed in an earlier
+				// release, with a file reference the removed schema used to own.
+				want = "protocol_reconfiguration"
+				_, err = db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('legacy','Legacy','','manual',1,'[]',0,?)`,
+					`{"id":"legacy","name":"Legacy","origin":"manual","enabled":true,"chain":[{"type":"http_termination","http_termination":{"tls":{"certificates":[{"cert_file_path":`+strconv.Quote(missing)+`,"key_file_path":"site.key"}]}}}]}`)
+			case "removed_protocol_inbound":
+				want = "protocol_reconfiguration"
+				value := inbound.Inbound{ID: "listener", Name: "Listener", Enabled: true,
+					Network:  inbound.NewTypedNetwork(inbound.TCPUDPNetwork{Host: "127.0.0.1:0", UDP: inbound.UDPDisabled}),
+					Protocol: inbound.NewTypedProtocol(inbound.HTTPProtocol{})}
+				if err = store.NewInboundStore(db.DB()).Save(t.Context(), value, 0); err == nil {
+					_, err = db.DB().ExecContext(t.Context(), `UPDATE inbounds_v2 SET data_json=json_set(data_json,'$.protocol',json('{"type":"reverse_http"}')) WHERE id='listener'`)
+				}
 			case "inactive_metadata":
 				want = "inactive_node_configuration"
 				_, err = db.DB().ExecContext(t.Context(), `UPDATE nodes_v2 SET data_json=json_set(data_json,'$.name','','$.latency',json('{"url":"obsolete"}')) WHERE id='tls'`)

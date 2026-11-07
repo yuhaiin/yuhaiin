@@ -16,6 +16,7 @@ import (
 	contractrecovery "github.com/Asutorufa/yuhaiin/pkg/contract/backup/recovery"
 	inboundcontract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	nodecontract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/nebula"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tailscale"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/zerotier"
@@ -93,6 +94,8 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 			return fmt.Errorf("node %s dependencies: %w", node.ID, err)
 		}
 		return c.protocols(node.ID, node.Chain)
+	}, func(resource store.UnsupportedResource) error {
+		return c.unsupported("node", resource)
 	}); err != nil {
 		return err
 	}
@@ -103,6 +106,8 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 			}
 		}
 		return c.fileReferences(inbound)
+	}, func(resource store.UnsupportedResource) error {
+		return c.unsupported("inbound", resource)
 	}); err != nil {
 		return fmt.Errorf("inbound dependencies: %w", err)
 	}
@@ -154,6 +159,23 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 		}
 		return strings.Compare(a.Path, b.Path)
 	})
+	return nil
+}
+
+// unsupported keeps a resource the current schema cannot use, for example one
+// still carrying a removed protocol. The running service already skips it, so
+// it cannot block recovery; its raw document stays in the configuration
+// database and is marked for reconfiguration. Known file references are still
+// inventoried so a restore can rebind them. Credentials owned by an unknown
+// protocol cannot be located, which the requirement records.
+func (c *recoveryInventory) unsupported(kind string, resource store.UnsupportedResource) error {
+	log.Warn("recovery backup keeps unsupported stored resource for reconfiguration", "kind", kind, "id", resource.ID, "err", resource.Err)
+	if err := c.requirement(contractrecovery.Requirement{Kind: "protocol_reconfiguration", NodeID: resource.ID}); err != nil {
+		return err
+	}
+	if err := c.fileReferences(resource.Document); err != nil {
+		return fmt.Errorf("%s %s dependencies: %w", kind, resource.ID, err)
+	}
 	return nil
 }
 

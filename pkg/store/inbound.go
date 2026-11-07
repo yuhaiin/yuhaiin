@@ -116,17 +116,17 @@ func (s *InboundStore) List(ctx context.Context) ([]contract.Inbound, error) {
 
 func (s *InboundStore) list(ctx context.Context, strict bool) ([]contract.Inbound, error) {
 	var items []contract.Inbound
-	err := s.walk(ctx, strict, func(item contract.Inbound) error { items = append(items, item); return nil })
+	err := s.walk(ctx, strict, func(item contract.Inbound) error { items = append(items, item); return nil }, nil)
 	return items, err
 }
 
-// RangeForRecovery streams resources through the existing decoder, aborting
-// instead of silently omitting malformed persisted records.
-func (s *InboundStore) RangeForRecovery(ctx context.Context, visit func(contract.Inbound) error) error {
-	return s.walk(ctx, true, visit)
+// RangeForRecovery follows NodeStore.RangeForRecovery: inbounds the current
+// schema cannot use are passed to unsupported instead of aborting the walk.
+func (s *InboundStore) RangeForRecovery(ctx context.Context, visit func(contract.Inbound) error, unsupported func(UnsupportedResource) error) error {
+	return s.walk(ctx, true, visit, unsupported)
 }
 
-func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contract.Inbound) error) error {
+func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contract.Inbound) error, unsupported func(UnsupportedResource) error) error {
 	if s == nil || s.db == nil {
 		return errors.New("inbound store database is nil")
 	}
@@ -149,8 +149,11 @@ func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contrac
 		}
 		inbound, err := decodeInbound(dataJSON)
 		if strict && err == nil {
+			if inbound.ID != id {
+				return fmt.Errorf("stored inbound %s identity differs from storage key", id)
+			}
 			if inbound.Enabled != enabled {
-				err = errors.New("inbound enabled state differs from storage")
+				return fmt.Errorf("stored inbound %s enabled state differs from storage", id)
 			} else if enabled {
 				err = inbound.Validate()
 			} else {
@@ -168,13 +171,17 @@ func (s *InboundStore) walk(ctx context.Context, strict bool, visit func(contrac
 					}
 				}
 			}
-			if err == nil && inbound.ID != id {
-				err = errors.New("inbound identity differs from storage key")
-			}
 		}
 		if err != nil {
 			if strict {
-				return fmt.Errorf("stored inbound %s cannot be inventoried for recovery", id)
+				resource, ok := unsupportedRecoveryResource(id, dataJSON, err)
+				if !ok || unsupported == nil {
+					return fmt.Errorf("stored inbound %s cannot be inventoried for recovery: %w", id, err)
+				}
+				if err := unsupported(resource); err != nil {
+					return err
+				}
+				continue
 			}
 			log.Warn("skip invalid stored inbound", "id", id, "err", err)
 			continue

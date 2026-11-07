@@ -193,17 +193,42 @@ func (s *NodeStore) List(ctx context.Context) ([]contractnode.Node, error) { ret
 
 func (s *NodeStore) list(ctx context.Context, strict bool) ([]contractnode.Node, error) {
 	var items []contractnode.Node
-	err := s.walk(ctx, strict, func(item contractnode.Node) error { items = append(items, item); return nil })
+	err := s.walk(ctx, strict, func(item contractnode.Node) error { items = append(items, item); return nil }, nil)
 	return items, err
 }
 
-// RangeForRecovery streams resources through the existing decoder, aborting
-// instead of silently omitting malformed persisted records.
-func (s *NodeStore) RangeForRecovery(ctx context.Context, visit func(contractnode.Node) error) error {
-	return s.walk(ctx, true, visit)
+// UnsupportedResource is a stored node or inbound whose document is valid JSON
+// but that the current schema cannot decode or validate, such as a resource
+// still carrying a protocol removed in an earlier release. The running service
+// already skips it; recovery keeps the raw document and reports it instead of
+// failing the whole capture or restore.
+type UnsupportedResource struct {
+	ID       string
+	Document any
+	Err      error
 }
 
-func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractnode.Node) error) error {
+// RangeForRecovery streams resources through the existing decoder. Documents
+// that are not JSON, or whose identity or activation state disagrees with
+// storage, abort the walk. Documents the current schema cannot use are passed
+// to unsupported; a nil unsupported keeps them fatal.
+func (s *NodeStore) RangeForRecovery(ctx context.Context, visit func(contractnode.Node) error, unsupported func(UnsupportedResource) error) error {
+	return s.walk(ctx, true, visit, unsupported)
+}
+
+// unsupportedRecoveryResource returns the raw document when it is still JSON.
+func unsupportedRecoveryResource(id, dataJSON string, cause error) (UnsupportedResource, bool) {
+	var document any
+	if err := json.Unmarshal([]byte(dataJSON), &document); err != nil {
+		return UnsupportedResource{}, false
+	}
+	if _, ok := document.(map[string]any); !ok {
+		return UnsupportedResource{}, false
+	}
+	return UnsupportedResource{ID: id, Document: document, Err: cause}, true
+}
+
+func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractnode.Node) error, unsupported func(UnsupportedResource) error) error {
 	if s == nil || s.db == nil {
 		return errors.New("node store database is nil")
 	}
@@ -228,11 +253,14 @@ func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractno
 		if strict {
 			// Recovery preserves decodable inactive documents even when their
 			// activation metadata is obsolete. Unknown protocol/identity layouts
-			// still fail: their persistent credentials cannot be inventoried.
+			// cannot be inventoried and are reported as unsupported.
 			err = json.Unmarshal([]byte(dataJSON), &node)
 			if err == nil {
+				if node.ID != id {
+					return fmt.Errorf("stored node %s identity differs from storage key", id)
+				}
 				if node.Enabled != enabled {
-					err = errors.New("node enabled state differs from storage")
+					return fmt.Errorf("stored node %s enabled state differs from storage", id)
 				} else if enabled {
 					err = node.Validate()
 				} else {
@@ -246,12 +274,16 @@ func (s *NodeStore) walk(ctx context.Context, strict bool, visit func(contractno
 		} else {
 			node, err = decodeNodeContract(dataJSON)
 		}
-		if strict && err == nil && node.ID != id {
-			err = errors.New("node identity differs from storage key")
-		}
 		if err != nil {
 			if strict {
-				return fmt.Errorf("stored node %s cannot be inventoried for recovery", id)
+				resource, ok := unsupportedRecoveryResource(id, dataJSON, err)
+				if !ok || unsupported == nil {
+					return fmt.Errorf("stored node %s cannot be inventoried for recovery: %w", id, err)
+				}
+				if err := unsupported(resource); err != nil {
+					return err
+				}
+				continue
 			}
 			log.Warn("skip invalid stored node", "id", id, "err", err)
 			continue
