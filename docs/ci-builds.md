@@ -175,6 +175,30 @@ go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 shellcheck scripts/build/*.sh
 ```
 
+### Cache save policy and cleanup
+
+Only default branch runs (push, schedule or manual dispatch on `main`) save Go
+module and build caches; pull requests restore them with
+`actions/cache/restore`. A pull request's cache is restorable by that pull
+request alone, and its build keys end in the commit SHA, so every push saved a
+new ~240 MiB snapshot for each of its ~18 scopes. One CI-only pull request
+reached 54 entries (12 GiB), past the 10 GiB repository quota, and GitHub
+evicted the `main` caches that all pull requests restore.
+
+`.github/workflows/cache-cleanup.yml` runs `scripts/ci/prune-actions-caches.sh`
+after `main` workflows, every six hours and on demand. It deletes caches of pull
+requests that are no longer open and, per ref, every cache but the newest of its
+scope (the key before its first 64-hex file hash or trailing commit SHA), since
+restores only pick the newest. Preview it with:
+
+```sh
+DRY_RUN=1 GITHUB_REPOSITORY=yuhaiin/yuhaiin bash scripts/ci/prune-actions-caches.sh
+```
+
+Workflows that run only on pull requests (protocol interop, lightweight stack,
+reliability) therefore start without a compiler cache; they still restore the
+shared module cache.
+
 ### Go cache validation (2026-10-05)
 
 The [baseline run](https://github.com/yuhaiin/yuhaiin/actions/runs/37285861254)

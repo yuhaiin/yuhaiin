@@ -35,11 +35,37 @@ runs:
           echo "build=$(go env GOCACHE)"
         } >> "$GITHUB_OUTPUT"
 
+    # Only the default branch saves caches; pull requests restore them. A cache
+    # saved by a pull request is visible to that pull request alone, and each
+    # push saved a full new set (one per scope), which overflowed the 10 GB
+    # repository quota and evicted the default branch caches everyone shares.
+    - name: Decide whether to save caches
+      id: policy
+      shell: bash
+      env:
+        # Scheduled runs carry no repository payload; fall back to main.
+        DEFAULT_REF: refs/heads/${{ github.event.repository.default_branch || 'main' }}
+      run: |
+        if [[ "$GITHUB_REF" == "$DEFAULT_REF" && "$GITHUB_EVENT_NAME" != pull_request* ]]; then
+          echo "save=true" >> "$GITHUB_OUTPUT"
+        fi
+
     # Module archives are shared across targets, without duplicating them in
     # every architecture's build cache. Include frontend updates made by go get.
-    - name: Restore Go module cache
+    - name: Restore and save Go module cache
       id: modules
+      if: steps.policy.outputs.save == 'true'
       uses: actions/cache@v6
+      with:
+        path: ${{ steps.go-env.outputs.modules }}
+        key: gomod-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ inputs.dependency-key }}
+        restore-keys: |
+          gomod-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-
+
+    - name: Restore Go module cache
+      id: modules-restore
+      if: steps.policy.outputs.save != 'true'
+      uses: actions/cache/restore@v6
       with:
         path: ${{ steps.go-env.outputs.modules }}
         key: gomod-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.version }}-${{ hashFiles('go.mod', 'go.sum') }}-${{ inputs.dependency-key }}
@@ -49,7 +75,7 @@ runs:
     # Ensure the first job saving a shared key contains the complete module
     # graph, even if that job only runs a small auxiliary tool or go fix.
     - name: Download Go modules on cache miss
-      if: steps.modules.outputs.cache-hit != 'true'
+      if: steps.modules.outputs.cache-hit != 'true' && steps.modules-restore.outputs.cache-hit != 'true'
       shell: bash
       run: go mod download
 
@@ -57,9 +83,18 @@ runs:
     # while the prefix restores the preceding snapshot for this build target.
     # Installer/build-script changes invalidate the prefix, including CGO SDKs.
     # Go itself checks source, flags, dependencies and compiler compatibility.
-    - name: Restore Go build cache
-      if: inputs.build-cache == 'true'
+    - name: Restore and save Go build cache
+      if: inputs.build-cache == 'true' && steps.policy.outputs.save == 'true'
       uses: actions/cache@v6
+      with:
+        path: ${{ steps.go-env.outputs.build }}
+        key: gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.image }}-${{ steps.go-env.outputs.version }}-${{ inputs.cache-scope }}-${{ hashFiles('.github/actions/setup-go/action.yml', 'scripts/build/*.sh', 'makefile') }}-${{ inputs.dependency-key }}-${{ github.sha }}
+        restore-keys: |
+          gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.image }}-${{ steps.go-env.outputs.version }}-${{ inputs.cache-scope }}-${{ hashFiles('.github/actions/setup-go/action.yml', 'scripts/build/*.sh', 'makefile') }}-
+
+    - name: Restore Go build cache
+      if: inputs.build-cache == 'true' && steps.policy.outputs.save != 'true'
+      uses: actions/cache/restore@v6
       with:
         path: ${{ steps.go-env.outputs.build }}
         key: gobuild-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-env.outputs.image }}-${{ steps.go-env.outputs.version }}-${{ inputs.cache-scope }}-${{ hashFiles('.github/actions/setup-go/action.yml', 'scripts/build/*.sh', 'makefile') }}-${{ inputs.dependency-key }}-${{ github.sha }}
