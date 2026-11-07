@@ -42,6 +42,28 @@ import (
 // Tests replace this only to terminate a subprocess at an actual startup boundary.
 var recoveryStartupCheckpoint func(string)
 
+// blockedStartupPoll is how often a refused startup checks whether the update
+// journal, adoption record or executable changed. Tests shorten it.
+var blockedStartupPoll = 5 * time.Second
+
+var errBlockedStartupChanged = errors.New("update startup state changed; exiting so the service manager re-evaluates startup")
+
+// waitBlockedStartup turns a terminal update refusal into one logged state
+// instead of a KeepAlive/Restart loop that repeats the same error. No database,
+// listener or lifecycle lock is held. A termination signal exits cleanly; a
+// changed journal, adoption or executable exits nonzero so launchd KeepAlive
+// and systemd Restart=on-failure start a fresh evaluation.
+func waitBlockedStartup(blocked *updatemaintenance.StartupBlockedError, directory, executable string) error {
+	log.Error("service startup is blocked by update maintenance; waiting for operator recovery", "detail", blocked.Error())
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
+	if err := updatemaintenance.WaitStartupChange(ctx, directory, executable, blockedStartupPoll); err != nil {
+		log.Info("blocked service startup stopped by signal")
+		return nil
+	}
+	return errBlockedStartupChanged
+}
+
 func run(args []string) (resultErr error) {
 	flags := flag.NewFlagSet("yuhaiin", flag.ExitOnError)
 	initialization := initializationOptions(flags)
@@ -151,6 +173,14 @@ func run(args []string) (resultErr error) {
 	updateStartup, err := updatemaintenance.PrepareStartup(context.Background(), *path, executable, recoveryStartup.BackupID(), recoveryStartup.InstanceID())
 	if err != nil {
 		_ = recoveryStartup.Abort()
+		if blocked, ok := updatemaintenance.IsStartupBlocked(err); ok && runtime.GOOS != "windows" {
+			// Release the lifecycle owner so update-adopt or offline recovery can
+			// run while this process keeps launchd/systemd from restart-looping.
+			if lifecycle != nil {
+				_ = lifecycle.Close()
+			}
+			return waitBlockedStartup(blocked, *path, executable)
+		}
 		return err
 	}
 	recoveryComplete := false

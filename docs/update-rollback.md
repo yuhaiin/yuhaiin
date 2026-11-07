@@ -108,6 +108,42 @@ installed path with executable permissions, then start the service. Startup must
 bind the restored transaction's backup and original-instance IDs to the update journal and pass actual
 health checks before the result becomes `recovered`.
 
+### Manual executable replacement after a failed preparation
+
+`failed` with `preparation_failed_source_preserved` or
+`cancelled_before_maintenance` means the target never replaced the source and
+never opened the databases. Startup still verifies the recorded source. Any
+other installed executable is refused **before** stores open; the process then
+logs the operation, its executable classification (`recorded_source`,
+`recorded_target`, `adopted`, `unrecorded`) and concrete next steps once, and
+waits instead of exiting. That ends the launchd `KeepAlive` / systemd
+`Restart=on-failure` loop that repeated the same error every ~10 seconds. The
+wait holds no database, listener or lifecycle lock, and exits only when the
+journal, `.update-adoption.json` or the executable changes (the service manager
+then re-evaluates a fresh process) or on a termination signal.
+
+To keep the manually installed binary, run it as the installed path:
+
+```sh
+sudo /usr/local/bin/yuhaiin update-status -path "/Library/Application Support/yuhaiin"
+sudo /usr/local/bin/yuhaiin update-adopt -path "/Library/Application Support/yuhaiin" -dry-run
+sudo /usr/local/bin/yuhaiin update-adopt -path "/Library/Application Support/yuhaiin"
+```
+
+`update-adopt` takes the shared maintenance lease and the lifecycle lock,
+refuses a pending database recovery or a leftover `.update-backup`, requires the
+installed regular file to be the running image, verifies platform/libc, and
+reads both schema catalogs read-only. Only `compatible` (no migration) is
+accepted; `migration_required`, `incompatible` or `unknown` is refused, with the
+instruction to reinstall the recorded source and repeat a protected update. The
+journal is not rewritten or deleted: the adoption is a separate 0600 record
+bound to the operation ID, failure code and exact executable digest, and startup
+rechecks the digest and schemas each time. A later replacement needs a new
+adoption; the recorded source is always accepted without one. `starting`,
+`healthy`, `manual_recovery` and other failure codes cannot be adopted.
+`manual_recovery` waits the same way, but its only exit remains the paired
+archive/source restoration below.
+
 A lost launch acknowledgement preserves the admitted operation, staging and point.
 Observe status rather than repeating the update POST. Only a still-`prepared`
 operation may be explicitly cancelled through UpdateManage-protected `update.cancel`;

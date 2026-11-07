@@ -3,6 +3,7 @@ package maintenance
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"time"
@@ -24,7 +25,18 @@ func PrepareStartup(ctx context.Context, directory, executable, restoredBackupID
 	case "completed", "recovered":
 		return nil, nil
 	case "failed":
-		return nil, verify(ctx, executable, r.Source)
+		err := verify(ctx, executable, r.Source)
+		if err == nil {
+			return nil, nil
+		}
+		if !PreparationFailure(r) {
+			return nil, blockedStartup(ctx, directory, executable, r, err)
+		}
+		adoptErr := verifyAdoption(ctx, directory, executable, r)
+		if adoptErr == nil {
+			return nil, nil
+		}
+		return nil, blockedStartup(ctx, directory, executable, r, fmt.Errorf("%w; %w", err, adoptErr))
 	case "starting", "healthy":
 		if err := verify(ctx, executable, r.Target); err != nil {
 			return nil, err
@@ -32,10 +44,10 @@ func PrepareStartup(ctx context.Context, directory, executable, restoredBackupID
 		return &Startup{directory: directory, id: r.ID}, nil
 	case "manual_recovery":
 		if r.BackupID == "" || restoredBackupID != r.BackupID || r.SourceInstanceID == "" || restoredInstanceID != r.SourceInstanceID {
-			return nil, errors.New("update requires authenticated offline restoration of its matching recovery point")
+			return nil, blockedStartup(ctx, directory, executable, r, errors.New("update requires authenticated offline restoration of its matching recovery point"))
 		}
 		if err := verify(ctx, executable, r.Source); err != nil {
-			return nil, errors.New("update recovery requires the recorded source executable and matching database archive")
+			return nil, blockedStartup(ctx, directory, executable, r, errors.New("update recovery requires the recorded source executable and matching database archive"))
 		}
 		return &Startup{directory: directory, id: r.ID, recovered: true}, nil
 	default:
