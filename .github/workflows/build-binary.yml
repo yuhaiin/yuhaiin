@@ -56,20 +56,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y llvm
 
+      # The SDK and GNU linker come prebuilt from a release asset (see
+      # freebsd-toolchain.yml); only clang is needed on the host.
       - name: Install FreeBSD cross compiler prerequisites
         if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
-        id: freebsd-host
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang build-essential bison flex texinfo
-          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache FreeBSD ARM64 SDK and GNU linker
-        if: inputs.os == 'freebsd' && inputs.arch == 'arm64'
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/freebsd-cross
-          key: freebsd-cross-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.freebsd-host.outputs.image }}-${{ hashFiles('scripts/build/install-freebsd-toolchain.sh') }}
+          if ! command -v clang >/dev/null || ! command -v zstd >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install --no-install-recommends -y clang zstd
+          fi
 
       - name: Install FreeBSD cross toolchain
         if: inputs.os == 'freebsd' && inputs.arch == 'arm64'

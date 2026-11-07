@@ -101,12 +101,19 @@ PureGo. They do not require a cross C compiler or a system SQLite installation.
 
 ### FreeBSD ARM64 cross compilation
 
-`scripts/build/install-freebsd-toolchain.sh arm64` installs the checksum-pinned
-FreeBSD 14.3 base SDK and builds GNU binutils 2.45's ARM64 FreeBSD linker on Linux.
-It prints a Clang compiler wrapper path. Install Clang, build-essential, bison,
-flex and texinfo first; set `RUNNER_TEMP` to a writable scratch directory.
-The workflow caches the installed SDK/linker, with a key including the installer
-hash. Existing Go module/compiler caches also apply to this target.
+`scripts/build/install-freebsd-toolchain.sh arm64` downloads a prebuilt FreeBSD
+14.3 base SDK and GNU binutils 2.45 ARM64 FreeBSD linker from a GitHub release
+and prints a Clang compiler wrapper path. `scripts/build/freebsd-toolchain.lock`
+pins the release tag and archive checksum. Install Clang and zstd first; set
+`RUNNER_TEMP` to a writable scratch directory.
+
+`scripts/build/build-freebsd-toolchain.sh arm64` builds the same toolchain from
+source (it also needs build-essential, bison, flex and texinfo). Fetching the SDK
+from the FreeBSD archive mirror is slow, so `.github/workflows/freebsd-toolchain.yml`
+runs it once whenever the script changes. That workflow publishes the result as a
+`toolchain-freebsd-arm64-<script hash>` release, which is not a yuhaiin release
+and is ignored by the updater. After it runs, copy the tag and checksum from its
+job summary into the lock file.
 
 ```sh
 CC=$(bash scripts/build/install-freebsd-toolchain.sh arm64)

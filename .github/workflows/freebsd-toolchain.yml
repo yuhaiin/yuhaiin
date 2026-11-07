@@ -1,0 +1,98 @@
+name: FreeBSD toolchain
+
+# Builds the FreeBSD ARM64 cross toolchain once and publishes it as a release
+# asset, so release builds download it from GitHub instead of fetching the
+# FreeBSD SDK from the slow archive mirror and compiling GNU ld every time.
+# The tag is derived from the build script, so editing the script publishes a
+# new asset. Pin the printed tag and checksum in
+# scripts/build/freebsd-toolchain.lock afterwards.
+on:
+  push:
+    paths:
+      - 'scripts/build/build-freebsd-toolchain.sh'
+      - '.github/workflows/freebsd-toolchain.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    # The oldest supported host builds ld.bfd, so it runs on newer runners too.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ASSET: freebsd-arm64-toolchain.tar.zst
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve release tag
+        id: release
+        run: |
+          tag="toolchain-freebsd-arm64-$(sha256sum scripts/build/build-freebsd-toolchain.sh | cut -c1-12)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists; nothing to build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install build prerequisites
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y clang build-essential bison flex texinfo zstd
+
+      - name: Build toolchain
+        if: steps.release.outputs.exists != 'true'
+        env:
+          FREEBSD_CROSS_ROOT: ${{ runner.temp }}/freebsd-cross
+        run: bash scripts/build/build-freebsd-toolchain.sh arm64
+
+      - name: Package toolchain
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          tar --create --directory "$RUNNER_TEMP/freebsd-cross" bin sysroot toolchain |
+            zstd -19 -T0 --quiet -o "$RUNNER_TEMP/$ASSET"
+          ls -l "$RUNNER_TEMP/$ASSET"
+
+      # The archive must work from any directory, as CI extracts it elsewhere.
+      - name: Link a FreeBSD ARM64 program from a relocated copy
+        if: steps.release.outputs.exists != 'true'
+        run: |
+          relocated="$RUNNER_TEMP/relocated"
+          mkdir -p "$relocated"
+          tar --extract --zstd --file "$RUNNER_TEMP/$ASSET" --directory "$relocated"
+          printf '#include <stdio.h>\nint main(void){puts("ok");return 0;}\n' > "$RUNNER_TEMP/hello.c"
+          "$relocated/bin/freebsd-arm64-cc" -fuse-ld=bfd "$RUNNER_TEMP/hello.c" -o "$RUNNER_TEMP/hello"
+          file "$RUNNER_TEMP/hello" | tee /dev/stderr | grep -q 'ARM aarch64.*FreeBSD'
+
+      - name: Publish release
+        if: steps.release.outputs.exists != 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          digest=$(sha256sum "$RUNNER_TEMP/$ASSET" | cut -d' ' -f1)
+          gh release create "$TAG" "$RUNNER_TEMP/$ASSET" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "FreeBSD ARM64 cross toolchain ($TAG)" \
+            --notes "Build tool for CI, not a yuhaiin release. Built by scripts/build/build-freebsd-toolchain.sh at $GITHUB_SHA.
+
+          sha256: \`$digest\`"
+          {
+            echo "Published \`$TAG\`. Pin it in scripts/build/freebsd-toolchain.lock:"
+            echo '```'
+            echo "tag=$TAG"
+            echo "sha256=$digest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

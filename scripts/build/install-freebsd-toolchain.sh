@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Go requires GNU ld.bfd for FreeBSD ARM64 external linking (golang/go#35197).
-# Clang supplies the cross compiler; the official base archive supplies the SDK.
+# Installs the prebuilt FreeBSD ARM64 cross toolchain (FreeBSD SDK plus GNU
+# ld.bfd) that .github/workflows/freebsd-toolchain.yml builds with
+# build-freebsd-toolchain.sh and publishes as a GitHub release asset.
+# freebsd-toolchain.lock pins the release tag and the asset checksum.
 if [[ "${1:?usage: install-freebsd-toolchain.sh arm64}" != arm64 || $(uname -s) != Linux ]]; then
   echo 'this FreeBSD toolchain supports arm64 builds on Linux only' >&2
   exit 1
@@ -16,52 +18,24 @@ if [[ -f "$root/.complete" && -x "$compiler" && -x "$root/toolchain/bin/ld.bfd" 
   exit 0
 fi
 
-work=$(mktemp -d "${RUNNER_TEMP:?RUNNER_TEMP must be set}/freebsd-cross-build.XXXXXX")
-trap 'rm -rf "$work"' EXIT
-download() {
-  local url=$1 digest=$2 archive=$3
-  curl --fail --location --retry 3 --output "$archive" "$url" >&2
-  echo "$digest  $archive" | sha256sum --check >&2
-}
-download https://archive.freebsd.org/old-releases/arm64/aarch64/14.3-RELEASE/base.txz \
-  f83e824cb7a20dbadb2888a8bd253e6a1ac35024cc6dc8af9f3e229f75ec7129 "$work/base.txz"
-download https://ftp.gnu.org/gnu/binutils/binutils-2.45.tar.xz \
-  c50c0e7f9cb188980e2cc97e4537626b1672441815587f1eab69d2a1bfbef5d2 "$work/binutils.tar.xz"
-
-rm -rf "$root/sysroot" "$root/toolchain"
-mkdir -p "$root/sysroot" "$root/bin" "$work/build"
-tar --extract --xz --file "$work/base.txz" --directory "$root/sysroot" \
-  --no-same-owner --no-same-permissions ./lib ./usr/lib ./usr/include
-# Keep any absolute SDK symlinks inside the sysroot when used on Linux.
-while IFS= read -r -d '' link; do
-  target=$(readlink "$link")
-  if [[ "$target" == /* ]]; then
-    ln -sfn "$(realpath -m --relative-to="$(dirname "$link")" "$root/sysroot$target")" "$link"
-  fi
-done < <(find "$root/sysroot" -type l -print0)
-tar --extract --xz --file "$work/binutils.tar.xz" --directory "$work"
-if ! (
-  cd "$work/build"
-  ../binutils-2.45/configure --target=aarch64-unknown-freebsd14.3 \
-    --prefix="$root/toolchain" --with-sysroot="$root/sysroot" \
-    --disable-nls --disable-werror --disable-gdb --disable-gprof --disable-gprofng \
-    --disable-gold --disable-sim --disable-binutils --disable-gas --disable-libctf \
-    --disable-shared --disable-plugins --without-debuginfod --without-zstd &&
-  make -j"$(getconf _NPROCESSORS_ONLN)" all-ld &&
-  make install-ld
-) > "$work/binutils.log" 2>&1; then
-  cat "$work/binutils.log" >&2
+lock="$(cd "$(dirname "$0")" && pwd)/freebsd-toolchain.lock"
+tag=$(sed -n 's/^tag=//p' "$lock")
+digest=$(sed -n 's/^sha256=//p' "$lock")
+if [[ -z "$tag" || ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "invalid $lock; run build-freebsd-toolchain.sh to build from source" >&2
   exit 1
 fi
-ln -s aarch64-unknown-freebsd14.3-ld.bfd "$root/toolchain/bin/ld.bfd"
-cat > "$compiler" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd)
-exec clang --target=aarch64-unknown-freebsd14.3 --sysroot="$root/sysroot" \
-  -B"$root/toolchain/bin" "$@"
-EOF
-chmod +x "$compiler"
+repo="${FREEBSD_TOOLCHAIN_REPO:-yuhaiin/yuhaiin}"
+
+work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/freebsd-cross-download.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+archive="$work/freebsd-arm64-toolchain.tar.zst"
+curl --fail --location --retry 3 --silent --show-error --output "$archive" \
+  "https://github.com/$repo/releases/download/$tag/freebsd-arm64-toolchain.tar.zst" >&2
+echo "$digest  $archive" | sha256sum --check >&2
+
+rm -rf "${root:?}/bin" "${root:?}/sysroot" "${root:?}/toolchain" "${root:?}/.complete"
+tar --extract --zstd --file "$archive" --directory "$root"
 "$compiler" -fuse-ld=bfd -Wl,--version >&2
 touch "$root/.complete"
 echo "$compiler"
