@@ -113,7 +113,10 @@ func recoveryStartupBindingFor(ctx context.Context, directory string) (*recovery
 		return nil, err
 	}
 	canonical, err := backupfs.CanonicalDirectory(directory)
-	if err != nil || binding.Runtime.WorkingDirectory != canonical {
+	bound, boundErr := backupfs.CanonicalDirectory(binding.Runtime.WorkingDirectory)
+	// Compare physical directories: an alias of the same deployment is not a
+	// different deployment, while a moved or missing directory still is.
+	if err != nil || boundErr != nil || bound != canonical {
 		return nil, errors.New("managed recovery startup belongs to a different deployment directory; restore with explicit path rebinding")
 	}
 	id, err := sqlite.RecoveryInstanceID(ctx, filepath.Join(directory, "state.db"), false)

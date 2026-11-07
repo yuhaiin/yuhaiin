@@ -25,6 +25,9 @@ Actions:
   start       start yuhaiin
   stop        stop yuhaiin
   restart     restart yuhaiin
+  update-status  show the durable update operation and recovery steps
+  update-adopt   keep a manually installed, schema-compatible executable after a
+                 failed update preparation (-path DIR, -dry-run)
   version     show version
   run         run yuhaiin       [default]
 
@@ -96,6 +99,9 @@ func main() {
 		return
 	case "update-status":
 		do(updatecmd.Status)
+		return
+	case "update-adopt":
+		do(updatecmd.Adopt)
 		return
 	case "launchd-maintenance-supervisor":
 		do(servicehost.SuperviseDarwin)

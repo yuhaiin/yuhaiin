@@ -120,7 +120,7 @@ func (c *recoveryInventory) collect(db *sql.DB) error {
 	}
 	if c.runtime.ExternalWebDirectory != "" {
 		directory := c.absolute(c.runtime.ExternalWebDirectory)
-		relative, err := filepath.Rel(directory, c.source)
+		relative, err := filepath.Rel(canonicalReference(directory), c.source)
 		if err == nil && filepath.IsLocal(relative) {
 			return errors.New("external web assets cannot contain the deployment data directory")
 		}
@@ -292,6 +292,24 @@ func isRecoveryFileReference(key string) bool {
 	return slices.Contains([]string{"cert_file_path", "key_file_path", "certFile", "keyFile", "certificateFile", "library_path"}, key)
 }
 
+// canonicalReference resolves symbolic links in the deepest existing
+// ancestor directory of path. The final element is left unresolved, so a
+// symlinked file or web root is still seen, and rejected, as a symlink.
+func canonicalReference(path string) string {
+	directory, rest := filepath.Dir(path), filepath.Base(path)
+	for {
+		if resolved, err := filepath.EvalSymlinks(directory); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return path
+		}
+		rest = filepath.Join(filepath.Base(directory), rest)
+		directory = parent
+	}
+}
+
 func (c *recoveryInventory) absolute(name string) string {
 	if filepath.IsAbs(name) {
 		return filepath.Clean(name)
@@ -326,7 +344,11 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 	if err := c.checkSpace(c.snapshot, info.Size()); err != nil {
 		return "", err
 	}
-	relative, err := filepath.Rel(c.source, source)
+	// c.source is canonical. Classify by the reference's physical directory so
+	// an alias of the deployment (macOS /var -> /private/var, a symlinked
+	// mount) cannot turn an owned file into an external dependency.
+	physical := canonicalReference(source)
+	relative, err := filepath.Rel(c.source, physical)
 	inside := err == nil && filepath.IsLocal(relative) && relative != "."
 	archivePath := filepath.ToSlash(relative)
 	original := ""
@@ -335,6 +357,9 @@ func (c *recoveryInventory) copy(name, role string, owned bool) (string, error) 
 			return "", errors.New("protocol-owned identity escaped its deployment directory")
 		}
 		archivePath = recoveryDependencyPath(source)
+		original = source
+	} else if physical != source && !owned {
+		// Keep the configured spelling so restore can rebind this reference.
 		original = source
 	}
 	if owned {
