@@ -28,3 +28,35 @@ func TestDialForkIsolatesOptionsAndHistoryButRetainsRoutingIdentity(t *testing.T
 		t.Fatal("winner metadata or routing identity lost")
 	}
 }
+
+func TestRuleMatchReserveAndCompact(t *testing.T) {
+	c := GetContext(WithContext(t.Context()))
+	c.ReserveRuleMatches(20)
+	allocs := testing.AllocsPerRun(1, func() {
+		c.ruleChain = c.ruleChain[:0]
+		for range 20 {
+			c.NewRuleMatch("", "r")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("reserved chain reallocated %v times", allocs)
+	}
+
+	c.ruleChain = c.ruleChain[:3]
+	c.CompactRuleMatches()
+	if len(c.ruleChain) != 3 || cap(c.ruleChain) != 3 {
+		t.Fatalf("len=%d cap=%d after compact", len(c.ruleChain), cap(c.ruleChain))
+	}
+
+	// A forked child must not write into the parent's shared backing array.
+	parent := GetContext(WithContext(t.Context()))
+	parent.NewRuleMatch("p", "p")
+	parent.ReserveRuleMatches(4)
+	child := ForkContext(parent)
+	child.ReserveRuleMatches(4)
+	child.NewRuleMatch("c", "c")
+	parent.NewRuleMatch("p2", "p2")
+	if child.MatchHistory()[1].RuleID != "c" || parent.MatchHistory()[1].RuleID != "p2" {
+		t.Fatalf("shared history corrupted: parent=%+v child=%+v", parent.MatchHistory(), child.MatchHistory())
+	}
+}

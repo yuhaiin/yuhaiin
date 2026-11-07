@@ -380,6 +380,7 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 		store.SetMatchedRule("", "")
 		store.ConnOptions().SetMatchedLists(nil, s.listNames)
 		store.ConnOptions().AddLists(hosts...).AddLists(processes...)
+		store.ReserveRuleMatches(len(matchers))
 		for _, entry := range matchers {
 			if entry.mode.Mode() == ModeGateway && (skipGateway(ctx) || addr.Network() != "tcp") {
 				continue
@@ -388,16 +389,19 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 			store.SetRuleMatchTemplate(entry.traceTemplate)
 			if entry.matcher.Match(ctx, addr) {
 				store.SetMatchedRule(entry.id, entry.name)
+				store.CompactRuleMatches()
 				s.mu.RUnlock()
 				mode := entry.mode
 				mode.config = config
 				return mode
 			}
 			if probe.deferred() {
+				store.CompactRuleMatches()
 				s.mu.RUnlock()
 				return ProxyMode
 			}
 		}
+		store.CompactRuleMatches()
 		s.mu.RUnlock()
 		mode := ProxyMode
 		if config != nil {

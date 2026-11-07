@@ -435,6 +435,33 @@ func (c *Context) NewRuleMatch(id, name string) {
 	c.ruleChain = append(c.ruleChain, contractconnection.MatchHistoryEntry{RuleID: id, RuleName: name})
 }
 
+// ReserveRuleMatches sizes the rule chain for up to n more entries with one
+// allocation, instead of regrowing it once per evaluated rule.
+func (c *Context) ReserveRuleMatches(n int) {
+	if n <= 0 {
+		return
+	}
+	if c.sharedHistory {
+		c.ruleChain = append(make([]contractconnection.MatchHistoryEntry, 0, len(c.ruleChain)+n), c.ruleChain...)
+		c.sharedHistory = false
+		return
+	}
+	c.ruleChain = slices.Grow(c.ruleChain, n)
+}
+
+// CompactRuleMatches drops reserved capacity that matching did not use. The
+// chain lives as long as the connection, so a mostly empty tail is copied away.
+func (c *Context) CompactRuleMatches() {
+	if c.sharedHistory || cap(c.ruleChain) <= 2*len(c.ruleChain) {
+		return
+	}
+	if len(c.ruleChain) == 0 {
+		c.ruleChain = nil
+		return
+	}
+	c.ruleChain = slices.Clone(c.ruleChain)
+}
+
 func (c *Context) AddMatchHistory(listName string, matched bool) {
 	c.AddConditionHistory("", "", listName, matched)
 }

@@ -108,6 +108,14 @@ type serverPacketConn struct {
 	mu      sync.Mutex
 	closed  bool
 	stop    func() bool
+
+	// A UDP session usually talks to one peer, so the last address is reused
+	// instead of parsing or formatting it again for every packet.
+	// lastTarget* belong to the single WriteTo caller; lastReply* to mu.
+	lastTarget     string
+	lastTargetAddr netapi.Address
+	lastReplyKey   uint64
+	lastReply      string
 }
 
 func newServerPacketConn(ctx context.Context, source net.Addr, handler netapi.Handler) *serverPacketConn {
@@ -146,9 +154,13 @@ func (p *serverPacketConn) WriteTo(b []byte, target string) (int, error) {
 		return 0, net.ErrClosed
 	default:
 	}
-	addr, err := netapi.ParseAddress("udp", target)
-	if err != nil {
-		return 0, err
+	addr := p.lastTargetAddr
+	if addr == nil || target != p.lastTarget {
+		var err error
+		if addr, err = netapi.ParseAddress("udp", target); err != nil {
+			return 0, err
+		}
+		p.lastTarget, p.lastTargetAddr = target, addr
 	}
 	p.handler.HandlePacket(netapi.NewPacket(p.source, addr, pool.Clone(b), netapi.WriteBackFunc(p.writeBack), netapi.WithMigrateID(p.id)))
 	return len(b), nil
@@ -165,11 +177,25 @@ func (p *serverPacketConn) writeBack(b []byte, addr net.Addr) (int, error) {
 	}
 	data := pool.Clone(b)
 	select {
-	case p.packets <- datagram{data, addr.String()}:
+	case p.packets <- datagram{data, p.replyString(addr)}:
 	default:
 		pool.PutBytes(data)
 	}
 	return len(b), nil
+}
+
+// replyString formats addr, reusing the previous result for the same
+// [netapi.Address]. The caller holds p.mu.
+func (p *serverPacketConn) replyString(addr net.Addr) string {
+	a, ok := addr.(netapi.Address)
+	if !ok {
+		return addr.String()
+	}
+	key := a.Comparable()
+	if p.lastReply == "" || key != p.lastReplyKey {
+		p.lastReplyKey, p.lastReply = key, a.String()
+	}
+	return p.lastReply
 }
 
 func (p *serverPacketConn) Close() error {
