@@ -113,3 +113,36 @@ func TestTunnelSessionCookieUsesPublicHTTPS(t *testing.T) {
 		t.Fatal("tunnel session cookie cannot authenticate after refresh")
 	}
 }
+
+func TestLoopbackCookieSurvivesReloadFromStaticUI(t *testing.T) {
+	issued := IssuedCredential{ExpiresAt: time.Now().Add(time.Hour).Unix(), Secret: "opaque"}
+	request := func(origin string) *http.Request {
+		r := httptest.NewRequest("POST", "http://127.0.0.1:50051/api/v2/auth/login", nil)
+		r.RemoteAddr = "127.0.0.1:1000"
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		return r
+	}
+	// The static UI on another site needs a cookie browsers store and send on cross-site fetches.
+	for _, set := range []func(http.ResponseWriter, *http.Request){
+		func(w http.ResponseWriter, r *http.Request) { setSessionCookie(w, r, issued) },
+		clearSessionCookie,
+	} {
+		w := httptest.NewRecorder()
+		set(w, request("https://yuhaiin.github.io"))
+		cookie := w.Result().Cookies()[0]
+		if cookie.Name != "yuhaiin-session" || !cookie.Secure || !cookie.HttpOnly || !cookie.Partitioned || cookie.SameSite != http.SameSiteNoneMode {
+			t.Fatalf("cross-origin loopback cookie: %+v", cookie)
+		}
+	}
+	// A same-origin or originless loopback client keeps the plain Lax cookie.
+	for _, origin := range []string{"", "http://127.0.0.1:50051"} {
+		w := httptest.NewRecorder()
+		setSessionCookie(w, request(origin), issued)
+		cookie := w.Result().Cookies()[0]
+		if cookie.Secure || cookie.Partitioned || cookie.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("same-origin loopback cookie for %q: %+v", origin, cookie)
+		}
+	}
+}
