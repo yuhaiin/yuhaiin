@@ -1,0 +1,51 @@
+name: Actions cache cleanup
+
+# Keeps the repository under its Actions cache quota: removes caches of pull
+# requests that are no longer open and older snapshots that a newer cache with
+# the same key prefix has superseded. See scripts/ci/prune-actions-caches.sh.
+on:
+  # Default branch runs save a new snapshot per build scope; prune right after.
+  workflow_run:
+    workflows:
+      - Go
+      - Unit tests
+      - Lint and Fix
+      - CodeQL
+      - SQLite regressions
+      - macOS launchd maintenance
+      - Hysteria 2
+      - go-licenses
+      - Container
+      - Performance and stability
+      - Embedded Profiler
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Delete unusable caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci/prune-actions-caches.sh | tee -a "$GITHUB_STEP_SUMMARY"
