@@ -213,20 +213,20 @@ func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *tes
 			directory, r, host, key := deployment(t, source, target)
 			host.fault = fault
 			if fault == "missing_dependency" {
-				// Exercise the real management 14 -> 15 migration after a
+				// Exercise the real management 15 -> 16 migration after a
 				// complete encrypted point with absent inactive TLS inputs.
 				identity, err := sqlite.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := identity.DB().ExecContext(t.Context(), "ALTER TABLE management_credentials DROP COLUMN name; ALTER TABLE management_credentials DROP COLUMN note; DELETE FROM migrate WHERE version=15; UPDATE metadata SET value='14' WHERE key='schema_version'"); err != nil {
+				if _, err := identity.DB().ExecContext(t.Context(), "ALTER TABLE management_users DROP COLUMN password_kdf; DELETE FROM migrate WHERE version=16; UPDATE metadata SET value='15' WHERE key='schema_version'"); err != nil {
 					t.Fatal(err)
 				}
 				if err := identity.Close(); err != nil {
 					t.Fatal(err)
 				}
 				if err := change(t.Context(), directory, r.ID, func(record *Record) error {
-					record.Source.Schemas["management"] = record.Source.Schemas["management"][:14]
+					record.Source.Schemas["management"] = record.Source.Schemas["management"][:15]
 					return nil
 				}); err != nil {
 					t.Fatal(err)
@@ -281,12 +281,12 @@ func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *tes
 			defer prepared.Close()
 			if fault == "missing_dependency" {
 				catalog, err := sqlite.InspectStoreCatalog(t.Context(), filepath.Join(directory, "management.db"), "management")
-				if err != nil || catalog[len(catalog)-1].Version != 15 {
+				if err != nil || catalog[len(catalog)-1].Version != 16 {
 					t.Fatal("target did not migrate management schema", err)
 				}
 				found := false
 				for _, file := range prepared.Manifest.Files {
-					if file.Path == "management.db" && file.SchemaVersion == 14 {
+					if file.Path == "management.db" && file.SchemaVersion == 15 {
 						found = true
 					}
 				}
