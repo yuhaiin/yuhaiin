@@ -104,7 +104,7 @@ func (p *PasswordService) CompleteInitialization(ctx context.Context, secret, lo
 		return err
 	}
 	serverSalt := clientSalt()
-	passwordVerifier, err := p.hash(ctx, credential, serverSalt)
+	passwordVerifier, err := p.hash(ctx, credential, serverSalt, currentServerKDF)
 	if err != nil {
 		return ErrInvalid
 	}
@@ -130,9 +130,9 @@ func (p *PasswordService) CompleteInitialization(ctx context.Context, secret, lo
 	err = tx.QueryRowContext(ctx, `SELECT id,credential IS NOT NULL FROM management_users WHERE login=? COLLATE NOCASE`, login).Scan(&id, &enrolled)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		_, err = tx.ExecContext(ctx, `INSERT INTO management_users(id,login,role,client_salt,server_salt,credential,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`, id, login, Admin, salt, serverSalt, passwordVerifier, now, now)
+		_, err = tx.ExecContext(ctx, `INSERT INTO management_users(id,login,role,client_salt,server_salt,credential,password_kdf,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`, id, login, Admin, salt, serverSalt, passwordVerifier, currentServerKDF, now, now)
 	case err == nil && !enrolled:
-		_, err = tx.ExecContext(ctx, `UPDATE management_users SET login=?,role='admin',disabled=0,client_salt=?,server_salt=?,credential=?,generation=generation+1,updated_at=? WHERE id=?`, login, salt, serverSalt, passwordVerifier, now, id)
+		_, err = tx.ExecContext(ctx, `UPDATE management_users SET login=?,role='admin',disabled=0,client_salt=?,server_salt=?,credential=?,password_kdf=?,generation=generation+1,updated_at=? WHERE id=?`, login, salt, serverSalt, passwordVerifier, currentServerKDF, now, id)
 		if err == nil {
 			_, err = tx.ExecContext(ctx, `UPDATE management_credentials SET revoked=1 WHERE user_id=?`, id)
 		}
