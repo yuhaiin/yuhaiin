@@ -115,14 +115,27 @@ func DefaultRouteInterfaceIndex() (int, error) {
 	// c       RTF_PRCLONING    Protocol-specified generate new routes on use
 	// I       RTF_IFSCOPE      Route is associated with an interface scope
 
-	rib, err := fetchRoutingTable()
-	if err != nil {
-		return 0, fmt.Errorf("route.FetchRIB: %w", err)
+	index, ok, err := recentDefaultRouteIndex()
+	if !ok {
+		rib, ferr := fetchRoutingTable()
+		if ferr != nil {
+			return 0, fmt.Errorf("route.FetchRIB: %w", ferr)
+		}
+		msgs, perr := parseRoutingTable(rib)
+		if perr != nil {
+			return 0, fmt.Errorf("route.ParseRIB: %w", perr)
+		}
+		index, err = defaultRouteIndexFromMessages(msgs)
 	}
-	msgs, err := parseRoutingTable(rib)
 	if err != nil {
-		return 0, fmt.Errorf("route.ParseRIB: %w", err)
+		return 0, err
 	}
+	return underlyingInterfaceIndex(index), nil
+}
+
+// defaultRouteIndexFromMessages returns the interface index of the first IPv4
+// default route, else the first IPv6 one, before utun delegation.
+func defaultRouteIndexFromMessages(msgs []route.Message) (int, error) {
 	var ipv6Fallback *route.RouteMessage
 	for _, m := range msgs {
 		rm, ok := m.(*route.RouteMessage)
@@ -130,14 +143,14 @@ func DefaultRouteInterfaceIndex() (int, error) {
 			continue
 		}
 		if addrType(rm.Addrs, unix.RTAX_DST).Family() == syscall.AF_INET {
-			return underlyingInterfaceIndex(rm.Index), nil
+			return rm.Index, nil
 		}
 		if ipv6Fallback == nil {
 			ipv6Fallback = rm
 		}
 	}
 	if ipv6Fallback != nil {
-		return underlyingInterfaceIndex(ipv6Fallback.Index), nil
+		return ipv6Fallback.Index, nil
 	}
 	return 0, ErrNoGatewayIndexFound
 }
@@ -378,8 +391,14 @@ func skipMessage(msg route.Message) bool {
 	case *route.InterfaceAddrMessage:
 		return skipInterfaceAddrMessage(msg)
 	case *route.RouteMessage:
-		// DefaultRouter caches all prefixes, not just default gateways.
-		return false
+		// DefaultRouter caches all prefixes, not just default gateways, but
+		// lookups, misses and kernel-managed neighbor/cloned entries change
+		// none of them. Under traffic these arrive many times per second.
+		switch msg.Type {
+		case unix.RTM_GET, unix.RTM_GET2, unix.RTM_MISS, unix.RTM_LOSING:
+			return true
+		}
+		return churnRoute(msg.Flags) || msg.Flags&unix.RTF_IFSCOPE != 0
 	}
 	return false
 }

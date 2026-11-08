@@ -8,11 +8,7 @@ import (
 	"unsafe"
 )
 
-func routes() (router, error) {
-	ifaces, err := interfacesMap()
-	if err != nil {
-		return router{}, err
-	}
+func routesFrom(ifaces map[int]Interface) (router, error) {
 
 	rtr := router{}
 	tab, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)

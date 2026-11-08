@@ -34,6 +34,10 @@ func readNetworkSnapshot() (netstate.Snapshot, error) {
 	if err != nil {
 		return netstate.Snapshot{}, err
 	}
+	return networkSnapshotFrom(ifs)
+}
+
+func networkSnapshotFrom(ifs []Interface) (netstate.Snapshot, error) {
 	s := netstate.Snapshot{Source: netstate.SystemInterfaces}
 	for _, iface := range ifs {
 		id, err := stableInterfaceID(iface)

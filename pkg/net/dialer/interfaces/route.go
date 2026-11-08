@@ -60,11 +60,21 @@ func interfacesMap() (map[int]Interface, error) {
 	if err != nil {
 		return nil, err
 	}
+	return interfacesMapFrom(ifaces), nil
+}
 
+func interfacesMapFrom(ifaces []Interface) map[int]Interface {
 	ifces := make(map[int]Interface, len(ifaces))
 	for _, iface := range ifaces {
 		ifces[iface.Index] = iface
 	}
+	return ifces
+}
 
-	return ifces, nil
+func routes() (router, error) {
+	ifaces, err := interfacesMap()
+	if err != nil {
+		return router{}, err
+	}
+	return routesFrom(ifaces)
 }

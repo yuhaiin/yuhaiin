@@ -2,6 +2,6 @@
 
 package interfaces
 
-func routes() (router, error) {
+func routesFrom(map[int]Interface) (router, error) {
 	return router{}, nil
 }

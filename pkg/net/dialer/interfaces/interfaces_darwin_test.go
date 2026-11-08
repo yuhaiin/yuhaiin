@@ -131,3 +131,41 @@ func TestSameRouteInterfaceNames(t *testing.T) {
 		t.Fatal("renamed interface must invalidate parsed route snapshot")
 	}
 }
+
+func TestDarwinRouteChurnIgnored(t *testing.T) {
+	for _, msg := range []*route.RouteMessage{
+		{Type: unix.RTM_GET},
+		{Type: unix.RTM_MISS},
+		{Type: unix.RTM_ADD, Flags: unix.RTF_LLINFO},
+		{Type: unix.RTM_DELETE, Flags: unix.RTF_WASCLONED},
+		{Type: unix.RTM_ADD, Flags: unix.RTF_IFSCOPE},
+	} {
+		if !skipMessage(msg) {
+			t.Errorf("route message type=%d flags=%#x should not trigger a refresh", msg.Type, msg.Flags)
+		}
+	}
+	if skipMessage(&route.RouteMessage{Type: unix.RTM_CHANGE, Flags: unix.RTF_GATEWAY | unix.RTF_STATIC}) {
+		t.Error("changed static routes must trigger a refresh")
+	}
+}
+
+func TestDarwinDefaultRouteIndexFromMessages(t *testing.T) {
+	def := func(index int, v6 bool, flags int) route.Message {
+		addrs := make([]route.Addr, unix.RTAX_NETMASK+1)
+		if v6 {
+			addrs[unix.RTAX_DST], addrs[unix.RTAX_NETMASK] = &route.Inet6Addr{}, &route.Inet6Addr{}
+		} else {
+			addrs[unix.RTAX_DST], addrs[unix.RTAX_NETMASK] = &route.Inet4Addr{}, &route.Inet4Addr{}
+		}
+		return &route.RouteMessage{Index: index, Flags: unix.RTF_GATEWAY | flags, Addrs: addrs}
+	}
+	if got, err := defaultRouteIndexFromMessages([]route.Message{def(3, true, 0), def(4, false, unix.RTF_IFSCOPE), def(5, false, 0)}); err != nil || got != 5 {
+		t.Fatalf("default = %d, %v; want IPv4 index 5", got, err)
+	}
+	if got, err := defaultRouteIndexFromMessages([]route.Message{def(3, true, 0)}); err != nil || got != 3 {
+		t.Fatalf("default = %d, %v; want IPv6 fallback 3", got, err)
+	}
+	if _, err := defaultRouteIndexFromMessages(nil); err != ErrNoGatewayIndexFound {
+		t.Fatalf("missing default error = %v", err)
+	}
+}
