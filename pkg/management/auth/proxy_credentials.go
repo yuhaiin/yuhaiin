@@ -94,17 +94,47 @@ func NewProxyCredentials(ctx context.Context, store *Store) (*ProxyCredentials, 
 		defer close(p.done)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
+		// The constructor just loaded, but its fingerprint is unknown; the
+		// first tick pays one extra reload to establish it.
+		var loaded databaseChanges
+		var known bool
+		lastFull := time.Now()
 		for {
 			select {
 			case <-ctx.Done():
 				p.clear()
 				return
-			case <-ticker.C:
-				_ = p.Reload()
+			case now := <-ticker.C:
+				// A full reload copies every credential and membership. Poll a
+				// single-row change fingerprint instead and reload only after a
+				// commit, with a periodic reload that also prunes expired entries.
+				current, err := p.store.changes(ctx)
+				if err == nil && known && current == loaded && now.Sub(lastFull) < proxyCredentialsFullReload {
+					continue
+				}
+				if p.Reload() == nil && err == nil {
+					loaded, known, lastFull = current, true, now
+				} else {
+					known = false
+				}
 			}
 		}
 	}()
 	return p, nil
+}
+
+const proxyCredentialsFullReload = time.Minute
+
+// databaseChanges identifies the committed state seen by the store connection.
+// data_version moves when another process commits; total_changes moves when
+// this process writes. Either one changing may affect credentials, so both
+// trigger a reload. Writers that already call Reload pay one extra reload.
+type databaseChanges struct{ dataVersion, totalChanges int64 }
+
+func (s *Store) changes(ctx context.Context) (databaseChanges, error) {
+	var c databaseChanges
+	err := s.db.QueryRowContext(ctx, `SELECT (SELECT data_version FROM pragma_data_version), total_changes()`).Scan(&c.dataVersion, &c.totalChanges)
+	return c, err
 }
 
 func (p *ProxyCredentials) Close() error { p.cancel(); <-p.done; return nil }
