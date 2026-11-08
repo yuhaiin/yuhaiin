@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/platformvpn"
 )
@@ -87,6 +88,7 @@ func newPlatformAPI(app *App, token string) *platformAPI {
 	p.mux.HandleFunc("GET "+platformAPIPrefix+"settings", p.authorized(p.getSettings))
 	p.mux.HandleFunc("PUT "+platformAPIPrefix+"settings", p.authorized(p.putSettings))
 	p.mux.HandleFunc("GET "+platformAPIPrefix+"apps", p.authorized(p.apps))
+	p.registerFeatures()
 	return p
 }
 
@@ -316,6 +318,7 @@ const (
 	settingEnum
 	settingStringSet
 	settingRoute
+	settingPort
 )
 
 type androidSetting struct {
@@ -325,6 +328,10 @@ type androidSetting struct {
 	values []string
 	def    string
 	vpn    bool
+	// restart marks values the core reads only when it starts.
+	restart bool
+	// apply updates runtime state immediately after a change.
+	apply func(string)
 }
 
 const CoreBackgroundPolicyKey = "core_background_policy"
@@ -342,6 +349,10 @@ var androidSettings = []androidSetting{
 	{field: "notificationSpeed", key: "android_notification_speed", kind: settingBool, def: "false"},
 	{field: "coreBackgroundPolicy", key: CoreBackgroundPolicyKey, kind: settingEnum, values: []string{"while_needed", "always"}, def: "while_needed"},
 	{field: "trackUnderlyingNetwork", key: AdvRegisterUnderlyingNetworkCallbackKey, kind: settingBool, def: "true"},
+	{field: "allowLan", key: AllowLanKey, kind: settingBool, def: "false", restart: true},
+	{field: "processLookupMode", key: AdvProcessLookupModeKey, kind: settingEnum, values: ProcessLookupModesValue, def: ProcessLookupAlwaysValue,
+		apply: func(v string) { configuration.ProcessLookupMode.Store(v) }},
+	{field: "httpProxyPort", key: NewHTTPPortKey, kind: settingPort, def: "0", vpn: true},
 }
 
 const savedRoutesKey = "saved_routes_list"
@@ -370,6 +381,8 @@ func (s androidSetting) read() any {
 			v = []string{}
 		}
 		return v
+	case settingPort:
+		return int(store.GetInt(s.key))
 	default:
 		raw := store.GetString(s.key)
 		if raw == "" {
@@ -380,6 +393,7 @@ func (s androidSetting) read() any {
 }
 
 type settingsResponse struct {
+	Restart       []string            `json:"restartRequired"`
 	Values        map[string]any      `json:"values"`
 	RouteProfiles []string            `json:"routeProfiles"`
 	Options       map[string][]string `json:"options"`
@@ -391,6 +405,9 @@ func (p *platformAPI) settingsSnapshot() settingsResponse {
 		resp.Values[s.field] = s.read()
 		if s.kind == settingEnum {
 			resp.Options[s.field] = s.values
+		}
+		if s.restart {
+			resp.Restart = append(resp.Restart, s.field)
 		}
 	}
 	resp.RouteProfiles = readStringSet(savedRoutesKey)
@@ -435,6 +452,14 @@ func (p *platformAPI) putSettings(w http.ResponseWriter, r *http.Request) {
 			}
 			next = v
 			writes = append(writes, func() { GetStore().PutBoolean(s.key, v) })
+		case settingPort:
+			var v int
+			if err := json.Unmarshal(raw, &v); err != nil || v < 0 || v > 65535 {
+				writeError(w, http.StatusBadRequest, "invalid_request", field+" must be a port between 0 and 65535")
+				return
+			}
+			next = v
+			writes = append(writes, func() { GetStore().PutInt(s.key, int32(v)) })
 		case settingStringSet:
 			var v []string
 			if err := json.Unmarshal(raw, &v); err != nil || len(v) > 4096 {
@@ -470,7 +495,12 @@ func (p *platformAPI) putSettings(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			next = v
-			writes = append(writes, func() { GetStore().PutString(s.key, v) })
+			writes = append(writes, func() {
+				GetStore().PutString(s.key, v)
+				if s.apply != nil {
+					s.apply(v)
+				}
+			})
 		}
 		if s.vpn && !equalSetting(s.read(), next) {
 			vpnChanged = true
