@@ -107,11 +107,12 @@ func (c *Client) getSession(ctx context.Context) (*nativeClientSession, error) {
 	if c.config.HappyEyeballs || (len(c.config.HopAddresses) == 0 && ports == nil) {
 		// Ordinary hostnames race all resolved A/AAAA records automatically.
 		// Explicit relay lists can opt in instead of periodic address hopping.
-		targets, err := resolveHappyEyeballsTargets(setup, c.config, c.preferred)
+		answers, err := happyEyeballsAnswers(setup, c.config)
 		if err != nil {
 			return nil, err
 		}
-		session, c.preferred, err = raceUDPAddresses(setup, targets, func(attempt context.Context, remote *net.UDPAddr) (*nativeClientSession, error) {
+		preferIPv4 := netapi.GetContext(setup).ConnOptions().Resolver().Mode() == netapi.ResolverModePreferIPv4
+		session, c.preferred, err = raceHappyEyeballsv2(setup, answers, c.preferred, preferIPv4, func(attempt context.Context, remote *net.UDPAddr) (*nativeClientSession, error) {
 			factory := &connFactory{ctx: attempt, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword}
 			return dialNativeSession(attempt, factory, remote, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
 		})
