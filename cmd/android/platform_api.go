@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -59,6 +60,31 @@ func SetAppCatalog(c AppCatalog) {
 	appCatalogMu.Unlock()
 }
 
+// AppIconProvider is implemented by Android and returns a PNG of an installed
+// app's launcher icon. It returns an error starting with "consent_required"
+// without the app-list consent and "not_found" for unknown packages. It is a
+// separate interface so existing AppCatalog implementations keep working.
+type AppIconProvider interface {
+	AppIcon(packageName string) ([]byte, error)
+}
+
+var (
+	appIconMu       sync.Mutex
+	appIconProvider AppIconProvider
+)
+
+func SetAppIconProvider(p AppIconProvider) {
+	appIconMu.Lock()
+	appIconProvider = p
+	appIconMu.Unlock()
+}
+
+func currentAppIconProvider() AppIconProvider {
+	appIconMu.Lock()
+	defer appIconMu.Unlock()
+	return appIconProvider
+}
+
 func currentAppCatalog() AppCatalog {
 	appCatalogMu.Lock()
 	defer appCatalogMu.Unlock()
@@ -88,6 +114,7 @@ func newPlatformAPI(app *App, token string) *platformAPI {
 	p.mux.HandleFunc("GET "+platformAPIPrefix+"settings", p.authorized(p.getSettings))
 	p.mux.HandleFunc("PUT "+platformAPIPrefix+"settings", p.authorized(p.putSettings))
 	p.mux.HandleFunc("GET "+platformAPIPrefix+"apps", p.authorized(p.apps))
+	p.mux.HandleFunc("GET "+platformAPIPrefix+"apps/icon", p.authorized(p.appIcon))
 	p.registerFeatures()
 	return p
 }
@@ -307,6 +334,38 @@ func (p *platformAPI) apps(w http.ResponseWriter, _ *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write([]byte(`{"apps":` + data + `}`))
+}
+
+// androidPackageName matches Android application IDs.
+var androidPackageName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$`)
+
+// appIcon serves GET /android/v1/apps/icon?package=<id> as PNG. Icons reveal
+// installed apps, so they need the same session and consent as the app list.
+func (p *platformAPI) appIcon(w http.ResponseWriter, r *http.Request) {
+	pkg := r.URL.Query().Get("package")
+	if len(pkg) > 255 || !androidPackageName.MatchString(pkg) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid package name")
+		return
+	}
+	provider := currentAppIconProvider()
+	if provider == nil {
+		writeError(w, http.StatusServiceUnavailable, platformvpn.CodeProviderUnavailable, "app icons are not available")
+		return
+	}
+	data, err := provider.AppIcon(pkg)
+	switch {
+	case err != nil && strings.Contains(err.Error(), platformvpn.CodeConsentRequired):
+		writeError(w, http.StatusConflict, platformvpn.CodeConsentRequired, "the installed-apps disclosure must be accepted in the app")
+	case err != nil && strings.Contains(err.Error(), "not_found"), err == nil && len(data) == 0:
+		writeError(w, http.StatusNotFound, "not_found", "unknown package")
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "icon_failed", err.Error())
+	default:
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "private, max-age=86400")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, _ = w.Write(data)
+	}
 }
 
 // Android preferences exposed to the Web UI. VPN marks values the VpnService

@@ -2,6 +2,7 @@ package yuhaiin
 
 import (
 	json "encoding/json/v2"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -163,5 +164,45 @@ func TestValidPackageName(t *testing.T) {
 		if validPackageName(name) != ok {
 			t.Errorf("%q: want %v", name, ok)
 		}
+	}
+}
+
+type fakeIcons map[string][]byte
+
+func (f fakeIcons) AppIcon(pkg string) ([]byte, error) {
+	if pkg == "consent.app" {
+		return nil, errors.New("consent_required: no consent")
+	}
+	if data, ok := f[pkg]; ok {
+		return data, nil
+	}
+	return nil, errors.New("not_found: " + pkg)
+}
+
+func TestAppIconRequiresSessionAndValidPackage(t *testing.T) {
+	h := newTestPlatformAPI(t)
+	if code, _ := (req{method: "GET", path: "/android/v1/apps/icon?package=a.b"}).do(t, h); code != http.StatusUnauthorized {
+		t.Fatalf("icon without session: %d", code)
+	}
+	get := func(pkg string) (int, string) {
+		return (req{method: "GET", path: "/android/v1/apps/icon?package=" + pkg, cookie: testToken}).do(t, h)
+	}
+	if code, _ := get("a.b"); code != http.StatusServiceUnavailable {
+		t.Fatalf("no provider: %d", code)
+	}
+	SetAppIconProvider(fakeIcons{"a.b": []byte("\x89PNG")})
+	t.Cleanup(func() { SetAppIconProvider(nil) })
+	for pkg, want := range map[string]int{"a.b": 200, "c.d": 404, "consent.app": 409, "nodot": 400, "../x.y": 400, "a.b%0A": 400} {
+		if code, body := get(pkg); code != want {
+			t.Fatalf("%s: %d %s", pkg, code, body)
+		}
+	}
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/android/v1/apps/icon?package=a.b", nil)
+	r.RemoteAddr = "127.0.0.1:1234"
+	r.AddCookie(&http.Cookie{Name: PlatformCookieName, Value: testToken})
+	h.ServeHTTP(rec, r)
+	if rec.Header().Get("Content-Type") != "image/png" || rec.Body.String() != "\x89PNG" {
+		t.Fatalf("%v %q", rec.Header(), rec.Body.String())
 	}
 }
