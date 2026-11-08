@@ -104,8 +104,9 @@ hopping**, enable `happy_eyeballs` explicitly:
 The `host` entry is included in the race and each hostname contributes all
 its resolved IP addresses. A failed DNS lookup for one candidate does not
 prevent other valid candidates from being used. When a port list/range is
-configured, one port per address entry and resolved IP is sampled for each
-race, to avoid launching thousands of simultaneous handshakes. To fail over
+configured, one port per address entry is sampled for each race (the last
+successful port is reused while it remains in the set), to avoid launching
+thousands of simultaneous handshakes. To fail over
 between distinct port numbers on one IP, configure separate entries with
 single ports. Unlike periodic hopping, a winning path stays fixed until its
 QUIC session disconnects. All targets must speak compatible Hysteria 2 and

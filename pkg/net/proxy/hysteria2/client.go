@@ -107,18 +107,22 @@ func (c *Client) getSession(ctx context.Context) (*nativeClientSession, error) {
 	if c.config.HappyEyeballs || (len(c.config.HopAddresses) == 0 && ports == nil) {
 		// Ordinary hostnames race all resolved A/AAAA records automatically.
 		// Explicit relay lists can opt in instead of periodic address hopping.
-		answers, err := happyEyeballsAnswers(setup, c.config)
+		answers, err := happyEyeballsAnswers(setup, c.config, c.preferred)
 		if err != nil {
 			return nil, err
 		}
 		preferIPv4 := netapi.GetContext(setup).ConnOptions().Resolver().Mode() == netapi.ResolverModePreferIPv4
-		session, c.preferred, err = raceHappyEyeballsv2(setup, answers, c.preferred, preferIPv4, func(attempt context.Context, remote *net.UDPAddr) (*nativeClientSession, error) {
+		var winner *net.UDPAddr
+		session, winner, err = raceHappyEyeballsv2(setup, answers, c.preferred, preferIPv4, func(attempt context.Context, remote *net.UDPAddr) (*nativeClientSession, error) {
 			factory := &connFactory{ctx: attempt, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword}
 			return dialNativeSession(attempt, factory, remote, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
 		})
 		if err != nil {
+			// Keep the last known-good endpoint: a transient outage that fails
+			// every candidate should not discard it for the next reconnect.
 			return nil, fmt.Errorf("hysteria2 connect: %w", err)
 		}
+		c.preferred = winner
 	} else {
 		var serverAddr net.Addr
 		if len(c.config.HopAddresses) != 0 {

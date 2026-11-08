@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +32,11 @@ type happyEyeballsBatch struct {
 // happyEyeballsAnswers starts independent A and AAAA queries immediately.
 // Responses are streamed to the connection racer as they arrive. Unlike a
 // snapshot resolver, a slow or broken address family cannot hold up the other.
-func happyEyeballsAnswers(ctx context.Context, config node.Hysteria2) (<-chan happyEyeballsBatch, error) {
+//
+// For entries with a port list/range, one port is sampled per race. When the
+// previously successful endpoint's port belongs to that set it is reused, so
+// the racer can recognise and prioritise that endpoint again.
+func happyEyeballsAnswers(ctx context.Context, config node.Hysteria2, preferred *net.UDPAddr) (<-chan happyEyeballsBatch, error) {
 	type dnsEntry struct {
 		name  string
 		ports []uint16
@@ -51,8 +56,11 @@ func happyEyeballsAnswers(ctx context.Context, config node.Hysteria2) (<-chan ha
 		// One port per entry per connection race; port-range hopping remains
 		// available through the separate periodic hopping mode.
 		if ports != nil {
-			all := ports.Ports()
-			port = all[rand.IntN(len(all))]
+			if preferred != nil && preferred.Port > 0 && preferred.Port <= 65535 && ports.contains(uint16(preferred.Port)) {
+				port = uint16(preferred.Port)
+			} else {
+				port = ports.random(rand.IntN)
+			}
 		}
 		if _, ok := addr.(netapi.IPAddress); ok {
 			remote, err := resolveHopAddress(ctx, addr)
@@ -117,6 +125,13 @@ func happyEyeballsAnswers(ctx context.Context, config node.Hysteria2) (<-chan ha
 	return batches, nil
 }
 
+// happyEyeballsKey identifies an endpoint. IPv4 addresses are unmapped so
+// 4-byte and 16-byte net.IP forms of the same address compare equal.
+func happyEyeballsKey(addr *net.UDPAddr) netip.AddrPort {
+	ap := addr.AddrPort()
+	return netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+}
+
 type happyEyeballsResult[T io.Closer] struct {
 	conn   T
 	remote *net.UDPAddr
@@ -138,7 +153,15 @@ func raceHappyEyeballsv2[T io.Closer](
 	defer cancel()
 
 	var first, second []*net.UDPAddr
-	seen := make(map[string]bool)
+	// The previously successful endpoint is held aside instead of being
+	// searched for in the queues on every pick. Keys are netip.AddrPort so
+	// deduplication and matching do not format addresses as strings.
+	var preferredKey netip.AddrPort
+	if preferred != nil {
+		preferredKey = happyEyeballsKey(preferred)
+	}
+	var preferredReady *net.UDPAddr
+	seen := make(map[netip.AddrPort]struct{})
 	results := make(chan happyEyeballsResult[T])
 	source := batches
 	var errAll error
@@ -149,27 +172,26 @@ func raceHappyEyeballsv2[T io.Closer](
 	var graceUntil time.Time
 	var accelerate bool
 
-	// The preferred address family is first, unless a previously successful
-	// endpoint is in the available candidate list.
+	familyOf := func(addr *net.UDPAddr) int {
+		if (addr.IP.To4() != nil) == preferIPv4 {
+			return 0
+		}
+		return 1
+	}
+	pending := func() int {
+		n := len(first) + len(second)
+		if preferredReady != nil {
+			n++
+		}
+		return n
+	}
+	// The previously successful endpoint goes first; otherwise the preferred
+	// address family leads and the two families are interleaved.
 	choose := func() *net.UDPAddr {
-		for _, queue := range []*[]*net.UDPAddr{&first, &second} {
-			for i, addr := range *queue {
-				if preferred != nil && addr.String() == preferred.String() {
-					*queue = append((*queue)[:i], (*queue)[i+1:]...)
-					if addr.IP.To4() != nil {
-						if preferIPv4 {
-							lastFamily = 0
-						} else {
-							lastFamily = 1
-						}
-					} else if preferIPv4 {
-						lastFamily = 1
-					} else {
-						lastFamily = 0
-					}
-					return addr
-				}
-			}
+		if addr := preferredReady; addr != nil {
+			preferredReady = nil
+			lastFamily = familyOf(addr)
+			return addr
 		}
 		queue := &first
 		family := 0
@@ -181,6 +203,7 @@ func raceHappyEyeballsv2[T io.Closer](
 			return nil
 		}
 		result := (*queue)[0]
+		(*queue)[0] = nil
 		*queue = (*queue)[1:]
 		lastFamily = family
 		return result
@@ -206,10 +229,10 @@ func raceHappyEyeballsv2[T io.Closer](
 		// A failed attempt immediately unlocks another candidate (RFC 8305
 		// failure acceleration); ordinary attempts are staggered by 250ms.
 		var wake <-chan time.Time
-		if active < happyEyeballsMaxParallel && len(first)+len(second) != 0 {
+		if active < happyEyeballsMaxParallel && pending() != 0 {
 			now := time.Now()
 			wait := time.Duration(0)
-			if !launched && len(first) == 0 && len(second) != 0 && source != nil {
+			if !launched && preferredReady == nil && len(first) == 0 && len(second) != 0 && source != nil {
 				if graceUntil.IsZero() {
 					graceUntil = now.Add(happyEyeballsResolutionDelay)
 				}
@@ -227,7 +250,7 @@ func raceHappyEyeballsv2[T io.Closer](
 				wake = time.After(wait)
 			}
 		}
-		if source == nil && active == 0 && len(first)+len(second) == 0 {
+		if source == nil && active == 0 && pending() == 0 {
 			if errAll == nil {
 				errAll = errors.New("no usable DNS addresses")
 			}
@@ -246,15 +269,17 @@ func raceHappyEyeballsv2[T io.Closer](
 			}
 			errAll = errors.Join(errAll, batch.err)
 			for _, addr := range batch.addrs {
-				key := addr.String()
-				if seen[key] {
+				key := happyEyeballsKey(addr)
+				if _, ok := seen[key]; ok {
 					continue
 				}
-				seen[key] = true
-				primary := (addr.IP.To4() != nil) == preferIPv4
-				if primary {
+				seen[key] = struct{}{}
+				switch {
+				case preferred != nil && key == preferredKey:
+					preferredReady = addr
+				case familyOf(addr) == 0:
 					first = append(first, addr)
-				} else {
+				default:
 					second = append(second, addr)
 				}
 			}
