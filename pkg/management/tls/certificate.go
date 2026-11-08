@@ -73,7 +73,7 @@ func LoadOrCreate(dataDir string, extraNames []string) (tls.Certificate, string,
 	}
 
 	created := true
-	if err := os.Link(temporaryPath, path); err != nil {
+	if err := publishCertificate(temporaryPath, path); err != nil {
 		if !errors.Is(err, os.ErrExist) {
 			return tls.Certificate{}, "", false, fmt.Errorf("persist management TLS certificate: %w", err)
 		}
@@ -91,6 +91,29 @@ func LoadOrCreate(dataDir string, extraNames []string) (tls.Certificate, string,
 		return tls.Certificate{}, "", false, err
 	}
 	return certificate, fingerprint, created, nil
+}
+
+var linkFile = os.Link
+
+// publishCertificate moves a fully written temporary bundle to path without
+// replacing a bundle created concurrently by another process. A hard link is
+// preferred because it fails atomically when path exists. Some platforms, such
+// as Android app sandboxes, forbid hard links; there the bundle is renamed into
+// place after checking that no other process has published one first.
+func publishCertificate(temporaryPath, path string) error {
+	err := linkFile(temporaryPath, path)
+	if err == nil || errors.Is(err, os.ErrExist) {
+		return err
+	}
+	if _, statErr := os.Lstat(path); statErr == nil {
+		return os.ErrExist
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return errors.Join(err, statErr)
+	}
+	if renameErr := os.Rename(temporaryPath, path); renameErr != nil {
+		return errors.Join(err, renameErr)
+	}
+	return nil
 }
 
 // LoadPair loads a configured certificate and key and returns the SHA-256

@@ -1,4 +1,4 @@
-package main
+package tls
 
 import (
 	"bufio"
@@ -8,20 +8,24 @@ import (
 	"time"
 )
 
-const protocolSniffTimeout = 10 * time.Second
+// ProtocolSniffTimeout bounds how long an accepted connection may take to send
+// the first bytes used to tell TLS from cleartext HTTP.
+const ProtocolSniffTimeout = 10 * time.Second
 
 // protocolListener serves cleartext HTTP and TLS connections from one socket.
 // TLS clients begin with a handshake record (0x16, 0x03); all other input is
-// passed to net/http as cleartext HTTP.
+// passed to net/http as cleartext HTTP. Connections still being classified are
+// closed together with the listener.
 type protocolListener struct {
-	listener  net.Listener
-	tlsConfig *tls.Config
-	accepted  chan acceptedConnection
-	done      chan struct{}
-	stopOnce  sync.Once
-	stopErr   error
-	pendingMu sync.Mutex
-	pending   map[net.Conn]struct{}
+	listener     net.Listener
+	tlsConfig    *tls.Config
+	sniffTimeout time.Duration
+	accepted     chan acceptedConnection
+	done         chan struct{}
+	stopOnce     sync.Once
+	stopErr      error
+	pendingMu    sync.Mutex
+	pending      map[net.Conn]struct{}
 }
 
 type acceptedConnection struct {
@@ -29,13 +33,22 @@ type acceptedConnection struct {
 	raw  net.Conn
 }
 
-func newProtocolListener(listener net.Listener, tlsConfig *tls.Config) *protocolListener {
+// NewProtocolListener wraps listener so that one TCP port accepts both
+// cleartext HTTP and TLS. TLS connections are returned as *tls.Conn using
+// tlsConfig; serve them with an http.Server whose TLSConfig is the same value
+// so HTTP/2 is negotiated through ALPN.
+func NewProtocolListener(listener net.Listener, tlsConfig *tls.Config) net.Listener {
+	return newProtocolListener(listener, tlsConfig, ProtocolSniffTimeout)
+}
+
+func newProtocolListener(listener net.Listener, tlsConfig *tls.Config, sniffTimeout time.Duration) *protocolListener {
 	result := &protocolListener{
-		listener:  listener,
-		tlsConfig: tlsConfig,
-		accepted:  make(chan acceptedConnection, 32),
-		done:      make(chan struct{}),
-		pending:   make(map[net.Conn]struct{}),
+		listener:     listener,
+		tlsConfig:    tlsConfig,
+		sniffTimeout: sniffTimeout,
+		accepted:     make(chan acceptedConnection, 32),
+		done:         make(chan struct{}),
+		pending:      make(map[net.Conn]struct{}),
 	}
 	go result.acceptLoop()
 	return result
@@ -58,7 +71,7 @@ func (l *protocolListener) acceptLoop() {
 }
 
 func (l *protocolListener) classify(conn net.Conn) {
-	if err := conn.SetReadDeadline(time.Now().Add(protocolSniffTimeout)); err != nil {
+	if err := conn.SetReadDeadline(time.Now().Add(l.sniffTimeout)); err != nil {
 		l.closePending(conn)
 		return
 	}
@@ -74,7 +87,7 @@ func (l *protocolListener) classify(conn net.Conn) {
 	}
 
 	classified := net.Conn(&bufferedConn{Conn: conn, reader: reader})
-	if isTLSClientHello(prefix) {
+	if IsTLSClientHello(prefix) {
 		classified = tls.Server(classified, l.tlsConfig)
 	}
 	select {
@@ -84,7 +97,8 @@ func (l *protocolListener) classify(conn net.Conn) {
 	}
 }
 
-func isTLSClientHello(prefix []byte) bool {
+// IsTLSClientHello reports whether prefix starts a TLS handshake record.
+func IsTLSClientHello(prefix []byte) bool {
 	return len(prefix) >= 3 && prefix[0] == 0x16 && prefix[1] == 0x03
 }
 
