@@ -66,3 +66,29 @@ func (r portRanges) Ports() []uint16 {
 	}
 	return p
 }
+
+func (r portRanges) contains(port uint16) bool {
+	for _, v := range r {
+		if port >= v.Start && port <= v.End {
+			return true
+		}
+	}
+	return false
+}
+
+// random returns a uniformly sampled port without materializing the set.
+func (r portRanges) random(intn func(int) int) uint16 {
+	n := 0
+	for _, v := range r {
+		n += int(v.End) - int(v.Start) + 1
+	}
+	i := intn(n)
+	for _, v := range r {
+		size := int(v.End) - int(v.Start) + 1
+		if i < size {
+			return uint16(int(v.Start) + i)
+		}
+		i -= size
+	}
+	panic("unreachable")
+}

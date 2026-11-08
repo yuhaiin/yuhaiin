@@ -31,6 +31,7 @@ type Client struct {
 	cancel    context.CancelFunc
 	gate      chan struct{}
 	session   *nativeClientSession
+	preferred *net.UDPAddr
 	closeOnce sync.Once
 	closeErr  error
 }
@@ -102,33 +103,55 @@ func (c *Client) getSession(ctx context.Context) (*nativeClientSession, error) {
 	if tlsConfig.ServerName == "" {
 		tlsConfig.ServerName = server.Hostname()
 	}
-	var serverAddr net.Addr
-	if len(c.config.HopAddresses) != 0 {
-		serverAddr, err = resolveAddressHops(setup, c.config)
+	var session *nativeClientSession
+	if c.config.HappyEyeballs || (len(c.config.HopAddresses) == 0 && ports == nil) {
+		// Ordinary hostnames race all resolved A/AAAA records automatically.
+		// Explicit relay lists can opt in instead of periodic address hopping.
+		answers, err := happyEyeballsAnswers(setup, c.config, c.preferred)
 		if err != nil {
 			return nil, err
 		}
+		preferIPv4 := netapi.GetContext(setup).ConnOptions().Resolver().Mode() == netapi.ResolverModePreferIPv4
+		var winner *net.UDPAddr
+		session, winner, err = raceHappyEyeballsv2(setup, answers, c.preferred, preferIPv4, func(attempt context.Context, remote *net.UDPAddr) (*nativeClientSession, error) {
+			factory := &connFactory{ctx: attempt, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword}
+			return dialNativeSession(attempt, factory, remote, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
+		})
+		if err != nil {
+			// Keep the last known-good endpoint: a transient outage that fails
+			// every candidate should not discard it for the next reconnect.
+			return nil, fmt.Errorf("hysteria2 connect: %w", err)
+		}
+		c.preferred = winner
 	} else {
-		remote, err := resolveHopAddress(setup, server)
+		var serverAddr net.Addr
+		if len(c.config.HopAddresses) != 0 {
+			serverAddr, err = resolveAddressHops(setup, c.config)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			remote, err := resolveHopAddress(setup, server)
+			if err != nil {
+				return nil, err
+			}
+			serverAddr = remote
+			if ports != nil {
+				if remote.Zone != "" {
+					return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
+				}
+				serverAddr = &addressHopAddr{Addr: remote, targets: []hopTarget{{ip: remote.IP, ports: ports.Ports()}}}
+			}
+		}
+		interval, err := hopIntervalConfig(c.config)
 		if err != nil {
 			return nil, err
 		}
-		serverAddr = remote
-		if ports != nil {
-			if remote.Zone != "" {
-				return nil, errors.New("hysteria2 port hopping does not support scoped IPv6 addresses")
-			}
-			serverAddr = &addressHopAddr{Addr: remote, targets: []hopTarget{{ip: remote.IP, ports: ports.Ports()}}}
+		factory := &connFactory{ctx: setup, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword, hopInterval: interval}
+		session, err = dialNativeSession(setup, factory, serverAddr, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
+		if err != nil {
+			return nil, fmt.Errorf("hysteria2 connect: %w", err)
 		}
-	}
-	interval, err := hopIntervalConfig(c.config)
-	if err != nil {
-		return nil, err
-	}
-	factory := &connFactory{ctx: setup, hopCtx: c.ctx, parent: c.parent, password: c.config.SalamanderPassword, hopInterval: interval}
-	session, err := dialNativeSession(setup, factory, serverAddr, c.config.Auth, tlsConfig, c.config.UploadBPS, c.config.DownloadBPS)
-	if err != nil {
-		return nil, fmt.Errorf("hysteria2 connect: %w", err)
 	}
 	if c.ctx.Err() != nil {
 		_ = session.Close()

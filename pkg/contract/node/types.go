@@ -361,6 +361,9 @@ type Hysteria2 struct {
 	// Additional UDP relays to the same Hysteria server. Host is also included;
 	// with this list set, all DNS answers for each hostname enter the hop pool.
 	HopAddresses []string `json:"hop_addresses,omitzero"`
+	// Race QUIC handshakes and authentication across Host and HopAddresses
+	// instead of periodically hopping. Ordinary single-host DNS uses racing by default.
+	HappyEyeballs bool `json:"happy_eyeballs,omitzero"`
 	// Port and address hopping share these intervals in seconds;
 	// zero selects the upstream default of 30 seconds. Fixed and random
 	// intervals are mutually exclusive, and the minimum is five seconds.
