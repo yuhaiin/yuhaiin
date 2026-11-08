@@ -33,6 +33,7 @@ import (
 	ytls "github.com/Asutorufa/yuhaiin/pkg/net/proxy/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/platformvpn"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/websocket"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/yuubinsya"
@@ -74,6 +75,9 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		return nil, fmt.Errorf("inbound protocol %q is not supported on %s", config.Protocol.Type, Capabilities().Platform)
 	}
 
+	if config.Protocol.Type == contract.ProtocolTun && config.Protocol.Tun != nil && platformvpn.IsDevice(config.Protocol.Tun.Name) {
+		return listenPlatformTun(config, handler, ranges)
+	}
 	if config.Protocol.Type == contract.ProtocolHysteria2 {
 		return listenHysteria2(config, handler, verifier)
 	}

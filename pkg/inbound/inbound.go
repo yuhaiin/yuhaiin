@@ -503,6 +503,19 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 			return nil
 		}
 
+		// A platform VPN rebuilds its interface in place (make before break)
+		// instead of tearing the TUN down for every configuration change.
+		if req.Enabled && x.server != nil {
+			if r, ok := x.server.(contractReconfigurer); ok {
+				if handled, err := r.ReconfigureContract(req); handled {
+					if err == nil {
+						l.store.Store(key, entry{contractConfig: &req, server: x.server, counters: x.counters})
+					}
+					return err
+				}
+			}
+		}
+
 		l.store.Delete(key)
 
 		if err := l.closeServer(x.server); err != nil {
