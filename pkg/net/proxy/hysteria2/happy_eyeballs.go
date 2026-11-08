@@ -82,9 +82,7 @@ func happyEyeballsAnswers(ctx context.Context, config node.Hysteria2) (<-chan ha
 	for _, hostname := range hostOrder {
 		entry := hosts[hostname]
 		for _, mode := range []netapi.ResolverMode{netapi.ResolverModePreferIPv6, netapi.ResolverModePreferIPv4} {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				ips, err := resolver.LookupIP(ctx, entry.name, func(opt *netapi.LookupIPOption) {
 					opt.Mode = mode
 				})
@@ -106,7 +104,7 @@ func happyEyeballsAnswers(ctx context.Context, config node.Hysteria2) (<-chan ha
 				case batches <- batch:
 				case <-ctx.Done():
 				}
-			}()
+			})
 		}
 	}
 	if len(literals) != 0 {
@@ -145,7 +143,7 @@ func raceHappyEyeballsv2[T io.Closer](
 	source := batches
 	var errAll error
 	var active int
-	var lastFamily int = -1
+	var lastFamily = -1
 	var launched bool
 	var lastStart time.Time
 	var graceUntil time.Time
