@@ -104,12 +104,15 @@ func TestLogsAndOneTimeDownload(t *testing.T) {
 	if code, _ := (req{method: "GET", path: link.URL, remote: "192.168.1.9:1"}).do(t, h); code != 403 {
 		t.Fatal("LAN download allowed")
 	}
-	// The cookie-less DownloadManager fetch works exactly once.
-	if code, body := (req{method: "GET", path: link.URL}).do(t, h); code != 200 || body != "I yuhaiin: hello\n" {
-		t.Fatalf("download: %d %q", code, body)
+	// WebView probes the link, then the cookie-less DownloadManager fetches it;
+	// the link stops working after a few fetches.
+	for range downloadMaxUses {
+		if code, body := (req{method: "GET", path: link.URL}).do(t, h); code != 200 || body != "I yuhaiin: hello\n" {
+			t.Fatalf("download: %d %q", code, body)
+		}
 	}
 	if code, _ := (req{method: "GET", path: link.URL}).do(t, h); code != 404 {
-		t.Fatal("download link reused")
+		t.Fatal("download link reused beyond its limit")
 	}
 	if code, _ := (req{method: "GET", path: "/android/v1/download/guess"}).do(t, h); code != 404 {
 		t.Fatal("unknown token served")
