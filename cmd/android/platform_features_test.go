@@ -3,6 +3,7 @@ package yuhaiin
 import (
 	"context"
 	json "encoding/json/v2"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -128,6 +129,15 @@ func TestBackupPreviewRejectsInvalidData(t *testing.T) {
 	for _, bad := range []string{`{}`, `{"format":"other","version":1}`, `not json`} {
 		if code, _ := authed("POST", "/android/v1/backup/preview", bad).do(t, h); code != 400 {
 			t.Fatalf("%s accepted", bad)
+		}
+	}
+}
+
+func TestBackupPreviewAcceptsEveryCoreBackupVersion(t *testing.T) {
+	for version, ok := range map[int]bool{1: true, 2: true, 3: false} {
+		_, err := previewOf(fmt.Appendf(nil, `{"format":"yuhaiin-config","version":%d,"createdAt":"x","tables":{"nodes_v2":{"rows":[[1]]}}}`, version))
+		if (err == nil) != ok {
+			t.Fatalf("version %d: %v", version, err)
 		}
 	}
 }
