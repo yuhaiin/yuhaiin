@@ -303,7 +303,12 @@ func (p *platformAPI) deleteRoute(w http.ResponseWriter, r *http.Request) {
 
 // readLogcat reads this app's log buffer; Android limits apps to their own UID.
 var readLogcat = func(ctx context.Context, lines int) ([]byte, error) {
-	return exec.CommandContext(ctx, "logcat", "-d", "-v", "threadtime", "-t", strconv.Itoa(lines)).Output()
+	// App processes may run without PATH; logcat is a system binary.
+	bin := "/system/bin/logcat"
+	if _, err := os.Stat(bin); err != nil {
+		bin = "logcat"
+	}
+	return exec.CommandContext(ctx, bin, "-d", "-v", "threadtime", "-t", strconv.Itoa(lines)).Output()
 }
 
 func logLines(r *http.Request) int {
@@ -487,7 +492,12 @@ type downloadItem struct {
 	name, contentType string
 	data              []byte
 	expires           time.Time
+	uses              int
 }
+
+// The WebView requests a download URL once before handing it to Android's
+// DownloadManager, which requests it again; allow a few fetches.
+const downloadMaxUses = 3
 
 type downloadStore struct {
 	mu    sync.Mutex
@@ -518,15 +528,22 @@ func (d *downloadStore) take(token string) (downloadItem, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	item, ok := d.items[token]
-	delete(d.items, token)
 	if !ok || time.Now().After(item.expires) {
+		delete(d.items, token)
 		return downloadItem{}, false
+	}
+	item.uses++
+	if item.uses >= downloadMaxUses {
+		delete(d.items, token)
+	} else {
+		d.items[token] = item
 	}
 	return item, true
 }
 
 // download serves a link created by an authorized request. The unguessable
-// token is single-use and short-lived, and only loopback peers are served.
+// token is short-lived and limited to a few fetches, and only loopback peers
+// are served.
 func (p *platformAPI) download(w http.ResponseWriter, r *http.Request) {
 	if !isLoopbackPeer(r.RemoteAddr) {
 		writeError(w, http.StatusForbidden, "unauthorized", "downloads are only available on this device")
