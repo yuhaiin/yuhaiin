@@ -500,7 +500,7 @@ func validPackageName(name string) bool {
 	if len(name) == 0 || len(name) > 255 || !strings.Contains(name, ".") {
 		return false
 	}
-	for _, seg := range strings.Split(name, ".") {
+	for seg := range strings.SplitSeq(name, ".") {
 		if seg == "" {
 			return false
 		}
