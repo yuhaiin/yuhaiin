@@ -96,3 +96,20 @@ func BenchmarkDarwinRoutes(b *testing.B) {
 		}
 	}
 }
+
+func TestDarwinRoutesIgnoreKernelChurn(t *testing.T) {
+	ifaces := map[int]Interface{1: {Interface: &net.Interface{Index: 1, Name: "en0"}}}
+	host := func(ip [4]byte, flags int) route.Message {
+		return &route.RouteMessage{Index: 1, Flags: flags, Addrs: []route.Addr{
+			unix.RTAX_DST: &route.Inet4Addr{IP: ip}, unix.RTAX_GATEWAY: nil, unix.RTAX_NETMASK: nil,
+		}}
+	}
+	rs := routesFromMessages([]route.Message{
+		host([4]byte{192, 0, 2, 7}, unix.RTF_LLINFO|unix.RTF_HOST),
+		host([4]byte{198, 51, 100, 9}, unix.RTF_WASCLONED|unix.RTF_HOST),
+		host([4]byte{203, 0, 113, 1}, unix.RTF_STATIC|unix.RTF_HOST),
+	}, ifaces)
+	if len(rs.v4) != 1 || rs.v4[0].Dst != netip.MustParsePrefix("203.0.113.1/32") {
+		t.Fatalf("routes = %+v, want only the static host route", rs.v4)
+	}
+}

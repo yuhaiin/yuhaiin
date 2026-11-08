@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json/v2"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
@@ -105,6 +107,43 @@ func (v *nodeTotals) equal(o *nodeTotals) bool {
 		slices.Equal(v.ThroughputHistory, o.ThroughputHistory) &&
 		healthEqual(&v.TCPHealth, &o.TCPHealth) && healthEqual(&v.UDPHealth, &o.UDPHealth) &&
 		maps.EqualFunc(v.Probes, o.Probes, probeEqual)
+}
+
+// unchangedSince reports whether snapshot() would currently equal saved,
+// without cloning histories or probes. upload and download are the values the
+// caller already loaded for rate sampling, so both views agree.
+func (n *nodeCounters) unchangedSince(saved *nodeTotals, upload, download uint64, now time.Time) bool {
+	if saved.UploadBytes != upload || saved.DownloadBytes != download ||
+		saved.UDPSentPackets != n.udpSent.Load() || saved.UDPRecvPackets != n.udpReceived.Load() ||
+		saved.TCPAttempts != n.tcpAttempts.Load() || saved.TCPConnections != n.tcpConnected.Load() ||
+		saved.UDPAttempts != n.udpAttempts.Load() || saved.UDPSessions != n.udpConnected.Load() ||
+		saved.PingAttempts != n.pingAttempts.Load() || saved.Failures != n.failures.Load() ||
+		saved.LastSuccessAt != n.lastSuccess.Load() || saved.LastFailureAt != n.lastFailure.Load() ||
+		saved.LastUsedAt != n.lastUsed.Load() {
+		return false
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return saved.LastError == n.lastError &&
+		saved.Throughput == n.throughput && saved.UploadThroughput == n.uploadThroughput &&
+		slices.Equal(saved.ThroughputHistory, n.throughputHistory) &&
+		liveHealthEqual(&n.tcpHealth, &saved.TCPHealth, now) && liveHealthEqual(&n.udpHealth, &saved.UDPHealth, now) &&
+		maps.EqualFunc(n.probes, saved.Probes, probeEqual)
+}
+
+// liveHealthEqual compares a live history with cloneHealth's output without
+// copying it. Histories that still need sequence normalization report a change.
+func liveHealthEqual(live, saved *contract.ChannelHealth, now time.Time) bool {
+	if live.Sequence == 0 && len(live.Samples) != 0 {
+		return false
+	}
+	state := live.State
+	if len(live.Samples) == 0 || now.UnixMilli()-live.Samples[len(live.Samples)-1].At > recentNodeObservation.Milliseconds() {
+		state = "unknown"
+	}
+	return state == saved.State && live.Sequence == saved.Sequence &&
+		live.ConsecutiveFailures == saved.ConsecutiveFailures && live.ConsecutiveSuccesses == saved.ConsecutiveSuccesses &&
+		slices.Equal(live.Samples, saved.Samples) && slices.Equal(live.LatencySamples, saved.LatencySamples)
 }
 
 func healthEqual(a, b *contract.ChannelHealth) bool {
@@ -354,17 +393,23 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 	}
 	o.lastSample = nowSample
 	for id, n := range o.nodes {
-		v := n.snapshot()
+		// Idle nodes are the common case: compare in place and clone histories
+		// and probes only for nodes that actually need persisting.
+		traffic := nodeTotals{UploadBytes: n.upload.Load(), DownloadBytes: n.download.Load()}
 		last := o.lastRates[id]
-		n.sampleTraffic(previousSample, nowSample, last, v)
-		if v.UploadBytes >= last[0] {
-			n.uploadBps.Store(uint64(float64(v.UploadBytes-last[0]) / elapsed))
+		n.sampleTraffic(previousSample, nowSample, last, traffic)
+		if traffic.UploadBytes >= last[0] {
+			n.uploadBps.Store(uint64(float64(traffic.UploadBytes-last[0]) / elapsed))
 		}
-		if v.DownloadBytes >= last[1] {
-			n.downloadBps.Store(uint64(float64(v.DownloadBytes-last[1]) / elapsed))
+		if traffic.DownloadBytes >= last[1] {
+			n.downloadBps.Store(uint64(float64(traffic.DownloadBytes-last[1]) / elapsed))
 		}
-		o.lastRates[id] = [2]uint64{v.UploadBytes, v.DownloadBytes}
-		if saved, ok := o.saved[id]; !ok || !saved.equal(&v) {
+		o.lastRates[id] = [2]uint64{traffic.UploadBytes, traffic.DownloadBytes}
+		saved, ok := o.saved[id]
+		if ok && n.unchangedSince(&saved, traffic.UploadBytes, traffic.DownloadBytes, nowSample) {
+			continue
+		}
+		if v := n.snapshot(); !ok || !saved.equal(&v) {
 			changed[id] = v
 		}
 	}
@@ -384,12 +429,15 @@ func (o *nodeObserver) flushLocked(ctx context.Context) error {
 	}
 	defer stmt.Close()
 	now := time.Now().Unix()
+	// SQLite copies bound TEXT, so one encoding buffer serves every node.
+	var data bytes.Buffer
 	for id, v := range changed {
-		b, er := json.Marshal(v)
-		if er != nil {
+		data.Reset()
+		if er := json.MarshalWrite(&data, v); er != nil {
 			return er
 		}
-		if _, er = stmt.ExecContext(ctx, id, string(b), now, id); er != nil {
+		encoded := bytes.TrimRight(data.Bytes(), "\n")
+		if _, er := stmt.ExecContext(ctx, id, unsafe.String(unsafe.SliceData(encoded), len(encoded)), now, id); er != nil {
 			return er
 		}
 	}

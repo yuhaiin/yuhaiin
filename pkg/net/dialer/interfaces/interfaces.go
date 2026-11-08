@@ -319,21 +319,22 @@ func runNetworkMonitor(
 func reGetDefaultInterface(reason string) error {
 	// Snapshot failure is unknown state. Keep previous lifecycle affinity;
 	// route cache refresh below remains independent of lifecycle discovery.
+	ifs, err := interfaceSnapshot()
+	if err != nil {
+		return fmt.Errorf("get interfaces failed: %w", err)
+	}
 	var lifecycle netstate.Snapshot
 	var lifecycleErr error
 	if !externalNetworkState.Load() {
-		lifecycle, lifecycleErr = readNetworkSnapshot()
+		lifecycle, lifecycleErr = networkSnapshotFrom(ifs)
 	}
 	// Collect all observations before publishing any of them. A transient
 	// failure must not produce a mixed old/new cache.
-	routes, err := routes()
+	routes, err := routesFrom(interfacesMapFrom(ifs))
 	if err != nil {
 		return fmt.Errorf("get routes failed: %w", err)
 	}
-	addresses, err := getLocalAddresses()
-	if err != nil {
-		return fmt.Errorf("get local addresses failed: %w", err)
-	}
+	addresses := localAddressesFrom(ifs)
 	name, err := defaultRouteInterface()
 	unsupported := errors.Is(err, errors.ErrUnsupported)
 	if errors.Is(err, ErrNoDefaultRoute) {
@@ -412,11 +413,15 @@ func DefaultRoute() (DefaultRouteDetails, error) {
 type Interface struct {
 	*net.Interface
 	AltAddrs []net.Addr // if non-nil, returned by Addrs
+	addrsErr error      // a failed lookup captured by interfaceSnapshot
 }
 
 func (i Interface) IsLoopback() bool { return i.Flags&net.FlagLoopback != 0 }
 func (i Interface) IsUp() bool       { return i.Flags&net.FlagUp != 0 }
 func (i Interface) Addrs() ([]net.Addr, error) {
+	if i.addrsErr != nil {
+		return nil, i.addrsErr
+	}
 	if i.AltAddrs != nil {
 		return i.AltAddrs, nil
 	}
@@ -494,7 +499,37 @@ func getLocalAddresses() (map[netip.Addr]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return localAddressesFrom(ifs), nil
+}
 
+// interfaceSnapshot lists interfaces and resolves each one's addresses once.
+// A refresh shares it between routes, local addresses and lifecycle state;
+// on BSD every Addrs call is its own routing-socket dump.
+func interfaceSnapshot() ([]Interface, error) {
+	ifs, err := GetInterfaceList()
+	if err != nil {
+		return nil, err
+	}
+	// AltNetInterfaces may hand out a slice it keeps; never fill it in place.
+	ifs = slices.Clone(ifs)
+	for i := range ifs {
+		if ifs[i].AltAddrs != nil {
+			continue
+		}
+		addrs, err := ifs[i].Addrs()
+		if err != nil {
+			ifs[i].addrsErr = err
+			continue
+		}
+		if addrs == nil {
+			addrs = []net.Addr{}
+		}
+		ifs[i].AltAddrs = addrs
+	}
+	return ifs, nil
+}
+
+func localAddressesFrom(ifs []Interface) map[netip.Addr]string {
 	ret := map[netip.Addr]string{}
 
 	for _, v := range ifs {
@@ -519,7 +554,7 @@ func getLocalAddresses() (map[netip.Addr]string, error) {
 		}
 	}
 
-	return ret, nil
+	return ret
 }
 
 var (

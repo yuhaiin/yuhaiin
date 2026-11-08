@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"time"
 
 	"golang.org/x/net/route"
 	"golang.org/x/sys/unix"
@@ -13,12 +14,22 @@ import (
 // parsedRIB retains the last macOS route snapshot. Network notifications can
 // arrive frequently with no actual RIB changes; skip the expensive ParseRIB
 // and route conversion in that case. Interface names are part of the key.
+//
+// The same dump also yields the default route, so one refresh fetches and
+// parses the RIB once instead of once for routes and again for the default.
 var parsedRIB struct {
 	sync.Mutex
-	raw    []byte
-	names  map[int]string
-	routes router
+	raw          []byte
+	names        map[int]string
+	routes       router
+	defaultIndex int // before utun delegation, which can change independently
+	defaultErr   error
+	fetchedAt    time.Time
 }
+
+// recentRIB bounds how long DefaultRouteInterfaceIndex reuses the dump that
+// routesFrom just took in the same refresh.
+const recentRIB = time.Second
 
 func sameRouteInterfaceNames(names map[int]string, ifaces map[int]Interface) bool {
 	if len(names) != len(ifaces) {
@@ -32,12 +43,7 @@ func sameRouteInterfaceNames(names map[int]string, ifaces map[int]Interface) boo
 	return true
 }
 
-func routes() (router, error) {
-	ifaces, err := interfacesMap()
-	if err != nil {
-		return router{}, err
-	}
-
+func routesFrom(ifaces map[int]Interface) (router, error) {
 	messages, err := route.FetchRIB(unix.AF_UNSPEC, unix.NET_RT_DUMP, 0)
 	if err != nil {
 		return router{}, err
@@ -46,6 +52,7 @@ func routes() (router, error) {
 	parsedRIB.Lock()
 	defer parsedRIB.Unlock()
 	if parsedRIB.raw != nil && bytes.Equal(parsedRIB.raw, messages) && sameRouteInterfaceNames(parsedRIB.names, ifaces) {
+		parsedRIB.fetchedAt = time.Now()
 		return parsedRIB.routes, nil
 	}
 
@@ -63,7 +70,28 @@ func routes() (router, error) {
 		parsedRIB.names[index] = iface.Name
 	}
 	parsedRIB.routes = ret
+	parsedRIB.defaultIndex, parsedRIB.defaultErr = defaultRouteIndexFromMessages(msgs)
+	parsedRIB.fetchedAt = time.Now()
 	return ret, nil
+}
+
+// recentDefaultRouteIndex returns the default route of a dump taken within
+// recentRIB, before delegation is resolved.
+func recentDefaultRouteIndex() (index int, ok bool, err error) {
+	parsedRIB.Lock()
+	defer parsedRIB.Unlock()
+	if parsedRIB.raw == nil || time.Since(parsedRIB.fetchedAt) > recentRIB {
+		return 0, false, nil
+	}
+	return parsedRIB.defaultIndex, true, parsedRIB.defaultErr
+}
+
+// churnRoute reports routing-table entries the kernel creates and expires on
+// its own as traffic flows: ARP/NDP neighbor entries and host routes cloned
+// from a parent route. Both resolve to their parent's interface, so neither
+// changes automatic interface selection, but they change the dump constantly.
+func churnRoute(flags int) bool {
+	return flags&(unix.RTF_LLINFO|unix.RTF_WASCLONED) != 0
 }
 
 // routesFromMessages builds the unscoped routing table used for automatic
@@ -77,7 +105,7 @@ func routesFromMessages(msgs []route.Message, ifaces map[int]Interface) router {
 			// Interface-scoped routes only apply after the caller chooses that
 			// interface. Flattening them into this trie can replace the global
 			// default with an unrelated tunnel, especially for IPv6.
-			if msg.Flags&unix.RTF_IFSCOPE != 0 {
+			if msg.Flags&unix.RTF_IFSCOPE != 0 || churnRoute(msg.Flags) {
 				continue
 			}
 			if len(msg.Addrs) < 3 {

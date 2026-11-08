@@ -5,11 +5,7 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
-func routes() (router, error) {
-	ifaces, err := interfacesMap()
-	if err != nil {
-		return router{}, err
-	}
+func routesFrom(ifaces map[int]Interface) (router, error) {
 
 	routes, err := winipcfg.GetIPForwardTable2(windows.AF_INET)
 	if err != nil {
