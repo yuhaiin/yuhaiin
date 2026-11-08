@@ -228,6 +228,9 @@ func raceHappyEyeballsv2[T io.Closer](
 			}
 		}
 		if source == nil && active == 0 && len(first)+len(second) == 0 {
+			if errAll == nil {
+				errAll = errors.New("no usable DNS addresses")
+			}
 			return zero, nil, fmt.Errorf("hysteria2 happy eyeballs: all addresses failed: %w", errAll)
 		}
 
