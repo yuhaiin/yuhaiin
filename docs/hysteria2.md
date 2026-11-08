@@ -74,6 +74,46 @@ Save a node through `node.put` (or `nodes.post`), using the usual tagged chain r
 
 The client obtains its UDP transport from the preceding chain proxy. It opens one shared QUIC connection lazily, respects caller cancellation during setup, and reconnects for new requests after disconnection. Existing streams/UDP sessions fail on disconnection and are not replayed. Closing a client permanently closes it.
 
+## Happy Eyeballs / first available address
+
+For an ordinary single-port hostname without `hop_addresses`, the client now
+resolves all usable A/AAAA records and races **complete QUIC handshakes and
+Hysteria 2 authentication**, rather than choosing one DNS answer at random.
+IPv4 and IPv6 addresses are interleaved (respecting the resolver's family
+preference), new attempts are staggered by 250 ms, and no more than three
+handshakes run at once. The first authenticated connection wins. Failed or
+late successful attempts close their sockets, transports, and QUIC sessions.
+The last successful endpoint is preferred when a new session is necessary.
+Existing streams are not replayed after a disconnected QUIC session.
+
+To use a **list of addresses as failover candidates rather than periodic
+hopping**, enable `happy_eyeballs` explicitly:
+
+```json
+{
+  "host": "relay-a.example.com:443",
+  "hop_addresses": ["relay-b.example.com:443", "[2001:db8::1]:443"],
+  "happy_eyeballs": true,
+  "tls": { "servernames": ["hy2.example.com"] }
+}
+```
+
+The `host` entry is included in the race and each hostname contributes all
+its resolved IP addresses. A failed DNS lookup for one candidate does not
+prevent other valid candidates from being used. When a port list/range is
+configured, one port per address entry and resolved IP is sampled for each
+race, to avoid launching thousands of simultaneous handshakes. To fail over
+between distinct port numbers on one IP, configure separate entries with
+single ports. Unlike periodic hopping, a winning path stays fixed until its
+QUIC session disconnects. All targets must speak compatible Hysteria 2 and
+pass the configured authentication and TLS checks. They may be different
+Hysteria servers because each candidate starts an independent QUIC session.
+
+With `happy_eyeballs` omitted/false, existing `hop_addresses` continue
+using their original periodic address-hopping behavior. Port-range hopping
+without a relay list also keeps its original behavior. The `happy_eyeballs`
+option and the original hopping behavior are intentionally separate.
+
 ## Port hopping
 
 The client accepts the [official list/range syntax](https://v2.hysteria.network/docs/advanced/Port-Hopping/) in `host`, for example
