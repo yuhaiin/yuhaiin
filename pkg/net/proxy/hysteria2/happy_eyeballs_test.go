@@ -83,11 +83,11 @@ func TestHysteria2HappyEyeballsChoosesReachableRelay(t *testing.T) {
 	defer blackhole.Close()
 	tracker := &addressTestDialer{}
 	config := node.Hysteria2{
-		Host: blackhole.LocalAddr().String(),
-		HopAddresses: []string{relay.front.LocalAddr().String()},
+		Host:          blackhole.LocalAddr().String(),
+		HopAddresses:  []string{relay.front.LocalAddr().String()},
 		HappyEyeballs: true,
-		Auth: "secret",
-		TLS: node.TLS{CACert: [][]byte{ca}, ServerNames: []string{"test.example"}},
+		Auth:          "secret",
+		TLS:           node.TLS{CACert: [][]byte{ca}, ServerNames: []string{"test.example"}},
 	}
 	proxy, err := NewClient(config, tracker)
 	if err != nil {
@@ -136,7 +136,7 @@ func TestHysteria2HappyEyeballsDefaultDualStack(t *testing.T) {
 		lookup: func(context.Context, string) (*netapi.IPs, error) {
 			dnsCalls.Add(1)
 			return &netapi.IPs{
-				A: []net.IP{net.ParseIP("127.0.0.2")},
+				A:    []net.IP{net.ParseIP("127.0.0.2")},
 				AAAA: []net.IP{net.ParseIP("::1")},
 			}, nil
 		},
@@ -144,7 +144,7 @@ func TestHysteria2HappyEyeballsDefaultDualStack(t *testing.T) {
 	proxy, err := NewClient(node.Hysteria2{
 		Host: net.JoinHostPort("dual.example", port),
 		Auth: "secret",
-		TLS: node.TLS{CACert: [][]byte{ca}, ServerNames: []string{"test.example"}},
+		TLS:  node.TLS{CACert: [][]byte{ca}, ServerNames: []string{"test.example"}},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,79 @@ func TestHysteria2HappyEyeballsDefaultDualStack(t *testing.T) {
 	if client.preferred == nil || client.preferred.IP.To4() == nil {
 		t.Fatalf("did not fall back to IPv4: %v", client.preferred)
 	}
-	if dnsCalls.Load() != 1 {
-		t.Fatalf("DNS lookups = %d, want one", dnsCalls.Load())
+	if dnsCalls.Load() != 2 {
+		t.Fatalf("DNS lookups = %d, want two family queries", dnsCalls.Load())
+	}
+}
+
+func TestHappyEyeballsv2PrefersIPv6AfterQuickAAAA(t *testing.T) {
+	batches := make(chan happyEyeballsBatch, 2)
+	go func() {
+		batches <- happyEyeballsBatch{addrs: []*net.UDPAddr{{IP: net.IPv4(127, 0, 0, 1), Port: 443}}}
+		time.Sleep(10 * time.Millisecond)
+		batches <- happyEyeballsBatch{addrs: []*net.UDPAddr{{IP: net.ParseIP("::1"), Port: 443}}}
+		close(batches)
+	}()
+	conn, addr, err := raceHappyEyeballsv2(t.Context(), batches, nil, false, func(context.Context, *net.UDPAddr) (*happyEyeballsTestConn, error) {
+		return &happyEyeballsTestConn{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if addr.IP.To4() != nil {
+		t.Fatalf("IPv4 won before 50ms resolution delay: %s", addr)
+	}
+}
+
+type slowAAAAResolver struct {
+	netapi.Resolver
+	started chan struct{}
+}
+
+func (r *slowAAAAResolver) LookupIP(ctx context.Context, _ string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
+	var option netapi.LookupIPOption
+	for _, opt := range opts {
+		opt(&option)
+	}
+	if option.Mode == netapi.ResolverModePreferIPv6 {
+		close(r.started)
+		<-ctx.Done() // AAAA can hang; IPv4 must not wait for it.
+		return nil, ctx.Err()
+	}
+	return &netapi.IPs{A: []net.IP{net.ParseIP("127.0.0.2")}}, nil
+}
+
+func TestHysteria2HappyEyeballsv2DoesNotWaitForAAAA(t *testing.T) {
+	backend, ca, _, _ := newTestServer(t, "")
+	relay := newAddressTestRelay(t, "127.0.0.2:0", backend)
+	_, port, err := net.SplitHostPort(relay.front.LocalAddr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver := &slowAAAAResolver{started: make(chan struct{})}
+	ctx := netapi.WithContext(t.Context())
+	ctx.ConnOptions().Resolver().SetResolver(resolver)
+	proxy, err := NewClient(node.Hysteria2{
+		Host: net.JoinHostPort("dual.example", port),
+		Auth: "secret",
+		TLS:  node.TLS{CACert: [][]byte{ca}, ServerNames: []string{"test.example"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxy.Close()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	target, _ := netapi.ParseAddress("tcp", "example.com:443")
+	stream, err := proxy.Conn(ctx, target)
+	if err != nil {
+		t.Fatalf("IPv4 was blocked by AAAA query: %v", err)
+	}
+	defer stream.Close()
+	select {
+	case <-resolver.started:
+	default:
+		t.Fatal("AAAA query was not started concurrently")
 	}
 }
