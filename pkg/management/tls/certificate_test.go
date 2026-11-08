@@ -129,3 +129,40 @@ func TestLoadOrCreateConcurrentFirstStart(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadOrCreateWithoutHardLinks(t *testing.T) {
+	oldLink := linkFile
+	linkFile = func(string, string) error { return &os.LinkError{Op: "link", Err: os.ErrPermission} }
+	t.Cleanup(func() { linkFile = oldLink })
+
+	dir := t.TempDir()
+	_, fingerprint, created, err := LoadOrCreate(dir, []string{"127.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("first call did not create a certificate")
+	}
+	info, err := os.Stat(filepath.Join(dir, certificateFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("certificate bundle permissions = %04o, want 0600", info.Mode().Perm())
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("data directory has %d entries after creation, want only the bundle", len(entries))
+	}
+
+	_, reloaded, created, err := LoadOrCreate(dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created || reloaded != fingerprint {
+		t.Fatalf("second call created=%v fingerprint=%q, want reuse of %q", created, reloaded, fingerprint)
+	}
+}

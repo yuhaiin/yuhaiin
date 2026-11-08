@@ -19,6 +19,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
@@ -201,10 +202,7 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
-	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Debug("http request", "host", r.Host, "method", r.Method, "path", r.URL.Path)
-		app.Mux.ServeHTTP(w, r)
-	})}
+	server, serverListener := newAndroidHTTPServer(app.Mux, lis)
 
 	a.server = server
 	a.instance = app
@@ -221,19 +219,63 @@ func (a *App) Start(opt *Opts) error {
 				log.Error("close app error", "err", err)
 			}
 		}()
-		defer lis.Close()
+		defer serverListener.Close()
 		defer opt.CloseFallback.Close()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go a.notifyFlow(ctx, app, opt)
 
-		if err := a.server.Serve(lis); err != nil {
+		if err := server.Serve(serverListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("yuhaiin serve failed", "err", err)
 		}
 	}()
 
 	return nil
+}
+
+var managementTLSDir string
+
+// SetManagementTLSDir sets the private directory that holds the persistent
+// self-signed management certificate and key. Android passes an internal,
+// non-backed-up app directory. Without it the server stays HTTP-only.
+func SetManagementTLSDir(dir string) {
+	managementTLSDir = dir
+}
+
+// androidHTTPHeaderTimeout bounds request headers and, through net/http, the
+// TLS handshake of HTTPS clients. It does not limit streaming responses.
+const androidHTTPHeaderTimeout = 30 * time.Second
+
+// newAndroidHTTPServer serves handler on lis. When the management certificate
+// is available, the same port also accepts HTTPS (TLS 1.2+, h2 and HTTP/1.1).
+// Cleartext requests are served unchanged, so the in-app WebView and API keep
+// using http://127.0.0.1:<port>. The bind address, and therefore LAN exposure,
+// is decided by listenAndroidHTTP alone.
+func newAndroidHTTPServer(handler http.Handler, lis net.Listener) (*http.Server, net.Listener) {
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Debug("http request", "tls", r.TLS != nil, "host", r.Host, "method", r.Method, "path", r.URL.Path)
+			handler.ServeHTTP(w, r)
+		}),
+		ReadHeaderTimeout: androidHTTPHeaderTimeout,
+	}
+	if managementTLSDir == "" {
+		log.Info("android management HTTPS disabled: certificate directory is not configured")
+		return server, lis
+	}
+	certificate, fingerprint, created, err := managementtls.LoadOrCreate(managementTLSDir, []string{"localhost", "127.0.0.1", "::1"})
+	if err != nil {
+		log.Warn("android management HTTPS disabled: certificate unavailable", "err", err)
+		return server, lis
+	}
+	if created {
+		log.Info("android management HTTPS generated a self-signed certificate", "sha256", fingerprint)
+	} else {
+		log.Info("android management HTTPS enabled", "sha256", fingerprint)
+	}
+	server.TLSConfig = managementtls.ServerConfig(certificate)
+	return server, managementtls.NewProtocolListener(lis, server.TLSConfig)
 }
 
 func listenAndroidHTTP() (net.Listener, error) {
@@ -480,12 +522,4 @@ func applyRuntimeProfile() {
 		configuration.UDPIdleTimeout.Store(time.Minute * 3)
 		configuration.UDPMappingTimeout.Store(time.Minute * 6)
 	}
-}
-
-func newResolverDB() app.SQLStore {
-	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
-}
-
-func newChoreDB() app.SQLStore {
-	return migrate.NewStateDB(paths.PathGenerator.State(savepath))
 }

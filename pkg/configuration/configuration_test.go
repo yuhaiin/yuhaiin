@@ -18,6 +18,11 @@ func TestGetFakeIPRange(t *testing.T) {
 		{"invalid IPv6", "invalid", true, "2001:2::/64"},
 		{"custom IPv4", "10.42.0.0/16", false, "10.42.0.0/16"},
 		{"custom IPv6", "fd44:8589:cd09:ffff::/64", true, "fd44:8589:cd09:ffff::/64"},
+		{"IPv6 value for IPv4", "2001:2::/64", false, "198.18.0.0/16"},
+		{"IPv4 value for IPv6", "10.42.0.0/16", true, "2001:2::/64"},
+		{"IPv4-mapped IPv6 for IPv6", "::ffff:10.42.0.0/112", true, "2001:2::/64"},
+		{"address without prefix", "10.42.0.1", false, "198.18.0.0/16"},
+		{"host bits are masked", "10.42.1.9/16", false, "10.42.0.0/16"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := GetFakeIPRange(tt.input, tt.ipv6); got != netip.MustParsePrefix(tt.want) {

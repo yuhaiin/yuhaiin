@@ -29,6 +29,7 @@ import (
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
+	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
@@ -363,13 +364,9 @@ func run(args []string) (resultErr error) {
 		server.Handler = httpHandler
 		server.TLSConfig = managementTLSConfig
 		if server.TLSConfig == nil {
-			server.TLSConfig = &tls.Config{
-				Certificates: []tls.Certificate{tlsCertificate},
-				MinVersion:   tls.VersionTLS12,
-				NextProtos:   []string{"h2", "http/1.1"},
-			}
+			server.TLSConfig = managementtls.ServerConfig(tlsCertificate)
 		}
-		serverListener = newProtocolListener(lis, server.TLSConfig)
+		serverListener = managementtls.NewProtocolListener(lis, server.TLSConfig)
 		if generatedTLSCertificate {
 			fmt.Fprintf(os.Stderr, "Management HTTPS generated a self-signed certificate; its private key is stored in %s/management-tls.pem.\n", *path)
 		}
