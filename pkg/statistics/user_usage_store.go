@@ -1,12 +1,14 @@
 package statistics
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"time"
+	"unsafe"
 
 	usage "github.com/Asutorufa/yuhaiin/pkg/contract/usage"
 )
@@ -169,17 +171,21 @@ func (r *UserUsage) persistUsage(ctx context.Context, batch *usageBatch) error {
 	defer audit.Close()
 	now := time.Now().UnixMilli()
 	completed := false
+	// SQLite copies bound TEXT (SQLITE_TRANSIENT), so one encoding buffer is
+	// reused for every audit row instead of allocating and copying each one.
+	var data bytes.Buffer
 	for _, a := range batch.audit {
 		completed = completed || a.Result != "active"
-		data, err := json.Marshal(a)
-		if err != nil {
+		data.Reset()
+		if err := json.MarshalWrite(&data, a); err != nil {
 			return err
 		}
 		checkpoint := now
 		if a.EndedAt != 0 {
 			checkpoint = a.EndedAt
 		}
-		if _, err := audit.ExecContext(ctx, a.ID, a.UserID, a.CredentialID, a.InboundID, a.NodeID, a.Protocol, a.Source, a.Target, a.Result, a.StartedAt, checkpoint, string(data)); err != nil {
+		encoded := bytes.TrimRight(data.Bytes(), "\n")
+		if _, err := audit.ExecContext(ctx, a.ID, a.UserID, a.CredentialID, a.InboundID, a.NodeID, a.Protocol, a.Source, a.Target, a.Result, a.StartedAt, checkpoint, unsafe.String(unsafe.SliceData(encoded), len(encoded))); err != nil {
 			return err
 		}
 	}
