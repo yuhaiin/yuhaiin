@@ -50,7 +50,8 @@ func TestMayHoldSecret(t *testing.T) {
 }
 
 func TestRedactSkipsSecretFreeTypes(t *testing.T) {
-	in := &schemaFlow{Download: "1", Counters: map[string]schemaCounter{"a": {Upload: 1}}, History: []*schemaCounter{{Name: "x"}}}
+	// walk ignores unexported fields, so a hidden interface does not force it.
+	in := &schemaFlow{Download: "1", Counters: map[string]schemaCounter{"a": {Upload: 1}}, History: []*schemaCounter{{Name: "x"}}, hidden: 1}
 	out, err := Redact(in)
 	if err != nil {
 		t.Fatal(err)
