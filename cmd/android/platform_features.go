@@ -374,7 +374,9 @@ func previewOf(data []byte) (backupPreview, error) {
 	if err := json.Unmarshal(data, &root); err != nil {
 		return backupPreview{}, fmt.Errorf("invalid backup: %w", err)
 	}
-	if root.Format != "yuhaiin-config" || root.Version != 1 {
+	// Version 2 is what the core writes when gateway guard rows exist; v1 apps
+	// write the same format, so their backups restore too.
+	if root.Format != "yuhaiin-config" || (root.Version != 1 && root.Version != 2) {
 		return backupPreview{}, errors.New("unsupported backup format")
 	}
 	return backupPreview{CreatedAt: root.CreatedAt, Nodes: len(root.Tables["nodes_v2"].Rows),
