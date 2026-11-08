@@ -76,11 +76,14 @@ The client obtains its UDP transport from the preceding chain proxy. It opens on
 
 ## Happy Eyeballs / first available address
 
-For an ordinary single-port hostname without `hop_addresses`, the client now
-resolves all usable A/AAAA records and races **complete QUIC handshakes and
-Hysteria 2 authentication**, rather than choosing one DNS answer at random.
-IPv4 and IPv6 addresses are interleaved (respecting the resolver's family
-preference), new attempts are staggered by 250 ms, and no more than three
+For an ordinary single-port hostname without `hop_addresses`, the client
+uses **Happy Eyeballs v2 (RFC 8305)** rather than choosing one DNS answer at
+random. A and AAAA lookups start concurrently. When a response arrives first
+from the nonpreferred address family, the client waits up to 50 ms for the
+preferred family before connecting; it does not wait for a stalled DNS answer.
+Addresses from both families are interleaved (respecting the resolver's family
+preference), connection attempts are staggered by 250 ms, and a failed attempt
+allows the next address to start immediately. No more than three QUIC
 handshakes run at once. The first authenticated connection wins. Failed or
 late successful attempts close their sockets, transports, and QUIC sessions.
 The last successful endpoint is preferred when a new session is necessary.
