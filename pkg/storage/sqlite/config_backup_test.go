@@ -894,3 +894,92 @@ func TestConfigBackupRejectsIncompleteOrUnknownFormat(t *testing.T) {
 		t.Fatal("accepted untrusted columns")
 	}
 }
+
+// A device backup restores a working setup: credentials, enabled state,
+// subscriptions, publishes and traffic statistics survive unchanged.
+func TestDeviceBackupKeepsCredentialsStateAndStatistics(t *testing.T) {
+	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	node := `{"id":"wg","name":"WireGuard","origin":"manual","enabled":true,"chain":[{"type":"wireguard","wireguard":{"secretKey":"private-key-marker","endpoint":["vpn.example:1234"],"peers":[{"publicKey":"public","preSharedKey":"preshared-key-marker","endpoint":"vpn.example:1234"}]}}]}`
+	for _, statement := range []string{
+		`INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('wg','WireGuard','','manual',1,'["wireguard"]',0,'` + node + `')`,
+		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/secret-url-path-marker","type":"reserve"}')`,
+		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
+		`INSERT OR REPLACE INTO statistics_kv(key,value_int,updated_at) VALUES('total_download',123456,1),('total_upload',654321,1)`,
+		`INSERT INTO traffic_hourly(bucket_start_utc,upload_bytes,download_bytes,updated_at) VALUES(3600,11,22,1)`,
+		`CREATE TABLE IF NOT EXISTS gateway_ca (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, certificate_pem BLOB NOT NULL, private_key_pem BLOB NOT NULL)`,
+		`INSERT OR REPLACE INTO gateway_ca(id,revision,certificate_pem,private_key_pem) VALUES(1,1,X'00FF2D2D',X'C0FFEE')`,
+	} {
+		if _, err := source.DB().ExecContext(t.Context(), statement); err != nil {
+			t.Fatal(statement, err)
+		}
+	}
+	data, err := ExportDeviceBackup(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if _, err := target.DB().ExecContext(t.Context(), `CREATE TABLE IF NOT EXISTS gateway_ca (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, certificate_pem BLOB NOT NULL, private_key_pem BLOB NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), data); err != nil {
+		t.Fatal(err)
+	}
+	var enabled int
+	var restored string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT enabled,data_json FROM nodes_v2 WHERE id='wg'`).Scan(&enabled, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if enabled != 1 || restored != node {
+		t.Fatal("node changed by a device backup", enabled, restored)
+	}
+	var publish string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM publishes WHERE name='publication'`).Scan(&publish); err != nil || !strings.Contains(publish, "publish-password-marker") {
+		t.Fatal("publish changed", publish, err)
+	}
+	var subscriptions, download, upload, hourly int
+	db := target.DB()
+	if err := db.QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&subscriptions); err != nil || subscriptions != 1 {
+		t.Fatal("subscriptions lost", subscriptions, err)
+	}
+	if err := db.QueryRowContext(t.Context(), `SELECT value_int FROM statistics_kv WHERE key='total_download'`).Scan(&download); err != nil || download != 123456 {
+		t.Fatal("download total lost", download, err)
+	}
+	if err := db.QueryRowContext(t.Context(), `SELECT value_int FROM statistics_kv WHERE key='total_upload'`).Scan(&upload); err != nil || upload != 654321 {
+		t.Fatal("upload total lost", upload, err)
+	}
+	if err := db.QueryRowContext(t.Context(), `SELECT download_bytes FROM traffic_hourly WHERE bucket_start_utc=3600`).Scan(&hourly); err != nil || hourly != 22 {
+		t.Fatal("hourly history lost", hourly, err)
+	}
+	var cert, key []byte
+	var typ string
+	if err := db.QueryRowContext(t.Context(), `SELECT certificate_pem,private_key_pem,typeof(private_key_pem) FROM gateway_ca`).Scan(&cert, &key, &typ); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(cert, []byte{0, 0xff, '-', '-'}) || !bytes.Equal(key, []byte{0xc0, 0xff, 0xee}) || typ != "blob" {
+		t.Fatalf("binary cells changed: %x %x %s", cert, key, typ)
+	}
+
+	// A shareable export of the same data still redacts and leaves the
+	// device-only tables alone on restore.
+	shared, err := ExportConfig(t.Context(), source.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(shared, []byte("private-key-marker")) || bytes.Contains(shared, []byte("statistics_kv")) {
+		t.Fatal("shareable export carries device-only data")
+	}
+	if err := RestoreConfig(t.Context(), target.DB(), shared); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(t.Context(), `SELECT value_int FROM statistics_kv WHERE key='total_download'`).Scan(&download); err != nil || download != 123456 {
+		t.Fatal("shareable restore touched statistics", download, err)
+	}
+}
