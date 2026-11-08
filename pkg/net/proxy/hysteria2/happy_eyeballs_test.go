@@ -213,8 +213,8 @@ func TestHysteria2HappyEyeballsv2DoesNotWaitForAAAA(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolver := &slowAAAAResolver{started: make(chan struct{})}
-	ctx := netapi.WithContext(t.Context())
-	ctx.ConnOptions().Resolver().SetResolver(resolver)
+	setupCtx := netapi.WithContext(t.Context())
+	setupCtx.ConnOptions().Resolver().SetResolver(resolver)
 	proxy, err := NewClient(node.Hysteria2{
 		Host: net.JoinHostPort("dual.example", port),
 		Auth: "secret",
@@ -224,7 +224,7 @@ func TestHysteria2HappyEyeballsv2DoesNotWaitForAAAA(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer proxy.Close()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(setupCtx, 5*time.Second)
 	defer cancel()
 	target, _ := netapi.ParseAddress("tcp", "example.com:443")
 	stream, err := proxy.Conn(ctx, target)
