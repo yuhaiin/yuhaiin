@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -18,9 +19,10 @@ import (
 
 const MaxConfigBackupBytes = 32 << 20
 
-// ConfigBackup is a versioned, configuration-only snapshot. Identifiers and
-// column names are checked against the local schema before any data is changed.
-// Runtime counters, history, fake IPs and migration markers stay on the device.
+// ConfigBackup is a versioned configuration snapshot. Identifiers and column
+// names are checked against the local schema before any data is changed. A
+// device backup also carries deviceBackupTables (credentials, certificates and
+// traffic totals); fake IPs, sessions and migration markers stay on the device.
 type ConfigBackup struct {
 	Format              string                       `json:"format"`
 	Version             int                          `json:"version"`
@@ -50,6 +52,20 @@ var configBackupTables = []string{
 // plaintext exports. Current owners use typed v2 resources and Set nodes. A
 // guessed credential-field list cannot safely sanitize opaque legacy records.
 var retiredConfigBackupTables = []string{"settings_json", "node_tags", "nodes", "inbounds"}
+
+// deviceBackupTables travel only in a device backup (ExportDeviceBackup):
+// credentials referenced by nodes, managed certificates and their keys, the
+// gateway CA, and the traffic totals and hourly history. A backup without them
+// leaves the current rows untouched on restore. Parents precede children.
+var deviceBackupTables = []string{
+	"upstream_credentials",
+	"managed_certificates", "managed_certificate_material", "certificate_dns_providers",
+	"certificate_acme_accounts", "certificate_references", "gateway_ca",
+	"statistics_kv", "traffic_hourly",
+}
+
+// backupTables returns every table a backup may contain, in restore order.
+func backupTables() []string { return slices.Concat(configBackupTables, deviceBackupTables) }
 
 // ConfigurationBackupTables returns the tables used by configuration export.
 // Callers sanitizing a private SQLite snapshot must separately filter metadata.
@@ -229,18 +245,41 @@ func configBackupFilter(table string) string {
 	return ""
 }
 
+// exportMode selects how much of the configuration an export carries.
+type exportMode int
+
+const (
+	// exportShareable removes credentials and disables changed endpoints, so
+	// the file can be handed to someone else.
+	exportShareable exportMode = iota
+	// exportLocalRestore feeds the private offline importer.
+	exportLocalRestore
+	// exportDevice is a complete backup for the same user: credentials,
+	// enabled state, publishes, gateway policy and subscriptions are kept so a
+	// restore works without re-entering anything.
+	exportDevice
+)
+
+// ExportConfig is a shareable export without credentials.
 func ExportConfig(ctx context.Context, db *sql.DB) ([]byte, error) {
-	return exportConfig(ctx, db, false)
+	return exportConfig(ctx, db, exportShareable)
+}
+
+// ExportDeviceBackup is a complete, unencrypted backup that restores every
+// node and inbound as it was, including passwords and keys. Only hand it to
+// the device owner.
+func ExportDeviceBackup(ctx context.Context, db *sql.DB) ([]byte, error) {
+	return exportConfig(ctx, db, exportDevice)
 }
 
 // ExportConfigForLocalRestore projects a historical SQLite object for the
 // private, offline configuration importer. It preserves existing source URLs;
 // never use it for an external plaintext export or upload.
 func ExportConfigForLocalRestore(ctx context.Context, db *sql.DB) ([]byte, error) {
-	return exportConfig(ctx, db, true)
+	return exportConfig(ctx, db, exportLocalRestore)
 }
 
-func exportConfig(ctx context.Context, db *sql.DB, localRestore bool) ([]byte, error) {
+func exportConfig(ctx context.Context, db *sql.DB, mode exportMode) ([]byte, error) {
 	// A deferred SQLite transaction gives every export query one snapshot. The
 	// engine does not offer a per-transaction read-only setting.
 	tx, err := db.BeginTx(ctx, nil)
@@ -249,8 +288,23 @@ func exportConfig(ctx context.Context, db *sql.DB, localRestore bool) ([]byte, e
 	}
 	defer func() { _ = tx.Rollback() }()
 	backup := ConfigBackup{Format: "yuhaiin-config", Version: 1, CreatedAt: time.Now().UTC(), Tables: make(map[string]ConfigBackupTable)}
-	for _, table := range configBackupTables {
-		data, err := readConfigTable(ctx, tx, table, localRestore)
+	tables := configBackupTables
+	if mode == exportDevice {
+		tables = backupTables()
+	}
+	for _, table := range tables {
+		if slices.Contains(deviceBackupTables, table) {
+			// Optional features create these tables lazily (Android has no
+			// management store, for example).
+			exists, err := tableExists(ctx, tx, table)
+			if err != nil {
+				return nil, err
+			}
+			if !exists {
+				continue
+			}
+		}
+		data, err := readConfigTable(ctx, tx, table, mode)
 		if err != nil {
 			return nil, fmt.Errorf("export %s: %w", table, err)
 		}
@@ -269,7 +323,8 @@ func exportConfig(ctx context.Context, db *sql.DB, localRestore bool) ([]byte, e
 	return data, err
 }
 
-func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore bool) (ConfigBackupTable, error) {
+func readConfigTable(ctx context.Context, tx *sql.Tx, table string, mode exportMode) (ConfigBackupTable, error) {
+	localRestore, device := mode == exportLocalRestore, mode == exportDevice
 	if table == "inbound_traffic_control" {
 		var exists bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='inbound_traffic_control')`).Scan(&exists); err != nil {
@@ -280,7 +335,9 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 		}
 	}
 	filter := configBackupFilter(table)
-	if table == "subscriptions" || !localRestore && slices.Contains(retiredConfigBackupTables, table) {
+	// Restore clears subscriptions, so only a device backup may carry them;
+	// their URLs can hold bearer credentials.
+	if table == "subscriptions" && !device || !localRestore && slices.Contains(retiredConfigBackupTables, table) {
 		filter = " WHERE 0"
 	}
 	rows, err := tx.QueryContext(ctx, "SELECT * FROM "+table+filter)
@@ -291,6 +348,18 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 	columns, err := rows.Columns()
 	if err != nil {
 		return ConfigBackupTable{}, err
+	}
+	// Only device-only tables use the base64 cell form, so shareable exports
+	// stay readable by older cores.
+	blobColumns := make([]bool, len(columns))
+	if slices.Contains(deviceBackupTables, table) {
+		types, err := rows.ColumnTypes()
+		if err != nil {
+			return ConfigBackupTable{}, err
+		}
+		for i, column := range types {
+			blobColumns[i] = strings.EqualFold(column.DatabaseTypeName(), "BLOB")
+		}
 	}
 	out := ConfigBackupTable{Columns: columns, Rows: make([][]jsontext.Value, 0)}
 	for rows.Next() {
@@ -344,7 +413,7 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 				return out, err
 			}
 		}
-		if slices.Contains([]string{"nodes", "nodes_v2", "inbounds", "inbounds_v2"}, table) {
+		if !device && slices.Contains([]string{"nodes", "nodes_v2", "inbounds", "inbounds_v2"}, table) {
 			dataIndex := slices.Index(columns, "data_json")
 			if dataIndex < 0 {
 				return out, errors.New("invalid endpoint configuration schema")
@@ -382,7 +451,7 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 				}
 			}
 		}
-		if table == "publishes" || table == "gateway_configuration" {
+		if !device && (table == "publishes" || table == "gateway_configuration") {
 			index := slices.Index(columns, "data_json")
 			if index < 0 {
 				return out, errors.New("invalid configuration document schema")
@@ -405,17 +474,33 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, localRestore
 				return out, err
 			}
 		}
-		if !localRestore {
+		if mode == exportShareable {
 			if err := configbackup.ValidateSourceURLRow(table, columns, values); err != nil {
 				return out, err
+			}
+		}
+		if table == "managed_certificates" {
+			// Renewal leases belong to the exporting process.
+			for column, reset := range map[string]any{"lease_owner": "", "lease_until": int64(0)} {
+				if index := slices.Index(columns, column); index >= 0 {
+					values[index] = reset
+				}
 			}
 		}
 		row := make([]jsontext.Value, len(columns))
 		for i, value := range values {
 			if b, ok := value.([]byte); ok {
+				if blobColumns[i] {
+					// Keys and tokens keep their exact bytes and BLOB storage.
+					row[i], err = json.Marshal(map[string]string{"base64": base64.StdEncoding.EncodeToString(b)})
+					if err != nil {
+						return out, err
+					}
+					continue
+				}
 				value = string(b)
 			}
-			if table == "backup_settings" && columns[i] == "data_json" {
+			if !device && table == "backup_settings" && columns[i] == "data_json" {
 				raw, ok := value.(string)
 				if !ok {
 					return out, errors.New("invalid configuration backup settings")
@@ -465,7 +550,15 @@ func decodeConfigBackup(data []byte) (ConfigBackup, error) {
 			backup.missingLegacyTables[name] = true
 		}
 	}
-	if len(backup.Tables) != len(configBackupTables) {
+	for name := range backup.Tables {
+		if slices.Contains(deviceBackupTables, name) {
+			continue
+		}
+		if !slices.Contains(configBackupTables, name) {
+			return backup, fmt.Errorf("unknown configuration table %s", name)
+		}
+	}
+	if len(backup.Tables) != len(configBackupTables)+countDeviceTables(backup.Tables) {
 		return backup, errors.New("incomplete configuration backup")
 	}
 	for _, name := range configBackupTables {
@@ -501,7 +594,23 @@ func validateConfigTables(ctx context.Context, tx *sql.Tx, backup ConfigBackup) 
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS inbound_traffic_control (id INTEGER PRIMARY KEY CHECK(id=1), config_json TEXT NOT NULL)`); err != nil {
 		return err
 	}
-	for _, name := range configBackupTables {
+	tables := slices.Clone(configBackupTables)
+	for _, name := range deviceBackupTables {
+		if _, ok := backup.Tables[name]; !ok {
+			continue
+		}
+		exists, err := tableExists(ctx, tx, name)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			// The feature does not exist here; its rows cannot be used.
+			delete(backup.Tables, name)
+			continue
+		}
+		tables = append(tables, name)
+	}
+	for _, name := range tables {
 		rows, err := tx.QueryContext(ctx, "SELECT * FROM "+name+" LIMIT 0")
 		if err != nil {
 			return err
@@ -538,9 +647,42 @@ func validateConfigTables(ctx context.Context, tx *sql.Tx, backup ConfigBackup) 
 	return nil
 }
 
+func tableExists(ctx context.Context, tx *sql.Tx, table string) (bool, error) {
+	var exists bool
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)`, table).Scan(&exists)
+	return exists, err
+}
+
+func countDeviceTables(tables map[string]ConfigBackupTable) int {
+	n := 0
+	for _, name := range deviceBackupTables {
+		if _, ok := tables[name]; ok {
+			n++
+		}
+	}
+	return n
+}
+
+// presentTables lists, in restore order, the tables this backup replaces.
+func (b ConfigBackup) presentTables() []string {
+	return slices.DeleteFunc(backupTables(), func(name string) bool {
+		_, ok := b.Tables[name]
+		return !ok || b.missingLegacyTables[name]
+	})
+}
+
 func configCell(cell jsontext.Value) (any, error) {
 	if string(cell) == "null" {
 		return nil, nil
+	}
+	if len(cell) > 0 && cell[0] == '{' {
+		var blob struct {
+			Base64 string `json:"base64"`
+		}
+		if err := json.Unmarshal(cell, &blob, json.RejectUnknownMembers(true)); err != nil {
+			return nil, errors.New("invalid binary backup cell")
+		}
+		return base64.StdEncoding.DecodeString(blob.Base64)
 	}
 	if len(cell) > 0 && cell[0] == '"' {
 		var value string
@@ -574,18 +716,19 @@ func restoreConfig(ctx context.Context, db *sql.DB, data []byte, commit bool) er
 	if err := validateConfigTables(ctx, tx, backup); err != nil {
 		return err
 	}
-	for _, name := range slices.Backward(configBackupTables) {
-		if backup.missingLegacyTables[name] {
-			continue
+	present := backup.presentTables()
+	if slices.Contains(present, "certificate_dns_providers") {
+		// Pending TXT cleanups point at the providers being replaced.
+		if _, err := tx.ExecContext(ctx, "DELETE FROM certificate_dns_cleanup"); err != nil {
+			return fmt.Errorf("clear certificate_dns_cleanup: %w", err)
 		}
+	}
+	for _, name := range slices.Backward(present) {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+name+configBackupFilter(name)); err != nil {
 			return fmt.Errorf("clear %s: %w", name, err)
 		}
 	}
-	for _, name := range configBackupTables {
-		if backup.missingLegacyTables[name] {
-			continue
-		}
+	for _, name := range present {
 		table := backup.Tables[name]
 		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(table.Columns)), ",")
 		// Columns came from the local schema, never directly from an untrusted file.

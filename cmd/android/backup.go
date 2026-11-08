@@ -35,12 +35,14 @@ func withConfigDB(fn func(context.Context, *storagesqlite.Store) error) error {
 	return fn(ctx, store)
 }
 
-// ExportConfig includes core configuration and Android preferences, but no
-// live sessions, traffic history, caches or installer/document identifiers.
+// ExportConfig is a complete device backup: core configuration with node and
+// inbound credentials, subscriptions, certificates, traffic totals and Android
+// preferences, so a restore works without re-entering anything. It is not
+// encrypted. Live sessions, caches and installer/document identifiers stay out.
 func ExportConfig() ([]byte, error) {
 	var data []byte
 	err := withConfigDB(func(ctx context.Context, store *storagesqlite.Store) (err error) {
-		data, err = storagesqlite.ExportConfig(ctx, store.DB())
+		data, err = storagesqlite.ExportDeviceBackup(ctx, store.DB())
 		return err
 	})
 	return data, err
