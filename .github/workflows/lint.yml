@@ -2,9 +2,9 @@ name: Lint and Fix
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2]
   pull_request:
-    branches: [main]
+    branches: [main, v2]
 
 # Cancel stale checks after newer commits arrive.
 concurrency:
