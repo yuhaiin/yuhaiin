@@ -98,10 +98,13 @@ func or[T any](a, b T) T {
 	return a
 }
 
+// GetFakeIPRange returns the FakeIP pool for one address family. Empty,
+// malformed, or wrong-family values fall back to the shared defaults, so every
+// caller that derives routes or pools from stored settings agrees on the result.
 func GetFakeIPRange(ipRange string, ipv6 bool) netip.Prefix {
 	ipf, err := netip.ParsePrefix(ipRange)
-	if err == nil {
-		return ipf
+	if err == nil && ipf.Addr().Zone() == "" && ipf.Addr().Is6() == ipv6 && !ipf.Addr().Is4In6() {
+		return ipf.Masked()
 	}
 
 	if ipv6 {
