@@ -96,6 +96,11 @@ type FieldPolicy interface{ SecretField(string) bool }
 // Redact clones before replacing annotated fields, so a read cannot change a
 // shared live configuration. Marker strings/bytes survive ordinary JSON editors.
 func Redact[T any](value T) (T, error) {
+	// Telemetry and counters are polled continuously and hold no secrets.
+	// Callers only serialize the result, so returning the value is safe.
+	if !mayHoldSecret(reflect.TypeOf(value)) {
+		return value, nil
+	}
 	v, err := walk(reflect.ValueOf(value), reflect.Value{}, true, Capabilities{})
 	if err != nil {
 		var zero T
