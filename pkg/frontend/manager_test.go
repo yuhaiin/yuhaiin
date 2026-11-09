@@ -90,7 +90,7 @@ func installTestRelease(t *testing.T, m *Manager, build Build) {
 	checksum := sha256.Sum256(archive)
 	release := Release{
 		Build:  build,
-		URL:    "https://yuhaiin.github.io/frontend.tar.gz",
+		URL:    ArchiveURL,
 		SHA256: hex.EncodeToString(checksum[:]),
 		Size:   int64(len(archive)),
 	}
@@ -99,10 +99,10 @@ func installTestRelease(t *testing.T, m *Manager, build Build) {
 		t.Fatal(err)
 	}
 	m.client = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Path == "/ui-update.json" {
+		if r.URL.String() == FeedURL {
 			return response(feed), nil
 		}
-		if r.URL.Path == "/frontend.tar.gz" {
+		if r.URL.String() == ArchiveURL {
 			return response(archive), nil
 		}
 		t.Fatalf("unexpected request: %s", r.URL.String())
@@ -138,7 +138,7 @@ func TestApplyCanceledAfterDownloadDoesNotActivate(t *testing.T) {
 	archive := createArchive(t, build)
 	checksum := sha256.Sum256(archive)
 	release := Release{
-		Build: build, URL: "https://yuhaiin.github.io/frontend.tar.gz",
+		Build: build, URL: ArchiveURL,
 		SHA256: hex.EncodeToString(checksum[:]), Size: int64(len(archive)),
 	}
 	feed, err := json.Marshal(release)
@@ -148,10 +148,10 @@ func TestApplyCanceledAfterDownloadDoesNotActivate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m.client = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Path == "/ui-update.json" {
+		if r.URL.String() == FeedURL {
 			return response(feed), nil
 		}
-		if r.URL.Path != "/frontend.tar.gz" {
+		if r.URL.String() != ArchiveURL {
 			t.Fatalf("unexpected request %s", r.URL)
 		}
 		return &http.Response{
@@ -318,7 +318,7 @@ func TestDownloadRejectsPathTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := m.download(context.Background(), Release{
-		Build: testBuild("ui-200-ota", 200), URL: "https://yuhaiin.github.io/frontend.tar.gz",
+		Build: testBuild("ui-200-ota", 200), URL: ArchiveURL,
 		SHA256: hex.EncodeToString(sum[:]), Size: int64(b.Len()),
 	}, t.TempDir())
 	if err == nil {
@@ -384,13 +384,13 @@ func TestEmergencySelectionCancelsDownload(t *testing.T) {
 			candidate := testBuild("ui-300-ota", 300)
 			archive := createArchive(t, candidate)
 			digest := sha256.Sum256(archive)
-			release := Release{Build: candidate, URL: "https://yuhaiin.github.io/frontend.tar.gz", SHA256: hex.EncodeToString(digest[:]), Size: int64(len(archive))}
+			release := Release{Build: candidate, URL: ArchiveURL, SHA256: hex.EncodeToString(digest[:]), Size: int64(len(archive))}
 			feed, _ := json.Marshal(release)
 			started := make(chan struct{})
 			resume := make(chan struct{})
 			var once sync.Once
 			m.client = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
-				if r.URL.Path == "/ui-update.json" {
+				if r.URL.String() == FeedURL {
 					return response(feed), nil
 				}
 				once.Do(func() { close(started) })
@@ -515,5 +515,78 @@ func TestApplyFromEmbeddedFallbackRollsBackToEmbedded(t *testing.T) {
 	status, err = m.Rollback(context.Background())
 	if err != nil || status.Source != "embedded" {
 		t.Fatalf("rollback must restore embedded: status=%#v err=%v", status, err)
+	}
+}
+
+func TestFeedAndArchiveAreTheV2ReleaseAssets(t *testing.T) {
+	const base = "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/"
+	if FeedURL != base+"ui-update.json" || ArchiveURL != base+"frontend.tar.gz" {
+		t.Fatalf("v2 channel must use the ui-v2 release assets, got %q and %q", FeedURL, ArchiveURL)
+	}
+	if New(t.TempDir(), embeddedFS(testBuild("ui-1-embedded", 1), "embedded")).feed != FeedURL {
+		t.Fatal("manager must read the v2 feed")
+	}
+}
+
+func TestFeedRejectsOtherArchiveURLs(t *testing.T) {
+	build := testBuild("ui-2-ota", 2)
+	for name, archiveURL := range map[string]string{
+		"stable site":      "https://yuhaiin.github.io/frontend.tar.gz",
+		"raw branch":       "https://raw.githubusercontent.com/yuhaiin/yuhaiin.github.io/v2/frontend.tar.gz",
+		"other release":    "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v1/frontend.tar.gz",
+		"query":            ArchiveURL + "?x=1",
+		"http":             "http://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
+		"user info":        "https://user@github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
+		"other repository": "https://github.com/someone/else/releases/download/ui-v2/frontend.tar.gz",
+	} {
+		t.Run(name, func(t *testing.T) {
+			archive := createArchive(t, build)
+			sum := sha256.Sum256(archive)
+			feed, err := json.Marshal(Release{Build: build, URL: archiveURL, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(archive))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := New(t.TempDir(), embeddedFS(testBuild("ui-1-embedded", 1), "embedded"))
+			m.client = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.String() == FeedURL {
+					return response(feed), nil
+				}
+				t.Fatalf("unexpected request: %s", r.URL.String())
+				return nil, nil
+			})}
+			if _, err := m.Check(context.Background()); err == nil {
+				t.Fatalf("expected %q to be rejected", archiveURL)
+			}
+		})
+	}
+}
+
+func TestRedirectsStayOnGitHubAssetHosts(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-1-embedded", 1), "embedded"))
+	check := func(rawURL string, hops int) error {
+		req, _ := http.NewRequest(http.MethodGet, rawURL, nil)
+		return m.client.CheckRedirect(req, make([]*http.Request, hops))
+	}
+	for _, ok := range []string{
+		"https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
+		"https://release-assets.githubusercontent.com/github-production-release-asset/1",
+		"https://objects.githubusercontent.com/github-production-release-asset/1",
+	} {
+		if err := check(ok, 1); err != nil {
+			t.Fatalf("%s should be allowed: %v", ok, err)
+		}
+	}
+	for name, bad := range map[string]string{
+		"stable site": "https://yuhaiin.github.io/frontend.tar.gz",
+		"other host":  "https://evil.example/frontend.tar.gz",
+		"suffix":      "https://github.com.evil.example/x",
+		"plain http":  "http://github.com/x",
+	} {
+		if err := check(bad, 1); err == nil {
+			t.Fatalf("%s (%s) must be rejected", name, bad)
+		}
+	}
+	if err := check(ArchiveURL, 3); err == nil {
+		t.Fatal("redirect chains longer than two hops must be rejected")
 	}
 }

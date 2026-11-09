@@ -21,10 +21,25 @@ from ui-build.json; pre-metadata Go modules use their pseudo-version timestamp.
 
 ## Update protocol
 
-The official HTTPS feed is https://yuhaiin.github.io/ui-update.json. Its
-metadata includes version, monotonic buildNumber, apiContract, required and
-optional capabilities, Android bridge minimum, archive byte size, and SHA-256.
-The archive is published as https://yuhaiin.github.io/frontend.tar.gz.
+The v2 channel is the rolling `ui-v2` prerelease of
+https://github.com/yuhaiin/yuhaiin-react, which CI refreshes on every v2 build:
+
+- feed: https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/ui-update.json
+- archive: https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz
+
+The feed metadata includes version, monotonic buildNumber, apiContract, required
+and optional capabilities, Android bridge minimum, archive byte size, and
+SHA-256. The feed's archive URL must be exactly the archive above. GitHub
+redirects release downloads to its asset hosts; only github.com,
+objects.githubusercontent.com and release-assets.githubusercontent.com are
+followed, over HTTPS, for at most two redirects.
+
+The stable channel (https://yuhaiin.github.io/ui-update.json, built from the
+main branch) is deliberately never read here. v2 build numbers use their own
+range (2_000_000_000_000 and up, see yuhaiin-react scripts/ui-ota.mjs), so even
+a stray stable bundle could not outrank a v2 build. Because release assets are
+replaced in place, the archive is uploaded before the feed; a client that sees a
+new feed with an old archive fails the size/SHA-256 check and retries later.
 
 The Core refuses unknown API contracts, unknown required capabilities, Android
 bridge requirements it cannot satisfy, outdated build numbers, invalid archive

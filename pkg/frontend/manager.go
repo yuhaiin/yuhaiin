@@ -15,7 +15,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,12 +26,24 @@ import (
 )
 
 const (
-	FeedURL     = "https://yuhaiin.github.io/ui-update.json"
+	// The v2 channel is a rolling GitHub prerelease of the Web UI repository. Its
+	// build numbers live in their own range (see scripts/ui-ota.mjs) and the
+	// stable yuhaiin.github.io feed is never consulted, so a v2 Core can neither
+	// install a stable bundle nor be replaced by one.
+	FeedURL     = "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/ui-update.json"
+	ArchiveURL  = "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz"
 	maxManifest = 32 << 10
 	maxArchive  = 32 << 20
 	maxExpanded = 96 << 20
 	maxEntries  = 4096
 )
+
+// GitHub serves release downloads from its own asset hosts after one redirect.
+var redirectHosts = map[string]bool{
+	"github.com":                           true,
+	"objects.githubusercontent.com":        true,
+	"release-assets.githubusercontent.com": true,
+}
 
 var validVersion = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
 
@@ -107,7 +118,7 @@ func New(configPath string, embedded fs.FS) *Manager {
 		capabilities: defaultCapabilities(),
 		feed:         FeedURL,
 		client: &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 || req.URL.Scheme != "https" || req.URL.Hostname() != "yuhaiin.github.io" {
+			if len(via) >= 3 || req.URL.Scheme != "https" || !redirectHosts[req.URL.Hostname()] {
 				return errors.New("frontend redirect outside the official origin")
 			}
 			return nil
@@ -327,8 +338,8 @@ func (m *Manager) readFeed(ctx context.Context) (Release, error) {
 	if _, err := hex.DecodeString(release.SHA256); err != nil {
 		return release, err
 	}
-	u, err := url.Parse(release.URL)
-	if err != nil || u.Scheme != "https" || u.Host != "yuhaiin.github.io" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "/frontend.tar.gz" {
+	// Exactly the v2 channel's archive: no other host, path, query or fragment.
+	if release.URL != ArchiveURL {
 		return release, errors.New("frontend bundle URL must be the official HTTPS release")
 	}
 	return release, nil
