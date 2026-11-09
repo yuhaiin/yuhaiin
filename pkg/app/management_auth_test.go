@@ -10,9 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"testing/fstest"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/frontend"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -22,7 +24,9 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 	inner := http.NewServeMux()
 	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		handleFunc(inner, nil, nil, pattern, handler)
-	}, httpapi.V2Services{})
+	}, httpapi.V2Services{Frontend: frontend.New(dir, fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("embedded recovery test")},
+	})})
 	RegisterHTTP(inner)
 	// Match the auxiliary registrations made during Start and profiler setup.
 	for _, pattern := range []string{"GET /metrics", "GET /debug/profiler/", "GET /api/v2/profiler/sessions", "POST /api/v2/profiler/sessions", "DELETE /api/v2/profiler/sessions/{id}"} {
@@ -33,6 +37,22 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = app.closers.Close() })
+	for _, tt := range []struct {
+		method, path string
+		want int
+	}{
+		{"GET", "/__ui_recovery", 200},
+		{"GET", "/__ui_recovery.js", 200},
+		{"POST", "/api/v2/rpc/frontend.reset", 401},
+	} {
+		req := httptest.NewRequest(tt.method, tt.path, strings.NewReader("{}"))
+		req.RemoteAddr = "127.0.0.1:1000"
+		res := httptest.NewRecorder()
+		app.Mux.ServeHTTP(res, req)
+		if res.Code != tt.want {
+			t.Errorf("recovery %s %s returned %d, want %d", tt.method, tt.path, res.Code, tt.want)
+		}
+	}
 	for pattern := range httpapi.ManagementPermissions() {
 		method, path, _ := strings.Cut(pattern, " ")
 		r := httptest.NewRequest(method, path, nil)
@@ -87,6 +107,9 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 		method, path string
 		want         int
 	}{
+		{"POST", "/api/v2/rpc/frontend.reset", 200},
+		{"GET", "/__ui_recovery", 200},
+		{"GET", "/__ui_recovery.js", 200},
 		{"GET", "/metrics", 204},
 		{"GET", "/debug/profiler/example/", 204},
 		{"POST", "/api/v2/rpc/future.privileged.action", 403},
@@ -129,6 +152,9 @@ func TestLocalManagementWithoutIdentityMiddleware(t *testing.T) {
 		{"POST", "/api/v2/rpc/settings.put", "127.0.0.1:1", "http://127.0.0.1:50051", 204},
 		{"GET", "/api/v2/tools/logs/v2", "[::1]:1", "", 204},
 		{"GET", "/metrics", "127.0.0.1:1", "", 204},
+		{"GET", "/__ui_recovery", "127.0.0.1:1", "", 200},
+		{"GET", "/__ui_recovery.js", "127.0.0.1:1", "", 200},
+		{"GET", "/__ui_recovery", "192.0.2.1:1", "", 403},
 		{"GET", "/api/v2/profiler/sessions", "127.0.0.1:1", "", 204},
 		{"GET", "/api/v2/auth/setup", "127.0.0.1:1", "", 404},
 		{"GET", "/api/v2/auth/users", "127.0.0.1:1", "", 404},
