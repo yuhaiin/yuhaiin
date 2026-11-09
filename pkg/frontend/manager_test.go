@@ -325,3 +325,97 @@ func TestEmergencySelectionCancelsDownload(t *testing.T) {
 		})
 	}
 }
+
+// A corrupt version may retain valid metadata/index.html yet be missing one
+// lazy-loaded JS file. Reset must allow a verified archive to heal the cache.
+func TestRepairCachedFrontendMissingChunk(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+	release := testBuild("ui-200-ota", 200)
+	installTestRelease(t, m, release)
+	chunk := filepath.Join(m.root, "versions", release.Version, "assets", "main.js")
+	if err := os.Remove(chunk); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	check, err := m.Check(context.Background())
+	if err != nil || !check.Available {
+		t.Fatalf("reinstall must be offered after reset: result=%#v err=%v", check, err)
+	}
+	installTestRelease(t, m, release)
+	data, err := os.ReadFile(chunk)
+	if err != nil || string(data) != "console.log('ok')" {
+		t.Fatalf("missing JS not repaired: data=%q err=%v", data, err)
+	}
+	got, err := m.Status(context.Background())
+	if err != nil || got.Active.Version != release.Version {
+		t.Fatalf("repaired release not active: status=%#v err=%v", got, err)
+	}
+}
+
+func TestRepairCachedFrontendModifiedChunk(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+	release := testBuild("ui-200-ota", 200)
+	installTestRelease(t, m, release)
+	chunk := filepath.Join(m.root, "versions", release.Version, "assets", "main.js")
+	if err := os.WriteFile(chunk, []byte("bad JS"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Rollback(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	installTestRelease(t, m, release)
+	data, err := os.ReadFile(chunk)
+	if err != nil || string(data) != "console.log('ok')" {
+		t.Fatalf("tampered JS not repaired: data=%q err=%v", data, err)
+	}
+}
+
+// If B's entry point is missing, the selector serves A from Previous.
+// Installing C must record A, not broken B, as the rollback target.
+func TestApplyFromFallbackRollsBackToActuallyServedBundle(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+	a := testBuild("ui-200-ota", 200)
+	b := testBuild("ui-300-ota", 300)
+	c := testBuild("ui-400-ota", 400)
+	installTestRelease(t, m, a)
+	installTestRelease(t, m, b)
+	if err := os.Remove(filepath.Join(m.root, "versions", b.Version, "index.html")); err != nil {
+		t.Fatal(err)
+	}
+	status, err := m.Status(context.Background())
+	if err != nil || status.Source != "previous" || status.Active.Version != a.Version {
+		t.Fatalf("expected fallback A while B is broken: status=%#v err=%v", status, err)
+	}
+	installTestRelease(t, m, c)
+	status, err = m.Rollback(context.Background())
+	if err != nil || status.Active.Version != a.Version {
+		t.Fatalf("rollback must restore A, not broken B: status=%#v err=%v", status, err)
+	}
+}
+
+// If both saved OTA bundles are broken and Core serves its embedded UI,
+// installing a new OTA must not record either broken bundle as the predecessor.
+func TestApplyFromEmbeddedFallbackRollsBackToEmbedded(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+	a := testBuild("ui-200-ota", 200)
+	b := testBuild("ui-300-ota", 300)
+	c := testBuild("ui-400-ota", 400)
+	installTestRelease(t, m, a)
+	installTestRelease(t, m, b)
+	for _, version := range []string{a.Version, b.Version} {
+		if err := os.Remove(filepath.Join(m.root, "versions", version, "index.html")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status, err := m.Status(context.Background())
+	if err != nil || status.Source != "embedded" {
+		t.Fatalf("expected embedded fallback: status=%#v err=%v", status, err)
+	}
+	installTestRelease(t, m, c)
+	status, err = m.Rollback(context.Background())
+	if err != nil || status.Source != "embedded" {
+		t.Fatalf("rollback must restore embedded: status=%#v err=%v", status, err)
+	}
+}
