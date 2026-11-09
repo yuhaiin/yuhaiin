@@ -59,6 +59,10 @@ const (
 	v2GatewayCAGenerate         v2Endpoint = "gateway.ca.generate"
 	v2GatewayCAImport           v2Endpoint = "gateway.ca.import"
 	v2Info                      v2Endpoint = "info"
+ v2FrontendStatus            v2Endpoint = "frontend.status"
+ v2FrontendCheck             v2Endpoint = "frontend.check"
+ v2FrontendApply             v2Endpoint = "frontend.apply"
+ v2FrontendRollback          v2Endpoint = "frontend.rollback"
 	v2UpdateCheck               v2Endpoint = "update.check"
 	v2UpdateApply               v2Endpoint = "update.apply"
 	v2UpdateStatus              v2Endpoint = "update.status"
@@ -216,6 +220,10 @@ var v2Routes = []v2Route{
 	{v2GatewayCAGenerate, "POST /api/v2/gateway/ca/generate"},
 	{v2GatewayCAImport, "POST /api/v2/gateway/ca/import"},
 	{v2Info, "GET /api/v2/info"},
+ {v2FrontendStatus, "GET /api/v2/frontend/status"},
+ {v2FrontendCheck, "POST /api/v2/frontend/check"},
+ {v2FrontendApply, "POST /api/v2/frontend/apply"},
+ {v2FrontendRollback, "POST /api/v2/frontend/rollback"},
 	{v2UpdateCheck, "POST /api/v2/update/check"},
 	{v2UpdateApply, "POST /api/v2/update/apply"},
 	{v2UpdateStatus, "GET /api/v2/update/status"},

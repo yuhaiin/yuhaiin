@@ -13,6 +13,7 @@ import (
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+ "github.com/Asutorufa/yuhaiin/pkg/frontend"
 	"github.com/Asutorufa/yuhaiin/pkg/diagnostics"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite/configbackup"
 )
@@ -22,6 +23,10 @@ type v2API struct{ services V2Services }
 func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	api := v2API{services: services}
 	addRPCRoute(handlers, v2Info, api.info)
+ addRPCRoute(handlers, v2FrontendStatus, api.frontendStatus)
+ addRPCRoute(handlers, v2FrontendCheck, api.frontendCheck)
+ addRPCRoute(handlers, v2FrontendApply, api.frontendApply)
+ addRPCRoute(handlers, v2FrontendRollback, api.frontendRollback)
 	addRPCRoute(handlers, v2UpdateCheck, api.updateCheck)
 	addRPCRoute(handlers, v2UpdateApply, api.updateApply)
 	addRPCRoute(handlers, v2UpdateStatus, api.updateStatus)
@@ -78,6 +83,32 @@ func (a v2API) info(ctx context.Context, _ *emptyRequest) (*contractsettings.Inf
 		return nil, unavailable("settings controller is unavailable")
 	}
 	return pointer(a.services.Settings.Info(ctx))
+}
+
+func (a v2API) frontendStatus(ctx context.Context, _ *emptyRequest) (*frontend.Status, error) {
+ if a.services.Frontend == nil { return nil, unavailable("frontend manager is unavailable") }
+ value, err := a.services.Frontend.Status(ctx)
+ return &value, err
+}
+
+func (a v2API) frontendCheck(ctx context.Context, _ *emptyRequest) (*frontend.CheckResult, error) {
+ if a.services.Frontend == nil { return nil, unavailable("frontend manager is unavailable") }
+ value, err := a.services.Frontend.Check(ctx)
+ return &value, err
+}
+
+func (a v2API) frontendApply(ctx context.Context, request *frontend.ApplyRequest) (*frontend.Status, error) {
+ if a.services.Frontend == nil { return nil, unavailable("frontend manager is unavailable") }
+ value, err := a.services.Frontend.Apply(ctx, *request)
+ if err != nil { return nil, badRequest(err) }
+ return &value, nil
+}
+
+func (a v2API) frontendRollback(ctx context.Context, _ *emptyRequest) (*frontend.Status, error) {
+ if a.services.Frontend == nil { return nil, unavailable("frontend manager is unavailable") }
+ value, err := a.services.Frontend.Rollback(ctx)
+ if err != nil { return nil, badRequest(err) }
+ return &value, nil
 }
 
 func (a v2API) updateCheck(ctx context.Context, request *contractupdate.CheckRequest) (*contractupdate.CheckResult, error) {
