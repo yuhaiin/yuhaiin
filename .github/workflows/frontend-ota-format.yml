@@ -1,0 +1,23 @@
+name: Temporary frontend OTA gofmt
+on:
+  push:
+    branches: [feat/frontend-ota]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - name: Format review fixes
+        run: |
+          gofmt -w pkg/frontend/manager.go pkg/frontend/manager_test.go             pkg/app/management_auth_test.go pkg/management/auth/middleware.go
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pkg/frontend/manager.go pkg/frontend/manager_test.go               pkg/app/management_auth_test.go pkg/management/auth/middleware.go
+            git commit -m "style: gofmt frontend OTA review fixes"
+            git push origin HEAD:feat/frontend-ota
+          fi
