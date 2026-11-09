@@ -156,8 +156,8 @@ func TestApplyCanceledAfterDownloadDoesNotActivate(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Header: http.Header{},
-			Body: io.NopCloser(&cancelOnEOFReader{Reader: bytes.NewReader(archive), cancel: cancel}),
+			Header:     http.Header{},
+			Body:       io.NopCloser(&cancelOnEOFReader{Reader: bytes.NewReader(archive), cancel: cancel}),
 		}, nil
 	})}
 	if _, err := m.Apply(ctx, ApplyRequest{Version: build.Version, SHA256: release.SHA256}); !errors.Is(err, context.Canceled) {
@@ -181,8 +181,8 @@ type cancelBeforeStateRename struct {
 }
 
 func (c *cancelBeforeStateRename) Deadline() (time.Time, bool) { return time.Time{}, false }
-func (c *cancelBeforeStateRename) Done() <-chan struct{} { return nil }
-func (c *cancelBeforeStateRename) Value(any) any { return nil }
+func (c *cancelBeforeStateRename) Done() <-chan struct{}       { return nil }
+func (c *cancelBeforeStateRename) Value(any) any               { return nil }
 func (c *cancelBeforeStateRename) Err() error {
 	c.checks++
 	if c.checks > 1 {
