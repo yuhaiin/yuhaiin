@@ -507,7 +507,8 @@ func (m *Manager) download(ctx context.Context, release Release, destination str
 		if name == "" || name == "." {
 			continue
 		}
-		if !fs.ValidPath(name) || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "api/") {
+		if !fs.ValidPath(name) || !filepath.IsLocal(filepath.FromSlash(name)) ||
+			strings.HasPrefix(name, ".") || strings.HasPrefix(name, "api/") {
 			return fmt.Errorf("unsafe frontend archive path: %q", name)
 		}
 		count++
