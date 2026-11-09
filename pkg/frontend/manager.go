@@ -16,12 +16,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -565,9 +563,3 @@ func (m *Manager) download(ctx context.Context, release Release, destination str
 	// quietly dropping a required capability from the installed copy.
 	return nil
 }
-
-// BundleTime exposes a deterministic date for legacy Go pseudo-version tests.
-func BundleTime(unix int64) string { return strconv.FormatInt(unix, 10) }
-
-// PathIsAsset keeps frontend pages from catching unexpected API routes.
-func PathIsAsset(name string) bool { return !strings.HasPrefix(path.Clean("/"+name), "/api/") }
