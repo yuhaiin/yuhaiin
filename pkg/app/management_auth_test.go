@@ -10,11 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing/fstest"
 	"testing"
+	"testing/fstest"
 
-	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/frontend"
+	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	managementauth "github.com/Asutorufa/yuhaiin/pkg/management/auth"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -39,7 +39,7 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 	t.Cleanup(func() { _ = app.closers.Close() })
 	for _, tt := range []struct {
 		method, path string
-		want int
+		want         int
 	}{
 		{"GET", "/__ui_recovery", 200},
 		{"GET", "/__ui_recovery.js", 200},

@@ -486,7 +486,6 @@ func (m *Manager) writeState(s state) error {
 	return os.Rename(temp.Name(), filepath.Join(m.root, "state.json"))
 }
 
-
 func sameFileContents(a, b string) (bool, error) {
 	left, err := os.Open(a)
 	if err != nil {
