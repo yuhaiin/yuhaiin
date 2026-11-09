@@ -18,6 +18,7 @@ import (
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
+	"github.com/Asutorufa/yuhaiin/pkg/frontend"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
 
@@ -76,6 +77,14 @@ type UpdateController interface {
 	History(context.Context) (contractupdate.HistoryResult, error)
 	Rollback(context.Context, contractupdate.RollbackRequest) error
 }
+type FrontendController interface {
+	Status(context.Context) (frontend.Status, error)
+	Check(context.Context) (frontend.CheckResult, error)
+	Apply(context.Context, frontend.ApplyRequest) (frontend.Status, error)
+	Rollback(context.Context) (frontend.Status, error)
+	Reset(context.Context) (frontend.Status, error)
+}
+
 type UpdateCanceller interface {
 	Cancel(context.Context, string) error
 }
@@ -171,6 +180,7 @@ type V2Services struct {
 	Tools            ToolsController
 	Diagnostics      DiagnosticsController
 	Update           UpdateController
+	Frontend         FrontendController
 	Backup           BackupController
 	Lists            ListRuntimeController
 	RouteSettings    *plainstore.RouteSettingsStore

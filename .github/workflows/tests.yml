@@ -74,7 +74,7 @@ jobs:
           - group: application
             packages: >-
               ./pkg/node ./pkg/net/latency ./cmd/speed-test-server
-              ./pkg/s3 ./pkg/update/... ./cmd/update-metadata
+              ./pkg/s3 ./pkg/frontend ./pkg/update/... ./cmd/update-metadata
               ./pkg/management/auth ./cmd/android ./cmd/yuhaiin/...
               ./pkg/utils/lockfile ./pkg/app ./pkg/app/backup/...
     steps:
