@@ -346,6 +346,7 @@ func (m *Manager) download(ctx context.Context, release Release, destination str
   if errors.Is(err, io.EOF) { break }
   if err != nil { return err }
   name := strings.TrimPrefix(header.Name, "./")
+  if header.Typeflag == tar.TypeDir { name = strings.TrimSuffix(name, "/") }
   if name == "" || name == "." { continue }
   if !fs.ValidPath(name) || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "api/") {
    return fmt.Errorf("unsafe frontend archive path: %q", name)
