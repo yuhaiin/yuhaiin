@@ -519,7 +519,7 @@ func (m *Manager) download(ctx context.Context, release Release, destination str
 			if err := os.MkdirAll(target, 0700); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg, 0: // 0 is the legacy NUL regular-file flag; tar.TypeRegA is deprecated.
 			if header.Size < 0 || header.Size > maxExpanded-expanded {
 				return errors.New("frontend bundle exceeds expanded size limit")
 			}
