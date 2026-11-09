@@ -32,16 +32,16 @@ const frontendRecoveryScript = `document.getElementById('reset').addEventListene
 });`
 
 func registerFrontendRecovery(mux *http.ServeMux) {
- mux.HandleFunc("GET /__ui_recovery", func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Content-Type", "text/html; charset=utf-8")
-  w.Header().Set("Cache-Control", "no-store")
-  w.Header().Set("X-Content-Type-Options", "nosniff")
-  _, _ = w.Write([]byte(frontendRecoveryHTML))
- })
- mux.HandleFunc("GET /__ui_recovery.js", func(w http.ResponseWriter, r *http.Request) {
-  w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-  w.Header().Set("Cache-Control", "no-store")
-  w.Header().Set("X-Content-Type-Options", "nosniff")
-  _, _ = w.Write([]byte(frontendRecoveryScript))
- })
+	mux.HandleFunc("GET /__ui_recovery", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, _ = w.Write([]byte(frontendRecoveryHTML))
+	})
+	mux.HandleFunc("GET /__ui_recovery.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, _ = w.Write([]byte(frontendRecoveryScript))
+	})
 }

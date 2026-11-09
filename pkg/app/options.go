@@ -27,8 +27,8 @@ import (
 	certmanager "github.com/Asutorufa/yuhaiin/pkg/cert/manager"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	"github.com/Asutorufa/yuhaiin/pkg/credential"
+	"github.com/Asutorufa/yuhaiin/pkg/frontend"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
- "github.com/Asutorufa/yuhaiin/pkg/frontend"
 	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -45,7 +45,7 @@ import (
 )
 
 type AppInstance struct {
- Frontend *frontend.Manager
+	Frontend             *frontend.Manager
 	Certificates         *certmanager.Manager
 	Gateway              httpapi.GatewayController
 	Node                 httpapi.NodeController
@@ -141,7 +141,9 @@ func (app *AppInstance) RegisterServer(ctx context.Context) error {
 }
 
 func registerV2HTTP(ctx context.Context, app *AppInstance) error {
- if app.Frontend == nil { app.Frontend = frontend.New(app.ConfigPath, yf.Content) }
+	if app.Frontend == nil {
+		app.Frontend = frontend.New(app.ConfigPath, yf.Content)
+	}
 	var inboundStore httpapi.InboundStore
 	var nodeStore *plainstore.NodeStore
 	var subscriptionStore *plainstore.SubscriptionStore
@@ -217,7 +219,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Tools:            app.Tools,
 		Diagnostics:      app.Diagnostics,
 		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
-  Frontend:         app.Frontend,
+		Frontend:         app.Frontend,
 		Backup:           app.Backup,
 		Lists:            app.Lists,
 		RouteSettings:    routeSettingsStore,
@@ -479,18 +481,18 @@ func RegisterHTTP(mux *http.ServeMux, sources ...fs.FS) {
 	HandleFunc(mux, nil, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })
 
 	handleFront(mux, sources...)
- registerFrontendRecovery(mux)
+	registerFrontendRecovery(mux)
 }
 
 func handleFront(mux *http.ServeMux, sources ...fs.FS) {
- var ffs fs.FS
- if len(sources) > 0 && sources[0] != nil {
-  ffs = sources[0]
- } else if edir := os.Getenv("EXTERNAL_WEB"); edir != "" {
-  ffs = os.DirFS(edir)
- } else {
-  ffs = yf.Content
- }
+	var ffs fs.FS
+	if len(sources) > 0 && sources[0] != nil {
+		ffs = sources[0]
+	} else if edir := os.Getenv("EXTERNAL_WEB"); edir != "" {
+		ffs = os.DirFS(edir)
+	} else {
+		ffs = yf.Content
+	}
 
 	cTypeMap := map[string]string{
 		".html": "text/html",
@@ -534,7 +536,9 @@ func handleFront(mux *http.ServeMux, sources ...fs.FS) {
 		}
 
 		w.Header().Set("Content-Type", ctype)
-        if ext == ".html" || ext == ".json" { w.Header().Set("Cache-Control", "no-store") }
+		if ext == ".html" || ext == ".json" {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 
 		http.ServeFileFS(w, r, ffs, path)
 	}))
