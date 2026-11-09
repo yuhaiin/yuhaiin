@@ -401,25 +401,57 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 	if release.BuildNumber <= active.BuildNumber {
 		return Status{}, errors.New("frontend was superseded while downloading")
 	}
+	// The rollback target is the bundle actually served before this Apply.
+	// A broken Current may have already fallen back to Previous or Embedded.
+	_, _, source, _ := m.selection()
+	previous := ""
+	switch source {
+	case "downloaded":
+		previous = m.stored.Current
+	case "previous":
+		previous = m.stored.Previous
+	}
 	dest := filepath.Join(m.root, "versions", release.Version)
+	replaced := ""
 	if _, err := os.Lstat(dest); err == nil {
-		// Rollback and reset intentionally retain immutable versions for
-		// open browser tabs. Reinstalling the exact same verified release
-		// reactivates it rather than deleting those assets.
 		if !sameBundleFiles(tmp, dest) {
-			return Status{}, errors.New("cached frontend bundle differs from verified release")
+			// Keep the previously installed tree intact until a verified
+			// replacement is ready. In particular, never unpack into a live
+			// directory: concurrent static requests must not see partial files.
+			replaced, err = os.MkdirTemp(filepath.Join(m.root, "versions"), ".replaced-")
+			if err != nil {
+				return Status{}, err
+			}
+			if err := os.Remove(replaced); err != nil {
+				return Status{}, err
+			}
+			if err := os.Rename(dest, replaced); err != nil {
+				return Status{}, fmt.Errorf("move damaged frontend out of the way: %w", err)
+			}
+			if err := os.Rename(tmp, dest); err != nil {
+				return Status{}, errors.Join(err, restoreReplacedBundle(dest, replaced))
+			}
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Status{}, err
 	} else if err := os.Rename(tmp, dest); err != nil {
 		return Status{}, err
 	}
-	next := state{Current: release.Version, Previous: m.stored.Current}
+	next := state{Current: release.Version, Previous: previous}
 	if err := m.writeState(next); err != nil {
+		if replaced != "" {
+			// If persisting selection failed, restore the original directory
+			// instead of leaving disk state different from stored state.
+			return Status{}, errors.Join(err, restoreReplacedBundle(dest, replaced))
+		}
 		return Status{}, err
 	}
 	m.stored = next
 	m.epoch++
+	if replaced != "" {
+		// The damaged cache is not trusted for old-chunk fallbacks.
+		_ = os.RemoveAll(replaced)
+	}
 	return m.statusLocked(), nil
 }
 
@@ -484,6 +516,15 @@ func (m *Manager) writeState(s state) error {
 		return err
 	}
 	return os.Rename(temp.Name(), filepath.Join(m.root, "state.json"))
+}
+
+// restoreReplacedBundle undoes a failed cache replacement while keeping the
+// staged archive eligible for deferred cleanup by Apply.
+func restoreReplacedBundle(dest, replaced string) error {
+	if err := os.RemoveAll(dest); err != nil {
+		return err
+	}
+	return os.Rename(replaced, dest)
 }
 
 func sameFileContents(a, b string) (bool, error) {
