@@ -479,6 +479,7 @@ func RegisterHTTP(mux *http.ServeMux, sources ...fs.FS) {
 	HandleFunc(mux, nil, "OPTIONS /", func(w http.ResponseWriter, r *http.Request) error { return nil })
 
 	handleFront(mux, sources...)
+ registerFrontendRecovery(mux)
 }
 
 func handleFront(mux *http.ServeMux, sources ...fs.FS) {
