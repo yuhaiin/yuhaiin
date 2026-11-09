@@ -106,4 +106,10 @@ jobs:
           sudo apt-get install -y qemu-user
           go test -c -o /tmp/lightweight-arm64.test ./pkg/net/proxy/tun/lightweight
           qemu-aarch64 /tmp/lightweight-arm64.test -test.run '^TestChecksum' -test.v
-          qemu-aarch64 -p 16384 /tmp/lightweight-arm64.test -test.run '^TestChecksum' -test.v
+          # QEMU 10.2 removed -p; since 9.0 it no longer changed the host
+          # page size. User-mode QEMU cannot simulate a 16 KiB-page kernel.
+          page_size="$(getconf PAGESIZE)"
+          echo "QEMU ARM64 checksum tests ran with host page size ${page_size} bytes"
+          if [[ "$page_size" != "16384" ]]; then
+            echo "::notice::16 KiB page-size coverage requires a runner with a 16 KiB host kernel; QEMU -p was ineffective and is no longer supported."
+          fi
