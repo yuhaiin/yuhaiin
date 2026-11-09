@@ -390,8 +390,16 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 	if err := m.download(ctx, release, tmp); err != nil {
 		return Status{}, err
 	}
+	// A successful download/unpack does not imply that the caller is still
+	// authorized: HTTP sessions may be revoked after the final read.
+	if err := ctx.Err(); err != nil {
+		return Status{}, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Status{}, err
+	}
 	// Never reactivate a downloaded UI after a successful Reset/Rollback,
 	// even if the resulting active version is still older than this release.
 	if m.epoch != startedAt {
@@ -438,7 +446,9 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 		return Status{}, err
 	}
 	next := state{Current: release.Version, Previous: previous}
-	if err := m.writeState(next); err != nil {
+	// Check again after possible cache verification and renames. Persisting the
+	// new selection is the activation point, so cancellation must abort first.
+	if err := m.writeStateContext(ctx, next); err != nil {
 		if replaced != "" {
 			// If persisting selection failed, restore the original directory
 			// instead of leaving disk state different from stored state.
@@ -493,6 +503,16 @@ func (m *Manager) Reset(context.Context) (Status, error) {
 }
 
 func (m *Manager) writeState(s state) error {
+	return m.writeStateContext(context.Background(), s)
+}
+
+// writeStateContext performs the last cancellation check immediately before
+// atomically committing the new state. Other state transitions remain
+// independent of the canceled Apply context.
+func (m *Manager) writeStateContext(ctx context.Context, s state) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	data, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -513,6 +533,10 @@ func (m *Manager) writeState(s state) error {
 		return err
 	}
 	if err := temp.Close(); err != nil {
+		return err
+	}
+	// A request canceled while syncing the state file must never activate OTA.
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	return os.Rename(temp.Name(), filepath.Join(m.root, "state.json"))
