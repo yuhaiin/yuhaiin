@@ -82,6 +82,7 @@ type FrontendController interface {
  Check(context.Context) (frontend.CheckResult, error)
  Apply(context.Context, frontend.ApplyRequest) (frontend.Status, error)
  Rollback(context.Context) (frontend.Status, error)
+ Reset(context.Context) (frontend.Status, error)
 }
 
 type UpdateCanceller interface {

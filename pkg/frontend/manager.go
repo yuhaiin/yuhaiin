@@ -304,6 +304,17 @@ func (m *Manager) Rollback(context.Context) (Status, error) {
  return m.statusLocked(), nil
 }
 
+// Reset forces the trusted embedded UI, even when both saved OTA builds fail.
+func (m *Manager) Reset(context.Context) (Status, error) {
+ m.mu.Lock()
+ defer m.mu.Unlock()
+ if m.external != "" { return Status{}, errors.New("EXTERNAL_WEB override is active") }
+ if err := os.MkdirAll(m.root, 0700); err != nil { return Status{}, err }
+ if err := m.writeState(state{}); err != nil { return Status{}, err }
+ m.stored = state{}
+ return m.statusLocked(), nil
+}
+
 func (m *Manager) writeState(s state) error {
  data, err := json.Marshal(s)
  if err != nil { return err }

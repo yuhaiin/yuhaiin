@@ -17,6 +17,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
  v2FrontendCheck:             managementpermission.UpdateManage,
  v2FrontendApply:             managementpermission.UpdateManage,
  v2FrontendRollback:          managementpermission.UpdateManage,
+ v2FrontendReset:             managementpermission.UpdateManage,
 	v2SettingsGet:               managementpermission.SettingsRead,
 	v2SettingsPut:               managementpermission.SettingsWrite,
 	v2UpdateCheck:               managementpermission.UpdateManage,

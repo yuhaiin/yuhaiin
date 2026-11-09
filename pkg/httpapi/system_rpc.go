@@ -27,6 +27,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
  addRPCRoute(handlers, v2FrontendCheck, api.frontendCheck)
  addRPCRoute(handlers, v2FrontendApply, api.frontendApply)
  addRPCRoute(handlers, v2FrontendRollback, api.frontendRollback)
+ addRPCRoute(handlers, v2FrontendReset, api.frontendReset)
 	addRPCRoute(handlers, v2UpdateCheck, api.updateCheck)
 	addRPCRoute(handlers, v2UpdateApply, api.updateApply)
 	addRPCRoute(handlers, v2UpdateStatus, api.updateStatus)
@@ -107,6 +108,13 @@ func (a v2API) frontendApply(ctx context.Context, request *frontend.ApplyRequest
 func (a v2API) frontendRollback(ctx context.Context, _ *emptyRequest) (*frontend.Status, error) {
  if a.services.Frontend == nil { return nil, unavailable("frontend manager is unavailable") }
  value, err := a.services.Frontend.Rollback(ctx)
+ if err != nil { return nil, badRequest(err) }
+ return &value, nil
+}
+
+func (a v2API) frontendReset(ctx context.Context, _ *emptyRequest) (*frontend.Status, error) {
+ if a.services.Frontend == nil { return nil, unavailable("frontend manager is unavailable") }
+ value, err := a.services.Frontend.Reset(ctx)
  if err != nil { return nil, badRequest(err) }
  return &value, nil
 }
