@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 )
@@ -54,6 +56,7 @@ func createArchive(t *testing.T, build Build) []byte {
 		{"./index.html", []byte("remote UI"), false},
 		{"./ui-build.json", manifest, false},
 		{"./assets/main.js", []byte("console.log('ok')"), false},
+		{"./assets/" + build.Version + ".js", []byte("// " + build.Version), false},
 	}
 	for _, entry := range entries {
 		h := &tar.Header{Name: entry.name, Mode: 0600, Size: int64(len(entry.data))}
@@ -222,5 +225,103 @@ func TestDownloadRejectsPathTraversal(t *testing.T) {
 	}, t.TempDir())
 	if err == nil {
 		t.Fatal("traversal archive was accepted")
+	}
+}
+
+// Reinstall the same release after rollback or reset. Cached immutable bundles
+// must be reactivated, not rejected with "release version already exists".
+func TestReactivateCachedFrontendAfterResetAndRollback(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+	candidate := testBuild("ui-200-ota", 200)
+	installTestRelease(t, m, candidate)
+	if status, err := m.Rollback(context.Background()); err != nil || status.Source != "embedded" {
+		t.Fatalf("rollback: status=%#v err=%v", status, err)
+	}
+	installTestRelease(t, m, candidate)
+	if status, err := m.Reset(context.Background()); err != nil || status.Source != "embedded" {
+		t.Fatalf("reset: status=%#v err=%v", status, err)
+	}
+	installTestRelease(t, m, candidate)
+}
+
+// Downloaded chunks from several previous releases must remain readable even
+// after the selection state is reset to an embedded frontend.
+func TestHistoricalLazyChunksRemainAfterReset(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+	first := testBuild("ui-200-ota", 200)
+	second := testBuild("ui-300-ota", 300)
+	installTestRelease(t, m, first)
+	installTestRelease(t, m, second)
+	if _, err := m.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, release := range []Build{first, second} {
+		name := "assets/" + release.Version + ".js"
+		f, err := m.Open(name)
+		if err != nil {
+			t.Fatalf("lost lazy chunk %s: %v", name, err)
+		}
+		data, readErr := io.ReadAll(f)
+		_ = f.Close()
+		if readErr != nil || !strings.Contains(string(data), release.Version) {
+			t.Fatalf("wrong historical chunk %s: %s, %v", name, data, readErr)
+		}
+	}
+	if got, err := m.Open("index.html"); err != nil {
+		t.Fatal(err)
+	} else {
+		data, readErr := io.ReadAll(got)
+		_ = got.Close()
+		if readErr != nil || string(data) != "embedded" {
+			t.Fatalf("reset must keep embedded index: %s, %v", data, readErr)
+		}
+	}
+}
+
+func TestEmergencySelectionCancelsDownload(t *testing.T) {
+	for _, action := range []string{"reset", "rollback"} {
+		t.Run(action, func(t *testing.T) {
+			m := New(t.TempDir(), embeddedFS(testBuild("ui-100-embedded", 100), "embedded"))
+			installTestRelease(t, m, testBuild("ui-200-ota", 200))
+			candidate := testBuild("ui-300-ota", 300)
+			archive := createArchive(t, candidate)
+			digest := sha256.Sum256(archive)
+			release := Release{Build: candidate, URL: "https://yuhaiin.github.io/frontend.tar.gz", SHA256: hex.EncodeToString(digest[:]), Size: int64(len(archive))}
+			feed, _ := json.Marshal(release)
+			started := make(chan struct{})
+			resume := make(chan struct{})
+			var once sync.Once
+			m.client = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Path == "/ui-update.json" {
+					return response(feed), nil
+				}
+				once.Do(func() { close(started) })
+				<-resume
+				return response(archive), nil
+			})}
+			result := make(chan error, 1)
+			go func() {
+				_, err := m.Apply(context.Background(), ApplyRequest{Version: candidate.Version, SHA256: release.SHA256})
+				result <- err
+			}()
+			<-started
+			var err error
+			if action == "reset" {
+				_, err = m.Reset(context.Background())
+			} else {
+				_, err = m.Rollback(context.Background())
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			close(resume)
+			if err := <-result; err == nil {
+				t.Fatal("pending download reactivated the OTA after emergency action")
+			}
+			status, err := m.Status(context.Background())
+			if err != nil || status.Source != "embedded" {
+				t.Fatalf("emergency selection lost: status=%#v err=%v", status, err)
+			}
+		})
 	}
 }
