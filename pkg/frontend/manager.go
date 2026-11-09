@@ -332,8 +332,8 @@ func (m *Manager) Check(ctx context.Context) (CheckResult, error) {
 }
 
 func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	// Fetch and unpack off-lock. Static UI requests must remain responsive
+	// throughout slow networks and large frontend downloads.
 	if m.external != "" {
 		return Status{}, errors.New("EXTERNAL_WEB disables managed frontend updates")
 	}
@@ -347,8 +347,11 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 	if reason := m.compatible(release.Build); reason != "" {
 		return Status{}, fmt.Errorf("incompatible frontend: %s", reason)
 	}
+	m.mu.RLock()
 	active, _, _, _ := m.selection()
-	if release.BuildNumber <= active.BuildNumber {
+	tooOld := release.BuildNumber <= active.BuildNumber
+	m.mu.RUnlock()
+	if tooOld {
 		return Status{}, errors.New("frontend release is not newer than the selected frontend")
 	}
 	if err := os.MkdirAll(filepath.Join(m.root, "versions"), 0700); err != nil {
@@ -361,6 +364,13 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 	defer os.RemoveAll(tmp)
 	if err := m.download(ctx, release, tmp); err != nil {
 		return Status{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Another update (or rollback) may have completed during download.
+	active, _, _, _ = m.selection()
+	if release.BuildNumber <= active.BuildNumber {
+		return Status{}, errors.New("frontend was superseded while downloading")
 	}
 	dest := filepath.Join(m.root, "versions", release.Version)
 	if _, err := os.Lstat(dest); err == nil {
