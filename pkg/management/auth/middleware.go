@@ -162,5 +162,10 @@ func (r *Runtime) Middleware(ctx context.Context, mux *http.ServeMux, options ht
 		}
 	}
 	server.Register(mux)
+	// The recovery UI is Core-owned static HTML/JS. Permit reading it without
+	// credentials so a broken OTA cannot lock administrators out. Its reset
+	// RPC remains authenticated and requires UpdateManage.
+	server.public["GET /__ui_recovery"] = true
+	server.public["GET /__ui_recovery.js"] = true
 	return server.Wrap(mux), nil, nil
 }
