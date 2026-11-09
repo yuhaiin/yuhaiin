@@ -4,6 +4,7 @@ package frontend
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -83,6 +84,7 @@ type state struct {
 // HTTP asset handler as desktop and never executes an unpacked native binary.
 type Manager struct {
 	mu            sync.RWMutex
+	epoch         uint64 // Invalidate in-flight installs after any completed state transition.
 	embedded      fs.FS
 	embeddedBuild Build
 	root          string
@@ -266,9 +268,31 @@ func (m *Manager) Open(name string) (fs.File, error) {
 	if m.external != "" {
 		return nil, fs.ErrNotExist
 	}
-	for _, id := range []string{m.stored.Current, m.stored.Previous} {
+	// Do not discard historical hashed assets after rollback/reset. Already-open
+	// tabs can still request chunks from any previously installed release.
+	checked := make(map[string]bool)
+	openCached := func(id string) (fs.File, error) {
+		if id == "" || checked[id] {
+			return nil, fs.ErrNotExist
+		}
+		checked[id] = true
 		if _, disk, ok := m.installed(id); ok {
-			if f, err := disk.Open(name); err == nil {
+			return disk.Open(name)
+		}
+		return nil, fs.ErrNotExist
+	}
+	for _, id := range []string{m.stored.Current, m.stored.Previous} {
+		if f, err := openCached(id); err == nil {
+			return f, nil
+		}
+	}
+	versions, err := os.ReadDir(filepath.Join(m.root, "versions"))
+	if err == nil {
+		for _, entry := range versions {
+			if !entry.IsDir() || !validVersion.MatchString(entry.Name()) {
+				continue
+			}
+			if f, err := openCached(entry.Name()); err == nil {
 				return f, nil
 			}
 		}
@@ -335,6 +359,9 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 	if m.external != "" {
 		return Status{}, errors.New("EXTERNAL_WEB disables managed frontend updates")
 	}
+	m.mu.RLock()
+	startedAt := m.epoch
+	m.mu.RUnlock()
 	release, err := m.readFeed(ctx)
 	if err != nil {
 		return Status{}, err
@@ -365,18 +392,26 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// Another update (or rollback) may have completed during download.
+	// Never reactivate a downloaded UI after a successful Reset/Rollback,
+	// even if the resulting active version is still older than this release.
+	if m.epoch != startedAt {
+		return Status{}, errors.New("frontend selection changed while downloading; check again")
+	}
 	active, _, _, _ = m.selection()
 	if release.BuildNumber <= active.BuildNumber {
 		return Status{}, errors.New("frontend was superseded while downloading")
 	}
 	dest := filepath.Join(m.root, "versions", release.Version)
 	if _, err := os.Lstat(dest); err == nil {
-		return Status{}, errors.New("release version already exists")
+		// Rollback and reset intentionally retain immutable versions for
+		// open browser tabs. Reinstalling the exact same verified release
+		// reactivates it rather than deleting those assets.
+		if !sameBundleFiles(tmp, dest) {
+			return Status{}, errors.New("cached frontend bundle differs from verified release")
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Status{}, err
-	}
-	if err := os.Rename(tmp, dest); err != nil {
+	} else if err := os.Rename(tmp, dest); err != nil {
 		return Status{}, err
 	}
 	next := state{Current: release.Version, Previous: m.stored.Current}
@@ -384,6 +419,7 @@ func (m *Manager) Apply(ctx context.Context, request ApplyRequest) (Status, erro
 		return Status{}, err
 	}
 	m.stored = next
+	m.epoch++
 	return m.statusLocked(), nil
 }
 
@@ -394,6 +430,7 @@ func (m *Manager) Rollback(context.Context) (Status, error) {
 		return Status{}, errors.New("external frontend override is active")
 	}
 	if m.stored.Current == "" {
+		m.epoch++ // Explicit rollback still invalidates pending Apply.
 		return m.statusLocked(), nil
 	}
 	next := state{Current: m.stored.Previous}
@@ -401,6 +438,7 @@ func (m *Manager) Rollback(context.Context) (Status, error) {
 		return Status{}, err
 	}
 	m.stored = next
+	m.epoch++
 	return m.statusLocked(), nil
 }
 
@@ -418,6 +456,7 @@ func (m *Manager) Reset(context.Context) (Status, error) {
 		return Status{}, err
 	}
 	m.stored = state{}
+	m.epoch++
 	return m.statusLocked(), nil
 }
 
@@ -445,6 +484,85 @@ func (m *Manager) writeState(s state) error {
 		return err
 	}
 	return os.Rename(temp.Name(), filepath.Join(m.root, "state.json"))
+}
+
+
+// sameBundleFiles verifies a previously installed immutable directory against
+// a freshly downloaded and checksum-verified archive. It never removes active
+// files, including those still requested by previously opened browser tabs.
+func sameBundleFiles(staged, cached string) bool {
+	files := 0
+	err := filepath.WalkDir(staged, func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(staged, name)
+		if err != nil {
+			return err
+		}
+		cachedName := filepath.Join(cached, rel)
+		info, err := os.Lstat(cachedName)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+				return errors.New("cached frontend directory type mismatch")
+			}
+			return nil
+		}
+		if !entry.Type().IsRegular() || !info.Mode().IsRegular() {
+			return errors.New("cached frontend file type mismatch")
+		}
+		freshInfo, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if freshInfo.Size() != info.Size() {
+			return errors.New("cached frontend file size mismatch")
+		}
+		fresh, err := os.Open(name)
+		if err != nil {
+			return err
+		}
+		defer fresh.Close()
+		old, err := os.Open(cachedName)
+		if err != nil {
+			return err
+		}
+		defer old.Close()
+		first, second := sha256.New(), sha256.New()
+		if _, err := io.Copy(first, fresh); err != nil {
+			return err
+		}
+		if _, err := io.Copy(second, old); err != nil {
+			return err
+		}
+		if !bytes.Equal(first.Sum(nil), second.Sum(nil)) {
+			return errors.New("cached frontend content mismatch")
+		}
+		files++
+		return nil
+	})
+	if err != nil {
+		return false
+	}
+	// Reject extra cached files, too. A version ID must denote exactly one
+	// verified archive, not the union of multiple uploads.
+	cachedFiles := 0
+	err = filepath.WalkDir(cached, func(_ string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() {
+			cachedFiles++
+			if !entry.Type().IsRegular() {
+				return errors.New("cached frontend contains non-regular file")
+			}
+		}
+		return nil
+	})
+	return err == nil && files == cachedFiles
 }
 
 func (m *Manager) download(ctx context.Context, release Release, destination string) error {
