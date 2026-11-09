@@ -123,6 +123,17 @@ func TestApplicationManagementGateCoversActualRoutes(t *testing.T) {
 			t.Errorf("%s: %d want %d", tt.path, w.Code, tt.want)
 		}
 	}
+	// The emergency page is a standalone document. Its reset JavaScript
+	// relies on the same HttpOnly session cookie as the ordinary frontend.
+	r = httptest.NewRequest("POST", "http://127.0.0.1:50051/api/v2/rpc/frontend.reset", strings.NewReader("{}"))
+	r.RemoteAddr = "127.0.0.1:1000"
+	r.Header.Set("Origin", "http://127.0.0.1:50051")
+	r.AddCookie(&http.Cookie{Name: "yuhaiin-session", Value: session.Secret})
+	w = httptest.NewRecorder()
+	app.Mux.ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("cookie-authenticated emergency reset returned %d: %s", w.Code, w.Body.String())
+	}
 	r = httptest.NewRequest("POST", "http://attacker.example/api/v2/auth/parameters", strings.NewReader(`{"login":"admin"}`))
 	r.RemoteAddr = "127.0.0.1:1000"
 	r.Header.Set("Origin", "http://attacker.example")
