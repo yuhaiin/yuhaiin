@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 func testBuild(version string, number int64) Build {
@@ -112,6 +114,102 @@ func installTestRelease(t *testing.T, m *Manager, build Build) {
 	}
 	if result.Source != "downloaded" {
 		t.Fatalf("expected downloaded UI, got %q", result.Source)
+	}
+}
+
+// cancelOnEOFReader simulates a management session revoked after receiving
+// the last archive byte, when HTTP download itself can still succeed.
+type cancelOnEOFReader struct {
+	io.Reader
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnEOFReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if errors.Is(err, io.EOF) {
+		r.cancel()
+	}
+	return n, err
+}
+
+func TestApplyCanceledAfterDownloadDoesNotActivate(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-bundled", 100), "embedded"))
+	build := testBuild("ui-200-ota", 200)
+	archive := createArchive(t, build)
+	checksum := sha256.Sum256(archive)
+	release := Release{
+		Build: build, URL: "https://yuhaiin.github.io/frontend.tar.gz",
+		SHA256: hex.EncodeToString(checksum[:]), Size: int64(len(archive)),
+	}
+	feed, err := json.Marshal(release)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.client = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path == "/ui-update.json" {
+			return response(feed), nil
+		}
+		if r.URL.Path != "/frontend.tar.gz" {
+			t.Fatalf("unexpected request %s", r.URL)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{},
+			Body: io.NopCloser(&cancelOnEOFReader{Reader: bytes.NewReader(archive), cancel: cancel}),
+		}, nil
+	})}
+	if _, err := m.Apply(ctx, ApplyRequest{Version: build.Version, SHA256: release.SHA256}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled Apply must return context.Canceled, got %v", err)
+	}
+	status, err := m.Status(context.Background())
+	if err != nil || status.Source != "embedded" {
+		t.Fatalf("canceled Apply changed selected UI: %#v %v", status, err)
+	}
+	restarted := New(filepath.Dir(m.root), m.embedded)
+	status, err = restarted.Status(context.Background())
+	if err != nil || status.Source != "embedded" {
+		t.Fatalf("canceled Apply changed persistent UI: %#v %v", status, err)
+	}
+}
+
+// Canceling during the durable state write must also prevent its final rename,
+// not merely prevent downloads still in progress.
+type cancelBeforeStateRename struct {
+	checks int
+}
+
+func (c *cancelBeforeStateRename) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *cancelBeforeStateRename) Done() <-chan struct{} { return nil }
+func (c *cancelBeforeStateRename) Value(any) any { return nil }
+func (c *cancelBeforeStateRename) Err() error {
+	c.checks++
+	if c.checks > 1 {
+		return context.Canceled
+	}
+	return nil
+}
+
+func TestWriteStateCanceledBeforeRename(t *testing.T) {
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-100-bundled", 100), "embedded"))
+	if err := os.MkdirAll(m.root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.writeState(state{}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &cancelBeforeStateRename{}
+	if err := m.writeStateContext(ctx, state{Current: "ui-200-ota"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected cancellation before state rename, got %v", err)
+	}
+	saved, err := os.ReadFile(filepath.Join(m.root, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got state
+	if err := json.Unmarshal(saved, &got); err != nil || got.Current != "" {
+		t.Fatalf("canceled state write committed: %#v %v", got, err)
 	}
 }
 
