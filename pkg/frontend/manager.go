@@ -487,6 +487,27 @@ func (m *Manager) writeState(s state) error {
 }
 
 
+func sameFileContents(a, b string) (bool, error) {
+	left, err := os.Open(a)
+	if err != nil {
+		return false, err
+	}
+	defer left.Close()
+	right, err := os.Open(b)
+	if err != nil {
+		return false, err
+	}
+	defer right.Close()
+	first, second := sha256.New(), sha256.New()
+	if _, err := io.Copy(first, left); err != nil {
+		return false, err
+	}
+	if _, err := io.Copy(second, right); err != nil {
+		return false, err
+	}
+	return bytes.Equal(first.Sum(nil), second.Sum(nil)), nil
+}
+
 // sameBundleFiles verifies a previously installed immutable directory against
 // a freshly downloaded and checksum-verified archive. It never removes active
 // files, including those still requested by previously opened browser tabs.
@@ -521,24 +542,11 @@ func sameBundleFiles(staged, cached string) bool {
 		if freshInfo.Size() != info.Size() {
 			return errors.New("cached frontend file size mismatch")
 		}
-		fresh, err := os.Open(name)
+		match, err := sameFileContents(name, cachedName)
 		if err != nil {
 			return err
 		}
-		defer fresh.Close()
-		old, err := os.Open(cachedName)
-		if err != nil {
-			return err
-		}
-		defer old.Close()
-		first, second := sha256.New(), sha256.New()
-		if _, err := io.Copy(first, fresh); err != nil {
-			return err
-		}
-		if _, err := io.Copy(second, old); err != nil {
-			return err
-		}
-		if !bytes.Equal(first.Sum(nil), second.Sum(nil)) {
+		if !match {
 			return errors.New("cached frontend content mismatch")
 		}
 		files++
