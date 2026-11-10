@@ -2,7 +2,7 @@ name: Unit tests
 
 on:
   pull_request:
-    branches: [main, v2]
+    branches: [main]
     paths:
       - '**.go'
       - 'pkg/**'
@@ -14,7 +14,7 @@ on:
       - .github/workflows/tests.yml
       - .github/actions/setup-go/**
   push:
-    branches: [main, v2]
+    branches: [main]
     paths:
       - '**.go'
       - 'pkg/**'

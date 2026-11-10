@@ -21,16 +21,6 @@ jobs:
     steps:
       - id: resolve
         run: |
-          # The v2 branch embeds the v2 Web UI build when it has been published;
-          # every other ref keeps the stable main build.
-          repo=https://github.com/yuhaiin/yuhaiin.github.io.git
-          base="${GITHUB_BASE_REF:-$GITHUB_REF_NAME}"
-          version=
-          if [ "$base" = v2 ]; then
-            version=$(git ls-remote "$repo" refs/heads/v2 | cut -f1)
-          fi
-          if [ -z "$version" ]; then
-            version=$(git ls-remote --exit-code "$repo" refs/heads/main | cut -f1)
-          fi
+          version=$(git ls-remote --exit-code https://github.com/yuhaiin/yuhaiin.github.io.git refs/heads/main | cut -f1)
           test -n "$version"
           echo "front_version=$version" >> "$GITHUB_OUTPUT"

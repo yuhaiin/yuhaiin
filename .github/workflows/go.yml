@@ -2,10 +2,10 @@ name: Go
 
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
     tags: [v*]
   pull_request:
-    branches: [main, v2]
+    branches: [main]
 
 # Cancel superseded workflow runs on the same ref.
 concurrency:
