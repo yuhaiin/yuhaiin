@@ -17,13 +17,11 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/app"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
-	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	managementtls "github.com/Asutorufa/yuhaiin/pkg/management/tls"
 	"github.com/Asutorufa/yuhaiin/pkg/migrate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/device"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
@@ -51,6 +49,45 @@ type App struct {
 
 	startCancelMu sync.Mutex
 	startCancel   context.CancelFunc
+
+	vpnMu         sync.Mutex
+	contracts     atomic.Pointer[inbound.ContractStore]
+	platformToken string
+	port          int32
+	https         bool
+}
+
+func (a *App) contractStore() *inbound.ContractStore { return a.contracts.Load() }
+
+func (a *App) instanceSnapshot() *app.AppInstance {
+	if !a.started.Load() {
+		return nil
+	}
+	return a.instance
+}
+
+// PlatformToken is the per-start secret that authorizes Android platform API
+// calls. Only the in-app WebView receives it, as an HttpOnly cookie.
+func (a *App) PlatformToken() string {
+	if !a.Running() {
+		return ""
+	}
+	return a.platformToken
+}
+
+// HTTPPort returns the management port of the running core, or zero.
+func (a *App) HTTPPort() int32 {
+	if !a.Running() {
+		return 0
+	}
+	return a.port
+}
+
+func listenerPortOf(lis net.Listener) int32 {
+	if addr, ok := lis.Addr().(*net.TCPAddr); ok {
+		return int32(addr.Port)
+	}
+	return 0
 }
 
 func (a *App) setStartCancel(cancel context.CancelFunc) {
@@ -135,11 +172,18 @@ func (a *App) Start(opt *Opts) error {
 	// 	})
 	// }
 
-	dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
+	// Socket protection and Network binding are installed with the core, not
+	// with the VPN: the VPN is created later, on demand, and the adapters
+	// return "no VPN" results while it is down.
+	dialer.DefaultMarkSymbol = nil
 	dialer.SocketNetworkBinder = nil
-	if opt.TUN.SocketBind != nil {
+	if opt.TUN != nil && opt.TUN.SocketProtect != nil {
+		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
+	}
+	if opt.TUN != nil && opt.TUN.SocketBind != nil {
+		bind := opt.TUN.SocketBind
 		dialer.SocketNetworkBinder = func(fd int32, iface string) (string, error) {
-			handle := opt.TUN.SocketBind.Bind(fd, iface)
+			handle := bind.Bind(fd, iface)
 			if handle < 0 {
 				return "", fmt.Errorf("bind protected socket to Android Network failed")
 			}
@@ -157,15 +201,16 @@ func (a *App) Start(opt *Opts) error {
 		_ = setting.Close()
 		return fmt.Errorf("migrate Android state before startup: %w", err)
 	}
-	if err := configureAndroidTUN(ctx, setting, opt.TUN,
-		GetStore().GetString(AdvTunDriverKey),
-		GetStore().GetString(AdvTunStackKey),
-		GetStore().GetString(AdvTunCongestionControlKey),
-		GetStore().GetString(AdvTunOutputSchedulerKey),
-		GetStore().GetString(AdvTunLossRecoveryKey),
-	); err != nil {
+	// The core starts without a TUN descriptor. The Android VPN is a TUN
+	// inbound on the platform device, created when that inbound is enabled.
+	stateDB, err := setting.SQLDB(ctx)
+	if err != nil {
 		_ = setting.Close()
-		return fmt.Errorf("configure Android TUN before startup: %w", err)
+		return fmt.Errorf("open Android state before startup: %w", err)
+	}
+	if err := ensureAndroidTUNInbound(ctx, stateDB); err != nil {
+		_ = setting.Close()
+		return fmt.Errorf("prepare Android TUN inbound before startup: %w", err)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -202,17 +247,40 @@ func (a *App) Start(opt *Opts) error {
 		return err
 	}
 
-	server, serverListener := newAndroidHTTPServer(app.Mux, lis)
+	token, err := newPlatformToken()
+	if err != nil {
+		_ = lis.Close()
+		_ = app.Close()
+		return err
+	}
+	contracts := inbound.NewContractStore(plainstore.NewInboundStore(stateDB), app.Inbound)
+	platform := newPlatformAPI(a, token)
+	server, serverListener := newAndroidHTTPServer(platform.wrap(app.Mux), lis)
 
 	a.server = server
 	a.instance = app
+	a.contracts.Store(contracts)
+	a.platformToken = token
+	a.port = listenerPortOf(lis)
+	a.https = server.TLSConfig != nil
 	a.startedAt = time.Now()
+	activeAppMu.Lock()
+	activeApp = a
+	activeAppMu.Unlock()
 
 	a.started.Store(true)
 	lockTransferred = true
 
 	go func() {
 		defer a.started.Store(false)
+		defer func() {
+			a.contracts.Store(nil)
+			activeAppMu.Lock()
+			if activeApp == a {
+				activeApp = nil
+			}
+			activeAppMu.Unlock()
+		}()
 		defer func() { _ = configLock.Close() }()
 		defer func() {
 			if err := app.Close(); err != nil {
@@ -220,7 +288,11 @@ func (a *App) Start(opt *Opts) error {
 			}
 		}()
 		defer serverListener.Close()
-		defer opt.CloseFallback.Close()
+		defer func() {
+			if opt.CloseFallback != nil {
+				_ = opt.CloseFallback.Close()
+			}
+		}()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -313,66 +385,6 @@ func listenAndroidHTTP() (net.Listener, error) {
 	GetStore().PutInt(NewYuhaiinPortKey, int32(port))
 
 	return listener, nil
-}
-
-// configureAndroidTUN binds the persisted TUN inbound to the file descriptor
-// supplied by Android's VpnService. The plain model has a disabled desktop TUN
-// by default, while Android starts this process only after VpnService created
-// a TUN device.
-func configureAndroidTUN(ctx context.Context, state *migrate.StateDB, tun *TUN, _ string, stack, congestionControl, outputScheduler, lossRecovery string) error {
-	if tun == nil {
-		return errors.New("android TUN options are nil")
-	}
-	// Legacy persisted drivers now use only the lightweight packet stack.
-	if stack != "" && stack != "lightweight" {
-		return fmt.Errorf("unknown Android TUN stack %q", stack)
-	}
-	stack = "lightweight"
-	driver := TunDriverChannelValue
-	if err := lightweighttun.Validate(device.TunConfig{
-		Driver: device.DriverChannel, MTU: tun.MTU, PortalV6: tun.PortalV6, CongestionControl: congestionControl, OutputScheduler: outputScheduler, LossRecovery: lossRecovery,
-	}); err != nil {
-		return fmt.Errorf("invalid Android lightweight TUN configuration: %w", err)
-	}
-	db, err := state.SQLDB(ctx)
-	if err != nil {
-		return err
-	}
-
-	store := plainstore.NewInboundStore(db)
-	inbounds, err := store.List(ctx)
-	if err != nil {
-		return err
-	}
-
-	tunProtocol := contractinbound.NewTypedProtocol(contractinbound.TunProtocol{
-		Stack:             stack,
-		CongestionControl: congestionControl,
-		OutputScheduler:   outputScheduler,
-		LossRecovery:      lossRecovery,
-		Name:              fmt.Sprintf("fd://%d", tun.FD),
-		MTU:               tun.MTU,
-		SkipMulticast:     true,
-		Driver:            driver,
-		Portal:            tun.Portal,
-		PortalV6:          tun.PortalV6,
-	})
-	for _, inbound := range inbounds {
-		if inbound.Protocol.Type != contractinbound.ProtocolTun {
-			continue
-		}
-		inbound.Enabled = true
-		inbound.Protocol = tunProtocol
-		return store.Save(ctx, inbound, 0)
-	}
-
-	return store.Save(ctx, contractinbound.Inbound{
-		ID:       "tun",
-		Name:     "tun",
-		Enabled:  true,
-		Network:  contractinbound.NewTypedNetwork(contractinbound.EmptyNetwork{}),
-		Protocol: tunProtocol,
-	}, 0)
 }
 
 func (a *App) notifyFlow(ctx context.Context, app *app.AppInstance, opt *Opts) {
