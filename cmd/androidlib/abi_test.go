@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	core "github.com/Asutorufa/yuhaiin/cmd/android"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -157,5 +158,16 @@ func TestAppCatalogPassesErrors(t *testing.T) {
 	defer installHost(nil)
 	if _, err := (appCatalog{}).InstalledApps(); err == nil || !strings.HasPrefix(err.Error(), "consent_required") {
 		t.Fatal(err)
+	}
+}
+
+// yuhaiin-android mirrors these identifiers in Constants.kt. Changing one here
+// is a compatibility change for the app.
+func TestMirroredAppIdentifiers(t *testing.T) {
+	if core.PlatformCookieName != "yuhaiin_android_platform" {
+		t.Fatal("PlatformCookieName changed")
+	}
+	if core.CoreBackgroundPolicyKey != "core_background_policy" {
+		t.Fatal("CoreBackgroundPolicyKey changed")
 	}
 }
