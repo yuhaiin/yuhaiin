@@ -84,9 +84,11 @@ jobs:
           tools="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
           for so in dist/android/*/libyuhaiin.so; do
             "$tools/llvm-readelf" -lW "$so" | awk '/LOAD/ { if ($NF != "0x4000") { print FILENAME ": LOAD alignment " $NF; bad=1 } } END { exit bad }'
-            "$tools/llvm-readelf" -d "$so" | grep -q 'SONAME.*libyuhaiin.so'
-            "$tools/llvm-nm" -D --defined-only "$so" | grep -q ' T yh_call$'
-            "$tools/llvm-nm" -D --defined-only "$so" | grep -q ' T JNI_OnLoad$'
+            # Capture first: grep -q closing the pipe early fails under pipefail.
+            symbols=$("$tools/llvm-nm" -D --defined-only "$so")
+            dynamic=$("$tools/llvm-readelf" -d "$so")
+            grep -q 'SONAME.*libyuhaiin.so' <<<"$dynamic"
+            for sym in yh_call yh_set_host JNI_OnLoad; do grep -q " T $sym\$" <<<"$symbols"; done
           done
 
       - name: Upload Android core library
