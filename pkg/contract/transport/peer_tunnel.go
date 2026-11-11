@@ -2,7 +2,9 @@ package transport
 
 import (
 	"crypto/ecdh"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -25,6 +27,16 @@ type PeerTunnel struct {
 }
 
 func (PeerTunnel) ProtocolType() string { return PeerTunnelType }
+
+func PeerPairID(key [32]byte) [16]byte {
+	hash := sha256.Sum256(key[:])
+	return [16]byte(hash[:16])
+}
+
+func PeerPairIDString(key [32]byte) string {
+	id := PeerPairID(key)
+	return hex.EncodeToString(id[:])
+}
 
 func DecodePeerKey(s string) ([32]byte, error) {
 	var key [32]byte

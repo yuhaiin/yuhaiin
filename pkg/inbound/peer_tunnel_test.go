@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"io"
 	"net"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -198,6 +199,59 @@ func TestPeerTunnelDirectTCPAndUDP(t *testing.T) {
 	}
 	if err == nil || lan.tcpDials.Load() != 2 {
 		t.Fatalf("unconfigured destination was not blocked before LAN dial: error %v, total dials %d", err, lan.tcpDials.Load())
+	}
+}
+
+func TestPeerTunnelKickInterruptsEstablishedTCP(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 12*time.Second)
+	defer cancel()
+	runtime, proxy := peerTunnelFixture(t, direct.Default)
+	var accepted atomic.Int32
+	addr := tcpEcho(t, "127.0.0.1", &accepted)
+	conn, err := proxy.Conn(ctx, addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Write([]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	var payload [1]byte
+	if _, err := io.ReadFull(conn, payload[:]); err != nil || payload[0] != 1 {
+		t.Fatalf("TCP echo before kick: %v, %v", payload, err)
+	}
+	entry, _ := runtime.store.Load("discovery")
+	keys, err := entry.contractConfig.Protocol.PeerDiscovery.Keys()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := entry.server.(*discoveryAccepter).Kick(transport.PeerPairID(keys[0])); err != nil {
+		t.Fatal(err)
+	}
+	for ctx.Err() == nil {
+		probe, err := proxy.PacketConn(ctx, addr)
+		if err != nil {
+			if strings.Contains(err.Error(), "kicked") {
+				break
+			}
+			t.Fatal(err)
+		}
+		_ = probe.Close()
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := ctx.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.SetDeadline(time.Now().Add(200 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Write([]byte{2}); err == nil {
+		if _, err := io.ReadFull(conn, payload[:]); err == nil {
+			t.Fatalf("established stream still reached its target: %v", payload)
+		}
 	}
 }
 

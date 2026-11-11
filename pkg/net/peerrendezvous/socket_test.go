@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 )
 
 // This models endpoint-dependent filtering with a stable mapping. The peer
@@ -110,5 +112,49 @@ func TestSocketPunchAndRelearnEndpoint(t *testing.T) {
 	check(b, input)
 	_ = b.Close()
 	replacement, input := start(Publisher)
+	check(replacement, input)
+
+	pairID := transport.PeerPairIDString(key)
+	coordinator := server.LocalAddr().(*net.UDPAddr).AddrPort()
+	before := coord.Pairs()[pairID]
+	if !before.Dialer.IsValid() || !before.Publisher.IsValid() {
+		t.Fatalf("missing registered peers: %+v", before)
+	}
+	result, err := Lookup(ctx, coordinator, key)
+	if err != nil || result.Endpoint != before.Publisher {
+		t.Fatalf("read-only lookup: %+v, %v", result, err)
+	}
+	if after := coord.Pairs()[pairID]; after != before {
+		t.Fatalf("lookup replaced the real tunnel registration: %+v", after)
+	}
+
+	coord.SetBlocked([]string{pairID})
+	deadline := time.Now().Add(4 * time.Second)
+	for a.peer.Load() != nil || replacement.peer.Load() != nil {
+		if time.Now().After(deadline) {
+			t.Fatal("blocked pairing retained an active data path")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	blockedPayload := bytes.Repeat([]byte{43}, 128)
+	if _, err := a.WriteTo(blockedPayload, server.LocalAddr()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case payload := <-input:
+		if bytes.Equal(payload, blockedPayload) {
+			t.Fatal("data arrived after the pair was blocked")
+		}
+	case <-time.After(40 * time.Millisecond):
+	}
+	coord.SetBlocked(nil)
+	ctx, resumeCancel := context.WithTimeout(t.Context(), budget)
+	defer resumeCancel()
+	for replacement.peer.Load() == nil {
+		if ctx.Err() != nil {
+			t.Fatal("unblocked peer did not relearn the direct path")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	check(replacement, input)
 }

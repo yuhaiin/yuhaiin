@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,19 +19,23 @@ import (
 const (
 	cookiePeriod = 5 * time.Second
 	peerTTL      = 20 * time.Second
+	kickDuration = 30 * time.Second
 )
 
 type Coordinator struct {
 	socket    net.PacketConn
 	cookieKey [32]byte
+	mu        sync.Mutex
 	pairs     map[[16]byte]*pair
 	done      chan struct{}
 	closeOnce sync.Once
 }
 
 type pair struct {
-	key   [32]byte
-	peers [2]registration
+	key       [32]byte
+	peers     [2]registration
+	blocked   bool
+	kickUntil time.Time
 }
 
 type registration struct {
@@ -39,12 +45,13 @@ type registration struct {
 
 // Serve takes ownership of the UDP listener. The fixed set of configured
 // tokens bounds state, and every registration proves UDP return reachability.
-func Serve(socket net.PacketConn, keys [][32]byte) *Coordinator {
+func Serve(socket net.PacketConn, keys [][32]byte, blockedIDs ...string) *Coordinator {
 	c := &Coordinator{socket: socket, pairs: make(map[[16]byte]*pair, len(keys)), done: make(chan struct{})}
 	rand.Read(c.cookieKey[:])
 	for _, key := range keys {
 		c.pairs[pairID(key)] = &pair{key: key}
 	}
+	c.SetBlocked(blockedIDs)
 	go c.run()
 	return c
 }
@@ -100,14 +107,25 @@ func (c *Coordinator) handle(m *message, n int, from netip.AddrPort, now time.Ti
 				return false
 			}
 		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if p.blocked || now.Before(p.kickUntil) {
+			m[4] = denied
+			clear(m.body())
+			m.body()[0] = kicked
+			if p.blocked {
+				m.body()[0] = blocked
+			}
+			m.sign(p.key)
+			return true
+		}
 		role := m.role()
-		p.peers[role] = registration{endpoint: from, expires: now.Add(peerTTL)}
+		if !m.lookup() {
+			p.peers[role] = registration{endpoint: from, expires: now.Add(peerTTL)}
+		}
 		peer := p.peers[1-role]
 		m[4] = discovered
-		if !now.Before(peer.expires) {
-			peer.endpoint = netip.AddrPort{}
-		}
-		m.setEndpoint(peer.endpoint)
+		m.setEndpoint(peer.onlineEndpoint(now))
 	}
 	m.sign(p.key)
 	return true
@@ -125,4 +143,60 @@ func (c *Coordinator) cookie(m *message, from netip.AddrPort, bucket int64) [24]
 	var sum [sha256.Size]byte
 	mac.Sum(sum[:0])
 	return [24]byte(sum[:24])
+}
+
+func (r registration) onlineEndpoint(now time.Time) netip.AddrPort {
+	if !now.Before(r.expires) {
+		return netip.AddrPort{}
+	}
+	return r.endpoint
+}
+
+type PairStatus struct {
+	KickUntil time.Time
+	Dialer    netip.AddrPort
+	Publisher netip.AddrPort
+}
+
+func (c *Coordinator) Pairs() map[string]PairStatus {
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	result := make(map[string]PairStatus, len(c.pairs))
+	for id, p := range c.pairs {
+		state := PairStatus{Dialer: p.peers[Dialer].onlineEndpoint(now), Publisher: p.peers[Publisher].onlineEndpoint(now)}
+		if now.Before(p.kickUntil) {
+			state.KickUntil = p.kickUntil
+		}
+		result[hex.EncodeToString(id[:])] = state
+	}
+	return result
+}
+
+func (c *Coordinator) Kick(id [16]byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p := c.pairs[id]
+	if p == nil {
+		return errors.New("peer discovery pairing does not exist")
+	}
+	if p.blocked {
+		return errors.New("peer discovery pairing is blocked")
+	}
+	p.peers = [2]registration{}
+	p.kickUntil = time.Now().Add(kickDuration)
+	return nil
+}
+
+func (c *Coordinator) SetBlocked(ids []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for id, p := range c.pairs {
+		block := slices.Contains(ids, hex.EncodeToString(id[:]))
+		if block && !p.blocked {
+			p.peers = [2]registration{}
+			p.kickUntil = time.Time{}
+		}
+		p.blocked = block
+	}
 }

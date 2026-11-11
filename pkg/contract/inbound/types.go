@@ -187,7 +187,8 @@ type Protocol struct {
 }
 
 type PeerDiscoveryProtocol struct {
-	Tokens []string `json:"tokens" secret:"true"`
+	Tokens         []string `json:"tokens" secret:"true"`
+	BlockedPairIDs []string `json:"blockedPairIds,omitempty"`
 }
 
 func (PeerDiscoveryProtocol) ProtocolType() string { return ProtocolPeerDiscovery }
@@ -196,18 +197,25 @@ func (p PeerDiscoveryProtocol) Keys() ([][32]byte, error) {
 	if len(p.Tokens) < 1 || len(p.Tokens) > 1024 {
 		return nil, fmt.Errorf("peer discovery: configure 1 to 1024 pairing tokens")
 	}
-	seen := make(map[[32]byte]bool, len(p.Tokens))
+	seen := make(map[string]bool, len(p.Tokens))
 	keys := make([][32]byte, 0, len(p.Tokens))
 	for _, token := range p.Tokens {
 		key, err := transport.DecodePeerKey(token)
 		if err != nil {
 			return nil, fmt.Errorf("peer discovery token: %w", err)
 		}
-		if seen[key] {
+		id := transport.PeerPairIDString(key)
+		if seen[id] {
 			return nil, fmt.Errorf("peer discovery: duplicate pairing token")
 		}
-		seen[key] = true
+		seen[id] = true
 		keys = append(keys, key)
+	}
+	for _, id := range p.BlockedPairIDs {
+		if !seen[id] {
+			return nil, fmt.Errorf("peer discovery: invalid or duplicate blocked pair ID")
+		}
+		delete(seen, id)
 	}
 	return keys, nil
 }

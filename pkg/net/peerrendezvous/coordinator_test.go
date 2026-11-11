@@ -93,3 +93,25 @@ func BenchmarkCoordinatorRegistration(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkCoordinatorLookup(b *testing.B) {
+	key := [32]byte{1}
+	c := testCoordinator(key)
+	from := netip.MustParseAddrPort("192.0.2.1:2001")
+	request := testHello(key, Dialer)
+	request[6] = lookupFlag
+	request.sign(key)
+	now := time.Unix(100, 0)
+	b.ReportAllocs()
+	for b.Loop() {
+		m := request
+		if !c.handle(&m, messageSize, from, now) {
+			b.Fatal("lookup challenge rejected")
+		}
+		m[4] = confirm
+		m.sign(key)
+		if !c.handle(&m, messageSize, from, now) {
+			b.Fatal("lookup confirmation rejected")
+		}
+	}
+}

@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"net/netip"
+
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 )
 
 const (
@@ -15,6 +17,10 @@ const (
 	challenge   = 2
 	confirm     = 3
 	discovered  = 4
+	lookupFlag  = 1
+	denied      = 5
+	blocked     = 1
+	kicked      = 2
 )
 
 // Role identifies one side of a pairing. Each token reserves two slots.
@@ -25,13 +31,12 @@ const (
 	Publisher
 )
 
-// Layout: magic, kind, role, 2 reserved bytes, pair ID, nonce, body, HMAC.
+// Layout: magic, kind, role, flags, reserved byte, pair ID, nonce, body, HMAC.
 // The fixed-size reply cannot amplify unauthenticated UDP traffic.
 type message [messageSize]byte
 
 func pairID(key [32]byte) [16]byte {
-	hash := sha256.Sum256(key[:])
-	return [16]byte(hash[:16])
+	return transport.PeerPairID(key)
 }
 
 func (m *message) id() [16]byte    { return [16]byte(m[8:24]) }
@@ -39,6 +44,7 @@ func (m *message) nonce() [16]byte { return [16]byte(m[24:40]) }
 func (m *message) body() []byte    { return m[40:64] }
 func (m *message) kind() byte      { return m[4] }
 func (m *message) role() Role      { return Role(m[5]) }
+func (m *message) lookup() bool    { return m[6] == lookupFlag }
 func (m *message) sign(key [32]byte) {
 	mac := hmac.New(sha256.New, key[:])
 	mac.Write(m[:64])
@@ -53,7 +59,8 @@ func (m *message) valid(key [32]byte) bool {
 }
 
 func (m *message) headerOK(n int) bool {
-	return n == messageSize && string(m[:4]) == magic && m.role() <= Publisher && m[6] == 0 && m[7] == 0
+	return n == messageSize && string(m[:4]) == magic && m.role() <= Publisher && m[7] == 0 &&
+		(m[6] == 0 || m.lookup() && m.role() == Dialer)
 }
 
 func (m *message) setEndpoint(endpoint netip.AddrPort) {
@@ -72,4 +79,11 @@ func (m *message) endpoint() netip.AddrPort {
 		return netip.AddrPort{}
 	}
 	return netip.AddrPortFrom(ip, port)
+}
+
+func (m *message) denial() string {
+	if m.body()[0] == blocked {
+		return "blocked"
+	}
+	return "kicked"
 }

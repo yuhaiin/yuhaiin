@@ -121,9 +121,10 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		if err != nil {
 			return nil, err
 		}
-		return &boundAccepter{
-			Accepter: peerrendezvous.Serve(socket, keys),
-			bindings: []contract.RuntimeListener{{Kind: "udp", Listen: socket.LocalAddr().String()}},
+		return &discoveryAccepter{
+			Coordinator: peerrendezvous.Serve(socket, keys, config.Protocol.PeerDiscovery.BlockedPairIDs...),
+			config:      config,
+			listen:      socket.LocalAddr().String(),
 		}, nil
 	case contract.ProtocolPeerTunnel:
 		return wireguard.NewPeerPublisher(*config.Protocol.PeerTunnel, handler)

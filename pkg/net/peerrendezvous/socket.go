@@ -3,6 +3,7 @@ package peerrendezvous
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"net"
 	"net/netip"
 	"sync"
@@ -21,20 +22,22 @@ type Socket struct {
 	role        Role
 	id          [16]byte
 	peer        atomic.Pointer[net.UDPAddr]
-	ready       chan struct{}
 	done        chan struct{}
 	stopped     chan struct{}
-	readyOnce   sync.Once
 	closeOnce   sync.Once
 
-	mu    sync.Mutex
-	nonce [16]byte
+	mu         sync.Mutex
+	nonce      [16]byte
+	changed    chan struct{}
+	ready      bool
+	leaseUntil time.Time
+	denial     string
 }
 
 func NewSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role) *Socket {
 	s := &Socket{
 		PacketConn: pc, coordinator: coordinator, key: key, role: role, id: pairID(key),
-		ready: make(chan struct{}), done: make(chan struct{}), stopped: make(chan struct{}),
+		changed: make(chan struct{}), done: make(chan struct{}), stopped: make(chan struct{}),
 	}
 	go s.run()
 	return s
@@ -48,14 +51,43 @@ func (s *Socket) NetworkPath() netstate.Path {
 }
 
 func (s *Socket) WaitReady(ctx context.Context) error {
-	select {
-	case <-s.stopped:
-		return net.ErrClosed
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.ready:
-		return nil
+	for {
+		s.mu.Lock()
+		ready, denial, changed := s.ready, s.denial, s.changed
+		s.mu.Unlock()
+		select {
+		case <-s.stopped:
+			return net.ErrClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if denial != "" {
+			return errors.New("peer pairing is " + denial)
+		}
+		if ready {
+			return nil
+		}
+		select {
+		case <-s.stopped:
+			return net.ErrClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-changed:
+		}
 	}
+}
+
+// Called with mu held. A new endpoint needs a new successful hole punch.
+func (s *Socket) setPeer(peer *net.UDPAddr) {
+	s.peer.Store(peer)
+	s.ready = false
+	s.signalChange()
+}
+
+func (s *Socket) signalChange() {
+	close(s.changed)
+	s.changed = make(chan struct{})
 }
 
 func (s *Socket) Close() error {
@@ -80,6 +112,9 @@ func (s *Socket) run() {
 		rand.Read(m[24:40])
 		s.mu.Lock()
 		s.nonce = m.nonce()
+		if s.peer.Load() != nil && !time.Now().Before(s.leaseUntil) {
+			s.setPeer(nil)
+		}
 		s.mu.Unlock()
 		m.sign(s.key)
 		_, _ = s.PacketConn.WriteTo(m[:], coord)
@@ -124,7 +159,12 @@ func (s *Socket) ReadFrom(p []byte) (int, net.Addr, error) {
 			if p[0] == 0 {
 				_, _ = s.PacketConn.WriteTo([]byte{1}, peer)
 			}
-			s.readyOnce.Do(func() { close(s.ready) })
+			s.mu.Lock()
+			if !s.ready && s.peer.Load() == peer {
+				s.ready = true
+				s.signalChange()
+			}
+			s.mu.Unlock()
 			continue
 		}
 		if n >= 32 {
@@ -134,7 +174,7 @@ func (s *Socket) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 func (s *Socket) receiveControl(m message, addr net.Addr) {
-	if !m.headerOK(messageSize) || m.role() != s.role || m.id() != s.id || !m.valid(s.key) {
+	if !m.headerOK(messageSize) || m.lookup() || m.role() != s.role || m.id() != s.id || !m.valid(s.key) {
 		return
 	}
 	s.mu.Lock()
@@ -148,14 +188,40 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 		m[4] = confirm
 		m.sign(s.key)
 		_, _ = s.PacketConn.WriteTo(m[:], addr)
-	case discovered:
-		endpoint := m.endpoint()
-		if !endpoint.IsValid() || endpoint == s.coordinator || endpoint.Addr().BitLen() != s.coordinator.Addr().BitLen() {
+	case denied:
+		s.mu.Lock()
+		if m.nonce() != s.nonce {
+			s.mu.Unlock()
 			return
 		}
-		old := s.peer.Load()
-		if old == nil || old.AddrPort() != endpoint {
-			s.peer.Store(net.UDPAddrFromAddrPort(endpoint))
+		s.nonce = [16]byte{}
+		if s.denial != m.denial() || s.peer.Load() != nil {
+			s.denial = m.denial()
+			s.setPeer(nil)
+		}
+		s.mu.Unlock()
+	case discovered:
+		s.mu.Lock()
+		if m.nonce() != s.nonce {
+			s.mu.Unlock()
+			return
+		}
+		s.nonce = [16]byte{}
+		s.leaseUntil = time.Now().Add(peerTTL)
+		if s.denial != "" {
+			s.denial = ""
+			s.signalChange()
+		}
+		endpoint := m.endpoint()
+		changed := false
+		if endpoint.IsValid() && endpoint != s.coordinator && endpoint.Addr().BitLen() == s.coordinator.Addr().BitLen() {
+			if old := s.peer.Load(); old == nil || old.AddrPort() != endpoint {
+				s.setPeer(net.UDPAddrFromAddrPort(endpoint))
+				changed = true
+			}
+		}
+		s.mu.Unlock()
+		if changed {
 			s.punch()
 		}
 	}

@@ -53,15 +53,13 @@ func newPeerTunnel(c transport.PeerTunnel, role peerrendezvous.Role) (*Wireguard
 	bind := newNetBindClient(nil)
 	// The TUN event can open the bind before WireGuard applies its peer
 	// configuration. Resolve and seed the underlay endpoint first.
-	endpoint, err := bind.ParseEndpoint(c.Coordinator)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	coord, err := peerrendezvous.ResolveCoordinator(ctx, c.Coordinator)
 	if err != nil {
 		return nil, nil, fmt.Errorf("peer tunnel discovery server: %w", err)
 	}
-	ap := netip.AddrPort(endpoint.(Endpoint))
-	coord := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
-	if ip := coord.Addr(); ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.Zone() != "" {
-		return nil, nil, errors.New("peer tunnel discovery server must have a reachable unicast address")
-	}
+	bind.openAddr.Store(net.UDPAddrFromAddrPort(coord))
 	bind.listenPacket = func(ctx context.Context, _, address string, opts ...func(*dialer.Options)) (net.PacketConn, error) {
 		network := "udp4"
 		if coord.Addr().Is6() {

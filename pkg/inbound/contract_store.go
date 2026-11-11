@@ -104,6 +104,7 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 	if err != nil {
 		return err
 	}
+	preserveDiscoveryBlocks(&inbound, previous)
 	if err := fillGeneratedContractFields(&inbound); err != nil {
 		return err
 	}

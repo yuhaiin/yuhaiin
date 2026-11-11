@@ -39,16 +39,33 @@ Both peers must be able to send UDP to the discovery server and to each other.
 The publisher keeps its registration open while enabled. The outbound starts
 discovery on demand. NATs that assign a different public mapping per destination
 can prevent a direct connection. Peers behind the same NAT may require NAT
-hairpinning. A successful tunnel can keep carrying traffic during a discovery
-server outage while the learned UDP endpoints remain valid.
+hairpinning. A direct path remains usable briefly if discovery becomes
+unreachable. Both peers stop forwarding when their last authorization expires,
+about 20 seconds after the last successful refresh.
+
+## View and manage peers
+
+Open **Peer tunnels** on the calling-side Outbounds page. It lists publishers
+for the enabled Peer Tunnel outbounds, including the observed UDP endpoint,
+configured tunnel IP and LAN CIDRs. Online means the publisher has a live
+registration. A direct UDP path is still required. The list refreshes while
+open and querying it leaves existing tunnels alone.
+
+On the discovery server, open the **Registered peer pairs** panel in the
+Peer Discovery inbound. Each row represents one token and shows the client
+and publisher endpoints. **Kick** drops both registrations and denies the pair
+for 30 seconds. **Block** persists the denial across restarts. **Unblock**
+allows both peers to register again. The peers stop forwarding when they
+receive the denial on their next discovery exchange. If the denial cannot
+reach them, their authorization expires as described above.
 
 ## Tests and benchmarks
 
 ```sh
-go test -race ./pkg/net/peerrendezvous ./pkg/inbound -run 'Test(Rendezvous|SocketPunch|PeerTunnel)'
-go test ./pkg/net/peerrendezvous ./pkg/inbound -run '^$' -bench 'Benchmark(CoordinatorRegistration|PeerTunnelTCP)' -benchmem -count=3
+go test -race ./pkg/net/peerrendezvous ./pkg/inbound ./pkg/node -run 'Test(Rendezvous|SocketPunch|Peer)'
+go test ./pkg/net/peerrendezvous ./pkg/inbound -run '^$' -bench 'Benchmark(CoordinatorRegistration|CoordinatorLookup|PeerTunnelTCP)' -benchmem -count=3
 ```
 
 The TCP benchmark measures an established loopback connection with 32 KiB echoed
-per iteration. Reported bytes include both directions. The registration
-benchmark exercises the coordinator's protocol handler in memory.
+per iteration. Reported bytes include both directions. The registration and lookup
+benchmarks exercise the coordinator's protocol handler in memory.
