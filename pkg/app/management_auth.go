@@ -52,7 +52,11 @@ func (app *AppInstance) localManagement() http.Handler {
 	mux := app.Mux
 	mux.HandleFunc("GET /api/v2/management", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"authentication":"none"}`))
+		if app.AllowLANManagement {
+			_, _ = w.Write([]byte(`{"authentication":"none","lanManagement":true}`))
+		} else {
+			_, _ = w.Write([]byte(`{"authentication":"none"}`))
+		}
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
@@ -64,8 +68,25 @@ func (app *AppInstance) localManagement() http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		peer, err := netip.ParseAddrPort(r.RemoteAddr)
 		origin := r.Header.Get("Origin")
-		if err != nil || !peer.Addr().Unmap().IsLoopback() || (origin != "" && !app.acceptManagementOrigin(origin, r)) {
-			http.Error(w, "Local management requires a loopback peer and a trusted Origin", http.StatusForbidden)
+		if err != nil {
+			http.Error(w, "Management requires a valid peer", http.StatusForbidden)
+			return
+		}
+		remote := !peer.Addr().Unmap().IsLoopback()
+		if remote {
+			// Android's Allow LAN is an explicit, per-start opt-in. Remote
+			// anonymous management is HTTPS-only and accepts same-origin browser
+			// requests, never a cross-origin trusted UI or forwarded TLS headers.
+			if !app.AllowLANManagement || r.TLS == nil ||
+				(origin != "" && !sameRequestOrigin(origin, r)) ||
+				r.Header.Get("Sec-Fetch-Site") == "cross-site" ||
+				(r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions &&
+					origin == "" && r.Header.Get("Sec-Fetch-Site") != "same-origin") {
+				http.Error(w, "Remote LAN management requires HTTPS and a same-origin request", http.StatusForbidden)
+				return
+			}
+		} else if origin != "" && !app.acceptManagementOrigin(origin, r) {
+			http.Error(w, "Local management requires a trusted Origin", http.StatusForbidden)
 			return
 		}
 		if origin != "" {
