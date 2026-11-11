@@ -21,25 +21,21 @@ from ui-build.json; pre-metadata Go modules use their pseudo-version timestamp.
 
 ## Update protocol
 
-The v2 channel is the rolling `ui-v2` prerelease of
-https://github.com/yuhaiin/yuhaiin-react, which CI refreshes on every v2 build:
+The Web UI repository (https://github.com/yuhaiin/yuhaiin-react) publishes both
+files to the yuhaiin.github.io site on every build of its main branch:
 
-- feed: https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/ui-update.json
-- archive: https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz
+- feed: https://yuhaiin.github.io/ui-update.json
+- archive: https://yuhaiin.github.io/frontend.tar.gz
 
 The feed metadata includes version, monotonic buildNumber, apiContract, required
 and optional capabilities, Android bridge minimum, archive byte size, and
-SHA-256. The feed's archive URL must be exactly the archive above. GitHub
-redirects release downloads to its asset hosts; only github.com,
-objects.githubusercontent.com and release-assets.githubusercontent.com are
-followed, over HTTPS, for at most two redirects.
+SHA-256. The feed's archive URL must be exactly the archive above. Redirects are
+followed only over HTTPS, on yuhaiin.github.io, for at most two hops.
 
-The stable channel (https://yuhaiin.github.io/ui-update.json, built from the
-main branch) is deliberately never read here. v2 build numbers use their own
-range (2_000_000_000_000 and up, see yuhaiin-react scripts/ui-ota.mjs), so even
-a stray stable bundle could not outrank a v2 build. Because release assets are
-replaced in place, the archive is uploaded before the feed; a client that sees a
-new feed with an old archive fails the size/SHA-256 check and retries later.
+Cores built while v2 was a separate branch read the rolling `ui-v2` prerelease
+of the Web UI repository instead. That channel is no longer updated (its last
+build is 2_000_000_000_556); current build numbers start above it, so the UI
+embedded in a newer Core outranks a bundle downloaded from it.
 
 The Core refuses unknown API contracts, unknown required capabilities, Android
 bridge requirements it cannot satisfy, outdated build numbers, invalid archive
