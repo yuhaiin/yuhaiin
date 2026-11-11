@@ -32,6 +32,9 @@ and optional capabilities, Android bridge minimum, archive byte size, and
 SHA-256. The feed's archive URL must be exactly the archive above. Redirects are
 followed only over HTTPS, on yuhaiin.github.io, for at most two hops.
 
+Both requests dial through the configured proxy chain, like subscription, route
+registry and app update downloads.
+
 Cores built while v2 was a separate branch read the rolling `ui-v2` prerelease
 of the Web UI repository instead. That channel is no longer updated (its last
 build is 2_000_000_000_556); current build numbers start above it, so the UI
