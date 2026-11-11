@@ -118,7 +118,7 @@ yuhaiin-%:
 	fi
 
 # Android core: cmd/androidlib built with -buildmode=c-shared, one libyuhaiin.so
-# per ABI plus the C header that defines the ABI. gomobile is not used.
+# per ABI (JNI bridge included) plus the C header that defines the ABI. gomobile is not used.
 # Needs ANDROID_NDK_HOME (r28+ links 16 KB aligned by default; the flag keeps
 # older NDKs correct). Output: $(ANDROID_DIST)/<abi>/libyuhaiin.so
 ANDROID_API ?= 24

@@ -86,6 +86,7 @@ jobs:
             "$tools/llvm-readelf" -lW "$so" | awk '/LOAD/ { if ($NF != "0x4000") { print FILENAME ": LOAD alignment " $NF; bad=1 } } END { exit bad }'
             "$tools/llvm-readelf" -d "$so" | grep -q 'SONAME.*libyuhaiin.so'
             "$tools/llvm-nm" -D --defined-only "$so" | grep -q ' T yh_call$'
+            "$tools/llvm-nm" -D --defined-only "$so" | grep -q ' T JNI_OnLoad$'
           done
 
       - name: Upload Android core library

@@ -3,7 +3,10 @@
 package main
 
 /*
-#cgo CFLAGS: -I${SRCDIR} -DYH_NO_EXPORT_DECLS
+#cgo CFLAGS: -I${SRCDIR}
+#cgo android LDFLAGS: -llog
+// cgo generates its own prototypes for the exports; skip the header's.
+#define YH_NO_EXPORT_DECLS
 #include <stdlib.h>
 #include "yuhaiin_abi.h"
 

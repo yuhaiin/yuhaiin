@@ -5,6 +5,12 @@ The Android core is `cmd/androidlib` built with `-buildmode=c-shared`
 gomobile AAR. The Go core in `cmd/android` is unchanged; `cmd/androidlib` only
 connects it to the platform.
 
+There is a single native library. The JNI bridge (`cmd/androidlib/jni_android.c`)
+is compiled by cgo into `libyuhaiin.so` itself, so the app calls
+`System.loadLibrary("yuhaiin")` and `JNI_OnLoad`/`Java_*` entry points call
+`yh_call` directly (no second `.so`, no CMake in the app). The Go runtime starts
+when the library is loaded, before `JNI_OnLoad`.
+
 The contract is [`cmd/androidlib/yuhaiin_abi.h`](../cmd/androidlib/yuhaiin_abi.h)
 (`YH_ABI_VERSION 1`). It has three functions and one callback table:
 
