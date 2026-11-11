@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,6 +20,9 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 func testBuild(version string, number int64) Build {
@@ -584,5 +588,36 @@ func TestRedirectsStayOnTheOfficialSite(t *testing.T) {
 	}
 	if err := check(ArchiveURL, 3); err == nil {
 		t.Fatal("redirect chains longer than two hops must be rejected")
+	}
+}
+
+type recordingProxy struct {
+	netapi.Proxy
+	err    error
+	dialed chan string
+}
+
+func (p recordingProxy) Conn(_ context.Context, addr netapi.Address) (net.Conn, error) {
+	p.dialed <- addr.String()
+	return nil, p.err
+}
+
+func TestUpdateRequestsDialThroughTheProxyChain(t *testing.T) {
+	refused := errors.New("refused by the test proxy chain")
+	proxy := recordingProxy{Proxy: netapi.NewErrProxy(refused), err: refused, dialed: make(chan string, 1)}
+	configuration.ProxyChain.Set(proxy)
+	t.Cleanup(func() { configuration.ProxyChain.Set(netapi.NewErrProxy(errors.New("not initialized"))) })
+
+	m := New(t.TempDir(), embeddedFS(testBuild("ui-1-embedded", 1), "embedded"))
+	if _, err := m.Check(context.Background()); !errors.Is(err, refused) {
+		t.Fatalf("the feed request must fail with the proxy chain's error, got %v", err)
+	}
+	select {
+	case addr := <-proxy.dialed:
+		if addr != "yuhaiin.github.io:443" {
+			t.Fatalf("dialed %q through the proxy chain, want the feed host", addr)
+		}
+	default:
+		t.Fatal("the feed request did not dial through the proxy chain")
 	}
 }

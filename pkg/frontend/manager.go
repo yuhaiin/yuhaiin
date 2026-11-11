@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +24,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
 const (
@@ -38,6 +42,21 @@ const (
 
 // The site serves both files itself; a redirect may only stay on it.
 const officialHost = "yuhaiin.github.io"
+
+// proxyChainTransport dials through the configured proxy chain, like the
+// subscription, route registry and app update downloads, so the feed is
+// reachable wherever those are.
+func proxyChainTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			ad, err := netapi.ParseAddress(network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("parse address failed: %w", err)
+			}
+			return configuration.ProxyChain.Conn(netapi.WithContext(ctx), ad)
+		},
+	}
+}
 
 var validVersion = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
 
@@ -111,7 +130,7 @@ func New(configPath string, embedded fs.FS) *Manager {
 		external:     os.Getenv("EXTERNAL_WEB"),
 		capabilities: defaultCapabilities(),
 		feed:         FeedURL,
-		client: &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		client: &http.Client{Timeout: 30 * time.Second, Transport: proxyChainTransport(), CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 3 || req.URL.Scheme != "https" || req.URL.Hostname() != officialHost {
 				return errors.New("frontend redirect outside the official origin")
 			}
