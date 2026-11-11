@@ -28,7 +28,7 @@ An unknown selected underlying network also cannot prove a switch.
   local source addresses. Existing default/underlying-interface selection is
   preserved; a route-socket message or stale utun delegation alone proves nothing
   about socket validity.
-* Android has a gomobile `ReportUnderlyingNetworks` bridge for non-VPN
+* Android has a `network.report` C ABI operation (`ReportUnderlyingNetworks`) for non-VPN
   `ConnectivityManager.Network` handles, capabilities and `LinkProperties`.
   Validation and DNS settings do not participate in identity. The Android
   companion observes all matching networks separately from best-network
