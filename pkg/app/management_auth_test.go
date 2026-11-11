@@ -193,7 +193,6 @@ func TestLocalManagementWithoutIdentityMiddleware(t *testing.T) {
 	}
 }
 
-
 func TestOptInLANManagementWithoutIdentityMiddleware(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v2/settings", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
@@ -204,7 +203,7 @@ func TestOptInLANManagementWithoutIdentityMiddleware(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		name, method, url, peer, origin, fetchSite, forwarded string
-		want int
+		want                                                  int
 	}{
 		{"remote_https_read", "GET", "https://192.168.20.13:46565/api/v2/settings", "192.168.20.4:1234", "", "", "", 204},
 		{"remote_same_origin_write", "POST", "https://192.168.20.13:46565/api/v2/rpc/settings.put", "192.168.20.4:1234", "https://192.168.20.13:46565", "same-origin", "", 204},
@@ -220,12 +219,20 @@ func TestOptInLANManagementWithoutIdentityMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest(tt.method, tt.url, nil)
 			r.RemoteAddr = tt.peer
-			if tt.origin != "" { r.Header.Set("Origin", tt.origin) }
-			if tt.fetchSite != "" { r.Header.Set("Sec-Fetch-Site", tt.fetchSite) }
-			if tt.forwarded != "" { r.Header.Set("X-Forwarded-Proto", tt.forwarded) }
+			if tt.origin != "" {
+				r.Header.Set("Origin", tt.origin)
+			}
+			if tt.fetchSite != "" {
+				r.Header.Set("Sec-Fetch-Site", tt.fetchSite)
+			}
+			if tt.forwarded != "" {
+				r.Header.Set("X-Forwarded-Proto", tt.forwarded)
+			}
 			w := httptest.NewRecorder()
 			instance.Mux.ServeHTTP(w, r)
-			if w.Code != tt.want { t.Fatalf("status=%d want=%d body=%s", w.Code, tt.want, w.Body.String()) }
+			if w.Code != tt.want {
+				t.Fatalf("status=%d want=%d body=%s", w.Code, tt.want, w.Body.String())
+			}
 		})
 	}
 	for _, tt := range []struct{ url, peer, want string }{

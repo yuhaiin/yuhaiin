@@ -286,7 +286,7 @@ type StartOptions struct {
 	// AllowLANManagement enables anonymous HTTPS management from remote peers without
 	// the identity middleware. Only Android sets this when its explicit Allow LAN
 	// switch is enabled; browser requests must use the same Origin.
-	AllowLANManagement bool
+	AllowLANManagement  bool
 	ProxyAuthentication proxyauth.Provider
 	TrafficAccess       netapi.TrafficAccess
 	TrafficControl      *trafficcontrol.Controller
