@@ -60,34 +60,39 @@ jobs:
 
       - uses: ./.github/actions/setup-go
         with:
-          cache-scope: android-aar
+          cache-scope: android-so
           dependency-key: ${{ needs.get_version.outputs.front_version }}
 
-      - name: Set up Java
-        uses: actions/setup-java@v6
-        with:
-          java-version: "25.0.5+8.0.LTS"
-          distribution: temurin
-
-      - name: Build Android AAR
+      - name: Build Android core library
         env:
           FRONT_VERSION: ${{ needs.get_version.outputs.front_version }}
         run: |
           go get -v -u "github.com/yuhaiin/yuhaiin.github.io@${FRONT_VERSION}"
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          gomobile init
-          go list -deps ./cmd/android > "$RUNNER_TEMP/android-dependencies.txt"
+          go list -deps ./cmd/android ./cmd/androidlib > "$RUNNER_TEMP/android-dependencies.txt"
           if grep -Eq '^github.com/Asutorufa/yuhaiin/pkg/management/auth($|/)' "$RUNNER_TEMP/android-dependencies.txt"; then
             echo "Android must not import the optional management identity middleware"
             exit 1
           fi
-          make yuhaiin_android_aar
+          # ANDROID_NDK_HOME is preinstalled on ubuntu-latest runners.
+          make yuhaiin_android_so
+          (cd dist/android && sha256sum */libyuhaiin.so yuhaiin_abi.h | tee SHA256SUMS)
+          ls -l dist/android/*/libyuhaiin.so
 
-      - name: Upload Android AAR
+      - name: Verify ABI and 16 KB page alignment
+        run: |
+          make test_android_abi
+          tools="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          for so in dist/android/*/libyuhaiin.so; do
+            "$tools/llvm-readelf" -lW "$so" | awk '/LOAD/ { if ($NF != "0x4000") { print FILENAME ": LOAD alignment " $NF; bad=1 } } END { exit bad }'
+            "$tools/llvm-readelf" -d "$so" | grep -q 'SONAME.*libyuhaiin.so'
+            "$tools/llvm-nm" -D --defined-only "$so" | grep -q ' T yh_call$'
+          done
+
+      - name: Upload Android core library
         uses: actions/upload-artifact@v7
         with:
-          name: yuhaiin.aar
-          path: yuhaiin.aar
+          name: yuhaiin-android-core
+          path: dist/android
           if-no-files-found: error
 
   linux:

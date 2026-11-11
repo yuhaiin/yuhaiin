@@ -48,7 +48,6 @@ GO_BUILD_ARGS=-ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS
 GO_BUILD_CMD=CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(GO_BUILD_ARGS)
 
 GO_MOBILE_BIND_CMD=$(GO_MOBILE) bind $(GO_BUILD_ARGS)
-GO_MOBILE_ANDROID_BIND_CMD=$(GO_MOBILE) bind -ldflags='$(GO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS)' -trimpath
 
 
 # AMD64v3 https://github.com/golang/go/wiki/MinimumRequirements#amd64
@@ -118,9 +117,33 @@ yuhaiin-%:
 		fi \
 	fi
 
-.PHONY: yuhaiin_android_aar
-yuhaiin_android_aar:
-	CGO_LDFLAGS="-Wl,-z,max-page-size=16384" $(GO_MOBILE_ANDROID_BIND_CMD) -target="android/arm64,android/amd64" -androidapi 24 -o yuhaiin.aar -v ./cmd/android/
+# Android core: cmd/androidlib built with -buildmode=c-shared, one libyuhaiin.so
+# per ABI plus the C header that defines the ABI. gomobile is not used.
+# Needs ANDROID_NDK_HOME (r28+ links 16 KB aligned by default; the flag keeps
+# older NDKs correct). Output: $(ANDROID_DIST)/<abi>/libyuhaiin.so
+ANDROID_API ?= 24
+ANDROID_DIST ?= dist/android
+NDK_HOST_TAG ?= linux-x86_64
+ANDROID_CLANG_DIR = $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/$(NDK_HOST_TAG)/bin
+ANDROID_SO_LDFLAGS = $(GO_LDFLAGS) -extldflags=-Wl,-soname,libyuhaiin.so
+ANDROID_SO_BUILD = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-z,max-page-size=16384" $(GO) build -buildmode=c-shared -trimpath \
+	-ldflags='$(ANDROID_SO_LDFLAGS)' -gcflags='$(GO_GCFLAGS)' -tags='$(GO_TAGS)'
+
+.PHONY: yuhaiin_android_so
+yuhaiin_android_so:
+	@test -n "$(ANDROID_NDK_HOME)" || { echo "ANDROID_NDK_HOME is not set"; exit 1; }
+	mkdir -p $(ANDROID_DIST)/arm64-v8a $(ANDROID_DIST)/x86_64
+	GOOS=android GOARCH=arm64 CC=$(ANDROID_CLANG_DIR)/aarch64-linux-android$(ANDROID_API)-clang \
+		$(ANDROID_SO_BUILD) -o $(ANDROID_DIST)/arm64-v8a/libyuhaiin.so ./cmd/androidlib
+	GOOS=android GOARCH=amd64 CC=$(ANDROID_CLANG_DIR)/x86_64-linux-android$(ANDROID_API)-clang \
+		$(ANDROID_SO_BUILD) -o $(ANDROID_DIST)/x86_64/libyuhaiin.so ./cmd/androidlib
+	cp cmd/androidlib/yuhaiin_abi.h $(ANDROID_DIST)/yuhaiin_abi.h
+	rm -f $(ANDROID_DIST)/*/libyuhaiin.h
+
+# C conformance test of the ABI on the host (cgo and a C compiler required).
+.PHONY: test_android_abi
+test_android_abi:
+	cmd/androidlib/abi_test.sh
 
 # sudo Xcode-select --switch /Applications/Xcode.app/Contents/Developer/
 .PHONY: yuhaiin_macos
