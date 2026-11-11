@@ -518,26 +518,27 @@ func TestApplyFromEmbeddedFallbackRollsBackToEmbedded(t *testing.T) {
 	}
 }
 
-func TestFeedAndArchiveAreTheV2ReleaseAssets(t *testing.T) {
-	const base = "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/"
+func TestFeedAndArchiveAreTheOfficialSiteFiles(t *testing.T) {
+	const base = "https://yuhaiin.github.io/"
 	if FeedURL != base+"ui-update.json" || ArchiveURL != base+"frontend.tar.gz" {
-		t.Fatalf("v2 channel must use the ui-v2 release assets, got %q and %q", FeedURL, ArchiveURL)
+		t.Fatalf("the feed and archive must be the official site files, got %q and %q", FeedURL, ArchiveURL)
 	}
 	if New(t.TempDir(), embeddedFS(testBuild("ui-1-embedded", 1), "embedded")).feed != FeedURL {
-		t.Fatal("manager must read the v2 feed")
+		t.Fatal("manager must read the official feed")
 	}
 }
 
 func TestFeedRejectsOtherArchiveURLs(t *testing.T) {
 	build := testBuild("ui-2-ota", 2)
 	for name, archiveURL := range map[string]string{
-		"stable site":      "https://yuhaiin.github.io/frontend.tar.gz",
-		"raw branch":       "https://raw.githubusercontent.com/yuhaiin/yuhaiin.github.io/v2/frontend.tar.gz",
-		"other release":    "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v1/frontend.tar.gz",
-		"query":            ArchiveURL + "?x=1",
-		"http":             "http://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
-		"user info":        "https://user@github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
-		"other repository": "https://github.com/someone/else/releases/download/ui-v2/frontend.tar.gz",
+		"v2 release":  "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
+		"raw branch":  "https://raw.githubusercontent.com/yuhaiin/yuhaiin.github.io/main/frontend.tar.gz",
+		"other path":  "https://yuhaiin.github.io/other/frontend.tar.gz",
+		"query":       ArchiveURL + "?x=1",
+		"fragment":    ArchiveURL + "#x",
+		"http":        "http://yuhaiin.github.io/frontend.tar.gz",
+		"user info":   "https://user@yuhaiin.github.io/frontend.tar.gz",
+		"other owner": "https://someone.github.io/frontend.tar.gz",
 	} {
 		t.Run(name, func(t *testing.T) {
 			archive := createArchive(t, build)
@@ -561,26 +562,21 @@ func TestFeedRejectsOtherArchiveURLs(t *testing.T) {
 	}
 }
 
-func TestRedirectsStayOnGitHubAssetHosts(t *testing.T) {
+func TestRedirectsStayOnTheOfficialSite(t *testing.T) {
 	m := New(t.TempDir(), embeddedFS(testBuild("ui-1-embedded", 1), "embedded"))
 	check := func(rawURL string, hops int) error {
 		req, _ := http.NewRequest(http.MethodGet, rawURL, nil)
 		return m.client.CheckRedirect(req, make([]*http.Request, hops))
 	}
-	for _, ok := range []string{
-		"https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
-		"https://release-assets.githubusercontent.com/github-production-release-asset/1",
-		"https://objects.githubusercontent.com/github-production-release-asset/1",
-	} {
-		if err := check(ok, 1); err != nil {
-			t.Fatalf("%s should be allowed: %v", ok, err)
-		}
+	if err := check(ArchiveURL, 1); err != nil {
+		t.Fatalf("%s should be allowed: %v", ArchiveURL, err)
 	}
 	for name, bad := range map[string]string{
-		"stable site": "https://yuhaiin.github.io/frontend.tar.gz",
-		"other host":  "https://evil.example/frontend.tar.gz",
-		"suffix":      "https://github.com.evil.example/x",
-		"plain http":  "http://github.com/x",
+		"v2 release": "https://github.com/yuhaiin/yuhaiin-react/releases/download/ui-v2/frontend.tar.gz",
+		"asset host": "https://release-assets.githubusercontent.com/github-production-release-asset/1",
+		"other host": "https://evil.example/frontend.tar.gz",
+		"suffix":     "https://yuhaiin.github.io.evil.example/x",
+		"plain http": "http://yuhaiin.github.io/frontend.tar.gz",
 	} {
 		if err := check(bad, 1); err == nil {
 			t.Fatalf("%s (%s) must be rejected", name, bad)
