@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -37,7 +38,7 @@ type netBindClient struct {
 	conn         net.PacketConn
 	batchConn    *Batch
 
-	openAddr *net.UDPAddr
+	openAddr atomic.Pointer[net.UDPAddr]
 	reserved []byte
 	mu       sync.Mutex
 }
@@ -59,7 +60,7 @@ func newNetBindClient(reserved []byte) *netBindClient {
 func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 	addrPort, err := netip.ParseAddrPort(s)
 	if err == nil {
-		n.openAddr = net.UDPAddrFromAddrPort(addrPort)
+		n.openAddr.Store(net.UDPAddrFromAddrPort(addrPort))
 		return Endpoint(addrPort), nil
 	}
 
@@ -73,7 +74,9 @@ func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, err
 	}
 
-	ips, err := netapi.Bootstrap().LookupIP(context.TODO(), ipStr)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ips, err := netapi.Bootstrap().LookupIP(ctx, ipStr)
 	if err != nil {
 		return nil, err
 	}
@@ -83,10 +86,7 @@ func (n *netBindClient) ParseEndpoint(s string) (conn.Endpoint, error) {
 		return nil, errors.New("failed to parse ip: " + ipStr)
 	}
 
-	n.openAddr = &net.UDPAddr{
-		IP:   ip.AsSlice(),
-		Port: int(portNum),
-	}
+	n.openAddr.Store(net.UDPAddrFromAddrPort(netip.AddrPortFrom(ip.Unmap(), uint16(portNum))))
 
 	return Endpoint(netip.AddrPortFrom(ip.Unmap(), uint16(portNum))), nil
 }
@@ -173,7 +173,7 @@ func (bind *netBindClient) connect() (net.PacketConn, error) {
 			listen = dialer.ListenPacket
 		}
 		pc, err := listen(context.TODO(), "udp", "", func(o *dialer.Options) {
-			o.PacketConnHintAddress = bind.openAddr
+			o.PacketConnHintAddress = bind.openAddr.Load()
 			if bind.changed != nil {
 				o.OnNetworkInvalidated = func() { bind.changed(state) }
 			}

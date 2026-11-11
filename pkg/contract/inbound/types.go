@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 )
 
 const (
@@ -32,6 +34,9 @@ const (
 	ProtocolKrunlet    = "krunlet"
 	ProtocolReverseTCP = "reverse_tcp"
 	ProtocolNone       = "none"
+
+	ProtocolPeerDiscovery = "peer_discovery"
+	ProtocolPeerTunnel    = transport.PeerTunnelType
 
 	TransportNormal    = "normal"
 	TransportTLS       = "tls"
@@ -176,6 +181,35 @@ type Protocol struct {
 	Krunlet    *KrunletProtocol    `json:"krunlet,omitzero"`
 	ReverseTCP *ReverseTCPProtocol `json:"reverse_tcp,omitzero"`
 	None       *NoneProtocol       `json:"none,omitzero"`
+
+	PeerDiscovery *PeerDiscoveryProtocol `json:"peer_discovery,omitzero"`
+	PeerTunnel    *transport.PeerTunnel  `json:"peer_tunnel,omitzero"`
+}
+
+type PeerDiscoveryProtocol struct {
+	Tokens []string `json:"tokens" secret:"true"`
+}
+
+func (PeerDiscoveryProtocol) ProtocolType() string { return ProtocolPeerDiscovery }
+
+func (p PeerDiscoveryProtocol) Keys() ([][32]byte, error) {
+	if len(p.Tokens) < 1 || len(p.Tokens) > 1024 {
+		return nil, fmt.Errorf("peer discovery: configure 1 to 1024 pairing tokens")
+	}
+	seen := make(map[[32]byte]bool, len(p.Tokens))
+	keys := make([][32]byte, 0, len(p.Tokens))
+	for _, token := range p.Tokens {
+		key, err := transport.DecodePeerKey(token)
+		if err != nil {
+			return nil, fmt.Errorf("peer discovery token: %w", err)
+		}
+		if seen[key] {
+			return nil, fmt.Errorf("peer discovery: duplicate pairing token")
+		}
+		seen[key] = true
+		keys = append(keys, key)
+	}
+	return keys, nil
 }
 
 type ProtocolVariant interface{ ProtocolType() string }
@@ -423,6 +457,16 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing sstp field", p.Type)
 		}
 		return p.SSTP, nil
+	case ProtocolPeerDiscovery:
+		if p.PeerDiscovery == nil {
+			return nil, fmt.Errorf("protocol %s missing peer_discovery field", p.Type)
+		}
+		return p.PeerDiscovery, nil
+	case ProtocolPeerTunnel:
+		if p.PeerTunnel == nil {
+			return nil, fmt.Errorf("protocol %s missing peer_tunnel field", p.Type)
+		}
+		return p.PeerTunnel, nil
 	case ProtocolWireguard:
 		if p.Wireguard == nil {
 			return nil, fmt.Errorf("protocol %s missing wireguard field", p.Type)
@@ -493,6 +537,12 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.Tun != nil {
+		count++
+	}
+	if p.PeerDiscovery != nil {
+		count++
+	}
+	if p.PeerTunnel != nil {
 		count++
 	}
 	if p.Wireguard != nil {
@@ -810,6 +860,22 @@ func (i Inbound) Validate() error {
 	}
 	if err := i.Protocol.Validate(); err != nil {
 		return fmt.Errorf("protocol: %w", err)
+	}
+	switch i.Protocol.Type {
+	case ProtocolPeerDiscovery:
+		if i.Network.Type != NetworkTCPUDP || i.Network.TCPUDP.UDP != UDPUdpOnly || len(i.Transports) != 0 {
+			return fmt.Errorf("peer discovery requires a UDP-only listener without transports")
+		}
+		if _, err := i.Protocol.PeerDiscovery.Keys(); err != nil {
+			return err
+		}
+	case ProtocolPeerTunnel:
+		if i.Network.Type != NetworkEmpty || len(i.Transports) != 0 {
+			return fmt.Errorf("peer tunnel inbound requires an empty network without transports")
+		}
+		if err := i.Protocol.PeerTunnel.Validate(); err != nil {
+			return err
+		}
 	}
 	for index, transport := range i.Transports {
 		if err := transport.Validate(); err != nil {

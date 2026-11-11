@@ -80,6 +80,8 @@ The Traffic Access Policy is **optional** and acts before the ordinary L4 forwar
 | **Additional inbounds** | Experimental Linux SSH shell/exec with isolated per-connection networking; Krunlet microVM TCP/UDP over a local Unix socket |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
 
+**Peer Tunnel:** access LAN services through direct WireGuard connections with a self-hosted UDP discovery inbound. See [the Peer Tunnel guide](docs/peer-tunnel.md).
+
 **MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the bearer-token-protected server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
 
 **SSTP server:** rootless TLS/PPP/MS-CHAPv2 termination uses existing per-user device credentials and the lightweight stack without a host TUN/TAP device or route changes. It supports IPv4 only, stores password-equivalent NT-hash verifier material and needs a newly issued/rotated credential to support SSTP.

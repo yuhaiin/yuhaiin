@@ -137,6 +137,7 @@ type Protocol struct {
 	AnyConnect           *AnyConnect           `json:"anyconnect,omitzero"`
 	SSTP                 *SSTP                 `json:"sstp,omitzero"`
 	Fortinet             *Fortinet             `json:"fortinet,omitzero"`
+	PeerTunnel           *transport.PeerTunnel `json:"peer_tunnel,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
 	OpenVPN              *OpenVPN              `json:"openvpn,omitzero"`
 	L2TP                 *L2TP                 `json:"l2tp,omitzero"`
@@ -856,6 +857,11 @@ func (x Protocol) Validate() error {
 	if active != x.Type {
 		return fmt.Errorf("protocol type %q does not match concrete object %q", x.Type, active)
 	}
+	if x.PeerTunnel != nil {
+		if err := x.PeerTunnel.Validate(); err != nil {
+			return err
+		}
+	}
 	return x.validateCredentialRef()
 }
 
@@ -887,6 +893,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"anyconnect":             x.AnyConnect != nil,
 		"sstp":                   x.SSTP != nil,
 		"fortinet":               x.Fortinet != nil,
+		transport.PeerTunnelType: x.PeerTunnel != nil,
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
 		"openvpn":                x.OpenVPN != nil,

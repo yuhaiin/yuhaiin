@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
@@ -211,6 +212,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.SSTP, nil
 	case "fortinet":
 		return *protocol.Fortinet, nil
+	case transport.PeerTunnelType:
+		return *protocol.PeerTunnel, nil
 	case "wireguard":
 		return *protocol.Wireguard, nil
 	case "openvpn":
