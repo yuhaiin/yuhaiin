@@ -193,6 +193,62 @@ func TestLocalManagementWithoutIdentityMiddleware(t *testing.T) {
 	}
 }
 
+func TestOptInLANManagementWithoutIdentityMiddleware(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v2/settings", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.HandleFunc("POST /api/v2/rpc/settings.put", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	instance := &AppInstance{StartOptions: &StartOptions{AllowLANManagement: true}, Mux: mux}
+	if err := instance.protectManagement(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name, method, url, peer, origin, fetchSite, forwarded string
+		want                                                  int
+	}{
+		{"remote_https_read", "GET", "https://192.168.20.13:46565/api/v2/settings", "192.168.20.4:1234", "", "", "", 204},
+		{"remote_same_origin_write", "POST", "https://192.168.20.13:46565/api/v2/rpc/settings.put", "192.168.20.4:1234", "https://192.168.20.13:46565", "same-origin", "", 204},
+		{"remote_same_origin_no_origin_header", "POST", "https://192.168.20.13:46565/api/v2/rpc/settings.put", "192.168.20.4:1234", "", "same-origin", "", 204},
+		{"remote_originless_write", "POST", "https://192.168.20.13:46565/api/v2/rpc/settings.put", "192.168.20.4:1234", "", "", "", 403},
+		{"remote_cross_origin", "POST", "https://192.168.20.13:46565/api/v2/rpc/settings.put", "192.168.20.4:1234", "https://evil.example", "cross-site", "", 403},
+		{"remote_trusted_ui_origin", "GET", "https://192.168.20.13:46565/api/v2/settings", "192.168.20.4:1234", "https://yuhaiin.github.io", "", "", 403},
+		{"remote_cross_site_get", "GET", "https://192.168.20.13:46565/api/v2/settings", "192.168.20.4:1234", "", "cross-site", "", 403},
+		{"remote_http", "GET", "http://192.168.20.13:46565/api/v2/settings", "192.168.20.4:1234", "", "", "", 403},
+		{"remote_spoofed_forwarded_proto", "GET", "http://192.168.20.13:46565/api/v2/settings", "192.168.20.4:1234", "", "", "https", 403},
+		{"local_http", "GET", "http://127.0.0.1:46565/api/v2/settings", "127.0.0.1:5678", "", "", "", 204},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(tt.method, tt.url, nil)
+			r.RemoteAddr = tt.peer
+			if tt.origin != "" {
+				r.Header.Set("Origin", tt.origin)
+			}
+			if tt.fetchSite != "" {
+				r.Header.Set("Sec-Fetch-Site", tt.fetchSite)
+			}
+			if tt.forwarded != "" {
+				r.Header.Set("X-Forwarded-Proto", tt.forwarded)
+			}
+			w := httptest.NewRecorder()
+			instance.Mux.ServeHTTP(w, r)
+			if w.Code != tt.want {
+				t.Fatalf("status=%d want=%d body=%s", w.Code, tt.want, w.Body.String())
+			}
+		})
+	}
+	for _, tt := range []struct{ url, peer, want string }{
+		{"https://192.168.20.13:46565/api/v2/management", "192.168.20.4:1234", `{"authentication":"none","lanManagement":true}`},
+		{"http://127.0.0.1:46565/api/v2/management", "127.0.0.1:1234", `{"authentication":"none","lanManagement":true}`},
+	} {
+		r := httptest.NewRequest("GET", tt.url, nil)
+		r.RemoteAddr = tt.peer
+		w := httptest.NewRecorder()
+		instance.Mux.ServeHTTP(w, r)
+		if w.Code != 200 || w.Body.String() != tt.want {
+			t.Fatalf("capability response %s: status=%d body=%q", tt.url, w.Code, w.Body.String())
+		}
+	}
+}
+
 func TestManagementMiddlewareFailureDoesNotFallBack(t *testing.T) {
 	want := errors.New("identity store unavailable")
 	instance := &AppInstance{StartOptions: &StartOptions{HTTPMiddleware: func(context.Context, *http.ServeMux, httpapi.MiddlewareOptions) (http.Handler, io.Closer, error) {

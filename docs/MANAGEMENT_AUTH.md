@@ -19,14 +19,18 @@ annotations are plain strings, validated against the module's scope registry.
 `cmd/android` deliberately omits the middleware and does not import the identity
 module. It creates no `management.db`, setup code or account routes. Without the
 middleware, the core permits management only from actual loopback peers and
-trusted browser origins. Binding an Android listener to a LAN address does not
-enable anonymous remote management. Static UI files remain public.
+trusted browser origins. Android explicitly opts into anonymous LAN management when the user enables Allow LAN.
+Remote API requests in this mode require direct HTTPS and same-origin browser
+requests; untrusted cross-origin requests and plaintext LAN API requests remain
+blocked. The Android platform API remains loopback-only and requires its per-start
+platform session. Other native/embedded starts without this explicit opt-in stay
+loopback-only. Static UI files remain public.
 
 `GET /api/v2/management` explicitly reports `{"authentication":"local-users"}`
 with the module installed, or `{"authentication":"none"}` in local-only mode.
 The paired Web UI uses this response to enter local mode directly, with no login,
-account controls, credentials or identity polling. It only accepts `none` for a
-loopback controller URL. Missing or unknown metadata never disables login.
+account controls, credentials or identity polling. It only accepts `none` for a loopback controller URL, or for a same-origin
+HTTPS Android controller explicitly advertising `lanManagement: true`. Missing or unknown metadata never disables login.
 
 ## First-time setup and migration
 
