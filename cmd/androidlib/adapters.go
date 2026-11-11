@@ -257,12 +257,3 @@ func installPlatform() {
 	core.SetAppIconProvider(appCatalog{})
 	core.SetPlatformActions(platformActions{})
 }
-
-// uninstallPlatform detaches every adapter. Used when the host goes away.
-func uninstallPlatform() {
-	core.SetVpnProvider(nil)
-	core.SetAppCatalog(nil)
-	core.SetAppIconProvider(nil)
-	core.SetPlatformActions(nil)
-	core.SetProcessDumper(nil)
-}

@@ -75,7 +75,7 @@ jobs:
           fi
           # ANDROID_NDK_HOME is preinstalled on ubuntu-latest runners.
           make yuhaiin_android_so
-          (cd dist/android && sha256sum */libyuhaiin.so yuhaiin_abi.h | tee SHA256SUMS)
+          (cd dist/android && sha256sum ./*/libyuhaiin.so yuhaiin_abi.h | tee SHA256SUMS)
           ls -l dist/android/*/libyuhaiin.so
 
       - name: Verify ABI and 16 KB page alignment
