@@ -92,7 +92,7 @@ func (c *Coordinator) run() {
 		}
 		ap := source.AddrPort()
 		endpoint := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
-		if c.data != nil && !(n == messageSize && string(buf[:4]) == magic) {
+		if c.data != nil && (n != messageSize || string(buf[:4]) != magic) {
 			if c.data(buf[:n], endpoint) {
 				continue
 			}

@@ -36,8 +36,8 @@ var (
 func NewHub(socket net.PacketConn) *Hub {
 	h := &Hub{Coordinator: newCoordinator(socket, nil, nil), socket: socket, conns: make(map[[16]byte]*hubConn)}
 	h.stun = newSTUNClient(socket)
-	h.Coordinator.data = h.dispatch
-	go h.Coordinator.run()
+	h.data = h.dispatch
+	go h.run()
 	return h
 }
 
@@ -122,7 +122,7 @@ func (h *Hub) dispatch(p []byte, from netip.AddrPort) bool {
 	if h.stun.receive(p, from) {
 		return true
 	}
-	id, ok := h.Coordinator.dialerOwner(from, time.Now())
+	id, ok := h.dialerOwner(from, time.Now())
 	if !ok {
 		return true
 	}
@@ -196,7 +196,7 @@ func (c *hubConn) WriteTo(p []byte, addr net.Addr) (int, error) {
 	if netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port()) == c.coordinator {
 		if len(p) == messageSize {
 			m := message(p)
-			if c.hub.Coordinator.handle(&m, len(p), c.hub.Public(), time.Now()) {
+			if c.hub.handle(&m, len(p), c.hub.Public(), time.Now()) {
 				c.deliver(m[:], net.UDPAddrFromAddrPort(c.coordinator))
 			}
 		}
