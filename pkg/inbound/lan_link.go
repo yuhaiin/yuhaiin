@@ -3,6 +3,7 @@ package inbound
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"reflect"
 	"slices"
 	"time"
@@ -206,15 +207,15 @@ func (s *ContractStore) saveLANLinkConfig(ctx context.Context, config contract.I
 	return s.runtime.SaveContract(config)
 }
 
-func (l *Inbound) PeerTunnelProtocol(id string) string {
+// LANLinkInbound reports whether the inbound is a LAN Link gateway.
+func (l *Inbound) LANLinkInbound(id string) bool {
 	entry, ok := l.store.Load(id)
-	if !ok || entry.contractConfig == nil {
-		return ""
+	return ok && entry.contractConfig != nil && entry.contractConfig.Protocol.Type == contract.ProtocolLANLink
+}
+
+func endpointString(addr netip.AddrPort) string {
+	if addr.IsValid() {
+		return addr.String()
 	}
-	switch entry.contractConfig.Protocol.Type {
-	case contract.ProtocolLANLink, contract.ProtocolPeerTunnel:
-		return entry.contractConfig.Protocol.Type
-	default:
-		return ""
-	}
+	return ""
 }

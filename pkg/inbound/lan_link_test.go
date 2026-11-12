@@ -401,3 +401,54 @@ func TestLANLinkInvitationNeedsRunningGateway(t *testing.T) {
 		t.Fatal("a failed invitation left a client behind")
 	}
 }
+
+func tcpEcho(tb testing.TB, ip string, accepted *atomic.Int32) netapi.Address {
+	tb.Helper()
+	listener, err := net.Listen("tcp4", net.JoinHostPort(ip, "0"))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			go func() {
+				defer conn.Close()
+				_, _ = io.Copy(conn, conn)
+			}()
+		}
+	}()
+	addr, err := netapi.ParseSysAddr(listener.Addr())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return addr
+}
+
+func udpEcho(tb testing.TB) netapi.Address {
+	tb.Helper()
+	listener, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		var buf [2048]byte
+		for {
+			n, from, err := listener.ReadFrom(buf[:])
+			if err != nil {
+				return
+			}
+			_, _ = listener.WriteTo(buf[:n], from)
+		}
+	}()
+	addr, err := netapi.ParseSysAddr(listener.LocalAddr())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return addr
+}

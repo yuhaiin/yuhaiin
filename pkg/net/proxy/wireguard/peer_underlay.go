@@ -10,70 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/peerrendezvous"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
-	"github.com/Asutorufa/yuhaiin/pkg/register"
 )
-
-func init() {
-	register.RegisterContractPoint(transport.PeerTunnelType, func(c transport.PeerTunnel, _ netapi.Proxy) (netapi.Proxy, error) {
-		w, _, err := newPeerTunnel(c, peerrendezvous.Dialer)
-		if err != nil {
-			return nil, err
-		}
-		if err := w.init(); err != nil {
-			_ = w.Close()
-			return nil, err
-		}
-		return &peerDialer{Wireguard: w}, nil
-	})
-}
-
-func newPeerTunnel(c transport.PeerTunnel, role peerrendezvous.Role) (*Wireguard, []netip.Prefix, error) {
-	if err := c.Validate(); err != nil {
-		return nil, nil, err
-	}
-	key, err := transport.DecodePeerKey(c.Token)
-	if err != nil {
-		return nil, nil, err
-	}
-	routes, err := ParseEndpoints(c.Routes)
-	if err != nil {
-		return nil, nil, err
-	}
-	allowed := c.Routes
-	inbound := role == peerrendezvous.Publisher
-	if inbound {
-		// WireGuard validates all decrypted source IPs against AllowedIPs.
-		ip := netip.MustParseAddr(c.PeerIP)
-		allowed = []string{netip.PrefixFrom(ip, ip.BitLen()).String()}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	underlay, err := newPeerUnderlay(ctx, c.Coordinator, key, role)
-	if err != nil {
-		return nil, nil, err
-	}
-	bind := underlay.bind
-	w, err := newClient(Config{
-		SecretKey: c.PrivateKey,
-		Endpoint:  []string{c.LocalIP},
-		MTU:       1280,
-		Peers: []PeerConfig{{
-			// A placeholder. The rendezvous socket ignores WireGuard's
-			// destination and writes to the discovered peer.
-			PublicKey: c.PeerPublicKey, Endpoint: underlay.candidates[0].String(), AllowedIPs: allowed,
-		}},
-	}, bind, inbound)
-	if err != nil {
-		return nil, nil, err
-	}
-	underlay.rebind = w.rebind
-	return w, routes, nil
-}
 
 func newPeerUnderlay(ctx context.Context, address string, key [32]byte, role peerrendezvous.Role) (*peerUnderlay, error) {
 	resolve := func(ctx context.Context) ([]netip.AddrPort, error) {
@@ -259,36 +199,6 @@ func (p *peerDialer) PacketConn(ctx context.Context, addr netapi.Address) (net.P
 
 func (*peerDialer) Ping(context.Context, netapi.Address) (uint64, error) {
 	return 0, errors.ErrUnsupported
-}
-
-type peerPublisher struct {
-	*Wireguard
-	flows netapi.Accepter
-}
-
-func (*peerPublisher) Interface() string { return transport.PeerTunnelType }
-func (p *peerPublisher) Close() error    { return errors.Join(p.Wireguard.Close(), p.flows.Close()) }
-
-// NewPeerPublisher starts the LAN-serving peer as part of the inbound lifecycle.
-func NewPeerPublisher(c transport.PeerTunnel, handler netapi.Handler) (netapi.Accepter, error) {
-	if handler == nil {
-		return nil, errors.New("peer tunnel: missing inbound handler")
-	}
-	w, routes, err := newPeerTunnel(c, peerrendezvous.Publisher)
-	if err != nil {
-		return nil, err
-	}
-	flows, err := lightweighttun.NewFromStack(w.net.Stack(), peerRouteFilter{Handler: handler, routes: routes}, nil, transport.PeerTunnelType)
-	if err != nil {
-		_ = w.Close()
-		return nil, err
-	}
-	p := &peerPublisher{Wireguard: w, flows: flows}
-	if err := w.init(); err != nil {
-		_ = p.Close()
-		return nil, err
-	}
-	return p, nil
 }
 
 type peerRouteFilter struct {

@@ -107,8 +107,6 @@ const (
 	v2NodesSelect               v2Endpoint = "nodes.select"
 	v2NodesImportPreview        v2Endpoint = "nodes.import.preview"
 	v2InboundStatuses           v2Endpoint = "inbounds.status"
-	v2PeerDiscoveryPairs        v2Endpoint = "inbound.peer_discovery.pairs"
-	v2PeerDiscoveryAction       v2Endpoint = "inbound.peer_discovery.action"
 	v2LANLinkInvite             v2Endpoint = "inbound.lan_link.invite"
 	v2LANLinkRevoke             v2Endpoint = "inbound.lan_link.revoke"
 	v2LANLinkClients            v2Endpoint = "inbound.lan_link.clients"
@@ -302,8 +300,6 @@ var v2Routes = []v2Route{
 	{v2InboundCapabilities, "GET /api/v2/inbounds/capabilities"},
 	{v2InboundsPost, "POST /api/v2/inbounds"},
 	{v2InboundStatuses, "GET /api/v2/inbounds/status"},
-	{v2PeerDiscoveryPairs, "GET /api/v2/inbounds/{id}/peer-discovery/pairs"},
-	{v2PeerDiscoveryAction, "POST /api/v2/inbounds/{id}/peer-discovery/action"},
 	{v2LANLinkInvite, "POST /api/v2/inbounds/{id}/lan-link/invite"},
 	{v2LANLinkRevoke, "POST /api/v2/inbounds/{id}/lan-link/revoke"},
 	{v2LANLinkClients, "GET /api/v2/inbounds/{id}/lan-link/clients"},

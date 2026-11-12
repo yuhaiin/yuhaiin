@@ -2,8 +2,6 @@ package node
 
 import (
 	"context"
-	"crypto/ecdh"
-	"crypto/rand"
 	"encoding/base64"
 	"net"
 	"strings"
@@ -31,24 +29,18 @@ func TestPeerTunnelListFindsIdlePublisher(t *testing.T) {
 	coordinator := server.LocalAddr().(*net.UDPAddr).AddrPort()
 	discovery := peerrendezvous.Serve(server, [][32]byte{key})
 	t.Cleanup(func() { _ = discovery.Close() })
-	newKey := func() *ecdh.PrivateKey {
-		t.Helper()
-		priv, err := ecdh.X25519().GenerateKey(rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return priv
+	routes := []string{"192.168.1.0/24"}
+	invitation, err := (transport.LANLinkInvitation{
+		Coordinator: coordinator.String(), Registration: base64.StdEncoding.EncodeToString(key[:]),
+		Token: transport.NewLANLinkToken(), Routes: routes,
+	}).Encode()
+	if err != nil {
+		t.Fatal(err)
 	}
-	cfg := transport.PeerTunnel{
-		Coordinator:   coordinator.String(),
-		Token:         base64.StdEncoding.EncodeToString(key[:]),
-		PrivateKey:    base64.StdEncoding.EncodeToString(newKey().Bytes()),
-		PeerPublicKey: base64.StdEncoding.EncodeToString(newKey().PublicKey().Bytes()),
-		LocalIP:       "10.88.1.2", PeerIP: "10.88.1.1", Routes: []string{"192.168.1.0/24"},
-	}
+	link := transport.LANLink{Invitation: invitation}
 	runtime := newTestRuntime(t)
 	for _, id := range []string{"enabled", "disabled"} {
-		value := contract.Node{ID: id, Name: id, Enabled: id == "enabled", Chain: []contract.Protocol{{Type: transport.PeerTunnelType, PeerTunnel: &cfg}}}
+		value := contract.Node{ID: id, Name: id, Enabled: id == "enabled", Chain: []contract.Protocol{{Type: transport.LANLinkType, LANLink: &link}}}
 		if _, err := runtime.Save(ctx, value); err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +52,7 @@ func TestPeerTunnelListFindsIdlePublisher(t *testing.T) {
 			t.Fatalf("peer list: %+v, %v", got, err)
 		}
 		peer := got.Items[0]
-		if peer.NodeID != "enabled" || peer.TunnelIP != cfg.PeerIP || len(peer.Routes) != 1 || peer.Routes[0] != cfg.Routes[0] {
+		if peer.NodeID != "enabled" || len(peer.Routes) != 1 || peer.Routes[0] != routes[0] {
 			t.Fatalf("unexpected peer metadata: %+v", peer)
 		}
 		return peer
@@ -85,10 +77,10 @@ func TestPeerTunnelListFindsIdlePublisher(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	chained := contract.Node{ID: "chained", Name: "chained", Origin: "manual", Enabled: true, Chain: []contract.Protocol{
-		{Type: transport.PeerTunnelType, PeerTunnel: &cfg}, {Type: transport.PeerTunnelType, PeerTunnel: &cfg},
+		{Type: transport.LANLinkType, LANLink: &link}, {Type: transport.LANLinkType, LANLink: &link},
 	}}
 	if err := chained.Validate(); err == nil || !strings.Contains(err.Error(), "first step") {
-		t.Fatalf("peer tunnel accepted after another chain step: %v", err)
+		t.Fatalf("LAN Link accepted after another chain step: %v", err)
 	}
 	active, err := runtime.Active(ctx)
 	if err != nil || len(active) != 0 {
