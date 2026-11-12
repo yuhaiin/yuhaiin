@@ -94,13 +94,16 @@ func newPeerUnderlay(ctx context.Context, address string, key [32]byte, role pee
 // server's hostname can resolve to both IP families, and its address can
 // change while a long-lived publisher is running.
 type peerUnderlay struct {
-	key        [32]byte
-	role       peerrendezvous.Role
-	bind       *netBindClient
-	resolve    func(context.Context) ([]netip.AddrPort, error)
-	rebind     func()
-	enrollment *peerrendezvous.Enrollment
-	exchange   *peerrendezvous.LinkExchange
+	key      [32]byte
+	role     peerrendezvous.Role
+	bind     *netBindClient
+	resolve  func(context.Context) ([]netip.AddrPort, error)
+	rebind   func()
+	exchange *peerrendezvous.LinkExchange
+	// open supplies the socket when the coordinator runs in this process.
+	open func() (net.PacketConn, netip.AddrPort, error)
+	// hosted marks a dialer whose coordinator is the publisher itself.
+	hosted bool
 
 	mu         sync.Mutex
 	candidates []netip.AddrPort // one per IP family, preferred first
@@ -110,6 +113,14 @@ type peerUnderlay struct {
 }
 
 func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...func(*dialer.Options)) (net.PacketConn, error) {
+	if u.open != nil {
+		pc, coordinator, err := u.open()
+		if err != nil {
+			return nil, err
+		}
+		u.bind.openAddr.Store(net.UDPAddrFromAddrPort(coordinator))
+		return peerrendezvous.NewManagedSocket(pc, coordinator, u.key, u.role, nil, u.exchange, netip.Prefix{}), nil
+	}
 	u.mu.Lock()
 	if (!u.requested && u.exchange == nil) || u.index >= len(u.candidates) {
 		// A socket opened for a new network path starts again from the
@@ -141,9 +152,13 @@ func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...fu
 		u.mu.Lock()
 		u.index, u.current, u.requested = index, coord, false
 		u.mu.Unlock()
-		return peerrendezvous.NewManagedSocket(pc, coord, u.key, u.role, func(answered bool, peer netip.Addr) {
+		socket := peerrendezvous.NewManagedSocket(pc, coord, u.key, u.role, func(answered bool, peer netip.Addr) {
 			u.refresh(coord, answered, peer)
-		}, u.enrollment, u.exchange, localPeerPrefix(pc.LocalAddr(), route.GetInterface(), coord.Addr())), nil
+		}, u.exchange, localPeerPrefix(pc.LocalAddr(), route.GetInterface(), coord.Addr()))
+		if u.hosted {
+			socket.SetHosted()
+		}
+		return socket, nil
 	}
 	return nil, failed
 }

@@ -26,13 +26,15 @@ type Socket struct {
 	role        Role
 	id          [16]byte
 	stale       func(answered bool, peer netip.Addr)
-	enroll      *Enrollment
 	exchange    *LinkExchange
 	lan         *localPath
-	peer        atomic.Pointer[net.UDPAddr]
-	done        chan struct{}
-	stopped     chan struct{}
-	closeOnce   sync.Once
+	// hosted is set when the coordinator and the publisher share one socket,
+	// as in a LAN Link gateway: data then arrives from the coordinator address.
+	hosted    atomic.Bool
+	peer      atomic.Pointer[net.UDPAddr]
+	done      chan struct{}
+	stopped   chan struct{}
+	closeOnce sync.Once
 
 	mu         sync.Mutex
 	nonce      [16]byte
@@ -54,20 +56,14 @@ type Socket struct {
 // replied here), or the peer registered from the other IP family (peer is its
 // address). The owner decides whether to replace the socket.
 func NewSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr)) *Socket {
-	return NewManagedSocket(pc, coordinator, key, role, stale, nil, nil, netip.Prefix{})
+	return NewManagedSocket(pc, coordinator, key, role, stale, nil, netip.Prefix{})
 }
 
-type Enrollment struct {
-	Authority    [32]byte
-	InvitationID [16]byte
-}
-
-func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr), enroll *Enrollment, exchange *LinkExchange, local netip.Prefix) *Socket {
+func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr), exchange *LinkExchange, local netip.Prefix) *Socket {
 	s := &Socket{
 		PacketConn: pc, coordinator: coordinator, key: key, role: role, id: pairID(key),
 		stale:    stale,
 		exchange: exchange,
-		enroll:   enroll,
 		changed:  make(chan struct{}), done: make(chan struct{}), stopped: make(chan struct{}),
 		lastReply: time.Now(),
 	}
@@ -78,6 +74,9 @@ func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byt
 	go s.run()
 	return s
 }
+
+// SetHosted declares that the coordinator also serves as the peer's publisher.
+func (s *Socket) SetHosted() { s.hosted.Store(true) }
 
 func (s *Socket) NetworkPath() netstate.Path {
 	if p, ok := s.PacketConn.(interface{ NetworkPath() netstate.Path }); ok {
@@ -157,16 +156,6 @@ func (s *Socket) run() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		if s.enroll != nil {
-			var enrollment message
-			copy(enrollment[:4], magic)
-			enrollment[4], enrollment[5], enrollment[6] = hello, byte(Publisher), enrollFlag
-			issuer := pairID(s.enroll.Authority)
-			copy(enrollment[8:24], issuer[:])
-			copy(enrollment[24:40], s.enroll.InvitationID[:])
-			enrollment.sign(s.enroll.Authority)
-			_, _ = s.PacketConn.WriteTo(enrollment[:], coord)
-		}
 		var m message
 		copy(m[:4], magic)
 		m[4], m[5] = hello, byte(s.role)
@@ -251,10 +240,13 @@ func (s *Socket) readPacket(p []byte) (int, net.Addr, error) {
 	ap := source.AddrPort()
 	from := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
 	if from == s.coordinator {
-		if n == messageSize {
+		if n == messageSize && string(p[:4]) == magic {
 			s.receiveControl(message(p[:messageSize]), addr)
+			return 0, nil, nil
 		}
-		return 0, nil, nil
+		if !s.hosted.Load() {
+			return 0, nil, nil
+		}
 	}
 	if s.lan != nil && n == messageSize && string(p[:4]) == magic && p[6] == localFlag {
 		s.receiveLocalProbe(message(p[:messageSize]), from)
@@ -296,10 +288,6 @@ func (s *Socket) readPacket(p []byte) (int, net.Addr, error) {
 }
 
 func (s *Socket) receiveControl(m message, addr net.Addr) {
-	if m.enrollment() {
-		s.confirmEnrollment(m, addr)
-		return
-	}
 	if m.localPath() {
 		s.receiveLocalCandidate(m)
 		return
@@ -355,7 +343,7 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 			s.mismatch = endpoint.Addr()
 		}
 		changed, preferLocal := false, false
-		if endpoint.IsValid() && endpoint != s.coordinator && sameFamily {
+		if endpoint.IsValid() && (endpoint != s.coordinator || s.hosted.Load()) && sameFamily {
 			s.missing = 0
 			if old := s.peer.Load(); old == nil || old.AddrPort() != endpoint {
 				s.setPeer(net.UDPAddrFromAddrPort(endpoint))
@@ -380,16 +368,6 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 			s.punch()
 		}
 	}
-}
-
-func (s *Socket) confirmEnrollment(m message, addr net.Addr) {
-	if s.enroll == nil || !m.headerOK(messageSize) || m.kind() != challenge ||
-		m.id() != pairID(s.enroll.Authority) || m.nonce() != s.enroll.InvitationID || !m.valid(s.enroll.Authority) {
-		return
-	}
-	m[4] = confirm
-	m.sign(s.enroll.Authority)
-	_, _ = s.PacketConn.WriteTo(m[:], addr)
 }
 
 func (s *Socket) WriteTo(p []byte, _ net.Addr) (int, error) {

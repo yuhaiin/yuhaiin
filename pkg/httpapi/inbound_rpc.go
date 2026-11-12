@@ -35,6 +35,9 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2PeerDiscoveryAction, api.updatePeerDiscoveryPair)
 	addRPCRoute(handlers, v2LANLinkInvite, api.createLANLinkInvitation)
 	addRPCRoute(handlers, v2LANLinkRevoke, api.revokeLANLinkClient)
+	addRPCRoute(handlers, v2LANLinkClients, api.lanLinkClients)
+	addRPCRoute(handlers, v2LANLinkAction, api.updateLANLinkClient)
+	addRPCRoute(handlers, v2LANLinkNetworks, api.lanLinkNetworks)
 	addRPCRoute(handlers, v2InboundEvents, api.inboundEvents)
 	addRPCRoute(handlers, v2InboundRetry, api.retryInbound)
 	addRPCRoute(handlers, v2InboundsPost, api.createInbound)
@@ -70,6 +73,47 @@ func (a v2API) updatePeerDiscoveryPair(ctx context.Context, request *contractinb
 type lanLinkController interface {
 	CreateLANLinkInvitation(context.Context, string) (contractinbound.LANLinkInvitationResponse, error)
 	RevokeLANLinkClient(context.Context, contractinbound.LANLinkClientRequest) error
+	LANLinkClients(context.Context, string) (contractinbound.LANLinkClients, error)
+	UpdateLANLinkClient(context.Context, contractinbound.LANLinkClientAction) error
+	LANLinkNetworks(context.Context) contractinbound.LANLinkNetworks
+}
+
+func (a v2API) lanLinkClients(ctx context.Context, request *idRequest) (*contractinbound.LANLinkClients, error) {
+	controller, ok := a.services.Inbounds.(lanLinkController)
+	if !ok {
+		return nil, unavailable("LAN Link is unavailable")
+	}
+	value, err := controller.LANLinkClients(ctx, request.ID)
+	if errors.Is(err, plainstore.ErrNotFound) {
+		return nil, notFound(err)
+	}
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &value, nil
+}
+
+func (a v2API) updateLANLinkClient(ctx context.Context, request *contractinbound.LANLinkClientAction) (*emptyResponse, error) {
+	controller, ok := a.services.Inbounds.(lanLinkController)
+	if !ok {
+		return nil, unavailable("LAN Link is unavailable")
+	}
+	if err := controller.UpdateLANLinkClient(ctx, *request); err != nil {
+		if errors.Is(err, plainstore.ErrNotFound) {
+			return nil, notFound(err)
+		}
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
+}
+
+func (a v2API) lanLinkNetworks(ctx context.Context, _ *emptyRequest) (*contractinbound.LANLinkNetworks, error) {
+	controller, ok := a.services.Inbounds.(lanLinkController)
+	if !ok {
+		return nil, unavailable("LAN Link is unavailable")
+	}
+	value := controller.LANLinkNetworks(ctx)
+	return &value, nil
 }
 
 func (a v2API) createLANLinkInvitation(ctx context.Context, request *idRequest) (*contractinbound.LANLinkInvitationResponse, error) {
