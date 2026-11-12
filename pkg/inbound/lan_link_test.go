@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -41,11 +42,16 @@ func TestLANLinkInvitationsAllocateAndConnect(t *testing.T) {
 	if err := store.Save(ctx, discovery, 0); err != nil {
 		t.Fatal(err)
 	}
+	routes := []string{"127.0.0.1/32"}
+	// Exercise the exchange with an assignment that spans multiple UDP packets.
+	for i := range 100 {
+		routes = append(routes, fmt.Sprintf("192.168.%d.0/24", i))
+	}
 	gateway := contract.Inbound{
 		ID: "gateway", Name: "Gateway", Enabled: true,
 		Network: contract.NewTypedNetwork(contract.EmptyNetwork{}),
 		Protocol: contract.NewTypedProtocol(contract.LANLinkPublisher{
-			Coordinator: store.discoveryServer(discovery.ID).listen, Registration: authority, Routes: []string{"127.0.0.1/32"},
+			Coordinator: store.discoveryServer(discovery.ID).listen, Registration: authority, Routes: routes,
 		}),
 	}
 	if err := store.Save(ctx, gateway, 0); err != nil {
