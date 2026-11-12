@@ -185,6 +185,19 @@ func (w *Wireguard) Close() error {
 	return nil
 }
 
+// rebind replaces the UDP socket for a reason the network monitor cannot see,
+// such as a discovery server that moved to another address.
+func (w *Wireguard) rebind() {
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
+	if w.closed || w.device == nil {
+		return
+	}
+	if err := w.device.BindUpdate(); err != nil {
+		log.Debug("wireguard rebind failed", "err", err)
+	}
+}
+
 // Rebind sockets through the native device API; keys, peers, packet stack and
 // existing inner streams survive. A delayed event must still name the active
 // bind socket before it can cause another rebind.

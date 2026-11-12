@@ -828,6 +828,10 @@ func (x Node) Validate() error {
 		}
 	}
 	for i, protocol := range x.Chain {
+		// A peer tunnel owns its UDP socket and cannot run through an earlier step.
+		if i > 0 && protocol.Type == transport.PeerTunnelType {
+			return fmt.Errorf("node chain[%d]: peer tunnel must be the first step", i)
+		}
 		if err := protocol.Validate(); err != nil {
 			return fmt.Errorf("node chain[%d]: %w", i, err)
 		}

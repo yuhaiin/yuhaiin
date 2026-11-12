@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
@@ -55,34 +56,122 @@ func newPeerTunnel(c transport.PeerTunnel, role peerrendezvous.Role) (*Wireguard
 	// configuration. Resolve and seed the underlay endpoint first.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	coord, err := peerrendezvous.ResolveCoordinator(ctx, c.Coordinator)
+	coordinators, err := peerrendezvous.ResolveCoordinators(ctx, c.Coordinator)
 	if err != nil {
 		return nil, nil, fmt.Errorf("peer tunnel discovery server: %w", err)
 	}
-	bind.openAddr.Store(net.UDPAddrFromAddrPort(coord))
-	bind.listenPacket = func(ctx context.Context, _, address string, opts ...func(*dialer.Options)) (net.PacketConn, error) {
-		network := "udp4"
-		if coord.Addr().Is6() {
-			network = "udp6"
-		}
-		if coord.Addr().IsLoopback() {
-			address = net.JoinHostPort(coord.Addr().String(), "0")
-		}
-		pc, err := dialer.ListenPacket(ctx, network, address, opts...)
-		if err != nil {
-			return nil, err
-		}
-		return peerrendezvous.NewSocket(pc, coord, key, role), nil
-	}
+	underlay := &peerUnderlay{key: key, role: role, bind: bind, candidates: coordinators, resolve: func(ctx context.Context) ([]netip.AddrPort, error) {
+		return peerrendezvous.ResolveCoordinators(ctx, c.Coordinator)
+	}}
+	bind.openAddr.Store(net.UDPAddrFromAddrPort(coordinators[0]))
+	bind.listenPacket = underlay.listen
 	w, err := newClient(Config{
 		SecretKey: c.PrivateKey,
 		Endpoint:  []string{c.LocalIP},
 		MTU:       1280,
 		Peers: []PeerConfig{{
-			PublicKey: c.PeerPublicKey, Endpoint: coord.String(), AllowedIPs: allowed,
+			// A placeholder. The rendezvous socket ignores WireGuard's
+			// destination and writes to the discovered peer.
+			PublicKey: c.PeerPublicKey, Endpoint: coordinators[0].String(), AllowedIPs: allowed,
 		}},
 	}, bind, inbound)
-	return w, routes, err
+	if err != nil {
+		return nil, nil, err
+	}
+	underlay.rebind = w.rebind
+	return w, routes, nil
+}
+
+// peerUnderlay picks the discovery server address for each UDP socket. The
+// server's hostname can resolve to both IP families, and its address can
+// change while a long-lived publisher is running.
+type peerUnderlay struct {
+	key     [32]byte
+	role    peerrendezvous.Role
+	bind    *netBindClient
+	resolve func(context.Context) ([]netip.AddrPort, error)
+	rebind  func()
+
+	mu         sync.Mutex
+	candidates []netip.AddrPort // one per IP family, preferred first
+	index      int
+	current    netip.AddrPort
+	requested  bool
+}
+
+func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...func(*dialer.Options)) (net.PacketConn, error) {
+	u.mu.Lock()
+	if !u.requested || u.index >= len(u.candidates) {
+		// A socket opened for a new network path starts again from the
+		// preferred address. The previous choice described the old path.
+		u.index = 0
+	}
+	candidates, start := u.candidates, u.index
+	u.mu.Unlock()
+	var failed error
+	// A host without a route for one family cannot open that socket at all.
+	for i := range candidates {
+		index := (start + i) % len(candidates)
+		coord, local := candidates[index], address
+		// The hint selects the outgoing interface for this address.
+		u.bind.openAddr.Store(net.UDPAddrFromAddrPort(coord))
+		network := "udp4"
+		if coord.Addr().Is6() {
+			network = "udp6"
+		}
+		if coord.Addr().IsLoopback() {
+			local = net.JoinHostPort(coord.Addr().String(), "0")
+		}
+		pc, err := dialer.ListenPacket(ctx, network, local, opts...)
+		if err != nil {
+			failed = errors.Join(failed, err)
+			continue
+		}
+		u.mu.Lock()
+		u.index, u.current, u.requested = index, coord, false
+		u.mu.Unlock()
+		return peerrendezvous.NewSocket(pc, coord, u.key, u.role, func(answered bool, peer netip.Addr) {
+			u.refresh(coord, answered, peer)
+		}), nil
+	}
+	return nil, failed
+}
+
+// refresh handles a socket that cannot serve the pair. It resolves the
+// hostname again and replaces the socket when another address should be used.
+func (u *peerUnderlay) refresh(coord netip.AddrPort, answered bool, peer netip.Addr) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	candidates, err := u.resolve(ctx)
+	if err != nil {
+		return
+	}
+	u.mu.Lock()
+	if coord != u.current || u.requested {
+		u.mu.Unlock()
+		return
+	}
+	index := min(u.index, len(candidates)-1)
+	switch {
+	case peer.IsValid():
+		// Both sides only move toward the last candidate, so a mixed pair
+		// settles on the family they share and cannot swap places.
+		if i := slices.IndexFunc(candidates, func(c netip.AddrPort) bool { return c.Addr().BitLen() == peer.BitLen() }); i > index {
+			index = i
+		}
+	case !answered:
+		// This host may lack the address family. Try the next one.
+		index = (index + 1) % len(candidates)
+	}
+	replace := candidates[index] != coord
+	u.candidates, u.index, u.requested = candidates, index, replace
+	u.mu.Unlock()
+	if replace {
+		u.rebind()
+		u.mu.Lock()
+		u.requested = false
+		u.mu.Unlock()
+	}
 }
 
 type peerDialer struct {

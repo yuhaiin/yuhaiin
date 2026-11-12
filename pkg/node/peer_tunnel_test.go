@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func TestPeerTunnelListFindsIdlePublisher(t *testing.T) {
 	if peer := list(); peer.State != "offline" || peer.Endpoint != "" {
 		t.Fatalf("unregistered publisher: %+v", peer)
 	}
-	publisher := peerrendezvous.NewSocket(listen(), coordinator, key, peerrendezvous.Publisher)
+	publisher := peerrendezvous.NewSocket(listen(), coordinator, key, peerrendezvous.Publisher, nil)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -82,6 +83,12 @@ func TestPeerTunnelListFindsIdlePublisher(t *testing.T) {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+	chained := contract.Node{ID: "chained", Name: "chained", Origin: "manual", Enabled: true, Chain: []contract.Protocol{
+		{Type: transport.PeerTunnelType, PeerTunnel: &cfg}, {Type: transport.PeerTunnelType, PeerTunnel: &cfg},
+	}}
+	if err := chained.Validate(); err == nil || !strings.Contains(err.Error(), "first step") {
+		t.Fatalf("peer tunnel accepted after another chain step: %v", err)
 	}
 	active, err := runtime.Active(ctx)
 	if err != nil || len(active) != 0 {

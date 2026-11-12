@@ -3,6 +3,7 @@ package node
 import (
 	"cmp"
 	"context"
+	"net/netip"
 	"slices"
 	"sync"
 	"time"
@@ -67,11 +68,11 @@ func lookupTunnelPeer(ctx context.Context, c *transport.PeerTunnel) contract.Pee
 	if err != nil {
 		return result
 	}
-	coordinator, err := peerrendezvous.ResolveCoordinator(ctx, c.Coordinator)
+	coordinators, err := peerrendezvous.ResolveCoordinators(ctx, c.Coordinator)
 	if err != nil {
 		return result
 	}
-	registration, err := peerrendezvous.Lookup(ctx, coordinator, token)
+	registration, err := peerrendezvous.LookupAny(ctx, coordinators, token)
 	if err != nil {
 		return result
 	}
@@ -79,9 +80,11 @@ func lookupTunnelPeer(ctx context.Context, c *transport.PeerTunnel) contract.Pee
 	switch {
 	case registration.Denial != "":
 		result.State = registration.Denial
-	case !endpoint.IsValid() || endpoint == coordinator:
+	case !endpoint.IsValid() || slices.Contains(coordinators, endpoint):
 		result.State = "offline"
-	case endpoint.Addr().BitLen() != coordinator.Addr().BitLen():
+	case !slices.ContainsFunc(coordinators, func(c netip.AddrPort) bool { return c.Addr().BitLen() == endpoint.Addr().BitLen() }):
+		// The tunnel can follow the publisher only to a family the
+		// discovery server is reachable on.
 		result.State, result.Endpoint = "incompatible", endpoint.String()
 	default:
 		result.State, result.Endpoint = "online", endpoint.String()

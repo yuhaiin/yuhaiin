@@ -5,35 +5,79 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
-// ResolveCoordinator picks the same UDP address for lookups and tunnels.
-func ResolveCoordinator(ctx context.Context, address string) (netip.AddrPort, error) {
+// ResolveCoordinators lists at most one UDP address per IP family, IPv6 first.
+// Lookups and tunnels share this order, so two peers that can use the first
+// address choose the same family.
+func ResolveCoordinators(ctx context.Context, address string) ([]netip.AddrPort, error) {
 	a, err := netapi.ParseAddress("udp", address)
 	if err != nil {
-		return netip.AddrPort{}, err
+		return nil, err
 	}
-	var ip netip.Addr
+	var ips []netip.Addr
 	if resolved, ok := a.(netapi.IPAddress); ok {
-		ip = resolved.AddrPort().Addr()
+		ips = []netip.Addr{resolved.AddrPort().Addr()}
 	} else {
-		ips, err := netapi.Bootstrap().LookupIP(ctx, a.Hostname())
+		found, err := netapi.Bootstrap().LookupIP(ctx, a.Hostname())
 		if err != nil {
-			return netip.AddrPort{}, err
+			return nil, err
 		}
-		ip, _ = netip.AddrFromSlice(ips.PreferAAAA())
+		for _, family := range [][]net.IP{found.AAAA, found.A} {
+			if len(family) != 0 {
+				ip, _ := netip.AddrFromSlice(family[0])
+				ips = append(ips, ip)
+			}
+		}
 	}
-	ip = ip.Unmap()
-	if a.Port() == 0 || !ip.IsValid() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.Zone() != "" {
-		return netip.AddrPort{}, errors.New("peer discovery requires a reachable unicast address")
+	var out []netip.AddrPort
+	for _, ip := range ips {
+		ip = ip.Unmap()
+		if !ip.IsValid() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.Zone() != "" ||
+			slices.ContainsFunc(out, func(c netip.AddrPort) bool { return c.Addr().BitLen() == ip.BitLen() }) {
+			continue
+		}
+		out = append(out, netip.AddrPortFrom(ip, a.Port()))
 	}
-	return netip.AddrPortFrom(ip, a.Port()), nil
+	if a.Port() == 0 || len(out) == 0 {
+		return nil, errors.New("peer discovery requires a reachable unicast address")
+	}
+	return out, nil
+}
+
+// LookupAny asks every coordinator address at once and returns the first
+// answer. A host without one IP family still gets an answer from the other.
+func LookupAny(ctx context.Context, coordinators []netip.AddrPort, key [32]byte) (LookupResult, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	type answer struct {
+		result LookupResult
+		err    error
+	}
+	answers := make(chan answer, len(coordinators))
+	for _, coordinator := range coordinators {
+		go func() {
+			result, err := Lookup(ctx, coordinator, key)
+			answers <- answer{result, err}
+		}()
+	}
+	err := errors.New("peer discovery lookup: no coordinator address")
+	for range coordinators {
+		a := <-answers
+		if a.err == nil {
+			return a.result, nil
+		}
+		err = a.err
+	}
+	return LookupResult{}, err
 }
 
 type LookupResult struct {

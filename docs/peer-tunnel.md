@@ -31,7 +31,14 @@ the pair. The two peers send WireGuard traffic directly using those endpoints.
 Use a different random token and publisher inbound for each pair. The discovery
 inbound accepts a list of pairing tokens on one UDP port. The tunnel IPs and LAN
 routes must use one address family per pair. The outer UDP socket follows the
-discovery server's address family.
+discovery server's address family. When the server's hostname has both IPv6
+and IPv4 addresses, the peers prefer IPv6. A peer that gets no answer over
+IPv6, or whose partner registered over IPv4, switches to IPv4. Both peers must
+share one family to connect. To force a family, enter an IP address or use a
+hostname that resolves to that family only.
+
+A Peer Tunnel must be the first step of an outbound chain. It opens its own UDP
+socket and cannot run through an earlier step.
 
 ## Connectivity
 
@@ -41,7 +48,11 @@ discovery on demand. NATs that assign a different public mapping per destination
 can prevent a direct connection. Peers behind the same NAT may require NAT
 hairpinning. A direct path remains usable briefly if discovery becomes
 unreachable. Both peers stop forwarding when their last authorization expires,
-about 20 seconds after the last successful refresh.
+about 20 seconds after the last successful refresh. After that, each peer
+resolves the discovery server's hostname again every 20 seconds and follows it
+to a new address. A peer also drops the direct path after the discovery server
+reports its partner offline three times in a row, about 6 seconds. New
+connections then fail at the outbound's 8-second wait for a direct path.
 
 ## View and manage peers
 

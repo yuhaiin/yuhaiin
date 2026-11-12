@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 	"testing"
 	"time"
@@ -61,7 +62,7 @@ func TestSocketPunchAndRelearnEndpoint(t *testing.T) {
 	start := func(role Role) (*Socket, <-chan []byte) {
 		t.Helper()
 		raw := listen()
-		s := NewSocket(&filteredSocket{PacketConn: raw, allowed: make(map[string]bool)}, server.LocalAddr().(*net.UDPAddr).AddrPort(), key, role)
+		s := NewSocket(&filteredSocket{PacketConn: raw, allowed: make(map[string]bool)}, server.LocalAddr().(*net.UDPAddr).AddrPort(), key, role, nil)
 		data := make(chan []byte, 1)
 		exited := make(chan struct{})
 		go func() {
@@ -157,4 +158,68 @@ func TestSocketPunchAndRelearnEndpoint(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	check(replacement, input)
+}
+
+func TestSocketDropsOfflinePeerAndFinishedExchange(t *testing.T) {
+	pc, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := [32]byte{5}
+	coordinator := netip.MustParseAddrPort("127.0.0.1:9")
+	s := NewSocket(pc, coordinator, key, Dialer, nil)
+	t.Cleanup(func() { _ = s.Close() })
+	// reply answers the exchange the socket has open. reopen models its next hello.
+	reply := func(endpoint netip.AddrPort, reopen bool) {
+		t.Helper()
+		var m message
+		copy(m[:4], magic)
+		m[4], m[5] = discovered, byte(Dialer)
+		copy(m[8:24], s.id[:])
+		s.mu.Lock()
+		if reopen {
+			s.pending = true
+		}
+		copy(m[24:40], s.nonce[:])
+		s.mu.Unlock()
+		m.setEndpoint(endpoint)
+		m.sign(key)
+		s.receiveControl(m, net.UDPAddrFromAddrPort(coordinator))
+	}
+	peer := func() netip.AddrPort {
+		if p := s.peer.Load(); p != nil {
+			return p.AddrPort()
+		}
+		return netip.AddrPort{}
+	}
+	for deadline := time.Now().Add(2 * time.Second); ; time.Sleep(time.Millisecond) {
+		s.mu.Lock()
+		started := s.pending
+		s.mu.Unlock()
+		if started {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("socket did not start an exchange")
+		}
+	}
+	first := netip.MustParseAddrPort("127.0.0.1:2001")
+	reply(first, false)
+	if peer() != first {
+		t.Fatalf("peer %v, want %v", peer(), first)
+	}
+	reply(netip.MustParseAddrPort("127.0.0.1:2002"), false)
+	if peer() != first {
+		t.Fatalf("a reply to a finished exchange replaced the peer with %v", peer())
+	}
+	for i := 1; i < offlineAfter; i++ {
+		reply(netip.AddrPort{}, true)
+		if peer() != first {
+			t.Fatalf("peer dropped after %d empty registrations", i)
+		}
+	}
+	reply(netip.AddrPort{}, true)
+	if peer().IsValid() {
+		t.Fatalf("offline peer %v kept its direct path", peer())
+	}
 }
