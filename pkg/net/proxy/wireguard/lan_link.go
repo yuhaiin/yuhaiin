@@ -258,8 +258,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 	if role == peerrendezvous.Publisher {
 		local, remote, routes = m.assignment.PublisherIP, m.assignment.ClientIP, m.assignment.Routes
 	}
-	cfg := transport.PeerTunnel{
-		Coordinator: "gateway.invalid:1", Token: base64.StdEncoding.EncodeToString(m.registration[:]),
+	cfg := tunnelConfig{
 		PrivateKey: m.privateKey, PeerPublicKey: base64.StdEncoding.EncodeToString(offer.PublicKey[:]),
 		LocalIP: local.String(), PeerIP: remote.String(), Routes: routes,
 	}
@@ -273,7 +272,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		}
 		return underlay.listen(ctx, network, addr, opts...)
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		_ = socket.Close()
 		return nil, err
 	}

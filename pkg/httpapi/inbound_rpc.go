@@ -31,8 +31,6 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2InboundsGet, api.inbounds)
 	addRPCRoute(handlers, v2InboundCapabilities, api.inboundCapabilities)
 	addRPCRoute(handlers, v2InboundStatuses, api.inboundStatuses)
-	addRPCRoute(handlers, v2PeerDiscoveryPairs, api.peerDiscoveryPairs)
-	addRPCRoute(handlers, v2PeerDiscoveryAction, api.updatePeerDiscoveryPair)
 	addRPCRoute(handlers, v2LANLinkInvite, api.createLANLinkInvitation)
 	addRPCRoute(handlers, v2LANLinkRevoke, api.revokeLANLinkClient)
 	addRPCRoute(handlers, v2LANLinkClients, api.lanLinkClients)
@@ -44,30 +42,6 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2InboundGet, api.inbound)
 	addRPCRoute(handlers, v2InboundPut, api.saveInbound)
 	addRPCRoute(handlers, v2InboundDelete, api.deleteInbound)
-}
-
-type peerDiscoveryController interface {
-	PeerDiscoveryPairs(context.Context, string) (contractinbound.PeerDiscoveryPairs, error)
-	UpdatePeerDiscoveryPair(context.Context, contractinbound.PeerDiscoveryAction) error
-}
-
-func (a v2API) peerDiscoveryPairs(ctx context.Context, request *idRequest) (*contractinbound.PeerDiscoveryPairs, error) {
-	controller, ok := a.services.Inbounds.(peerDiscoveryController)
-	if !ok {
-		return nil, unavailable("peer discovery is unavailable")
-	}
-	return pointer(controller.PeerDiscoveryPairs(ctx, request.ID))
-}
-
-func (a v2API) updatePeerDiscoveryPair(ctx context.Context, request *contractinbound.PeerDiscoveryAction) (*emptyResponse, error) {
-	controller, ok := a.services.Inbounds.(peerDiscoveryController)
-	if !ok {
-		return nil, unavailable("peer discovery is unavailable")
-	}
-	if err := controller.UpdatePeerDiscoveryPair(ctx, *request); err != nil {
-		return nil, badRequest(err)
-	}
-	return &emptyResponse{}, nil
 }
 
 type lanLinkController interface {

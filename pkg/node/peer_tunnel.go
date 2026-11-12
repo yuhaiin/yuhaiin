@@ -24,7 +24,7 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 	}
 	type pairing struct {
 		id, name string
-		config   *transport.PeerTunnel
+		config   peerPairing
 	}
 	var pairings []pairing
 	for _, n := range r.selectors.snapshot.Load().nodes {
@@ -32,13 +32,9 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 			continue
 		}
 		for _, step := range n.Chain {
-			if step.PeerTunnel != nil {
-				pairings = append(pairings, pairing{n.ID, n.Name, step.PeerTunnel})
-				break
-			}
 			if step.LANLink != nil {
 				if invitation, err := transport.ParseLANLinkInvitation(step.LANLink.Invitation); err == nil {
-					pairings = append(pairings, pairing{n.ID, n.Name, &transport.PeerTunnel{
+					pairings = append(pairings, pairing{n.ID, n.Name, peerPairing{
 						Coordinator: invitation.Coordinator, Token: invitation.Registration, Routes: invitation.Routes,
 					}})
 				}
@@ -68,8 +64,15 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 	return contract.PeerTunnelPeers{Items: items, Page: route.Page{Page: page, PageSize: peerPageSize, Total: total}}, nil
 }
 
-func lookupTunnelPeer(ctx context.Context, c *transport.PeerTunnel) contract.PeerTunnelPeer {
-	result := contract.PeerTunnelPeer{State: "unknown", TunnelIP: c.PeerIP, Routes: slices.Clone(c.Routes)}
+// peerPairing is what the coordinator lookup needs from an invitation.
+type peerPairing struct {
+	Coordinator string
+	Token       string
+	Routes      []string
+}
+
+func lookupTunnelPeer(ctx context.Context, c peerPairing) contract.PeerTunnelPeer {
+	result := contract.PeerTunnelPeer{State: "unknown", Routes: slices.Clone(c.Routes)}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	token, err := transport.DecodePeerKey(c.Token)
