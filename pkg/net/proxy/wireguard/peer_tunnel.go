@@ -51,20 +51,13 @@ func newPeerTunnel(c transport.PeerTunnel, role peerrendezvous.Role) (*Wireguard
 		ip := netip.MustParseAddr(c.PeerIP)
 		allowed = []string{netip.PrefixFrom(ip, ip.BitLen()).String()}
 	}
-	bind := newNetBindClient(nil)
-	// The TUN event can open the bind before WireGuard applies its peer
-	// configuration. Resolve and seed the underlay endpoint first.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	coordinators, err := peerrendezvous.ResolveCoordinators(ctx, c.Coordinator)
+	underlay, err := newPeerUnderlay(ctx, c.Coordinator, key, role)
 	if err != nil {
-		return nil, nil, fmt.Errorf("peer tunnel discovery server: %w", err)
+		return nil, nil, err
 	}
-	underlay := &peerUnderlay{key: key, role: role, bind: bind, candidates: coordinators, resolve: func(ctx context.Context) ([]netip.AddrPort, error) {
-		return peerrendezvous.ResolveCoordinators(ctx, c.Coordinator)
-	}}
-	bind.openAddr.Store(net.UDPAddrFromAddrPort(coordinators[0]))
-	bind.listenPacket = underlay.listen
+	bind := underlay.bind
 	w, err := newClient(Config{
 		SecretKey: c.PrivateKey,
 		Endpoint:  []string{c.LocalIP},
@@ -72,7 +65,7 @@ func newPeerTunnel(c transport.PeerTunnel, role peerrendezvous.Role) (*Wireguard
 		Peers: []PeerConfig{{
 			// A placeholder. The rendezvous socket ignores WireGuard's
 			// destination and writes to the discovered peer.
-			PublicKey: c.PeerPublicKey, Endpoint: coordinators[0].String(), AllowedIPs: allowed,
+			PublicKey: c.PeerPublicKey, Endpoint: underlay.candidates[0].String(), AllowedIPs: allowed,
 		}},
 	}, bind, inbound)
 	if err != nil {
@@ -82,15 +75,32 @@ func newPeerTunnel(c transport.PeerTunnel, role peerrendezvous.Role) (*Wireguard
 	return w, routes, nil
 }
 
+func newPeerUnderlay(ctx context.Context, address string, key [32]byte, role peerrendezvous.Role) (*peerUnderlay, error) {
+	resolve := func(ctx context.Context) ([]netip.AddrPort, error) {
+		return peerrendezvous.ResolveCoordinators(ctx, address)
+	}
+	coordinators, err := resolve(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("peer tunnel discovery server: %w", err)
+	}
+	bind := newNetBindClient(nil)
+	u := &peerUnderlay{key: key, role: role, bind: bind, candidates: coordinators, resolve: resolve}
+	bind.openAddr.Store(net.UDPAddrFromAddrPort(coordinators[0]))
+	bind.listenPacket = u.listen
+	return u, nil
+}
+
 // peerUnderlay picks the discovery server address for each UDP socket. The
 // server's hostname can resolve to both IP families, and its address can
 // change while a long-lived publisher is running.
 type peerUnderlay struct {
-	key     [32]byte
-	role    peerrendezvous.Role
-	bind    *netBindClient
-	resolve func(context.Context) ([]netip.AddrPort, error)
-	rebind  func()
+	key        [32]byte
+	role       peerrendezvous.Role
+	bind       *netBindClient
+	resolve    func(context.Context) ([]netip.AddrPort, error)
+	rebind     func()
+	enrollment *peerrendezvous.Enrollment
+	exchange   *peerrendezvous.LinkExchange
 
 	mu         sync.Mutex
 	candidates []netip.AddrPort // one per IP family, preferred first
@@ -101,7 +111,7 @@ type peerUnderlay struct {
 
 func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...func(*dialer.Options)) (net.PacketConn, error) {
 	u.mu.Lock()
-	if !u.requested || u.index >= len(u.candidates) {
+	if (!u.requested && u.exchange == nil) || u.index >= len(u.candidates) {
 		// A socket opened for a new network path starts again from the
 		// preferred address. The previous choice described the old path.
 		u.index = 0
@@ -130,9 +140,9 @@ func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...fu
 		u.mu.Lock()
 		u.index, u.current, u.requested = index, coord, false
 		u.mu.Unlock()
-		return peerrendezvous.NewSocket(pc, coord, u.key, u.role, func(answered bool, peer netip.Addr) {
+		return peerrendezvous.NewManagedSocket(pc, coord, u.key, u.role, func(answered bool, peer netip.Addr) {
 			u.refresh(coord, answered, peer)
-		}), nil
+		}, u.enrollment, u.exchange), nil
 	}
 	return nil, failed
 }

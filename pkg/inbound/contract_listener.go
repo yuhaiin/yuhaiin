@@ -117,15 +117,21 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 		if err != nil {
 			return nil, err
 		}
+		authorities, err := config.Protocol.PeerDiscovery.Authorities()
+		if err != nil {
+			return nil, err
+		}
 		socket, err := dialer.ListenPacket(context.Background(), "udp", config.Network.TCPUDP.Host, dialer.WithListener())
 		if err != nil {
 			return nil, err
 		}
 		return &discoveryAccepter{
-			Coordinator: peerrendezvous.Serve(socket, keys, config.Protocol.PeerDiscovery.BlockedPairIDs...),
+			Coordinator: peerrendezvous.ServeWithAuthorities(socket, keys, authorities, config.Protocol.PeerDiscovery.BlockedPairIDs...),
 			config:      config,
 			listen:      socket.LocalAddr().String(),
 		}, nil
+	case contract.ProtocolLANLink:
+		return listenLANLink(config, handler)
 	case contract.ProtocolPeerTunnel:
 		return wireguard.NewPeerPublisher(*config.Protocol.PeerTunnel, handler)
 	}

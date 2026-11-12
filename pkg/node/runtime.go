@@ -23,6 +23,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reject"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
+	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
@@ -33,6 +34,7 @@ import (
 // It also implements the route dialer and node HTTP controller contracts so
 // callers do not need a second manager/controller wrapper.
 type NodeRuntime struct {
+	lanLinkRoutes      atomic.Pointer[[]lanLinkRoute]
 	metrics            *reliabilityMetrics
 	measurementActive  atomic.Int32
 	measurementLimit   atomic.Int32
@@ -110,6 +112,7 @@ func (r *NodeRuntime) Close() error {
 		return nil
 	}
 	r.closed = true
+	r.lanLinkRoutes.Store(nil)
 	sqliteStore := r.sqlite
 	observer := r.observer
 	selectors := r.selectors
@@ -140,8 +143,22 @@ func (r *NodeRuntime) Save(ctx context.Context, node contractnode.Node) (contrac
 	}
 	previous, previousErr := nodes.Get(ctx, node.ID)
 	node.Origin = "manual"
+	managedLink := len(node.Chain) > 0 && node.Chain[0].LANLink != nil
+	if managedLink && len(previous.Chain) > 0 && previous.Chain[0].LANLink != nil && node.Chain[0].LANLink.PrivateKey == "" {
+		link := *node.Chain[0].LANLink
+		link.PrivateKey = previous.Chain[0].LANLink.PrivateKey
+		node.Chain = slices.Clone(node.Chain)
+		node.Chain[0].LANLink = &link
+		ctx = secret.WithResolvedConfiguration(ctx)
+	}
 	if err := nodes.Save(ctx, node, 0); err != nil {
 		return contractnode.Node{}, err
+	}
+	if managedLink {
+		node, err = nodes.Get(ctx, node.ID)
+		if err != nil {
+			return contractnode.Node{}, err
+		}
 	}
 	r.credentialMu.Lock()
 	transportChanged := previousErr != nil || !sameNodeTransport(previous, node)

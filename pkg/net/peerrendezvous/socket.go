@@ -26,6 +26,8 @@ type Socket struct {
 	role        Role
 	id          [16]byte
 	stale       func(answered bool, peer netip.Addr)
+	enroll      *Enrollment
+	exchange    *LinkExchange
 	peer        atomic.Pointer[net.UDPAddr]
 	done        chan struct{}
 	stopped     chan struct{}
@@ -51,10 +53,21 @@ type Socket struct {
 // replied here), or the peer registered from the other IP family (peer is its
 // address). The owner decides whether to replace the socket.
 func NewSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr)) *Socket {
+	return NewManagedSocket(pc, coordinator, key, role, stale, nil, nil)
+}
+
+type Enrollment struct {
+	Authority    [32]byte
+	InvitationID [16]byte
+}
+
+func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr), enroll *Enrollment, exchange *LinkExchange) *Socket {
 	s := &Socket{
 		PacketConn: pc, coordinator: coordinator, key: key, role: role, id: pairID(key),
-		stale:   stale,
-		changed: make(chan struct{}), done: make(chan struct{}), stopped: make(chan struct{}),
+		stale:    stale,
+		exchange: exchange,
+		enroll:   enroll,
+		changed:  make(chan struct{}), done: make(chan struct{}), stopped: make(chan struct{}),
 		lastReply: time.Now(),
 	}
 	go s.run()
@@ -123,6 +136,16 @@ func (s *Socket) run() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
+		if s.enroll != nil {
+			var enrollment message
+			copy(enrollment[:4], magic)
+			enrollment[4], enrollment[5], enrollment[6] = hello, byte(Publisher), enrollFlag
+			issuer := pairID(s.enroll.Authority)
+			copy(enrollment[8:24], issuer[:])
+			copy(enrollment[24:40], s.enroll.InvitationID[:])
+			enrollment.sign(s.enroll.Authority)
+			_, _ = s.PacketConn.WriteTo(enrollment[:], coord)
+		}
 		var m message
 		copy(m[:4], magic)
 		m[4], m[5] = hello, byte(s.role)
@@ -150,6 +173,9 @@ func (s *Socket) run() {
 		m.sign(s.key)
 		_, _ = s.PacketConn.WriteTo(m[:], coord)
 		s.punch()
+		if s.exchange != nil {
+			s.exchange.request(s)
+		}
 		select {
 		case <-s.stopped:
 			return
@@ -166,45 +192,67 @@ func (s *Socket) punch() {
 
 func (s *Socket) ReadFrom(p []byte) (int, net.Addr, error) {
 	for {
-		n, addr, err := s.PacketConn.ReadFrom(p)
-		if err != nil {
-			return 0, nil, err
-		}
-		source, ok := addr.(*net.UDPAddr)
-		if !ok {
-			continue
-		}
-		ap := source.AddrPort()
-		from := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
-		if from == s.coordinator {
-			if n == messageSize {
-				s.receiveControl(message(p[:messageSize]), addr)
-			}
-			continue
-		}
-		peer := s.peer.Load()
-		if peer == nil || from != peer.AddrPort() {
-			continue
-		}
-		if n == 1 && p[0] <= 1 {
-			if p[0] == 0 {
-				_, _ = s.PacketConn.WriteTo([]byte{1}, peer)
-			}
-			s.mu.Lock()
-			if !s.ready && s.peer.Load() == peer {
-				s.ready = true
-				s.signalChange()
-			}
-			s.mu.Unlock()
-			continue
-		}
-		if n >= 32 {
-			return n, addr, nil
+		n, addr, err := s.readPacket(p)
+		if n != 0 || err != nil {
+			return n, addr, err
 		}
 	}
 }
 
+// ReadControl pumps the socket during provisioning, before WireGuard owns the
+// receive loop. Unauthenticated data packets are discarded.
+func (s *Socket) ReadControl(p []byte) error {
+	_, _, err := s.readPacket(p)
+	return err
+}
+
+func (s *Socket) readPacket(p []byte) (int, net.Addr, error) {
+	n, addr, err := s.PacketConn.ReadFrom(p)
+	if err != nil {
+		return 0, nil, err
+	}
+	source, ok := addr.(*net.UDPAddr)
+	if !ok {
+		return 0, nil, nil
+	}
+	ap := source.AddrPort()
+	from := netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+	if from == s.coordinator {
+		if n == messageSize {
+			s.receiveControl(message(p[:messageSize]), addr)
+		}
+		return 0, nil, nil
+	}
+	peer := s.peer.Load()
+	if peer == nil || from != peer.AddrPort() {
+		return 0, nil, nil
+	}
+	if n == 1 && p[0] <= 1 {
+		if p[0] == 0 {
+			_, _ = s.PacketConn.WriteTo([]byte{1}, peer)
+		}
+		s.mu.Lock()
+		if !s.ready && s.peer.Load() == peer {
+			s.ready = true
+			s.signalChange()
+		}
+		s.mu.Unlock()
+		return 0, nil, nil
+	}
+	if s.exchange != nil && s.exchange.receive(s, p[:n], peer) {
+		return 0, nil, nil
+	}
+	if n >= 32 {
+		return n, addr, nil
+	}
+	return 0, nil, nil
+}
+
 func (s *Socket) receiveControl(m message, addr net.Addr) {
+	if m.enrollment() {
+		s.confirmEnrollment(m, addr)
+		return
+	}
 	if !m.headerOK(messageSize) || m.lookup() || m.role() != s.role || m.id() != s.id || !m.valid(s.key) {
 		return
 	}
@@ -272,6 +320,16 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 			s.punch()
 		}
 	}
+}
+
+func (s *Socket) confirmEnrollment(m message, addr net.Addr) {
+	if s.enroll == nil || !m.headerOK(messageSize) || m.kind() != challenge ||
+		m.id() != pairID(s.enroll.Authority) || m.nonce() != s.enroll.InvitationID || !m.valid(s.enroll.Authority) {
+		return
+	}
+	m[4] = confirm
+	m.sign(s.enroll.Authority)
+	_, _ = s.PacketConn.WriteTo(m[:], addr)
 }
 
 func (s *Socket) WriteTo(p []byte, _ net.Addr) (int, error) {

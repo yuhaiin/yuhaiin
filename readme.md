@@ -80,7 +80,7 @@ The Traffic Access Policy is **optional** and acts before the ordinary L4 forwar
 | **Additional inbounds** | Experimental Linux SSH shell/exec with isolated per-connection networking; Krunlet microVM TCP/UDP over a local Unix socket |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
 
-**Peer Tunnel:** access LAN services through direct WireGuard connections with a self-hosted UDP discovery inbound. See [the Peer Tunnel guide](docs/peer-tunnel.md).
+**LAN Link** connects Yuhaiin instances to remote LAN services over direct WireGuard connections. A gateway issues invitations and assigns tunnel addresses. See [the LAN Link guide](docs/peer-tunnel.md).
 
 **MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the bearer-token-protected server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
 

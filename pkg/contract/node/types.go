@@ -138,6 +138,7 @@ type Protocol struct {
 	SSTP                 *SSTP                 `json:"sstp,omitzero"`
 	Fortinet             *Fortinet             `json:"fortinet,omitzero"`
 	PeerTunnel           *transport.PeerTunnel `json:"peer_tunnel,omitzero"`
+	LANLink              *transport.LANLink    `json:"lan_link,omitzero"`
 	Wireguard            *Wireguard            `json:"wireguard,omitzero"`
 	OpenVPN              *OpenVPN              `json:"openvpn,omitzero"`
 	L2TP                 *L2TP                 `json:"l2tp,omitzero"`
@@ -829,7 +830,7 @@ func (x Node) Validate() error {
 	}
 	for i, protocol := range x.Chain {
 		// A peer tunnel owns its UDP socket and cannot run through an earlier step.
-		if i > 0 && protocol.Type == transport.PeerTunnelType {
+		if i > 0 && (protocol.Type == transport.PeerTunnelType || protocol.Type == transport.LANLinkType) {
 			return fmt.Errorf("node chain[%d]: peer tunnel must be the first step", i)
 		}
 		if err := protocol.Validate(); err != nil {
@@ -866,6 +867,11 @@ func (x Protocol) Validate() error {
 			return err
 		}
 	}
+	if x.LANLink != nil {
+		if err := x.LANLink.Validate(); err != nil {
+			return err
+		}
+	}
 	return x.validateCredentialRef()
 }
 
@@ -898,6 +904,7 @@ func (x Protocol) presentVariants() map[string]bool {
 		"sstp":                   x.SSTP != nil,
 		"fortinet":               x.Fortinet != nil,
 		transport.PeerTunnelType: x.PeerTunnel != nil,
+		transport.LANLinkType:    x.LANLink != nil,
 		"wireguard":              x.Wireguard != nil,
 		"globalprotect":          x.GlobalProtect != nil,
 		"openvpn":                x.OpenVPN != nil,

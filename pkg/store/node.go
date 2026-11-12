@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
@@ -150,6 +151,15 @@ func SaveNodeContract(ctx context.Context, execer NodeExecer, node contractnode.
 		return err
 	}
 	node = merged
+	if len(node.Chain) != 0 && node.Chain[0].LANLink != nil && node.Chain[0].LANLink.PrivateKey == "" {
+		config := *node.Chain[0].LANLink
+		config.PrivateKey, err = transport.NewLANLinkPrivateKey()
+		if err != nil {
+			return err
+		}
+		node.Chain = slices.Clone(node.Chain)
+		node.Chain[0].LANLink = &config
+	}
 
 	if err := node.Validate(); err != nil {
 		return err

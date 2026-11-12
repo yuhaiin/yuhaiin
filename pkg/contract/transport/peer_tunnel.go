@@ -47,13 +47,20 @@ func DecodePeerKey(s string) ([32]byte, error) {
 	return key, nil
 }
 
-func (c PeerTunnel) Validate() error {
-	host, port, err := net.SplitHostPort(c.Coordinator)
+func ValidatePeerCoordinator(address string) error {
+	host, port, err := net.SplitHostPort(address)
 	if err != nil || host == "" || strings.ContainsAny(host, " \t\r\n/") {
 		return errors.New("peer tunnel: coordinator must be host:port")
 	}
 	if p, err := strconv.ParseUint(port, 10, 16); err != nil || p == 0 {
 		return errors.New("peer tunnel: invalid coordinator port")
+	}
+	return nil
+}
+
+func (c PeerTunnel) Validate() error {
+	if err := ValidatePeerCoordinator(c.Coordinator); err != nil {
+		return err
 	}
 	if _, err := DecodePeerKey(c.Token); err != nil {
 		return fmt.Errorf("peer tunnel token: %w", err)

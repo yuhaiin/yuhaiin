@@ -2,7 +2,9 @@ package inbound
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"maps"
 	"net/netip"
 	"reflect"
 	"slices"
@@ -68,9 +70,22 @@ func (s *ContractStore) PeerDiscoveryPairs(ctx context.Context, id string) (cont
 	if server := s.discoveryServer(id); server != nil {
 		registered = server.Pairs()
 	}
-	items := make([]contract.PeerDiscoveryPair, 0, len(keys))
+	ids := make([]string, 0, len(keys)+len(registered))
+	dynamic := make(map[string]bool, len(registered)+len(discovery.BlockedPairIDs))
+	for id := range registered {
+		dynamic[id] = true
+	}
+	for _, id := range discovery.BlockedPairIDs {
+		dynamic[id] = true
+	}
 	for _, key := range keys {
 		id := transport.PeerPairIDString(key)
+		ids = append(ids, id)
+		delete(dynamic, id)
+	}
+	ids = append(ids, slices.Sorted(maps.Keys(dynamic))...)
+	items := make([]contract.PeerDiscoveryPair, 0, len(ids))
+	for _, id := range ids {
 		state := registered[id]
 		item := contract.PeerDiscoveryPair{ID: id, Blocked: slices.Contains(discovery.BlockedPairIDs, id)}
 		item.DialerEndpoint = endpointString(state.Dialer)
@@ -105,17 +120,25 @@ func (s *ContractStore) UpdatePeerDiscoveryPair(ctx context.Context, request con
 	if err != nil {
 		return err
 	}
-	index := slices.IndexFunc(keys, func(key [32]byte) bool { return transport.PeerPairIDString(key) == request.PairID })
-	if index < 0 {
+	id, err := hex.DecodeString(request.PairID)
+	if err != nil || len(id) != 16 || hex.EncodeToString(id) != request.PairID {
+		return errors.New("invalid peer discovery pairing ID")
+	}
+	server := s.discoveryServer(request.ID)
+	isStatic := slices.ContainsFunc(keys, func(key [32]byte) bool { return transport.PeerPairID(key) == [16]byte(id) })
+	registered := false
+	if server != nil && !isStatic {
+		_, registered = server.Pairs()[request.PairID]
+	}
+	if !isStatic && !registered && !slices.Contains(discovery.BlockedPairIDs, request.PairID) {
 		return errors.New("peer discovery pairing does not exist")
 	}
 	switch request.Action {
 	case "kick":
-		server := s.discoveryServer(request.ID)
 		if server == nil {
 			return errors.New("peer discovery server is inactive")
 		}
-		return server.Kick(transport.PeerPairID(keys[index]))
+		return server.Kick([16]byte(id))
 	case "block":
 		if !slices.Contains(discovery.BlockedPairIDs, request.PairID) {
 			discovery.BlockedPairIDs = append(discovery.BlockedPairIDs, request.PairID)
@@ -138,14 +161,22 @@ func preserveDiscoveryBlocks(next *contract.Inbound, previous contract.Inbound) 
 		return
 	}
 	discovery := *next.Protocol.PeerDiscovery
+	nextStatic, previousStatic := discoveryPairIDs(discovery.Tokens), discoveryPairIDs(previous.Protocol.PeerDiscovery.Tokens)
 	discovery.BlockedPairIDs = nil
-	for _, token := range discovery.Tokens {
-		key, err := transport.DecodePeerKey(token)
-		if err == nil {
-			if id := transport.PeerPairIDString(key); slices.Contains(previous.Protocol.PeerDiscovery.BlockedPairIDs, id) {
-				discovery.BlockedPairIDs = append(discovery.BlockedPairIDs, id)
-			}
+	for _, id := range previous.Protocol.PeerDiscovery.BlockedPairIDs {
+		if nextStatic[id] || (!previousStatic[id] && len(discovery.RegistrationKeys) != 0) {
+			discovery.BlockedPairIDs = append(discovery.BlockedPairIDs, id)
 		}
 	}
 	next.Protocol.PeerDiscovery = &discovery
+}
+
+func discoveryPairIDs(tokens []string) map[string]bool {
+	ids := make(map[string]bool, len(tokens))
+	for _, token := range tokens {
+		if key, err := transport.DecodePeerKey(token); err == nil {
+			ids[transport.PeerPairIDString(key)] = true
+		}
+	}
+	return ids
 }

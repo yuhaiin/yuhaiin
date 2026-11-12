@@ -1,6 +1,7 @@
 package inbound
 
 import (
+	"encoding/hex"
 	"fmt"
 	"reflect"
 	"strings"
@@ -184,18 +185,20 @@ type Protocol struct {
 
 	PeerDiscovery *PeerDiscoveryProtocol `json:"peer_discovery,omitzero"`
 	PeerTunnel    *transport.PeerTunnel  `json:"peer_tunnel,omitzero"`
+	LANLink       *LANLinkPublisher      `json:"lan_link,omitzero"`
 }
 
 type PeerDiscoveryProtocol struct {
-	Tokens         []string `json:"tokens" secret:"true"`
-	BlockedPairIDs []string `json:"blockedPairIds,omitempty"`
+	Tokens           []string `json:"tokens" secret:"true"`
+	RegistrationKeys []string `json:"registrationKeys,omitempty" secret:"true"`
+	BlockedPairIDs   []string `json:"blockedPairIds,omitempty"`
 }
 
 func (PeerDiscoveryProtocol) ProtocolType() string { return ProtocolPeerDiscovery }
 
 func (p PeerDiscoveryProtocol) Keys() ([][32]byte, error) {
-	if len(p.Tokens) < 1 || len(p.Tokens) > 1024 {
-		return nil, fmt.Errorf("peer discovery: configure 1 to 1024 pairing tokens")
+	if len(p.Tokens)+len(p.RegistrationKeys) < 1 || len(p.Tokens) > 1024 {
+		return nil, fmt.Errorf("peer discovery: configure a registration key or 1 to 1024 pairing tokens")
 	}
 	seen := make(map[string]bool, len(p.Tokens))
 	keys := make([][32]byte, 0, len(p.Tokens))
@@ -211,11 +214,16 @@ func (p PeerDiscoveryProtocol) Keys() ([][32]byte, error) {
 		seen[id] = true
 		keys = append(keys, key)
 	}
+	if len(p.BlockedPairIDs) > 2048 {
+		return nil, fmt.Errorf("peer discovery: too many blocked pairs")
+	}
+	blocked := make(map[string]bool, len(p.BlockedPairIDs))
 	for _, id := range p.BlockedPairIDs {
-		if !seen[id] {
+		raw, err := hex.DecodeString(id)
+		if blocked[id] || (!seen[id] && (len(p.RegistrationKeys) == 0 || err != nil || len(raw) != 16 || hex.EncodeToString(raw) != id)) {
 			return nil, fmt.Errorf("peer discovery: invalid or duplicate blocked pair ID")
 		}
-		delete(seen, id)
+		blocked[id] = true
 	}
 	return keys, nil
 }
@@ -470,6 +478,11 @@ func (p Protocol) Variant() (ProtocolVariant, error) {
 			return nil, fmt.Errorf("protocol %s missing peer_discovery field", p.Type)
 		}
 		return p.PeerDiscovery, nil
+	case ProtocolLANLink:
+		if p.LANLink == nil {
+			return nil, fmt.Errorf("protocol %s missing lan_link field", p.Type)
+		}
+		return p.LANLink, nil
 	case ProtocolPeerTunnel:
 		if p.PeerTunnel == nil {
 			return nil, fmt.Errorf("protocol %s missing peer_tunnel field", p.Type)
@@ -551,6 +564,9 @@ func (p Protocol) nonNilCount() int {
 		count++
 	}
 	if p.PeerTunnel != nil {
+		count++
+	}
+	if p.LANLink != nil {
 		count++
 	}
 	if p.Wireguard != nil {
@@ -875,6 +891,16 @@ func (i Inbound) Validate() error {
 			return fmt.Errorf("peer discovery requires a UDP-only listener without transports")
 		}
 		if _, err := i.Protocol.PeerDiscovery.Keys(); err != nil {
+			return err
+		}
+		if _, err := i.Protocol.PeerDiscovery.Authorities(); err != nil {
+			return err
+		}
+	case ProtocolLANLink:
+		if i.Network.Type != NetworkEmpty || len(i.Transports) != 0 {
+			return fmt.Errorf("LAN Link inbound requires an empty network without transports")
+		}
+		if err := i.Protocol.LANLink.Validate(); err != nil {
 			return err
 		}
 	case ProtocolPeerTunnel:

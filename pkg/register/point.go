@@ -214,6 +214,8 @@ func ContractProtocolConfig(protocol contractnode.Protocol) (any, error) {
 		return *protocol.Fortinet, nil
 	case transport.PeerTunnelType:
 		return *protocol.PeerTunnel, nil
+	case transport.LANLinkType:
+		return *protocol.LANLink, nil
 	case "wireguard":
 		return *protocol.Wireguard, nil
 	case "openvpn":

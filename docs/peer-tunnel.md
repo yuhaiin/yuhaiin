@@ -1,4 +1,45 @@
-# Direct peer tunnels
+# LAN Link
+
+LAN Link lets a Yuhaiin outbound reach TCP and UDP services on another
+Yuhaiin instance's LAN. The two instances exchange encrypted traffic directly
+after a public UDP discovery inbound introduces them.
+
+## Set up a gateway
+
+1. On the public instance, create and enable a **Peer Discovery** inbound and
+   allow its UDP port through the firewall. Generate a **Gateway registration
+   key** and give it to the LAN gateway administrator.
+2. On the LAN instance, create a **LAN Link gateway** inbound. Enter the
+   allowed LAN CIDRs and configure the public discovery address and registration
+   key under **Discovery setup**. Save the inbound.
+3. For each client, select **Generate invitation** on the saved inbound. In the
+   client's Outbounds, create a **LAN Link** outbound and paste the invitation.
+   Use a separate invitation for each client. The gateway can revoke any one
+   invitation from its client list.
+
+The **Tunnel subnet** defaults to a random private subnet in the address family
+of the LAN routes. You can override it with a unicast subnet that has enough
+addresses and does not overlap the allowed LAN CIDRs. The gateway assigns its
+own address and a distinct address per invitation. The addresses survive
+restarts. Clients reconnect automatically with their new assignments after a
+subnet change.
+
+Each instance generates and stores its own WireGuard private key. It uses the
+invitation to authenticate the public key exchange and the gateway's address
+assignment. The discovery server authenticates registrations with a separate
+key. Keep invitations private.
+
+A standalone LAN Link outbound automatically handles IP destinations in the
+advertised LAN prefixes after explicit routing rules have been evaluated.
+The most specific prefix wins. If two LAN Links advertise the same matching
+prefix, add an explicit rule to choose the outbound. On the gateway, explicit
+rules apply before the default direct path to the allowed LAN destinations.
+A default block policy takes precedence over these automatic routes.
+
+Both peers need working UDP paths to discovery and to each other. The NAT and
+network constraints below also apply to LAN Link.
+
+## Manual Peer Tunnel configuration
 
 Use a Peer Tunnel outbound to reach TCP and UDP services on another Yuhaiin
 instance's LAN. A Peer Discovery inbound exchanges public UDP endpoints for

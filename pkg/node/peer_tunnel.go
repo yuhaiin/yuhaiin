@@ -36,6 +36,14 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 				pairings = append(pairings, pairing{n.ID, n.Name, step.PeerTunnel})
 				break
 			}
+			if step.LANLink != nil {
+				if invitation, err := transport.ParseLANLinkInvitation(step.LANLink.Invitation); err == nil {
+					pairings = append(pairings, pairing{n.ID, n.Name, &transport.PeerTunnel{
+						Coordinator: invitation.Coordinator, Token: invitation.Registration, Routes: invitation.Routes,
+					}})
+				}
+				break
+			}
 		}
 	}
 	slices.SortFunc(pairings, func(a, b pairing) int {

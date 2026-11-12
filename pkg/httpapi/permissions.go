@@ -102,6 +102,8 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2InboundStatuses:           managementpermission.InboundsRead,
 	v2PeerDiscoveryPairs:        managementpermission.InboundsRead,
 	v2PeerDiscoveryAction:       managementpermission.InboundsWrite,
+	v2LANLinkInvite:             managementpermission.InboundsWrite,
+	v2LANLinkRevoke:             managementpermission.InboundsWrite,
 	v2InboundEvents:             managementpermission.InboundsRead,
 	v2InboundCapabilities:       managementpermission.InboundsRead,
 	v2InboundConfigGet:          managementpermission.InboundsRead,
