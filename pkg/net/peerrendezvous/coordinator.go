@@ -48,6 +48,7 @@ type pair struct {
 
 type registration struct {
 	endpoint netip.AddrPort
+	local    netip.AddrPort
 	expires  time.Time
 }
 
@@ -118,6 +119,9 @@ func (c *Coordinator) handle(m *message, n int, from netip.AddrPort, now time.Ti
 	if p == nil || (!p.enrolledUntil.IsZero() && !now.Before(p.enrolledUntil)) || !m.valid(p.key) {
 		return false
 	}
+	if m.localPath() {
+		return p.exchangeLocal(m, from, now)
+	}
 	bucket := now.Unix() / int64(cookiePeriod/time.Second)
 	cookie := c.cookie(m, from, bucket)
 	if m.kind() == hello {
@@ -142,11 +146,47 @@ func (c *Coordinator) handle(m *message, n int, from netip.AddrPort, now time.Ti
 		}
 		role := m.role()
 		if !m.lookup() {
-			p.peers[role] = registration{endpoint: from, expires: now.Add(peerTTL)}
+			current := &p.peers[role]
+			if current.onlineEndpoint(now) != from {
+				current.local = netip.AddrPort{}
+			}
+			current.endpoint, current.expires = from, now.Add(peerTTL)
 		}
 		peer := p.peers[1-role]
+		endpoint := peer.onlineEndpoint(now)
 		m[4] = discovered
-		m.setEndpoint(peer.onlineEndpoint(now))
+		m.setEndpoint(endpoint)
+		// Peers sharing an external address are likely to benefit from a
+		// brief LAN probe window. Older peers ignore this reserved byte.
+		if endpoint.IsValid() && endpoint.Addr() == from.Addr() {
+			m.body()[18] = 1
+		}
+	}
+	m.sign(p.key)
+	return true
+}
+
+// The ordinary cookie exchange has already verified reachability at from.
+// LAN advertisements cannot create registrations or extend their leases.
+func (p *pair) exchangeLocal(m *message, from netip.AddrPort, now time.Time) bool {
+	if m.kind() != hello || p.blocked || now.Before(p.kickUntil) {
+		return false
+	}
+	current := &p.peers[m.role()]
+	if current.onlineEndpoint(now) != from {
+		return false
+	}
+	local := m.endpoint()
+	if !local.Addr().IsPrivate() || local.Addr().BitLen() != from.Addr().BitLen() {
+		return false
+	}
+	current.local = local
+	other := p.peers[1-m.role()]
+	m[4] = discovered
+	if other.onlineEndpoint(now).IsValid() {
+		m.setEndpoint(other.local)
+	} else {
+		m.setEndpoint(netip.AddrPort{})
 	}
 	m.sign(p.key)
 	return true

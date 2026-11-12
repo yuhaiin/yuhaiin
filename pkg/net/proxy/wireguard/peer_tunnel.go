@@ -132,6 +132,7 @@ func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...fu
 		if coord.Addr().IsLoopback() {
 			local = net.JoinHostPort(coord.Addr().String(), "0")
 		}
+		ctx, route := netapi.GetOrNewContext(ctx)
 		pc, err := dialer.ListenPacket(ctx, network, local, opts...)
 		if err != nil {
 			failed = errors.Join(failed, err)
@@ -142,9 +143,35 @@ func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...fu
 		u.mu.Unlock()
 		return peerrendezvous.NewManagedSocket(pc, coord, u.key, u.role, func(answered bool, peer netip.Addr) {
 			u.refresh(coord, answered, peer)
-		}, u.enrollment, u.exchange), nil
+		}, u.enrollment, u.exchange, localPeerPrefix(pc.LocalAddr(), route.GetInterface(), coord.Addr())), nil
 	}
 	return nil, failed
+}
+
+// Advertise only a private address on the interface selected by the actual
+// underlay socket. A wildcard bind borrows its port for that interface address.
+func localPeerPrefix(bound net.Addr, interfaceName string, coordinator netip.Addr) netip.Prefix {
+	addr, ok := bound.(*net.UDPAddr)
+	if !ok || interfaceName == "" || coordinator.IsLoopback() {
+		return netip.Prefix{}
+	}
+	iface, err := net.InterfaceByName(interfaceName)
+	if err != nil || iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		return netip.Prefix{}
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return netip.Prefix{}
+	}
+	ip := addr.AddrPort().Addr().Unmap()
+	for _, addr := range addrs {
+		prefix, err := netip.ParsePrefix(addr.String())
+		if err == nil && prefix.Addr().IsPrivate() && prefix.Addr().BitLen() == coordinator.BitLen() &&
+			(ip.IsUnspecified() || ip == prefix.Addr()) {
+			return prefix
+		}
+	}
+	return netip.Prefix{}
 }
 
 // refresh handles a socket that cannot serve the pair. It resolves the

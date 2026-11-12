@@ -86,9 +86,13 @@ socket and cannot run through an earlier step.
 Both peers must be able to send UDP to the discovery server and to each other.
 The publisher keeps its registration open while enabled. The outbound starts
 discovery on demand. NATs that assign a different public mapping per destination
-can prevent a direct connection. Peers behind the same NAT may require NAT
-hairpinning. A direct path remains usable briefly if discovery becomes
-unreachable. Both peers stop forwarding when their last authorization expires,
+can prevent a direct connection. Peers also advertise a private address from
+their selected UDP interface. A peer on the same subnet can authenticate and
+verify that address with a round-trip probe. The verified LAN path takes
+priority over the public mapping. Peers sharing a public IP give the LAN probe
+a short head start. If the LAN path fails, the public mapping can still be used
+when the network supports NAT loopback. A direct path remains usable briefly
+if discovery becomes unreachable. Both peers stop forwarding when their last authorization expires,
 about 20 seconds after the last successful refresh. After that, each peer
 resolves the discovery server's hostname again every 20 seconds and follows it
 to a new address. A peer also drops the direct path after the discovery server

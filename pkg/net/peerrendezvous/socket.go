@@ -28,6 +28,7 @@ type Socket struct {
 	stale       func(answered bool, peer netip.Addr)
 	enroll      *Enrollment
 	exchange    *LinkExchange
+	lan         *localPath
 	peer        atomic.Pointer[net.UDPAddr]
 	done        chan struct{}
 	stopped     chan struct{}
@@ -53,7 +54,7 @@ type Socket struct {
 // replied here), or the peer registered from the other IP family (peer is its
 // address). The owner decides whether to replace the socket.
 func NewSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr)) *Socket {
-	return NewManagedSocket(pc, coordinator, key, role, stale, nil, nil)
+	return NewManagedSocket(pc, coordinator, key, role, stale, nil, nil, netip.Prefix{})
 }
 
 type Enrollment struct {
@@ -61,7 +62,7 @@ type Enrollment struct {
 	InvitationID [16]byte
 }
 
-func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr), enroll *Enrollment, exchange *LinkExchange) *Socket {
+func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byte, role Role, stale func(answered bool, peer netip.Addr), enroll *Enrollment, exchange *LinkExchange, local netip.Prefix) *Socket {
 	s := &Socket{
 		PacketConn: pc, coordinator: coordinator, key: key, role: role, id: pairID(key),
 		stale:    stale,
@@ -69,6 +70,10 @@ func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byt
 		enroll:   enroll,
 		changed:  make(chan struct{}), done: make(chan struct{}), stopped: make(chan struct{}),
 		lastReply: time.Now(),
+	}
+	if addr, ok := pc.LocalAddr().(*net.UDPAddr); ok && local.Addr().IsPrivate() &&
+		local.Addr().BitLen() == coordinator.Addr().BitLen() && addr.Port != 0 {
+		s.lan = &localPath{prefix: local, address: netip.AddrPortFrom(local.Addr(), uint16(addr.Port))}
 	}
 	go s.run()
 	return s
@@ -85,6 +90,14 @@ func (s *Socket) WaitReady(ctx context.Context) error {
 	for {
 		s.mu.Lock()
 		ready, denial, changed := s.ready, s.denial, s.changed
+		var delay time.Duration
+		if s.lan != nil {
+			if s.lan.peer.Load() != nil {
+				ready = true
+			} else {
+				delay = s.lan.publicDelay()
+			}
+		}
 		s.mu.Unlock()
 		select {
 		case <-s.stopped:
@@ -96,8 +109,12 @@ func (s *Socket) WaitReady(ctx context.Context) error {
 		if denial != "" {
 			return errors.New("peer pairing is " + denial)
 		}
+		var grace <-chan time.Time
 		if ready {
-			return nil
+			if delay <= 0 {
+				return nil
+			}
+			grace = time.After(delay)
 		}
 		select {
 		case <-s.stopped:
@@ -105,6 +122,7 @@ func (s *Socket) WaitReady(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-changed:
+		case <-grace:
 		}
 	}
 }
@@ -112,6 +130,9 @@ func (s *Socket) WaitReady(ctx context.Context) error {
 // Called with mu held. A new endpoint needs a new successful hole punch.
 func (s *Socket) setPeer(peer *net.UDPAddr) {
 	s.peer.Store(peer)
+	if s.lan != nil {
+		s.lan.reset()
+	}
 	s.ready = false
 	s.signalChange()
 }
@@ -157,6 +178,10 @@ func (s *Socket) run() {
 		if s.peer.Load() != nil && !now.Before(s.leaseUntil) {
 			s.setPeer(nil)
 		}
+		if s.lan != nil && s.lan.peer.Load() != nil && !now.Before(s.lan.expires) {
+			s.lan.peer.Store(nil)
+			s.signalChange()
+		}
 		silent := now.Sub(s.lastReply) >= peerTTL
 		notify := s.stale != nil && !now.Before(s.nextStale) && (silent || s.mismatch.IsValid())
 		answered, mismatch := true, s.mismatch
@@ -185,6 +210,14 @@ func (s *Socket) run() {
 }
 
 func (s *Socket) punch() {
+	if s.lan != nil && s.lan.publicDelay() > 0 {
+		return
+	}
+	select {
+	case <-s.stopped:
+		return
+	default:
+	}
 	if peer := s.peer.Load(); peer != nil {
 		_, _ = s.PacketConn.WriteTo([]byte{0}, peer)
 	}
@@ -223,23 +256,37 @@ func (s *Socket) readPacket(p []byte) (int, net.Addr, error) {
 		}
 		return 0, nil, nil
 	}
-	peer := s.peer.Load()
-	if peer == nil || from != peer.AddrPort() {
+	if s.lan != nil && n == messageSize && string(p[:4]) == magic && p[6] == localFlag {
+		s.receiveLocalProbe(message(p[:messageSize]), from)
 		return 0, nil, nil
 	}
-	if n == 1 && p[0] <= 1 {
+	public := s.peer.Load()
+	if public == nil {
+		return 0, nil, nil
+	}
+	isPublic := from == public.AddrPort()
+	if !isPublic {
+		if s.lan == nil {
+			return 0, nil, nil
+		}
+		peer := s.lan.peer.Load()
+		if peer == nil || from != peer.AddrPort() {
+			return 0, nil, nil
+		}
+	}
+	if isPublic && n == 1 && p[0] <= 1 {
 		if p[0] == 0 {
-			_, _ = s.PacketConn.WriteTo([]byte{1}, peer)
+			_, _ = s.PacketConn.WriteTo([]byte{1}, source)
 		}
 		s.mu.Lock()
-		if !s.ready && s.peer.Load() == peer {
+		if !s.ready && s.peer.Load() == public {
 			s.ready = true
 			s.signalChange()
 		}
 		s.mu.Unlock()
 		return 0, nil, nil
 	}
-	if s.exchange != nil && s.exchange.receive(s, p[:n], peer) {
+	if s.exchange != nil && s.exchange.receive(s, p[:n], source) {
 		return 0, nil, nil
 	}
 	if n >= 32 {
@@ -251,6 +298,10 @@ func (s *Socket) readPacket(p []byte) (int, net.Addr, error) {
 func (s *Socket) receiveControl(m message, addr net.Addr) {
 	if m.enrollment() {
 		s.confirmEnrollment(m, addr)
+		return
+	}
+	if m.localPath() {
+		s.receiveLocalCandidate(m)
 		return
 	}
 	if !m.headerOK(messageSize) || m.lookup() || m.role() != s.role || m.id() != s.id || !m.valid(s.key) {
@@ -303,11 +354,15 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 		if endpoint.IsValid() && !sameFamily {
 			s.mismatch = endpoint.Addr()
 		}
-		changed := false
+		changed, preferLocal := false, false
 		if endpoint.IsValid() && endpoint != s.coordinator && sameFamily {
 			s.missing = 0
 			if old := s.peer.Load(); old == nil || old.AddrPort() != endpoint {
 				s.setPeer(net.UDPAddrFromAddrPort(endpoint))
+				preferLocal = s.lan != nil && m.body()[18] == 1
+				if preferLocal {
+					s.lan.grace.Store(time.Now().Add(localHeadStart).UnixNano())
+				}
 				changed = true
 			}
 		} else if s.missing++; s.missing >= offlineAfter && s.peer.Load() != nil {
@@ -316,7 +371,12 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 			s.setPeer(nil)
 		}
 		s.mu.Unlock()
-		if changed {
+		if s.lan != nil && endpoint.IsValid() && sameFamily && endpoint != s.coordinator {
+			s.advertiseLocal(addr)
+		}
+		if preferLocal {
+			time.AfterFunc(localHeadStart, s.punch)
+		} else if changed {
 			s.punch()
 		}
 	}
@@ -333,7 +393,7 @@ func (s *Socket) confirmEnrollment(m message, addr net.Addr) {
 }
 
 func (s *Socket) WriteTo(p []byte, _ net.Addr) (int, error) {
-	peer := s.peer.Load()
+	peer := s.dataPeer()
 	if peer == nil {
 		// WireGuard retransmits handshakes while rendezvous is in progress.
 		return len(p), nil
