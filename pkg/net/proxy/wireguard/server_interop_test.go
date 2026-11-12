@@ -100,9 +100,8 @@ func TestWireGuardInboundUDPInterop(t *testing.T) {
 			}
 			defer transport.Close()
 			client.bind.conn = loopbackTransport{transport}
-			client.init()
-			if client.device == nil {
-				t.Fatal("client wireguard engine did not initialize")
+			if err := client.init(); err != nil {
+				t.Fatal(err)
 			}
 			socket, err := client.net.DialUDP(nil, nil)
 			if err != nil {

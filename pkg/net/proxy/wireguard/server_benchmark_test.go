@@ -125,7 +125,9 @@ func startInboundTestClient(tb testing.TB, config Config, port int) *Wireguard {
 		tb.Fatal(err)
 	}
 	client.bind.conn = loopbackTransport{transport}
-	client.init()
+	if err := client.init(); err != nil {
+		tb.Fatal(err)
+	}
 	return client
 }
 

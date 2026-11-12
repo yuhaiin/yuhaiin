@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"time"
@@ -39,6 +40,14 @@ type Route struct {
 
 type Resolver interface {
 	Get(resolver, fallback string) netapi.Resolver
+}
+
+type LANLinkFallback func(context.Context, netip.Addr) (contractroute.Target, bool)
+
+// SetLANLinkFallback installs automatically advertised routes after explicit
+// policy rules, before the default outbound.
+func (s *Route) SetLANLinkFallback(f LANLinkFallback) {
+	s.ms.lanLinkFallback.Store(&f)
 }
 
 type Dialer interface {

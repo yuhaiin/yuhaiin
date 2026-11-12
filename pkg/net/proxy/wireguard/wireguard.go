@@ -40,6 +40,7 @@ type Wireguard struct {
 
 	happyDialer *dialer.HappyEyeballsv2Dialer[net.Conn]
 	once        sync.Once
+	initErr     error
 	lifecycleMu sync.Mutex
 	closed      bool
 	closeOnce   sync.Once
@@ -96,13 +97,17 @@ type PeerConfig struct {
 	AllowedIPs   []string `json:"allowedIps,omitzero"`
 }
 
-func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
+func NewClient(conf Config, _ netapi.Proxy) (netapi.Proxy, error) {
+	return newClient(conf, newNetBindClient(conf.Reserved), false)
+}
+
+func newClient(conf Config, bind *netBindClient, inbound bool) (*Wireguard, error) {
 	endpoints, err := ParseEndpoints(conf.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	tun, err := CreateLightweightNetTUNWithOptions(endpoints, int(conf.MTU), conf.TCPSettings)
+	tun, err := createLightweightNetTUN(endpoints, int(conf.MTU), inbound, conf.TCPSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +117,7 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 		conf:            conf,
 		net:             tun,
 		diagnosticStack: tun.Stack(),
-		bind:            newNetBindClient(conf.Reserved),
+		bind:            bind,
 		happyDialer: dialer.NewHappyEyeballsv2Dialer(func(ctx context.Context, ip net.IP, port uint16) (net.Conn, error) {
 			return tun.DialContextTCP(ctx, &net.TCPAddr{IP: ip, Port: int(port)})
 		}, dialer.WithHappyEyeballsSemaphore[net.Conn](semaphore.NewEmptySemaphore())),
@@ -128,16 +133,17 @@ func NewClient(conf Config, p netapi.Proxy) (netapi.Proxy, error) {
 	return w, nil
 }
 
-func (w *Wireguard) init() {
+func (w *Wireguard) init() error {
 	w.once.Do(func() {
 		w.lifecycleMu.Lock()
 		defer w.lifecycleMu.Unlock()
 		if w.closed {
+			w.initErr = net.ErrClosed
 			return
 		}
 		dev, err := makeVirtualTun(w.conf, w.bind, w.net)
 		if err != nil {
-			log.Error("makeVirtualTun error", "error", err)
+			w.initErr = fmt.Errorf("start WireGuard tunnel: %w", err)
 			return
 		}
 
@@ -145,6 +151,7 @@ func (w *Wireguard) init() {
 		w.networkDone = make(chan struct{})
 		go w.recoverNetwork(dev)
 	})
+	return w.initErr
 }
 
 // StackDiagnostic reads an existing userspace TCP stack without a peer probe.
@@ -176,6 +183,19 @@ func (w *Wireguard) Close() error {
 		}
 	})
 	return nil
+}
+
+// rebind replaces the UDP socket for a reason the network monitor cannot see,
+// such as a discovery server that moved to another address.
+func (w *Wireguard) rebind() {
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
+	if w.closed || w.device == nil {
+		return
+	}
+	if err := w.device.BindUpdate(); err != nil {
+		log.Debug("wireguard rebind failed", "err", err)
+	}
 }
 
 // Rebind sockets through the native device API; keys, peers, packet stack and
@@ -228,7 +248,9 @@ func (w *Wireguard) recoverNetwork(dev *device.Device) {
 }
 
 func (w *Wireguard) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
-	w.init()
+	if err := w.init(); err != nil {
+		return nil, err
+	}
 
 	conn, err := w.happyDialer.DialHappyEyeballsv2(ctx, addr)
 	if err != nil {
@@ -251,7 +273,9 @@ func processErr(err error) {
 }
 
 func (w *Wireguard) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	w.init()
+	if err := w.init(); err != nil {
+		return nil, err
+	}
 
 	goUC, err := w.net.DialUDP(nil, nil)
 	if err != nil {

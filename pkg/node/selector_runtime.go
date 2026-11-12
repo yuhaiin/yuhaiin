@@ -131,6 +131,7 @@ func (s *selectorRuntime) reload(ctx context.Context, store *plainstore.NodeStor
 	}
 	s.nodeGenerations = s.runtime.observer.generations()
 	s.configs, s.nodes, s.counters = configs, byID, counters
+	s.runtime.lanLinkRoutes.Store(new(prepareLANLinkRoutes(nodes)))
 	s.prepareCircuits()
 	s.scheduleLocked()
 	s.rebuild(time.Now())

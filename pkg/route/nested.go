@@ -205,18 +205,19 @@ type MatchEntry struct {
 }
 
 type Matchers struct {
-	listNames      map[string]string
-	listIssues     []contractroute.ListActivationIssue
-	skippedRules   []contractroute.SkippedRouteRule
-	degradedRules  []contractroute.DegradedRouteRule
-	list           *Lists
-	matchers       []MatchEntry
-	mu             sync.RWMutex
-	applyMu        sync.Mutex
-	generation     uint64
-	runtimeConfig  *RouteConfig
-	prepareContext func(context.Context, *RouteConfig)
-	hasGateway     atomic.Bool
+	lanLinkFallback atomic.Pointer[LANLinkFallback]
+	listNames       map[string]string
+	listIssues      []contractroute.ListActivationIssue
+	skippedRules    []contractroute.SkippedRouteRule
+	degradedRules   []contractroute.DegradedRouteRule
+	list            *Lists
+	matchers        []MatchEntry
+	mu              sync.RWMutex
+	applyMu         sync.Mutex
+	generation      uint64
+	runtimeConfig   *RouteConfig
+	prepareContext  func(context.Context, *RouteConfig)
+	hasGateway      atomic.Bool
 }
 
 func NewMatchers(list *Lists) *Matchers {
@@ -411,8 +412,30 @@ func (s *Matchers) Match(ctx context.Context, addr netapi.Address) ModeEnum {
 			}
 			mode.config = config
 		}
+		return s.applyLANLinkFallback(ctx, addr, mode)
+	}
+}
+
+func (s *Matchers) applyLANLinkFallback(ctx context.Context, addr netapi.Address, mode ModeEnum) ModeEnum {
+	fallback := s.lanLinkFallback.Load()
+	ip, literal := addr.(netapi.IPAddress)
+	if fallback == nil || !literal || mode.Mode() == ModeBlock {
 		return mode
 	}
+	target, matched := (*fallback)(ctx, ip.AddrPort().Addr())
+	if !matched {
+		return mode
+	}
+	switch {
+	case target.Type == "direct":
+		mode.mode, mode.target = ModeDirect, contractroute.Target{}
+	case target.ID == "":
+		netapi.GetContext(ctx).SetMatchedRule("", "Conflicting LAN Link routes")
+		mode.mode, mode.target = ModeBlock, contractroute.Target{}
+	default:
+		mode.mode, mode.target = ModeProxy, target
+	}
+	return mode
 }
 
 // cacheProbe reports that a cache-only DNS probe needs addresses that

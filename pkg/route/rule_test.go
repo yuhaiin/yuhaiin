@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"path/filepath"
 	"slices"
 	"sync/atomic"
@@ -377,3 +378,33 @@ func (staticResolver) Raw(context.Context, netapi.DNSQuestion) (*dns.Msg, error)
 func (staticResolver) Close() error { return nil }
 
 func (staticResolver) Name() string { return "static" }
+
+func TestLANLinkFallbackPreservesRoutePolicies(t *testing.T) {
+	matchers := newTestMatchers(t)
+	router := NewRoute(nil, nil, matchers.list, nil)
+	router.ms = matchers
+	ctx := netapi.WithContext(t.Context())
+	addr, err := netapi.ParseAddress("tcp", "192.168.50.8:80")
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.SetLANLinkFallback(func(context.Context, netip.Addr) (contractroute.Target, bool) {
+		return contractroute.Target{Type: "node", ID: "link"}, true
+	})
+	matchers.runtimeConfig = &RouteConfig{DefaultMode: "direct"}
+	if mode := matchers.Match(ctx, addr); mode.Mode() != ModeProxy || mode.Target().ID != "link" {
+		t.Fatalf("LAN Link fallback: %+v", mode)
+	}
+	matchers.runtimeConfig = &RouteConfig{DefaultMode: "block"}
+	if mode := matchers.Match(ctx, addr); mode.Mode() != ModeBlock {
+		t.Fatalf("LAN Link bypassed default block: %+v", mode)
+	}
+	matchers.runtimeConfig = &RouteConfig{DefaultMode: "proxy"}
+	matchers.matchers = matchers.appendRule(nil, contractroute.RouteRule{
+		ID: "explicit-direct", Name: "Explicit direct", Mode: "direct",
+		Rules: []contractroute.RuleExpr{{Type: "destination", Destination: &contractroute.DestinationExpr{CIDRs: []string{"192.168.50.0/24"}}}},
+	})
+	if mode := matchers.Match(ctx, addr); mode.Mode() != ModeDirect {
+		t.Fatalf("LAN Link took precedence over an explicit rule: %+v", mode)
+	}
+}

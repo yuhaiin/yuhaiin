@@ -11,7 +11,9 @@ import (
 	"slices"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/peerrendezvous"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/aead"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/fixed"
 	yhttp "github.com/Asutorufa/yuhaiin/pkg/net/proxy/http"
@@ -108,6 +110,30 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			IPv6:         p.IPv6, MaxSessions: p.MaxSessions,
 			AllowUnsafeShell: p.AllowUnsafeShell,
 		}, handler)
+	}
+	switch config.Protocol.Type {
+	case contract.ProtocolPeerDiscovery:
+		keys, err := config.Protocol.PeerDiscovery.Keys()
+		if err != nil {
+			return nil, err
+		}
+		authorities, err := config.Protocol.PeerDiscovery.Authorities()
+		if err != nil {
+			return nil, err
+		}
+		socket, err := dialer.ListenPacket(context.Background(), "udp", config.Network.TCPUDP.Host, dialer.WithListener())
+		if err != nil {
+			return nil, err
+		}
+		return &discoveryAccepter{
+			Coordinator: peerrendezvous.ServeWithAuthorities(socket, keys, authorities, config.Protocol.PeerDiscovery.BlockedPairIDs...),
+			config:      config,
+			listen:      socket.LocalAddr().String(),
+		}, nil
+	case contract.ProtocolLANLink:
+		return listenLANLink(config, handler)
+	case contract.ProtocolPeerTunnel:
+		return wireguard.NewPeerPublisher(*config.Protocol.PeerTunnel, handler)
 	}
 	if config.Protocol.Type == contract.ProtocolWireguard {
 		if config.Network.Type != contract.NetworkEmpty || len(config.Transports) != 0 {

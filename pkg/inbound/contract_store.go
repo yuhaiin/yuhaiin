@@ -100,10 +100,26 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 	if err != nil && !errors.Is(err, plainstore.ErrNotFound) {
 		return err
 	}
+	if inbound.Protocol.LANLink != nil {
+		next := *inbound.Protocol.LANLink
+		next.Clients = nil
+		if existing := previous.Protocol.LANLink; existing != nil {
+			next.Clients = existing.Clients
+			if next.Subnet == "" {
+				next.Subnet = existing.Subnet
+			}
+			if next.PrivateKey == "" {
+				next.PrivateKey = existing.PrivateKey
+			}
+			ctx = secret.WithResolvedConfiguration(ctx)
+		}
+		inbound.Protocol.LANLink = &next
+	}
 	inbound, err = secret.Merge(ctx, inbound, previous)
 	if err != nil {
 		return err
 	}
+	preserveDiscoveryBlocks(&inbound, previous)
 	if err := fillGeneratedContractFields(&inbound); err != nil {
 		return err
 	}
@@ -155,6 +171,9 @@ func (s *ContractStore) applySettings(settings plainstore.InboundSettings) {
 }
 
 func fillGeneratedContractFields(inbound *contract.Inbound) error {
+	if inbound.Protocol.LANLink != nil {
+		return inbound.Protocol.LANLink.FillDefaults()
+	}
 	if inbound.Protocol.Type == contract.ProtocolSSH && inbound.Protocol.SSH != nil {
 		if err := fillContractSSHHostKey(inbound.Protocol.SSH); err != nil {
 			return err

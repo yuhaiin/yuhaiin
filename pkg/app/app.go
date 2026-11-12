@@ -7,12 +7,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	dnswire "codeberg.org/miekg/dns"
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
 	recovery "github.com/Asutorufa/yuhaiin/pkg/app/backup/recovery"
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
+	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/gateway"
@@ -323,6 +325,16 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		nodeRuntime.SetCredentialResolver(so.UpstreamCredentials)
 	}
 	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
+	router.SetLANLinkFallback(func(ctx context.Context, ip netip.Addr) (contractroute.Target, bool) {
+		switch inbounds.PeerTunnelProtocol(netapi.GetContext(ctx).GetInboundID()) {
+		case contractinbound.ProtocolLANLink:
+			return contractroute.Target{Type: "direct"}, true
+		case contractinbound.ProtocolPeerTunnel:
+			return contractroute.Target{}, false
+		default:
+			return nodeRuntime.LANLinkTarget(ctx, ip)
+		}
+	})
 	if err := inbounds.RestoreStatistics(ctx); err != nil {
 		_ = closers.Close()
 		return nil, fmt.Errorf("restore inbound ingress statistics: %w", err)

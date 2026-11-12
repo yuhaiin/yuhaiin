@@ -107,9 +107,14 @@ const (
 	v2NodesSelect               v2Endpoint = "nodes.select"
 	v2NodesImportPreview        v2Endpoint = "nodes.import.preview"
 	v2InboundStatuses           v2Endpoint = "inbounds.status"
+	v2PeerDiscoveryPairs        v2Endpoint = "inbound.peer_discovery.pairs"
+	v2PeerDiscoveryAction       v2Endpoint = "inbound.peer_discovery.action"
+	v2LANLinkInvite             v2Endpoint = "inbound.lan_link.invite"
+	v2LANLinkRevoke             v2Endpoint = "inbound.lan_link.revoke"
 	v2InboundEvents             v2Endpoint = "inbound.events"
 	v2InboundRetry              v2Endpoint = "inbound.retry"
 	v2InboundCapabilities       v2Endpoint = "inbound.capabilities"
+	v2NodePeerTunnelPeers       v2Endpoint = "nodes.peer_tunnel_peers"
 	v2NodesActive               v2Endpoint = "nodes.active"
 	v2NodeUse                   v2Endpoint = "node.use"
 	v2NodeStatuses              v2Endpoint = "nodes.status"
@@ -294,6 +299,10 @@ var v2Routes = []v2Route{
 	{v2InboundCapabilities, "GET /api/v2/inbounds/capabilities"},
 	{v2InboundsPost, "POST /api/v2/inbounds"},
 	{v2InboundStatuses, "GET /api/v2/inbounds/status"},
+	{v2PeerDiscoveryPairs, "GET /api/v2/inbounds/{id}/peer-discovery/pairs"},
+	{v2PeerDiscoveryAction, "POST /api/v2/inbounds/{id}/peer-discovery/action"},
+	{v2LANLinkInvite, "POST /api/v2/inbounds/{id}/lan-link/invite"},
+	{v2LANLinkRevoke, "POST /api/v2/inbounds/{id}/lan-link/revoke"},
 	{v2InboundEvents, "GET /api/v2/inbounds/{id}/events"},
 	{v2InboundRetry, "POST /api/v2/inbounds/{id}/retry"},
 	{v2InboundGet, "GET /api/v2/inbounds/{id}"},
@@ -306,6 +315,7 @@ var v2Routes = []v2Route{
 	{v2NodesImportCommit, "POST /api/v2/nodes/import/commit"},
 	{v2NodesSelected, "GET /api/v2/nodes/selected"},
 	{v2NodesSelect, "PUT /api/v2/nodes/selected"},
+	{v2NodePeerTunnelPeers, "GET /api/v2/nodes/peer-tunnel-peers"},
 	{v2NodesActive, "GET /api/v2/nodes/active"},
 	{v2NodeGet, "GET /api/v2/nodes/{id}"},
 	{v2NodePut, "PUT /api/v2/nodes/{id}"},

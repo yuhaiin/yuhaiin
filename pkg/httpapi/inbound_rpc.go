@@ -31,12 +31,74 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2InboundsGet, api.inbounds)
 	addRPCRoute(handlers, v2InboundCapabilities, api.inboundCapabilities)
 	addRPCRoute(handlers, v2InboundStatuses, api.inboundStatuses)
+	addRPCRoute(handlers, v2PeerDiscoveryPairs, api.peerDiscoveryPairs)
+	addRPCRoute(handlers, v2PeerDiscoveryAction, api.updatePeerDiscoveryPair)
+	addRPCRoute(handlers, v2LANLinkInvite, api.createLANLinkInvitation)
+	addRPCRoute(handlers, v2LANLinkRevoke, api.revokeLANLinkClient)
 	addRPCRoute(handlers, v2InboundEvents, api.inboundEvents)
 	addRPCRoute(handlers, v2InboundRetry, api.retryInbound)
 	addRPCRoute(handlers, v2InboundsPost, api.createInbound)
 	addRPCRoute(handlers, v2InboundGet, api.inbound)
 	addRPCRoute(handlers, v2InboundPut, api.saveInbound)
 	addRPCRoute(handlers, v2InboundDelete, api.deleteInbound)
+}
+
+type peerDiscoveryController interface {
+	PeerDiscoveryPairs(context.Context, string) (contractinbound.PeerDiscoveryPairs, error)
+	UpdatePeerDiscoveryPair(context.Context, contractinbound.PeerDiscoveryAction) error
+}
+
+func (a v2API) peerDiscoveryPairs(ctx context.Context, request *idRequest) (*contractinbound.PeerDiscoveryPairs, error) {
+	controller, ok := a.services.Inbounds.(peerDiscoveryController)
+	if !ok {
+		return nil, unavailable("peer discovery is unavailable")
+	}
+	return pointer(controller.PeerDiscoveryPairs(ctx, request.ID))
+}
+
+func (a v2API) updatePeerDiscoveryPair(ctx context.Context, request *contractinbound.PeerDiscoveryAction) (*emptyResponse, error) {
+	controller, ok := a.services.Inbounds.(peerDiscoveryController)
+	if !ok {
+		return nil, unavailable("peer discovery is unavailable")
+	}
+	if err := controller.UpdatePeerDiscoveryPair(ctx, *request); err != nil {
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
+}
+
+type lanLinkController interface {
+	CreateLANLinkInvitation(context.Context, string) (contractinbound.LANLinkInvitationResponse, error)
+	RevokeLANLinkClient(context.Context, contractinbound.LANLinkClientRequest) error
+}
+
+func (a v2API) createLANLinkInvitation(ctx context.Context, request *idRequest) (*contractinbound.LANLinkInvitationResponse, error) {
+	controller, ok := a.services.Inbounds.(lanLinkController)
+	if !ok {
+		return nil, unavailable("LAN Link is unavailable")
+	}
+	value, err := controller.CreateLANLinkInvitation(ctx, request.ID)
+	if errors.Is(err, plainstore.ErrNotFound) {
+		return nil, notFound(err)
+	}
+	if err != nil {
+		return nil, badRequest(err)
+	}
+	return &value, nil
+}
+
+func (a v2API) revokeLANLinkClient(ctx context.Context, request *contractinbound.LANLinkClientRequest) (*emptyResponse, error) {
+	controller, ok := a.services.Inbounds.(lanLinkController)
+	if !ok {
+		return nil, unavailable("LAN Link is unavailable")
+	}
+	if err := controller.RevokeLANLinkClient(ctx, *request); err != nil {
+		if errors.Is(err, plainstore.ErrNotFound) {
+			return nil, notFound(err)
+		}
+		return nil, badRequest(err)
+	}
+	return &emptyResponse{}, nil
 }
 
 type trafficControlStatusReader interface {

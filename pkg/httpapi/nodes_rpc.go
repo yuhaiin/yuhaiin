@@ -20,6 +20,7 @@ func addNodeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2NodesImportCommit, api.commitNodeImport)
 	addRPCRoute(handlers, v2NodesSelected, api.selectedNodes)
 	addRPCRoute(handlers, v2NodesSelect, api.selectNodes)
+	addRPCRoute(handlers, v2NodePeerTunnelPeers, api.peerTunnelPeers)
 	addRPCRoute(handlers, v2NodesActive, api.activeNodes)
 	addRPCRoute(handlers, v2NodeStatuses, api.nodeStatuses)
 	addRPCRoute(handlers, v2NodeGet, api.node)
@@ -222,6 +223,20 @@ func (a v2API) closeNode(ctx context.Context, request *idRequest) (*emptyRespons
 		return nil, badRequest(err)
 	}
 	return &emptyResponse{}, nil
+}
+
+func (a v2API) peerTunnelPeers(ctx context.Context, request *listRequest) (*contractnode.PeerTunnelPeers, error) {
+	provider, ok := a.services.Node.(interface {
+		PeerTunnelPeers(context.Context, int) (contractnode.PeerTunnelPeers, error)
+	})
+	if !ok {
+		return nil, unavailable("peer tunnel discovery is unavailable")
+	}
+	peers, err := provider.PeerTunnelPeers(ctx, request.Page)
+	if err != nil {
+		return nil, err
+	}
+	return &peers, nil
 }
 
 func (a v2API) nodeExtraInfo(ctx context.Context, request *idRequest) (*contractnode.NodeExtraInfo, error) {
