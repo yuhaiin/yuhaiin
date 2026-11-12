@@ -161,10 +161,10 @@ func preserveDiscoveryBlocks(next *contract.Inbound, previous contract.Inbound) 
 		return
 	}
 	discovery := *next.Protocol.PeerDiscovery
-	nextStatic, previousStatic := discoveryPairIDs(discovery.Tokens), discoveryPairIDs(previous.Protocol.PeerDiscovery.Tokens)
+	nextStatic := discoveryPairIDs(discovery.Tokens)
 	discovery.BlockedPairIDs = nil
 	for _, id := range previous.Protocol.PeerDiscovery.BlockedPairIDs {
-		if nextStatic[id] || (!previousStatic[id] && len(discovery.RegistrationKeys) != 0) {
+		if nextStatic[id] {
 			discovery.BlockedPairIDs = append(discovery.BlockedPairIDs, id)
 		}
 	}

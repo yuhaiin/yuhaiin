@@ -185,20 +185,19 @@ type Protocol struct {
 
 	PeerDiscovery *PeerDiscoveryProtocol `json:"peer_discovery,omitzero"`
 	PeerTunnel    *transport.PeerTunnel  `json:"peer_tunnel,omitzero"`
-	LANLink       *LANLinkPublisher      `json:"lan_link,omitzero"`
+	LANLink       *LANLinkGateway        `json:"lan_link,omitzero"`
 }
 
 type PeerDiscoveryProtocol struct {
-	Tokens           []string `json:"tokens" secret:"true"`
-	RegistrationKeys []string `json:"registrationKeys,omitempty" secret:"true"`
-	BlockedPairIDs   []string `json:"blockedPairIds,omitempty"`
+	Tokens         []string `json:"tokens" secret:"true"`
+	BlockedPairIDs []string `json:"blockedPairIds,omitempty"`
 }
 
 func (PeerDiscoveryProtocol) ProtocolType() string { return ProtocolPeerDiscovery }
 
 func (p PeerDiscoveryProtocol) Keys() ([][32]byte, error) {
-	if len(p.Tokens)+len(p.RegistrationKeys) < 1 || len(p.Tokens) > 1024 {
-		return nil, fmt.Errorf("peer discovery: configure a registration key or 1 to 1024 pairing tokens")
+	if len(p.Tokens) < 1 || len(p.Tokens) > 1024 {
+		return nil, fmt.Errorf("peer discovery: configure 1 to 1024 pairing tokens")
 	}
 	seen := make(map[string]bool, len(p.Tokens))
 	keys := make([][32]byte, 0, len(p.Tokens))
@@ -220,7 +219,7 @@ func (p PeerDiscoveryProtocol) Keys() ([][32]byte, error) {
 	blocked := make(map[string]bool, len(p.BlockedPairIDs))
 	for _, id := range p.BlockedPairIDs {
 		raw, err := hex.DecodeString(id)
-		if blocked[id] || (!seen[id] && (len(p.RegistrationKeys) == 0 || err != nil || len(raw) != 16 || hex.EncodeToString(raw) != id)) {
+		if blocked[id] || (!seen[id] && (err != nil || len(raw) != 16 || hex.EncodeToString(raw) != id)) {
 			return nil, fmt.Errorf("peer discovery: invalid or duplicate blocked pair ID")
 		}
 		blocked[id] = true
@@ -891,9 +890,6 @@ func (i Inbound) Validate() error {
 			return fmt.Errorf("peer discovery requires a UDP-only listener without transports")
 		}
 		if _, err := i.Protocol.PeerDiscovery.Keys(); err != nil {
-			return err
-		}
-		if _, err := i.Protocol.PeerDiscovery.Authorities(); err != nil {
 			return err
 		}
 	case ProtocolLANLink:

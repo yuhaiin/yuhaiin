@@ -111,6 +111,9 @@ const (
 	v2PeerDiscoveryAction       v2Endpoint = "inbound.peer_discovery.action"
 	v2LANLinkInvite             v2Endpoint = "inbound.lan_link.invite"
 	v2LANLinkRevoke             v2Endpoint = "inbound.lan_link.revoke"
+	v2LANLinkClients            v2Endpoint = "inbound.lan_link.clients"
+	v2LANLinkAction             v2Endpoint = "inbound.lan_link.action"
+	v2LANLinkNetworks           v2Endpoint = "inbound.lan_link.networks"
 	v2InboundEvents             v2Endpoint = "inbound.events"
 	v2InboundRetry              v2Endpoint = "inbound.retry"
 	v2InboundCapabilities       v2Endpoint = "inbound.capabilities"
@@ -303,6 +306,9 @@ var v2Routes = []v2Route{
 	{v2PeerDiscoveryAction, "POST /api/v2/inbounds/{id}/peer-discovery/action"},
 	{v2LANLinkInvite, "POST /api/v2/inbounds/{id}/lan-link/invite"},
 	{v2LANLinkRevoke, "POST /api/v2/inbounds/{id}/lan-link/revoke"},
+	{v2LANLinkClients, "GET /api/v2/inbounds/{id}/lan-link/clients"},
+	{v2LANLinkAction, "POST /api/v2/inbounds/{id}/lan-link/action"},
+	{v2LANLinkNetworks, "GET /api/v2/inbounds/lan-link/networks"},
 	{v2InboundEvents, "GET /api/v2/inbounds/{id}/events"},
 	{v2InboundRetry, "POST /api/v2/inbounds/{id}/retry"},
 	{v2InboundGet, "GET /api/v2/inbounds/{id}"},

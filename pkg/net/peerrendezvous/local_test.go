@@ -109,7 +109,7 @@ func testLANPaths(t *testing.T, hairpin bool) {
 	t.Cleanup(func() { _ = coordinator.Close() })
 
 	start := func(pc *simulatedUDPSocket, role Role) (*Socket, <-chan simulatedDatagram) {
-		s := NewManagedSocket(pc, public.local, key, role, nil, nil, nil, netip.PrefixFrom(pc.local.Addr(), 24))
+		s := NewManagedSocket(pc, public.local, key, role, nil, nil, netip.PrefixFrom(pc.local.Addr(), 24))
 		delivered := make(chan simulatedDatagram, 4)
 		done := make(chan struct{})
 		go func() {

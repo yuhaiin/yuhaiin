@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -47,7 +46,7 @@ type managedLink struct {
 	publicKey    [32]byte
 	registration [32]byte
 	token        [32]byte
-	enrollment   *peerrendezvous.Enrollment
+	hub          *peerrendezvous.Hub
 	assignment   peerrendezvous.LinkOffer
 	handler      netapi.Handler
 
@@ -61,7 +60,7 @@ type managedLink struct {
 	lastError error
 }
 
-func newManagedLink(invite transport.LANLinkInvitation, privateKey string, enrollment *peerrendezvous.Enrollment, assignment peerrendezvous.LinkOffer, handler netapi.Handler) (*managedLink, error) {
+func newManagedLink(invite transport.LANLinkInvitation, privateKey string, hub *peerrendezvous.Hub, assignment peerrendezvous.LinkOffer, handler netapi.Handler) (*managedLink, error) {
 	key, err := transport.DecodePeerKey(privateKey)
 	if err != nil {
 		return nil, err
@@ -81,7 +80,7 @@ func newManagedLink(invite transport.LANLinkInvitation, privateKey string, enrol
 	ctx, cancel := context.WithCancel(context.Background())
 	return &managedLink{
 		address: invite.Coordinator, privateKey: privateKey, publicKey: [32]byte(private.PublicKey().Bytes()),
-		registration: registration, token: token, enrollment: enrollment, assignment: assignment, handler: handler,
+		registration: registration, token: token, hub: hub, assignment: assignment, handler: handler,
 		ctx: ctx, cancel: cancel, done: make(chan struct{}), changed: make(chan struct{}),
 	}, nil
 }
@@ -200,21 +199,30 @@ type lanLinkSession struct {
 
 func (m *managedLink) connect() (*lanLinkSession, error) {
 	role := peerrendezvous.Dialer
-	if m.enrollment != nil {
+	if m.hub != nil {
 		role = peerrendezvous.Publisher
 	}
-	ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
-	underlay, err := newPeerUnderlay(ctx, m.address, m.registration, role)
-	cancel()
-	var offer peerrendezvous.LinkOffer
-	if err != nil {
-		return nil, err
+	var underlay *peerUnderlay
+	if m.hub != nil {
+		underlay = &peerUnderlay{key: m.registration, role: role, bind: newNetBindClient(nil), open: func() (net.PacketConn, netip.AddrPort, error) {
+			return m.hub.Open(m.registration)
+		}}
+	} else {
+		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
+		var err error
+		underlay, err = newPeerUnderlay(ctx, m.address, m.registration, role)
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		underlay.hosted = true
 	}
+	var offer peerrendezvous.LinkOffer
 	exchange, err := peerrendezvous.NewLinkExchange(m.token, role, m.publicKey, m.assignment)
 	if err != nil {
 		return nil, err
 	}
-	underlay.enrollment, underlay.exchange = m.enrollment, exchange
+	underlay.exchange = exchange
 	var boot atomic.Pointer[peerrendezvous.Socket]
 	var device atomic.Pointer[Wireguard]
 	underlay.rebind = func() {
@@ -251,7 +259,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		local, remote, routes = m.assignment.PublisherIP, m.assignment.ClientIP, m.assignment.Routes
 	}
 	cfg := transport.PeerTunnel{
-		Coordinator: m.address, Token: base64.StdEncoding.EncodeToString(m.registration[:]),
+		Coordinator: "gateway.invalid:1", Token: base64.StdEncoding.EncodeToString(m.registration[:]),
 		PrivateKey: m.privateKey, PeerPublicKey: base64.StdEncoding.EncodeToString(offer.PublicKey[:]),
 		LocalIP: local.String(), PeerIP: remote.String(), Routes: routes,
 	}
@@ -326,91 +334,4 @@ func awaitLinkOffer(ctx context.Context, socket *peerrendezvous.Socket, exchange
 			return peerrendezvous.LinkOffer{}, err
 		}
 	}
-}
-
-type lanLinkPublisher struct {
-	config    contract.LANLinkPublisher
-	handler   netapi.Handler
-	authority [32]byte
-	links     map[contract.LANLinkClient]*managedLink
-}
-
-func (*lanLinkPublisher) Interface() string { return transport.LANLinkType }
-
-func (p *lanLinkPublisher) Close() error {
-	var wg sync.WaitGroup
-	for _, link := range p.links {
-		wg.Go(func() { _ = link.Close() })
-	}
-	wg.Wait()
-	return nil
-}
-
-func NewLANLinkPublisher(cfg contract.LANLinkPublisher, handler netapi.Handler) (*lanLinkPublisher, error) {
-	if handler == nil {
-		return nil, errors.New("LAN Link gateway requires an inbound handler")
-	}
-	authority, err := transport.DecodePeerKey(cfg.Registration)
-	if err != nil {
-		return nil, err
-	}
-	p := &lanLinkPublisher{config: cfg, handler: handler, authority: authority}
-	if err := p.SetClients(cfg.Clients); err != nil {
-		return nil, err
-	}
-	return p, nil
-}
-
-func (p *lanLinkPublisher) SetClients(clients []contract.LANLinkClient) error {
-	cfg := p.config
-	cfg.Clients = clients
-	if err := cfg.Validate(); err != nil {
-		return err
-	}
-	next := make(map[contract.LANLinkClient]*managedLink, len(clients))
-	for _, client := range clients {
-		link := p.links[client]
-		if link == nil {
-			var err error
-			link, err = p.newClient(client)
-			if err != nil {
-				for config, created := range next {
-					if p.links[config] == nil {
-						_ = created.Close()
-					}
-				}
-				return err
-			}
-		}
-		next[client] = link
-	}
-	for config, existing := range p.links {
-		if next[config] == nil {
-			_ = existing.Close()
-		}
-	}
-	p.links = next
-	for _, link := range p.links {
-		link.start()
-	}
-	return nil
-}
-
-func (p *lanLinkPublisher) newClient(client contract.LANLinkClient) (*managedLink, error) {
-	id, err := client.InvitationID()
-	if err != nil {
-		return nil, err
-	}
-	key, err := transport.LANLinkRegistrationKey(p.authority, id)
-	if err != nil {
-		return nil, err
-	}
-	server, address, err := p.config.Addresses(client.Slot)
-	if err != nil {
-		return nil, err
-	}
-	return newManagedLink(transport.LANLinkInvitation{
-		Coordinator: p.config.Coordinator, Registration: base64.StdEncoding.EncodeToString(key[:]), Token: client.Token,
-	}, p.config.PrivateKey, &peerrendezvous.Enrollment{Authority: p.authority, InvitationID: id},
-		peerrendezvous.LinkOffer{PublisherIP: server, ClientIP: address, Routes: p.config.Routes}, p.handler)
 }

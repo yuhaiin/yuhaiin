@@ -2,9 +2,7 @@ package transport
 
 import (
 	"crypto/ecdh"
-	"crypto/hkdf"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	json "encoding/json/v2"
 	"errors"
@@ -98,16 +96,6 @@ func NewLANLinkPrivateKey() (string, error) {
 	return base64.StdEncoding.EncodeToString(key.Bytes()), nil
 }
 
-// LANLinkRegistrationKey derives an invitation-specific credential using the
-// publisher's authority and a public invitation ID.
-func LANLinkRegistrationKey(authority [32]byte, id [16]byte) ([32]byte, error) {
-	key, err := hkdf.Key(sha256.New, authority[:], id[:], "yuhaiin LAN Link registration v1", 32)
-	if err != nil {
-		return [32]byte{}, err
-	}
-	return [32]byte(key), nil
-}
-
 func ParseLANLinkRoutes(values []string) ([]netip.Prefix, error) {
 	if len(values) == 0 || len(values) > 128 {
 		return nil, errors.New("LAN Link requires 1 to 128 LAN routes")
@@ -116,7 +104,7 @@ func ParseLANLinkRoutes(values []string) ([]netip.Prefix, error) {
 	for _, value := range values {
 		p, err := netip.ParsePrefix(value)
 		if err != nil || p != p.Masked() || p.Bits() == 0 || p.Addr().Is4In6() ||
-			p.Addr().IsMulticast() || (len(routes) != 0 && p.Addr().BitLen() != routes[0].Addr().BitLen()) {
+			p.Addr().IsMulticast() || p.Addr().IsLoopback() || p.Addr().IsLinkLocalUnicast() || p.Addr().IsUnspecified() || (len(routes) != 0 && p.Addr().BitLen() != routes[0].Addr().BitLen()) {
 			return nil, fmt.Errorf("invalid LAN Link route %q", value)
 		}
 		routes = append(routes, p)

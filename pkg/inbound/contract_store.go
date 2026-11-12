@@ -101,16 +101,12 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 		return err
 	}
 	if inbound.Protocol.LANLink != nil {
+		// Clients and generated values belong to the gateway. An editor opened
+		// earlier must not restore revoked clients or replace secrets.
 		next := *inbound.Protocol.LANLink
-		next.Clients = nil
+		next.Clients, next.Subnet, next.PrivateKey = nil, "", ""
 		if existing := previous.Protocol.LANLink; existing != nil {
-			next.Clients = existing.Clients
-			if next.Subnet == "" {
-				next.Subnet = existing.Subnet
-			}
-			if next.PrivateKey == "" {
-				next.PrivateKey = existing.PrivateKey
-			}
+			next.Clients, next.Subnet, next.PrivateKey = existing.Clients, existing.Subnet, existing.PrivateKey
 			ctx = secret.WithResolvedConfiguration(ctx)
 		}
 		inbound.Protocol.LANLink = &next
