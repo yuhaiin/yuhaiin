@@ -182,7 +182,7 @@ type PathInfo struct {
 
 func (s *Socket) Path() PathInfo {
 	var info PathInfo
-	if addr, ok := s.PacketConn.LocalAddr().(*net.UDPAddr); ok {
+	if addr, ok := s.LocalAddr().(*net.UDPAddr); ok {
 		ap := addr.AddrPort()
 		info.Local = netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
 	}

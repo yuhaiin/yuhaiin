@@ -73,7 +73,9 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 func (r *NodeRuntime) lanLinkStatus(nodeID string, c peerPairing) *transport.LANLinkStatus {
 	if entry, ok := r.proxies.store.Load(nodeID); ok {
 		entry.mu.RLock()
-		live, ok := entry.Proxy.(interface{ LANLinkStatus() transport.LANLinkStatus })
+		live, ok := entry.Proxy.(interface {
+			LANLinkStatus() transport.LANLinkStatus
+		})
 		entry.mu.RUnlock()
 		if ok {
 			return new(live.LANLinkStatus())
