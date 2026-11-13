@@ -77,7 +77,27 @@ func (u *serviceUpdateInstaller) Supported() (bool, string) {
 	if err := exec.Command(manager, args...).Run(); err != nil {
 		return false, "automatic updates require the installed yuhaiin service"
 	}
+	if runtime.GOOS == "darwin" {
+		if reason := darwinManagedProcessReason(u.service, os.Getpid()); reason != "" {
+			return false, reason
+		}
+	}
 	return true, ""
+}
+
+// darwinManagedProcessReason rejects updates requested by a yuhaiin process
+// that launchd does not track. The helper can only stop the launchd job, so
+// such a process would keep running the old executable and keep holding the
+// data directory lock while the new service fails to start.
+func darwinManagedProcessReason(service string, self int) string {
+	pid, err := servicehost.DarwinServicePID(service)
+	if err != nil {
+		return fmt.Sprintf("cannot inspect the installed yuhaiin service: %v", err)
+	}
+	if pid != self {
+		return fmt.Sprintf("this yuhaiin process (pid %d) is not the one launchd manages (pid %d); stop the stray process and let launchd restart the service before updating", self, pid)
+	}
+	return ""
 }
 
 func (u *serviceUpdateInstaller) Start(ctx context.Context, staged string) error {
@@ -86,6 +106,11 @@ func (u *serviceUpdateInstaller) Start(ctx context.Context, staged string) error
 	}
 	if filepath.Dir(staged) != filepath.Dir(u.target) {
 		return errors.New("update must be staged beside the installed executable")
+	}
+	if runtime.GOOS == "darwin" {
+		if reason := darwinManagedProcessReason(u.service, os.Getpid()); reason != "" {
+			return errors.New(reason)
+		}
 	}
 	exe, err := os.Executable()
 	if err != nil {
@@ -151,7 +176,7 @@ func Install(args []string) error {
 	restoreService := func() {
 		if runtime.GOOS == "darwin" {
 			_ = servicehost.BootstrapDarwin()
-			_, _ = servicehost.KickstartDarwin(service)
+			_, _ = servicehost.StartDarwin(service)
 		} else {
 			_ = exec.Command(manager, startArgs...).Run()
 		}
@@ -176,6 +201,10 @@ func Install(args []string) error {
 		}
 	} else if err := exec.Command(manager, stopArgs...).Run(); err != nil {
 		return fmt.Errorf("stop service: %w", err)
+	}
+	if err := ensureDataDirectoryReleased(dataDir); err != nil {
+		restoreService()
+		return err
 	}
 	if _, _, err := updatepkg.InspectStagedCompatibility(context.Background(), staged, dataDir); err != nil {
 		restoreService()
@@ -225,10 +254,25 @@ func startUpdatedService(manager, service string, startArgs []string) error {
 		if err := servicehost.BootstrapDarwin(); err != nil {
 			return err
 		}
-		_, err := servicehost.KickstartDarwin(service)
-		return err
+		pid, err := servicehost.StartDarwin(service)
+		if err != nil {
+			return err
+		}
+		return servicehost.WaitDarwinStable(service, pid)
 	}
 	return exec.Command(manager, startArgs...).Run()
+}
+
+// ensureDataDirectoryReleased fails when some process still holds the service
+// lifecycle lock after the service was stopped. Starting the new executable
+// would only loop on "data directory is in use" while the stray process keeps
+// serving with the old executable.
+func ensureDataDirectoryReleased(dataDir string) error {
+	lifecycle, err := lockfile.Acquire(filepath.Join(dataDir, ".configuration.lock"))
+	if err != nil {
+		return fmt.Errorf("another yuhaiin process still holds the data directory after the service stopped; stop it and retry the update: %w", err)
+	}
+	return lifecycle.Close()
 }
 
 func updateServicePID(data []byte) int {

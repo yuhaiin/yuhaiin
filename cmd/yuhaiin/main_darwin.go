@@ -81,7 +81,7 @@ func restart(args []string) error {
 	if err := servicehost.BootstrapDarwin(); err != nil {
 		return err
 	}
-	_, err = servicehost.KickstartDarwin(service)
+	_, err = servicehost.StartDarwin(service)
 	return err
 }
 
@@ -93,7 +93,7 @@ func stop(args []string) error {
 }
 
 func start(args []string) error {
-	_, err := servicehost.KickstartDarwin(service)
+	_, err := servicehost.StartDarwin(service)
 	return err
 }
 
@@ -212,7 +212,7 @@ func installSystemDaemonDarwin(args []string) (err error) {
 	if err := servicehost.BootstrapDarwin(); err != nil {
 		return err
 	}
-	if _, err := servicehost.KickstartDarwin(service); err != nil {
+	if _, err := servicehost.StartDarwin(service); err != nil {
 		return err
 	}
 
