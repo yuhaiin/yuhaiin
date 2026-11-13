@@ -106,15 +106,12 @@ func (m *managedLink) start() {
 }
 
 func (m *managedLink) NodeExtraInfo() contractnode.NodeExtraInfo {
-	return contractnode.NodeExtraInfo{LANLink: new(m.LANLinkStatus())}
+	return contractnode.NodeExtraInfo{LANLink: new(m.status())}
 }
 
-// LANLinkStatus reports the live pairing state without starting the link.
-func (m *managedLink) LANLinkStatus() transport.LANLinkStatus {
-	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle"}
-	if m.hub == nil {
-		status.Coordinator = m.address
-	}
+// status reports the live pairing state without starting the link.
+func (m *managedLink) status() transport.LANLinkStatus {
+	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle", Coordinator: m.address}
 	if !m.started.Load() {
 		return status
 	}
