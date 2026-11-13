@@ -185,21 +185,6 @@ func (g *LANLinkGateway) newLink(cfg contract.LANLinkGateway, client contract.LA
 // Clients reports the live state of every pairing, keyed by pairing ID.
 func (g *LANLinkGateway) Clients() map[string]peerrendezvous.PairStatus { return g.hub.Pairs() }
 
-// Links reports the data path of every client session, keyed by client ID.
-func (g *LANLinkGateway) Links() map[string]transport.LANLinkStatus {
-	g.mu.Lock()
-	links := make(map[string]*managedLink, len(g.links))
-	for id, l := range g.links {
-		links[id] = l.link
-	}
-	g.mu.Unlock()
-	result := make(map[string]transport.LANLinkStatus, len(links))
-	for id, link := range links {
-		result[id] = link.LANLinkStatus()
-	}
-	return result
-}
-
 func (g *LANLinkGateway) Kick(pairingID string) error {
 	id, err := hexDecode16(pairingID)
 	if err != nil {

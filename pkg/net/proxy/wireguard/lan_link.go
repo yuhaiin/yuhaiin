@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -104,12 +105,13 @@ func (m *managedLink) start() {
 	})
 }
 
-// LANLinkStatus reports the live pairing state without starting the link.
-func (m *managedLink) LANLinkStatus() transport.LANLinkStatus {
-	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle"}
-	if m.hub == nil {
-		status.Coordinator = m.address
-	}
+func (m *managedLink) NodeExtraInfo() contractnode.NodeExtraInfo {
+	return contractnode.NodeExtraInfo{LANLink: new(m.status())}
+}
+
+// status reports the live pairing state without starting the link.
+func (m *managedLink) status() transport.LANLinkStatus {
+	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle", Coordinator: m.address}
 	if !m.started.Load() {
 		return status
 	}

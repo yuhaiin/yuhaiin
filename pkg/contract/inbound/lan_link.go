@@ -343,11 +343,9 @@ type LANLinkClientStatus struct {
 	RetryAt           int64  `json:"retryAt,omitempty"`
 	DialerEndpoint    string `json:"dialerEndpoint,omitempty"`
 	PublisherEndpoint string `json:"publisherEndpoint,omitempty"`
-	// PeerEndpoint is where the gateway sends this client's tunnel traffic,
-	// and Path tells whether that is a LAN or a public address.
-	PeerEndpoint string `json:"peerEndpoint,omitempty"`
-	Path         string `json:"path,omitempty"`
-	CreatedAt    int64  `json:"createdAt,omitempty"`
+	// Path tells whether DialerEndpoint is a LAN or a public address.
+	Path      string `json:"path,omitempty"`
+	CreatedAt int64  `json:"createdAt,omitempty"`
 }
 
 type LANLinkClients struct {

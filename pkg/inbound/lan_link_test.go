@@ -470,19 +470,28 @@ func TestLANLinkReportsNamesAndPaths(t *testing.T) {
 	f.eventually("TCP", func() error { return f.echo(proxy, f.target) })
 
 	client := f.client(invite.ClientID)
-	if client.Name != "Alice laptop" || client.PeerEndpoint == "" || client.Path != transport.LANLinkPathLAN {
+	if client.Name != "Alice laptop" || client.DialerEndpoint == "" || client.Path != transport.LANLinkPathLAN {
 		t.Fatalf("gateway client status: %+v", client)
 	}
-	peers, err := f.nodes.PeerTunnelPeers(f.ctx, 1)
-	if err != nil || len(peers.Items) != 1 || peers.Items[0].Link == nil {
-		t.Fatalf("peer list: %+v, %v", peers, err)
-	}
-	link := *peers.Items[0].Link
 	gateway, _, _ := f.store.lanLinkConfig(f.ctx, f.gateway.ID)
 	server, _, _ := gateway.Protocol.LANLink.Addresses(1)
+	extra, err := f.nodes.ExtraInfo(f.ctx, "laptop")
+	if err != nil || extra.LANLink == nil {
+		t.Fatalf("extra info: %+v, %v", extra, err)
+	}
+	link := *extra.LANLink
 	if link.State != "connected" || link.LocalIP != invite.Address || link.PeerIP != server.String() ||
 		link.PairingID != client.PairingID || link.Listen == "" || link.PeerEndpoint == "" ||
-		link.Path != transport.LANLinkPathLAN || peers.Items[0].TunnelIP != server.String() {
+		link.Path != transport.LANLinkPathLAN {
 		t.Fatalf("outbound status: %+v", link)
+	}
+
+	// A closed node is still described, from its invitation.
+	if err := f.nodes.CloseNode(f.ctx, "laptop"); err != nil {
+		t.Fatal(err)
+	}
+	extra, err = f.nodes.ExtraInfo(f.ctx, "laptop")
+	if err != nil || extra.LANLink == nil || extra.LANLink.State != "idle" || extra.LANLink.PairingID != client.PairingID {
+		t.Fatalf("idle extra info: %+v, %v", extra.LANLink, err)
 	}
 }

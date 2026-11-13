@@ -54,10 +54,6 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 		wg.Go(func() {
 			peer := lookupTunnelPeer(ctx, pairing.config)
 			peer.NodeID, peer.Name = pairing.id, pairing.name
-			peer.Link = r.lanLinkStatus(pairing.id, pairing.config)
-			if peer.Link.PeerIP != "" {
-				peer.TunnelIP = peer.Link.PeerIP
-			}
 			items[i] = peer
 		})
 	}
@@ -68,24 +64,31 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 	return contract.PeerTunnelPeers{Items: items, Page: route.Page{Page: page, PageSize: peerPageSize, Total: total}}, nil
 }
 
-// lanLinkStatus reads the running outbound, or describes an idle one from its
-// invitation when the node has not been used yet.
-func (r *NodeRuntime) lanLinkStatus(nodeID string, c peerPairing) *transport.LANLinkStatus {
-	if entry, ok := r.proxies.store.Load(nodeID); ok {
-		entry.mu.RLock()
-		live, ok := entry.Proxy.(interface {
-			LANLinkStatus() transport.LANLinkStatus
-		})
-		entry.mu.RUnlock()
-		if ok {
-			return new(live.LANLinkStatus())
+// idleLANLinkStatus describes an enabled LAN Link node that is not running.
+func (r *NodeRuntime) idleLANLinkStatus(ctx context.Context, id string) *transport.LANLinkStatus {
+	if _, err := r.openNodes(ctx); err != nil {
+		return nil
+	}
+	for _, n := range r.selectors.snapshot.Load().nodes {
+		if n.ID != id || !n.Enabled {
+			continue
+		}
+		for _, step := range n.Chain {
+			if step.LANLink == nil {
+				continue
+			}
+			invitation, err := transport.ParseLANLinkInvitation(step.LANLink.Invitation)
+			if err != nil {
+				return nil
+			}
+			key, err := transport.DecodePeerKey(invitation.Registration)
+			if err != nil {
+				return nil
+			}
+			return &transport.LANLinkStatus{PairingID: transport.PeerPairIDString(key), State: "idle", Coordinator: invitation.Coordinator}
 		}
 	}
-	status := &transport.LANLinkStatus{State: "idle", Coordinator: c.Coordinator}
-	if key, err := transport.DecodePeerKey(c.Token); err == nil {
-		status.PairingID = transport.PeerPairIDString(key)
-	}
-	return status
+	return nil
 }
 
 // peerPairing is what the coordinator lookup needs from an invitation.

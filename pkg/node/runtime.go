@@ -364,7 +364,7 @@ func (r *NodeRuntime) ActiveTCPStackSnapshots(limit int) []TCPStackSnapshot {
 	return items
 }
 
-func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.NodeExtraInfo, error) {
+func (r *NodeRuntime) ExtraInfo(ctx context.Context, id string) (contractnode.NodeExtraInfo, error) {
 	if id == "" {
 		return contractnode.NodeExtraInfo{}, errors.New("node id is empty")
 	}
@@ -385,7 +385,7 @@ func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.Node
 		})
 		if ok {
 			candidate := provider.NodeExtraInfo()
-			if candidate.GlobalProtect != nil || candidate.OpenVPN != nil {
+			if candidate.GlobalProtect != nil || candidate.OpenVPN != nil || candidate.LANLink != nil {
 				info = candidate
 				found = true
 			}
@@ -393,6 +393,10 @@ func (r *NodeRuntime) ExtraInfo(_ context.Context, id string) (contractnode.Node
 		return false
 	})
 	if !found {
+		// A LAN Link node starts on first use; describe it from its invitation.
+		if status := r.idleLANLinkStatus(ctx, id); status != nil {
+			return contractnode.NodeExtraInfo{LANLink: status}, nil
+		}
 		return contractnode.NodeExtraInfo{}, plainstore.ErrNotFound
 	}
 	return info, nil

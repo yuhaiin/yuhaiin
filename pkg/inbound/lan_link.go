@@ -144,9 +144,8 @@ func (s *ContractStore) LANLinkClients(ctx context.Context, id string) (contract
 	result := contract.LANLinkClients{Subnet: gateway.Subnet, Items: make([]contract.LANLinkClientStatus, 0, len(gateway.Clients))}
 	running := s.lanLinkGateway(id)
 	var live map[string]peerrendezvous.PairStatus
-	var links map[string]transport.LANLinkStatus
 	if running != nil {
-		live, links = running.Clients(), running.Links()
+		live = running.Clients()
 		result.Running = true
 		result.PublicEndpoint, _ = running.Public()
 		result.PublicError = running.PublicError()
@@ -160,8 +159,8 @@ func (s *ContractStore) LANLinkClients(ctx context.Context, id string) (contract
 		state := live[item.PairingID]
 		item.DialerEndpoint, item.PublisherEndpoint = endpointString(state.Dialer), endpointString(state.Publisher)
 		item.Online = state.Dialer.IsValid() && !client.Blocked
-		if link := links[client.ID]; item.Online && link.PeerEndpoint != "" {
-			item.PeerEndpoint, item.Path = link.PeerEndpoint, link.Path
+		if state.Dialer.IsValid() {
+			item.Path = transport.LANLinkPathKind(state.Dialer.Addr(), false)
 		}
 		if !state.KickUntil.IsZero() {
 			item.RetryAt = state.KickUntil.UnixMilli()

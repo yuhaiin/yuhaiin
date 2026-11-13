@@ -287,6 +287,8 @@ type NodeExtraInfo struct {
 	L2TPv3        *L2TPInfo          `json:"l2tpv3,omitzero"`
 	OpenVPN       *OpenVPNInfo       `json:"openvpn,omitzero"`
 	GlobalProtect *GlobalProtectInfo `json:"globalprotect,omitzero"`
+	// LANLink is reported for LAN Link nodes even before the link starts.
+	LANLink *transport.LANLinkStatus `json:"lan_link,omitzero"`
 }
 
 // GlobalProtectInfo is the tunnel and network configuration returned by
