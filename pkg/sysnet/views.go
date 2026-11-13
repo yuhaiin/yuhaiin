@@ -3,6 +3,7 @@ package sysnet
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/netip"
 	"slices"
 	"strings"
@@ -70,9 +71,7 @@ func (m *Manager) Interfaces(ctx context.Context) (sysnet.Interfaces, error) {
 	}
 	m.mu.Lock()
 	tuns := make(map[string]TunAttachment, len(m.tuns))
-	for id, t := range m.tuns {
-		tuns[id] = t
-	}
+	maps.Copy(tuns, m.tuns)
 	config := cloneConfig(m.config)
 	inbounds := m.inbounds
 	m.mu.Unlock()

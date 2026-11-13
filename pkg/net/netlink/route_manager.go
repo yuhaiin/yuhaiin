@@ -106,8 +106,7 @@ func (m *RouteManager) Update(desired []SystemRoute) (conflicts []netip.Prefix, 
 	}
 	var changes []change
 	rollback := func(cause error) error {
-		for i := len(changes) - 1; i >= 0; i-- {
-			c := changes[i]
+		for _, c := range slices.Backward(changes) {
 			current := m.installed[c.prefix]
 			if c.previous == nil {
 				cause = errors.Join(cause, m.remove(c.prefix))

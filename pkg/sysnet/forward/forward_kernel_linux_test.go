@@ -5,6 +5,7 @@ package forward
 import (
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,12 +42,7 @@ func tableNames(t *testing.T) []string {
 }
 
 func hasName(names []string, name string) bool {
-	for _, n := range names {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(names, name)
 }
 
 func ourRules(t *testing.T, f int) []netlink.Rule {

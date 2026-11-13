@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -356,14 +357,14 @@ func (m *Manager) resolveTarget(t sysnet.RouteTarget, ifaces []iface.Info) targe
 }
 
 func joinProblems(p []string) string {
-	out := ""
+	var out strings.Builder
 	for i, s := range p {
 		if i > 0 {
-			out += "; "
+			out.WriteString("; ")
 		}
-		out += s
+		out.WriteString(s)
 	}
-	return out
+	return out.String()
 }
 
 // sortedRules returns enabled and disabled rules in evaluation order.

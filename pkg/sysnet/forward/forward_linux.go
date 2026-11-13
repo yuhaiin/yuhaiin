@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -136,8 +137,8 @@ func (m *Manager) Apply(plan Plan) error {
 	previous := m.applied
 	var added []func()
 	undo := func(cause error) error {
-		for i := len(added) - 1; i >= 0; i-- {
-			added[i]()
+		for _, a := range slices.Backward(added) {
+			a()
 		}
 		return cause
 	}
@@ -205,21 +206,11 @@ func (m *Manager) Close() error {
 }
 
 func containsRule(rules []IPRule, r IPRule) bool {
-	for _, x := range rules {
-		if x == r {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(rules, r)
 }
 
 func containsRoute(routes []TableRoute, r TableRoute) bool {
-	for _, x := range routes {
-		if x == r {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(routes, r)
 }
 
 // containsTable reports whether another route for the same table and prefix

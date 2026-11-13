@@ -44,8 +44,8 @@ func isolatedNamespace(t *testing.T) {
 
 func dummyLink(t *testing.T, name, address string) int {
 	t.Helper()
-	_ = netlink.LinkDel(&netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: name}})
-	if err := netlink.LinkAdd(&netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: name}}); err != nil {
+	_ = netlink.LinkDel(&netlink.Dummy{Name: name})
+	if err := netlink.LinkAdd(&netlink.Dummy{Name: name}); err != nil {
 		t.Fatal(err)
 	}
 	link, err := netlink.LinkByName(name)
