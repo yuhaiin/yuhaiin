@@ -43,9 +43,15 @@ type LANLinkGateway struct {
 	// detected with STUN when empty.
 	PublicEndpoint string `json:"publicEndpoint,omitempty"`
 	// STUNServer overrides the server used to detect the public endpoint.
-	STUNServer string          `json:"stunServer,omitempty"`
-	PrivateKey string          `json:"privateKey,omitempty" secret:"true"`
-	Clients    []LANLinkClient `json:"clients,omitempty"`
+	STUNServer string `json:"stunServer,omitempty"`
+	// ClientToClient lets clients reach each other and the gateway by their
+	// tunnel addresses. A flow to the gateway's own tunnel address goes to the
+	// same port on the gateway's loopback address; a flow to another client's
+	// address is relayed to that client, which delivers it only when its
+	// outbound allows incoming flows.
+	ClientToClient bool            `json:"clientToClient,omitempty"`
+	PrivateKey     string          `json:"privateKey,omitempty" secret:"true"`
+	Clients        []LANLinkClient `json:"clients,omitempty"`
 }
 
 // LANLinkClient holds the independent credentials of one invitation.

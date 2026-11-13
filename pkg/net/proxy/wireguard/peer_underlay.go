@@ -200,29 +200,3 @@ func (p *peerDialer) PacketConn(ctx context.Context, addr netapi.Address) (net.P
 func (*peerDialer) Ping(context.Context, netapi.Address) (uint64, error) {
 	return 0, errors.ErrUnsupported
 }
-
-type peerRouteFilter struct {
-	netapi.Handler
-	routes []netip.Prefix
-}
-
-func (f peerRouteFilter) allowed(addr netapi.Address) bool {
-	ip, ok := addr.(netapi.IPAddress)
-	return ok && slices.ContainsFunc(f.routes, func(p netip.Prefix) bool { return p.Contains(ip.AddrPort().Addr()) })
-}
-
-func (f peerRouteFilter) HandleStream(m *netapi.StreamMeta) {
-	if f.allowed(m.Address) {
-		f.Handler.HandleStream(m)
-		return
-	}
-	_ = m.Src.Close()
-}
-
-func (f peerRouteFilter) HandlePacket(p *netapi.Packet) {
-	if f.allowed(p.Dst()) {
-		f.Handler.HandlePacket(p)
-		return
-	}
-	p.DecRef()
-}

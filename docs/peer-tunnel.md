@@ -39,6 +39,26 @@ A default block policy takes precedence over these automatic routes.
 Both peers need working UDP paths to discovery and to each other. The NAT and
 network constraints below also apply to LAN Link.
 
+### Client-to-client traffic
+
+By default the tunnel addresses themselves are not reachable: a client reaches
+only the shared networks. Enable **Client-to-client** (`clientToClient`) on the
+gateway to make the tunnel subnet routable for every client:
+
+- A flow to the gateway's tunnel address (the first address of the subnet)
+  goes to the same port on the gateway's loopback address.
+- A flow to another client's tunnel address is relayed by the gateway to that
+  client. The client delivers it to the same port on its own loopback address
+  only when its LAN Link outbound enables **Allow incoming**
+  (`allowIncoming`). Otherwise the flow is dropped.
+
+Both TCP and UDP are supported. Services bound only to loopback become
+reachable this way, so enable these options only for trusted clients. A client
+with **Allow incoming** keeps its link up from startup instead of waiting for
+outgoing traffic. Clients pick up the tunnel subnet route automatically when
+they connect, and invitations issued while the option is on carry it from the
+start. The gateway host itself does not route to client addresses.
+
 ## Manual Peer Tunnel configuration
 
 Use a Peer Tunnel outbound to reach TCP and UDP services on another Yuhaiin

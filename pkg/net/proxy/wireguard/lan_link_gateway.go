@@ -47,6 +47,8 @@ type gatewayLink struct {
 	spec string
 	link *managedLink
 	key  [32]byte
+	// address is the client's tunnel address.
+	address netip.Addr
 }
 
 func (*LANLinkGateway) Interface() string { return transport.LANLinkType }
@@ -98,7 +100,7 @@ func (g *LANLinkGateway) Close() error {
 }
 
 func linkSpec(cfg contract.LANLinkGateway, c contract.LANLinkClient) string {
-	return strings.Join([]string{c.Token, c.Registration, fmt.Sprint(c.Slot), cfg.Subnet, cfg.PrivateKey, strings.Join(cfg.Networks, ",")}, "|")
+	return strings.Join([]string{c.Token, c.Registration, fmt.Sprint(c.Slot), cfg.Subnet, cfg.PrivateKey, strings.Join(cfg.Networks, ","), fmt.Sprint(cfg.ClientToClient)}, "|")
 }
 
 // Apply reconciles clients with cfg. Clients whose credentials, address and
@@ -173,13 +175,38 @@ func (g *LANLinkGateway) newLink(cfg contract.LANLinkGateway, client contract.LA
 	if err != nil {
 		return nil, err
 	}
+	offer := peerrendezvous.LinkOffer{PublisherIP: server, ClientIP: address, Routes: cfg.Networks}
+	if cfg.ClientToClient {
+		offer.Subnet = cfg.Subnet
+	}
 	link, err := newManagedLink(transport.LANLinkInvitation{
 		Coordinator: "gateway.invalid:1", Registration: client.Registration, Token: client.Token,
-	}, cfg.PrivateKey, g.hub, peerrendezvous.LinkOffer{PublisherIP: server, ClientIP: address, Routes: cfg.Networks}, g.handler)
+	}, cfg.PrivateKey, g.hub, offer, g.handler)
 	if err != nil {
 		return nil, err
 	}
-	return &gatewayLink{spec: spec, link: link, key: key}, nil
+	if cfg.ClientToClient {
+		link.relay = g
+	}
+	return &gatewayLink{spec: spec, link: link, key: key, address: address}, nil
+}
+
+// relayTarget returns the link of the client that owns the tunnel address to.
+func (g *LANLinkGateway) relayTarget(from, to netip.Addr) (lanLinkDialer, bool) {
+	if from == to {
+		return nil, false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.config.ClientToClient {
+		return nil, false
+	}
+	for _, l := range g.links {
+		if l.address == to {
+			return l.link, true
+		}
+	}
+	return nil, false
 }
 
 // Clients reports the live state of every pairing, keyed by pairing ID.
@@ -299,9 +326,15 @@ func (g *LANLinkGateway) Invitation(client contract.LANLinkClient) (string, erro
 		return "", err
 	}
 	g.mu.Lock()
-	networks := slices.Clone(g.config.Networks)
+	invitation := transport.LANLinkInvitation{
+		Coordinator: public, Registration: client.Registration, Token: client.Token,
+		Routes: slices.Clone(g.config.Networks),
+	}
+	if g.config.ClientToClient {
+		invitation.Subnet = g.config.Subnet
+	}
 	g.mu.Unlock()
-	return (transport.LANLinkInvitation{Coordinator: public, Registration: client.Registration, Token: client.Token, Routes: networks}).Encode()
+	return invitation.Encode()
 }
 
 func hexDecode16(s string) ([16]byte, error) {

@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/netip"
@@ -102,6 +103,11 @@ type lanLinkFixture struct {
 
 func newLANLinkFixture(t *testing.T) *lanLinkFixture {
 	t.Helper()
+	return newLANLinkFixtureWith(t, func(*contract.LANLinkGateway) {})
+}
+
+func newLANLinkFixtureWith(t *testing.T, configure func(*contract.LANLinkGateway)) *lanLinkFixture {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	t.Cleanup(cancel)
 	f := &lanLinkFixture{t: t, ctx: ctx, state: filepath.Join(t.TempDir(), "state.db")}
@@ -110,13 +116,15 @@ func newLANLinkFixture(t *testing.T) *lanLinkFixture {
 	f.upstream = &lanTestUpstream{Proxy: direct.Default, network: netip.MustParsePrefix(lanTestNetwork), target: echo.String(), udp: udpEcho(t).String()}
 	port := freeUDPPort(t)
 	f.target, _ = netapi.ParseAddress("tcp", net.JoinHostPort("192.168.50.10", strconv.Itoa(int(echo.Port()))))
+	gateway := contract.LANLinkGateway{
+		Networks: []string{lanTestNetwork}, Listen: "127.0.0.1:" + strconv.Itoa(port),
+		PublicEndpoint: "127.0.0.1:" + strconv.Itoa(port),
+	}
+	configure(&gateway)
 	f.gateway = contract.Inbound{
 		ID: "gateway", Name: "Gateway", Enabled: true,
-		Network: contract.NewTypedNetwork(contract.EmptyNetwork{}),
-		Protocol: contract.NewTypedProtocol(contract.LANLinkGateway{
-			Networks: []string{lanTestNetwork}, Listen: "127.0.0.1:" + strconv.Itoa(port),
-			PublicEndpoint: "127.0.0.1:" + strconv.Itoa(port),
-		}),
+		Network:  contract.NewTypedNetwork(contract.EmptyNetwork{}),
+		Protocol: contract.NewTypedProtocol(gateway),
 	}
 	f.start()
 	f.nodes = node.NewNodeRuntime(f.state)
@@ -152,6 +160,13 @@ func (f *lanLinkFixture) start() {
 
 func (f *lanLinkFixture) invite(id string) (netapi.Proxy, contract.LANLinkInvitationResponse) {
 	f.t.Helper()
+	return f.inviteWith(id, transport.LANLink{})
+}
+
+// inviteWith issues an invitation and imports it with the given outbound
+// options; the invitation itself is filled in.
+func (f *lanLinkFixture) inviteWith(id string, options transport.LANLink) (netapi.Proxy, contract.LANLinkInvitationResponse) {
+	f.t.Helper()
 	var value contract.LANLinkInvitationResponse
 	var err error
 	for range 40 { // the public endpoint resolves asynchronously after start
@@ -163,12 +178,13 @@ func (f *lanLinkFixture) invite(id string) (netapi.Proxy, contract.LANLinkInvita
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	return f.importInvitation(id, value.Invitation), value
+	options.Invitation = value.Invitation
+	return f.importOutbound(id, options), value
 }
 
-func (f *lanLinkFixture) importInvitation(id, invitation string) netapi.Proxy {
+func (f *lanLinkFixture) importOutbound(id string, link transport.LANLink) netapi.Proxy {
 	f.t.Helper()
-	protocol, err := contractnode.NewTypedProtocol(transport.LANLink{Invitation: invitation})
+	protocol, err := contractnode.NewTypedProtocol(link)
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -493,5 +509,85 @@ func TestLANLinkReportsNamesAndPaths(t *testing.T) {
 	extra, err = f.nodes.ExtraInfo(f.ctx, "laptop")
 	if err != nil || extra.LANLink == nil || extra.LANLink.State != "idle" || extra.LANLink.PairingID != client.PairingID {
 		t.Fatalf("idle extra info: %+v, %v", extra.LANLink, err)
+	}
+}
+
+func (f *lanLinkFixture) udpEcho(proxy netapi.Proxy, addr netapi.Address) error {
+	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Second)
+	defer cancel()
+	pc, err := proxy.PacketConn(ctx, addr)
+	if err != nil {
+		return err
+	}
+	defer pc.Close()
+	_ = pc.SetDeadline(time.Now().Add(2 * time.Second))
+	if _, err := pc.WriteTo([]byte("peer"), addr); err != nil {
+		return err
+	}
+	var data [16]byte
+	n, _, err := pc.ReadFrom(data[:])
+	if err != nil {
+		return err
+	}
+	if string(data[:n]) != "peer" {
+		return fmt.Errorf("udp echo = %q", data[:n])
+	}
+	return nil
+}
+
+func withPort(ip string, port uint16, network string) netapi.Address {
+	addr, _ := netapi.ParseAddress(network, net.JoinHostPort(ip, strconv.Itoa(int(port))))
+	return addr
+}
+
+// With client-to-client enabled, a client reaches the gateway and any client
+// that allows incoming flows by their tunnel addresses. Each address maps to
+// its host's loopback.
+func TestLANLinkClientToClient(t *testing.T) {
+	f := newLANLinkFixtureWith(t, func(g *contract.LANLinkGateway) { g.ClientToClient = true })
+	alice, aliceInvite := f.invite("alice")
+	bob, bobInvite := f.inviteWith("bob", transport.LANLink{AllowIncoming: true})
+	gateway, _, _ := f.store.lanLinkConfig(f.ctx, f.gateway.ID)
+	server, _, _ := gateway.Protocol.LANLink.Addresses(1)
+
+	tcpPort := f.target.Port()
+	udp := f.upstream.udp
+	udpAddr, err := netapi.ParseAddress("udp", udp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	udpPort := udpAddr.Port()
+
+	f.eventually("alice to bob TCP", func() error { return f.echo(alice, withPort(bobInvite.Address, tcpPort, "tcp")) })
+	f.eventually("alice to bob UDP", func() error { return f.udpEcho(alice, withPort(bobInvite.Address, udpPort, "udp")) })
+	f.eventually("bob to gateway TCP", func() error { return f.echo(bob, withPort(server.String(), tcpPort, "tcp")) })
+	f.eventually("alice to gateway UDP", func() error { return f.udpEcho(alice, withPort(server.String(), udpPort, "udp")) })
+	// The shared networks keep working alongside the tunnel subnet.
+	f.eventually("alice to LAN", func() error { return f.echo(alice, f.target) })
+
+	// Alice did not allow incoming flows, and unassigned addresses go nowhere.
+	if err := f.echo(bob, withPort(aliceInvite.Address, tcpPort, "tcp")); err == nil {
+		t.Fatal("a client without incoming flows accepted a connection")
+	}
+	pool := netip.MustParsePrefix(gateway.Protocol.LANLink.Subnet)
+	unused := pool.Addr().Next().Next().Next().Next().Next()
+	if err := f.echo(bob, withPort(unused.String(), tcpPort, "tcp")); err == nil {
+		t.Fatal("an unassigned tunnel address accepted a connection")
+	}
+}
+
+// Without client-to-client, tunnel addresses stay unreachable even for a
+// client that allows incoming flows.
+func TestLANLinkTunnelAddressesNeedClientToClient(t *testing.T) {
+	f := newLANLinkFixture(t)
+	alice, _ := f.invite("alice")
+	bob, bobInvite := f.inviteWith("bob", transport.LANLink{AllowIncoming: true})
+	f.eventually("bob to LAN", func() error { return f.echo(bob, f.target) })
+	gateway, _, _ := f.store.lanLinkConfig(f.ctx, f.gateway.ID)
+	server, _, _ := gateway.Protocol.LANLink.Addresses(1)
+	for _, ip := range []string{bobInvite.Address, server.String()} {
+		if err := f.echo(alice, withPort(ip, f.target.Port(), "tcp")); err == nil {
+			t.Fatalf("%s was reachable without client-to-client", ip)
+		}
 	}
 }
