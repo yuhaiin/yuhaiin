@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -685,4 +686,59 @@ func TestLANLinkDualStackNetworks(t *testing.T) {
 		udp, _ := netapi.ParseAddress("udp", f.upstream.udp)
 		return f.udpEcho(client, withPort("fd00:50::10", udp.Port(), "udp"))
 	})
+}
+
+// A dual-stack gateway serves clients over IPv4 and IPv6 at once: one listener
+// answers both, and each client is told the gateway endpoint of its own
+// family. A client whose invitation names only the IPv4 endpoint, as one
+// from an older gateway does, still connects.
+func TestLANLinkDualStackGateway(t *testing.T) {
+	f := newLANLinkFixtureWith(t, func(g *contract.LANLinkGateway) {
+		port := g.Listen[strings.LastIndex(g.Listen, ":")+1:]
+		g.Listen, g.PublicEndpoint, g.PublicEndpoint6 = ":"+port, "127.0.0.1:"+port, "[::1]:"+port
+	})
+	dual, dualInvite := f.invite("dual")
+	invitation, err := transport.ParseLANLinkInvitation(dualInvite.Invitation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(invitation.Coordinators, []string{f.gateway.Protocol.LANLink.PublicEndpoint, f.gateway.Protocol.LANLink.PublicEndpoint6}) {
+		t.Fatalf("invitation endpoints = %q", invitation.Coordinators)
+	}
+	f.eventually("dual-stack client", func() error { return f.echo(dual, f.target) })
+
+	_, v4Invite := f.invite("v4")
+	legacy, err := transport.ParseLANLinkInvitation(v4Invite.Invitation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy.Coordinators = nil
+	encoded, err := legacy.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	v4 := f.importOutbound("v4", transport.LANLink{Invitation: encoded})
+	f.eventually("IPv4-only client", func() error { return f.echo(v4, f.target) })
+
+	f.eventually("both families in use", func() error {
+		families := map[string]string{}
+		for id, invite := range map[string]contract.LANLinkInvitationResponse{"dual": dualInvite, "v4": v4Invite} {
+			endpoint := f.client(invite.ClientID).DialerEndpoint
+			if endpoint == "" {
+				return fmt.Errorf("%s offline", id)
+			}
+			families[id] = "ipv4"
+			if netip.MustParseAddrPort(endpoint).Addr().Is6() {
+				families[id] = "ipv6"
+			}
+		}
+		if families["dual"] != "ipv6" || families["v4"] != "ipv4" {
+			return fmt.Errorf("client families = %v", families)
+		}
+		return nil
+	})
+	clients, err := f.store.LANLinkClients(f.ctx, f.gateway.ID)
+	if err != nil || len(clients.PublicEndpoints) != 2 {
+		t.Fatalf("public endpoints = %v, %v", clients.PublicEndpoints, err)
+	}
 }

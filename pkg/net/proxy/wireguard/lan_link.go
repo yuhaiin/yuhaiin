@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,8 +51,9 @@ func init() {
 
 type managedLink struct {
 	netapi.EmptyDispatch
-	routes       atomic.Pointer[[]netip.Prefix]
-	address      string
+	routes atomic.Pointer[[]netip.Prefix]
+	// addresses are the gateway's endpoints, one per IP family.
+	addresses    []string
 	privateKey   string
 	publicKey    [32]byte
 	registration [32]byte
@@ -107,7 +109,7 @@ func newManagedLink(invite transport.LANLinkInvitation, privateKey string, hub *
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &managedLink{
-		address: invite.Coordinator, privateKey: privateKey, publicKey: [32]byte(private.PublicKey().Bytes()),
+		addresses: invite.CoordinatorList(), privateKey: privateKey, publicKey: [32]byte(private.PublicKey().Bytes()),
 		registration: registration, token: token, hub: hub, assignment: assignment, handler: handler,
 		ctx: ctx, cancel: cancel, done: make(chan struct{}), changed: make(chan struct{}),
 	}, nil
@@ -142,7 +144,7 @@ func (m *managedLink) NodeExtraInfo() contractnode.NodeExtraInfo {
 
 // status reports the live pairing state without starting the link.
 func (m *managedLink) status() transport.LANLinkStatus {
-	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle", Coordinator: m.address}
+	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle", Coordinator: strings.Join(m.addresses, ", ")}
 	if !m.started.Load() {
 		return status
 	}
@@ -343,7 +345,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 	} else {
 		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		var err error
-		underlay, err = newPeerUnderlay(ctx, m.address, m.registration, role)
+		underlay, err = newPeerUnderlay(ctx, m.addresses, m.registration, role)
 		cancel()
 		if err != nil {
 			return nil, err

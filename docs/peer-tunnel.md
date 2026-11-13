@@ -41,6 +41,23 @@ prefix, add an explicit rule to choose the outbound. On the gateway, explicit
 rules apply before the default direct path to the allowed LAN destinations.
 A default block policy takes precedence over these automatic routes.
 
+### Dual-stack gateway
+
+The gateway serves IPv4 and IPv6 clients at once from its one UDP listener,
+as long as the listener is dual-stack (the default `:51821` is; an address
+such as `0.0.0.0:51821` is IPv4 only). Without a configured public endpoint,
+the gateway detects one endpoint per family with STUN and skips a family the
+host cannot reach. Invitations then carry both endpoints. A client prefers
+IPv6 and falls back to IPv4, and the gateway tells each client its own
+endpoint in the client's family. Clients of both families can be online at
+the same time.
+
+To set the endpoints manually, enter a host name with both A and AAAA
+records as the **Public endpoint**, or an IPv4 endpoint as the **Public
+endpoint** plus an IPv6 one as the **Second public endpoint**
+(`publicEndpoint6`). Clients from older versions read only the first
+endpoint.
+
 Both peers need working UDP paths to discovery and to each other. The NAT and
 network constraints below also apply to LAN Link.
 

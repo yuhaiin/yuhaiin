@@ -162,7 +162,7 @@ func (g *LANLinkGateway) Apply(cfg contract.LANLinkGateway) error {
 	for _, l := range created {
 		l.link.start()
 	}
-	changed := g.config.PublicEndpoint != cfg.PublicEndpoint || g.config.STUNServer != cfg.STUNServer || g.config.Networks == nil
+	changed := g.config.PublicEndpoint != cfg.PublicEndpoint || g.config.PublicEndpoint6 != cfg.PublicEndpoint6 || g.config.STUNServer != cfg.STUNServer || g.config.Networks == nil
 	g.links, g.config = next, cfg
 	if changed {
 		select {
@@ -352,19 +352,22 @@ func (g *LANLinkGateway) maintainPublic() {
 	}
 }
 
+// refreshPublic finds the gateway's public endpoints: the configured one,
+// resolved in every IP family it has, or one per family from STUN. A family
+// that STUN cannot reach, such as IPv6 on an IPv4-only host, is skipped.
 func (g *LANLinkGateway) refreshPublic() error {
 	g.mu.Lock()
 	cfg := g.config
 	g.mu.Unlock()
 	ctx, cancel := context.WithTimeout(g.ctx, 10*time.Second)
 	defer cancel()
-	var endpoint netip.AddrPort
+	var endpoints []netip.AddrPort
 	if cfg.PublicEndpoint != "" {
-		candidates, err := peerrendezvous.ResolveCoordinators(ctx, cfg.PublicEndpoint)
+		candidates, err := peerrendezvous.ResolveCoordinatorList(ctx, cfg.PublicEndpoints())
 		if err != nil {
 			return fmt.Errorf("resolve public endpoint: %w", err)
 		}
-		endpoint = candidates[0]
+		endpoints = candidates
 	} else {
 		if cfg.Networks == nil {
 			return errors.New("LAN Link is not configured yet")
@@ -375,34 +378,28 @@ func (g *LANLinkGateway) refreshPublic() error {
 		}
 		var failure error
 		for _, server := range servers {
-			endpoint, err = g.hub.DiscoverPublic(server, 3*time.Second)
-			if err == nil {
-				break
+			endpoint, err := g.hub.DiscoverPublic(server, 3*time.Second)
+			if err != nil {
+				failure = errors.Join(failure, err)
+				continue
 			}
-			failure = errors.Join(failure, err)
+			endpoints = append(endpoints, endpoint)
 		}
-		if !endpoint.IsValid() {
+		if len(endpoints) == 0 {
 			return fmt.Errorf("could not detect the public endpoint with STUN; set it manually: %w", failure)
 		}
 	}
-	return g.setPublic(endpoint)
+	g.hub.SetPublic(endpoints...)
+	return nil
 }
 
-func (g *LANLinkGateway) setPublic(endpoint netip.AddrPort) error {
-	previous := g.hub.Public()
-	g.hub.SetPublic(endpoint)
-	if previous.IsValid() && previous.Addr().BitLen() != endpoint.Addr().BitLen() {
-		// Pairing sockets are bound to an address family; rebuild them.
-		g.mu.Lock()
-		cfg := g.config
-		for id, l := range g.links {
-			_ = l.link.Close()
-			delete(g.links, id)
-		}
-		g.mu.Unlock()
-		return g.Apply(cfg)
+// Publics returns the gateway's public endpoints, IPv4 first.
+func (g *LANLinkGateway) Publics() []string {
+	var out []string
+	for _, endpoint := range g.hub.Publics() {
+		out = append(out, endpoint.String())
 	}
-	return nil
+	return out
 }
 
 // Invitation builds the invitation for client using the current public endpoint.
@@ -415,6 +412,16 @@ func (g *LANLinkGateway) Invitation(client contract.LANLinkClient) (string, erro
 	invitation := transport.LANLinkInvitation{
 		Coordinator: public, Registration: client.Registration, Token: client.Token,
 		Routes: slices.Clone(g.config.Networks),
+	}
+	if g.config.PublicEndpoint == "" {
+		// Detected endpoints are addresses; list every family so clients of
+		// both can connect.
+		if publics := g.Publics(); len(publics) > 1 {
+			invitation.Coordinators = publics
+		}
+	} else if g.config.PublicEndpoint6 != "" {
+		// A configured hostname resolves on the client in every family.
+		invitation.Coordinators = g.config.PublicEndpoints()
 	}
 	if g.config.ClientToClient {
 		if pools, err := g.config.TunnelSubnets(); err == nil {

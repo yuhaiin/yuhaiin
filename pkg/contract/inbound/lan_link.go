@@ -43,9 +43,14 @@ type LANLinkGateway struct {
 	Subnet6 string `json:"subnet6,omitempty"`
 	// Listen is the UDP bind address of the built-in coordinator.
 	Listen string `json:"listen,omitempty"`
-	// PublicEndpoint is how clients reach Listen from outside (host:port). It is
-	// detected with STUN when empty.
+	// PublicEndpoint is how clients reach Listen from outside (host:port). A
+	// hostname with both A and AAAA records serves clients of both IP
+	// families. When empty, the IPv4 and IPv6 endpoints are detected with
+	// STUN; a dual-stack Listen such as ":51821" answers on both.
 	PublicEndpoint string `json:"publicEndpoint,omitempty"`
+	// PublicEndpoint6 is an optional second endpoint, typically the IPv6 one
+	// when PublicEndpoint is an IPv4 address.
+	PublicEndpoint6 string `json:"publicEndpoint6,omitempty"`
 	// STUNServer overrides the server used to detect the public endpoint.
 	STUNServer string `json:"stunServer,omitempty"`
 	// ClientToClient lets clients reach each other and the gateway by their
@@ -77,6 +82,14 @@ func (p LANLinkGateway) ListenAddress() string {
 		return DefaultLANLinkListen
 	}
 	return p.Listen
+}
+
+// PublicEndpoints returns the configured public endpoints.
+func (p LANLinkGateway) PublicEndpoints() []string {
+	if p.PublicEndpoint6 == "" {
+		return []string{p.PublicEndpoint}
+	}
+	return []string{p.PublicEndpoint, p.PublicEndpoint6}
 }
 
 func (p LANLinkGateway) STUNAddress() string {
@@ -164,6 +177,14 @@ func (p LANLinkGateway) Validate() error {
 	if p.PublicEndpoint != "" {
 		if err := transport.ValidatePeerCoordinator(p.PublicEndpoint); err != nil {
 			return fmt.Errorf("LAN Link public endpoint: %w", err)
+		}
+	}
+	if p.PublicEndpoint6 != "" {
+		if p.PublicEndpoint == "" {
+			return errors.New("LAN Link second public endpoint needs a first public endpoint")
+		}
+		if err := transport.ValidatePeerCoordinator(p.PublicEndpoint6); err != nil {
+			return fmt.Errorf("LAN Link second public endpoint: %w", err)
 		}
 	}
 	if err := validateHostPort(p.STUNAddress(), false); err != nil {
@@ -403,12 +424,14 @@ type LANLinkClientStatus struct {
 }
 
 type LANLinkClients struct {
-	Running        bool                  `json:"running"`
-	Subnet         string                `json:"subnet,omitempty"`
-	Subnet6        string                `json:"subnet6,omitempty"`
-	PublicEndpoint string                `json:"publicEndpoint,omitempty"`
-	PublicError    string                `json:"publicError,omitempty"`
-	Items          []LANLinkClientStatus `json:"items"`
+	Running        bool   `json:"running"`
+	Subnet         string `json:"subnet,omitempty"`
+	Subnet6        string `json:"subnet6,omitempty"`
+	PublicEndpoint string `json:"publicEndpoint,omitempty"`
+	// PublicEndpoints lists the detected endpoints, one per IP family.
+	PublicEndpoints []string              `json:"publicEndpoints,omitempty"`
+	PublicError     string                `json:"publicError,omitempty"`
+	Items           []LANLinkClientStatus `json:"items"`
 }
 
 type LANLinkNetwork struct {

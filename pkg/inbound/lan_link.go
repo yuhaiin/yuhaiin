@@ -52,7 +52,7 @@ func (s *lanLinkAccepter) ReconfigureContract(next contract.Inbound) (bool, erro
 	link := *current.Protocol.LANLink
 	n := next.Protocol.LANLink
 	link.Networks, link.Subnet, link.Subnet6, link.Clients = n.Networks, n.Subnet, n.Subnet6, n.Clients
-	link.PublicEndpoint, link.STUNServer = n.PublicEndpoint, n.STUNServer
+	link.PublicEndpoint, link.PublicEndpoint6, link.STUNServer = n.PublicEndpoint, n.PublicEndpoint6, n.STUNServer
 	current.Protocol.LANLink = &link
 	if !reflect.DeepEqual(current, next) {
 		return false, nil
@@ -148,6 +148,7 @@ func (s *ContractStore) LANLinkClients(ctx context.Context, id string) (contract
 		live = running.Clients()
 		result.Running = true
 		result.PublicEndpoint, _ = running.Public()
+		result.PublicEndpoints = running.Publics()
 		result.PublicError = running.PublicError()
 	}
 	for _, client := range gateway.Clients {

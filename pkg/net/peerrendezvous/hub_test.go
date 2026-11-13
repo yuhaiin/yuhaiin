@@ -156,3 +156,23 @@ func timeout(t *testing.T) (context.Context, context.CancelFunc) {
 	t.Helper()
 	return context.WithTimeout(t.Context(), 15*time.Second)
 }
+
+func TestHubAnswersDialersInTheirFamily(t *testing.T) {
+	h := &Hub{}
+	v4, v6 := netip.MustParseAddrPort("198.51.100.7:51821"), netip.MustParseAddrPort("[2001:db8::7]:51821")
+	h.SetPublic(v6, v4, netip.MustParseAddrPort("203.0.113.1:1"))
+	if got := h.Publics(); len(got) != 2 || got[0] != v4 || got[1] != v6 || h.Public() != v4 {
+		t.Fatalf("publics = %v", got)
+	}
+	registered := netip.MustParseAddrPort("127.0.0.254:9")
+	if got := h.publicFor(netip.MustParseAddrPort("[2001:db8::99]:4000"), registered); got != v6 {
+		t.Fatalf("IPv6 dialer told %s", got)
+	}
+	if got := h.publicFor(netip.MustParseAddrPort("192.0.2.9:4000"), registered); got != v4 {
+		t.Fatalf("IPv4 dialer told %s", got)
+	}
+	h.SetPublic(v4)
+	if got := h.publicFor(netip.MustParseAddrPort("[2001:db8::99]:4000"), registered); got != registered {
+		t.Fatalf("IPv6 dialer of an IPv4-only hub told %s", got)
+	}
+}

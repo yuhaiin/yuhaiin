@@ -30,8 +30,11 @@ type Coordinator struct {
 	blockedIDs []string
 	byEndpoint map[netip.AddrPort][16]byte
 	data       func(p []byte, from netip.AddrPort) bool
-	done       chan struct{}
-	closeOnce  sync.Once
+	// publisherFor, when set, rewrites the publisher endpoint a dialer at
+	// from is told. A hub uses it to answer in the dialer's IP family.
+	publisherFor func(from, registered netip.AddrPort) netip.AddrPort
+	done         chan struct{}
+	closeOnce    sync.Once
 }
 
 type pair struct {
@@ -156,6 +159,9 @@ func (c *Coordinator) handle(m *message, n int, from netip.AddrPort, now time.Ti
 		}
 		peer := p.peers[1-role]
 		endpoint := peer.onlineEndpoint(now)
+		if endpoint.IsValid() && role == Dialer && c.publisherFor != nil {
+			endpoint = c.publisherFor(from, endpoint)
+		}
 		m[4] = discovered
 		m.setEndpoint(endpoint)
 		// Peers sharing an external address are likely to benefit from a

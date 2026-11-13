@@ -15,9 +15,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/peerrendezvous"
 )
 
-func newPeerUnderlay(ctx context.Context, address string, key [32]byte, role peerrendezvous.Role) (*peerUnderlay, error) {
+func newPeerUnderlay(ctx context.Context, addresses []string, key [32]byte, role peerrendezvous.Role) (*peerUnderlay, error) {
 	resolve := func(ctx context.Context) ([]netip.AddrPort, error) {
-		return peerrendezvous.ResolveCoordinators(ctx, address)
+		return peerrendezvous.ResolveCoordinatorList(ctx, addresses)
 	}
 	coordinators, err := resolve(ctx)
 	if err != nil {
@@ -59,7 +59,10 @@ func (u *peerUnderlay) listen(ctx context.Context, _, address string, opts ...fu
 			return nil, err
 		}
 		u.bind.openAddr.Store(net.UDPAddrFromAddrPort(coordinator))
-		return peerrendezvous.NewManagedSocket(pc, coordinator, u.key, u.role, nil, u.exchange, netip.Prefix{}), nil
+		socket := peerrendezvous.NewManagedSocket(pc, coordinator, u.key, u.role, nil, u.exchange, netip.Prefix{})
+		// The in-process coordinator's socket serves both IP families.
+		socket.SetDualStack()
+		return socket, nil
 	}
 	u.mu.Lock()
 	if (!u.requested && u.exchange == nil) || u.index >= len(u.candidates) {

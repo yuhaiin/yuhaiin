@@ -43,7 +43,11 @@ func (c LANLink) Validate() error {
 // LANLinkInvitation carries separate credentials for rendezvous and peer
 // authentication. Only the publisher and the invited outbound know the token.
 type LANLinkInvitation struct {
-	Coordinator  string   `json:"coordinator"`
+	Coordinator string `json:"coordinator"`
+	// Coordinators lists every gateway endpoint, one per IP family, when the
+	// gateway is reachable over both. Coordinator repeats the first for
+	// clients that predate it.
+	Coordinators []string `json:"coordinators,omitempty"`
 	Registration string   `json:"registration" secret:"true"`
 	Token        string   `json:"token" secret:"true"`
 	Routes       []string `json:"routes"`
@@ -120,9 +124,25 @@ func ParseLANLinkInvitation(value string) (LANLinkInvitation, error) {
 	return invitation, invitation.validate()
 }
 
+// CoordinatorList returns every gateway endpoint of the invitation.
+func (i LANLinkInvitation) CoordinatorList() []string {
+	if len(i.Coordinators) == 0 {
+		return []string{i.Coordinator}
+	}
+	return i.Coordinators
+}
+
 func (i LANLinkInvitation) validate() error {
 	if err := ValidatePeerCoordinator(i.Coordinator); err != nil {
 		return err
+	}
+	if len(i.Coordinators) > 2 {
+		return errors.New("invalid LAN Link gateway endpoints")
+	}
+	for _, c := range i.Coordinators {
+		if err := ValidatePeerCoordinator(c); err != nil {
+			return err
+		}
 	}
 	if _, err := DecodePeerKey(i.Registration); err != nil {
 		return errors.New("invalid LAN Link registration credential")

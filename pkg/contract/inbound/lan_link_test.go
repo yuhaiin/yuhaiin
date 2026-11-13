@@ -134,3 +134,14 @@ func TestLANLinkGatewayPoolExhaustion(t *testing.T) {
 		t.Fatal("address pool never reported full")
 	}
 }
+
+func TestLANLinkGatewaySecondPublicEndpoint(t *testing.T) {
+	g := LANLinkGateway{Networks: []string{"192.168.1.0/24"}, PublicEndpoint6: "[2001:db8::1]:51821"}
+	if err := g.FillDefaults(); err == nil {
+		t.Fatal("a second public endpoint without a first was accepted")
+	}
+	g.PublicEndpoint = "198.51.100.1:51821"
+	if err := g.FillDefaults(); err != nil || !slices.Equal(g.PublicEndpoints(), []string{"198.51.100.1:51821", "[2001:db8::1]:51821"}) {
+		t.Fatalf("endpoints = %v, %v", g.PublicEndpoints(), err)
+	}
+}
