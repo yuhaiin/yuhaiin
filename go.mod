@@ -21,7 +21,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/nftables v0.3.0
-	github.com/google/pprof v0.0.0-20261110164715-8bb1ee682bd8
+	github.com/google/pprof v0.0.0-20261111200114-fac431ef4d26
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/oschwald/maxminddb-golang/v2 v2.9.0
 	github.com/pires/go-proxyproto v0.16.0
@@ -37,12 +37,12 @@ require (
 	github.com/yuhaiin/purego-sqlite v0.0.0-20261105112659-37f07d7891db
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104135523-4121a04c61b8
 	github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261110153002-ec3a9098cb5d
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261112145225-89d6491d0ce9
 	github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v4 v4.0.0
-	golang.org/x/crypto v0.58.0
-	golang.org/x/exp v0.0.0-20261109185158-a52e3aef5920
+	golang.org/x/crypto v0.59.0
+	golang.org/x/exp v0.0.0-20261112173441-d10d3b464990
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
 	golang.org/x/mod v0.43.0
 	golang.org/x/net v0.62.0
