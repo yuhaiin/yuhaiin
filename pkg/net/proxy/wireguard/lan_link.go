@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -102,6 +103,10 @@ func (m *managedLink) start() {
 		m.started.Store(true)
 		go m.run()
 	})
+}
+
+func (m *managedLink) NodeExtraInfo() contractnode.NodeExtraInfo {
+	return contractnode.NodeExtraInfo{LANLink: new(m.LANLinkStatus())}
 }
 
 // LANLinkStatus reports the live pairing state without starting the link.

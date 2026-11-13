@@ -88,6 +88,29 @@ func (r *NodeRuntime) lanLinkStatus(nodeID string, c peerPairing) *transport.LAN
 	return status
 }
 
+// idleLANLinkStatus describes an enabled LAN Link node that is not running.
+func (r *NodeRuntime) idleLANLinkStatus(ctx context.Context, id string) *transport.LANLinkStatus {
+	if _, err := r.openNodes(ctx); err != nil {
+		return nil
+	}
+	for _, n := range r.selectors.snapshot.Load().nodes {
+		if n.ID != id || !n.Enabled {
+			continue
+		}
+		for _, step := range n.Chain {
+			if step.LANLink == nil {
+				continue
+			}
+			invitation, err := transport.ParseLANLinkInvitation(step.LANLink.Invitation)
+			if err != nil {
+				return nil
+			}
+			return r.lanLinkStatus(id, peerPairing{Coordinator: invitation.Coordinator, Token: invitation.Registration})
+		}
+	}
+	return nil
+}
+
 // peerPairing is what the coordinator lookup needs from an invitation.
 type peerPairing struct {
 	Coordinator string

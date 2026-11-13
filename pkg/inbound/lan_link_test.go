@@ -485,4 +485,17 @@ func TestLANLinkReportsNamesAndPaths(t *testing.T) {
 		link.Path != transport.LANLinkPathLAN || peers.Items[0].TunnelIP != server.String() {
 		t.Fatalf("outbound status: %+v", link)
 	}
+
+	// The node editor reads the same status, and still describes a closed node.
+	extra, err := f.nodes.ExtraInfo(f.ctx, "laptop")
+	if err != nil || extra.LANLink == nil || extra.LANLink.State != "connected" || extra.LANLink.LocalIP != invite.Address {
+		t.Fatalf("extra info: %+v, %v", extra.LANLink, err)
+	}
+	if err := f.nodes.CloseNode(f.ctx, "laptop"); err != nil {
+		t.Fatal(err)
+	}
+	extra, err = f.nodes.ExtraInfo(f.ctx, "laptop")
+	if err != nil || extra.LANLink == nil || extra.LANLink.State != "idle" || extra.LANLink.PairingID != client.PairingID {
+		t.Fatalf("idle extra info: %+v, %v", extra.LANLink, err)
+	}
 }
