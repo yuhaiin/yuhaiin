@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
 	"reflect"
 	"sync"
@@ -44,18 +45,22 @@ type fakeRouteBackend struct {
 	routes              map[netip.Prefix]bool
 	borrowed            map[netip.Prefix]bool
 	failAdd, failDelete map[netip.Prefix]bool
+	foreign             map[netip.Prefix]bool
 	events              []string
 	closes              int
 }
 
 func routeBackendForTest() *fakeRouteBackend {
-	return &fakeRouteBackend{routes: make(map[netip.Prefix]bool), borrowed: make(map[netip.Prefix]bool), failAdd: make(map[netip.Prefix]bool), failDelete: make(map[netip.Prefix]bool)}
+	return &fakeRouteBackend{routes: make(map[netip.Prefix]bool), borrowed: make(map[netip.Prefix]bool), failAdd: make(map[netip.Prefix]bool), failDelete: make(map[netip.Prefix]bool), foreign: make(map[netip.Prefix]bool)}
 }
 
 func (b *fakeRouteBackend) Add(p netip.Prefix) (bool, error) {
 	b.events = append(b.events, "add "+p.String())
 	if b.failAdd[p] {
 		return false, errors.New("injected add failure")
+	}
+	if b.foreign[p] {
+		return false, fmt.Errorf("%w: injected", ErrRouteConflict)
 	}
 	b.routes[p] = true
 	return !b.borrowed[p], nil
@@ -213,5 +218,47 @@ func TestRouteManagerRequiredRoutesAndMultipleTUNs(t *testing.T) {
 	}
 	if len(b2.routes) != 1 {
 		t.Fatal("closing one TUN modified another TUN")
+	}
+}
+
+func TestRouteManagerYieldsConflictsToExistingRoutes(t *testing.T) {
+	b := routeBackendForTest()
+	m := newRouteManager(b)
+	routes := prefixes("1.0.0.0/8", "2.0.0.0/8", "100.64.0.0/10", "::/1", "8000::/1")
+	b.foreign[routes[2]] = true // e.g. Tailscale already routes 100.64.0.0/10
+	b.foreign[routes[4]] = true
+	// Legacy route lists keep failing atomically.
+	if err := m.Update(routes); !errors.Is(err, ErrRouteConflict) || len(b.routes) != 0 {
+		t.Fatalf("legacy conflict = %v, routes %v", err, b.routes)
+	}
+	m.SetYieldConflicts(true)
+	if err := m.Update(routes); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Conflicts(); !reflect.DeepEqual(got, prefixes("100.64.0.0/10", "8000::/1")) {
+		t.Fatalf("conflicts = %v", got)
+	}
+	if len(b.routes) != 3 || b.routes[routes[2]] || !b.routes[routes[0]] || !b.routes[routes[3]] {
+		t.Fatalf("installed = %v", b.routes)
+	}
+	// After a network change the other interface's route is gone: retried.
+	delete(b.foreign, routes[2])
+	b.events = nil
+	if err := m.Update(routes); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(b.events, []string{"add 100.64.0.0/10", "add 8000::/1"}) || !b.routes[routes[2]] {
+		t.Fatalf("retry events = %v", b.events)
+	}
+	if got := m.Conflicts(); !reflect.DeepEqual(got, prefixes("8000::/1")) {
+		t.Fatalf("conflicts after retry = %v", got)
+	}
+	// Conflicting prefixes were never ours, so stopping the TUN deletes only owned routes.
+	b.events = nil
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.routes) != 0 || len(b.events) != 4 {
+		t.Fatalf("cleanup events = %v, remaining %v", b.events, b.routes)
 	}
 }

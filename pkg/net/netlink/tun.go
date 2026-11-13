@@ -28,6 +28,9 @@ type Options struct {
 	Inet4Address []netip.Prefix
 	Routes       []netip.Prefix
 	MTU          int
+	// YieldRouteConflicts keeps existing routes of other interfaces instead
+	// of failing when a route for the same prefix already exists.
+	YieldRouteConflicts bool
 }
 
 type Tun interface {

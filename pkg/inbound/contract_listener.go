@@ -444,10 +444,21 @@ func tunConfig(config contract.TunProtocol) device.TunConfig {
 		Driver:          device.Driver(config.Driver),
 		Portal:          config.Portal,
 		PortalV6:        config.PortalV6,
-		Routes:          append(append([]string(nil), config.Routes...), config.Excludes...),
+		Routes:          tunRoutes(config),
+		ManagedRoutes:   config.Routing.Managed(),
 		PostUp:          append([]string(nil), config.PostUp...),
 		PostDown:        append([]string(nil), config.PostDown...),
 	}
+}
+
+// tunRoutes returns the routes a desktop TUN installs. Legacy configurations
+// keep their historical behavior: desktop route tables install both routes
+// and excludes. With a routing mode, Routes holds the generated routes.
+func tunRoutes(config contract.TunProtocol) []string {
+	if config.Routing.Managed() {
+		return append([]string(nil), config.Routes...)
+	}
+	return append(append([]string(nil), config.Routes...), config.Excludes...)
 }
 
 func closeIfNotNil(closer interface{ Close() error }) {

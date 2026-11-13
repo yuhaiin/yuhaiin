@@ -316,7 +316,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		}, gatewayManager.InterceptGateway)
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
-	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithTrafficAccess(so.TrafficAccess), inbound.WithTrafficControl(so.TrafficControl), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
+	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithTrafficAccess(so.TrafficAccess), inbound.WithTrafficControl(so.TrafficControl), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns), inbound.WithGeoIPPrefixSource(list))
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
 	}
@@ -324,6 +324,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		nodeRuntime.SetCredentialResolver(so.UpstreamCredentials)
 	}
 	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
+	list.OnGeoIPChange(func() {
+		if err := inbounds.RefreshTunRoutes(true); err != nil {
+			log.Error("update TUN GeoIP routes failed", "err", err)
+		}
+	})
 	router.SetLANLinkFallback(func(ctx context.Context, ip netip.Addr) (contractroute.Target, bool) {
 		// Traffic leaving a gateway goes straight to the LAN.
 		if inbounds.LANLinkInbound(netapi.GetContext(ctx).GetInboundID()) {
