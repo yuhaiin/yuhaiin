@@ -167,3 +167,39 @@ func (s *Socket) receiveLocalProbe(m message, from netip.AddrPort) {
 		s.mu.Unlock()
 	}
 }
+
+// PathInfo describes the data path this socket uses right now.
+type PathInfo struct {
+	// Local is the socket's address; on a LAN it is the interface address.
+	Local netip.AddrPort
+	// Peer is where data packets go; it is invalid while no peer is known.
+	Peer netip.AddrPort
+	// OnLink is set when Peer is a verified address on a shared LAN.
+	OnLink bool
+	// Ready reports that the path has completed a round trip.
+	Ready bool
+}
+
+func (s *Socket) Path() PathInfo {
+	var info PathInfo
+	if addr, ok := s.PacketConn.LocalAddr().(*net.UDPAddr); ok {
+		ap := addr.AddrPort()
+		info.Local = netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+	}
+	s.mu.Lock()
+	info.Ready = s.ready
+	s.mu.Unlock()
+	if s.lan != nil {
+		if info.Local.Addr().IsUnspecified() {
+			info.Local = s.lan.address
+		}
+		if peer := s.lan.peer.Load(); peer != nil {
+			info.Peer, info.OnLink, info.Ready = peer.AddrPort(), true, true
+			return info
+		}
+	}
+	if peer := s.peer.Load(); peer != nil {
+		info.Peer = peer.AddrPort()
+	}
+	return info
+}

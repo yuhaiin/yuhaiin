@@ -155,7 +155,7 @@ func (f *lanLinkFixture) invite(id string) (netapi.Proxy, contract.LANLinkInvita
 	var value contract.LANLinkInvitationResponse
 	var err error
 	for range 40 { // the public endpoint resolves asynchronously after start
-		if value, err = f.store.CreateLANLinkInvitation(f.ctx, f.gateway.ID); err == nil {
+		if value, err = f.store.CreateLANLinkInvitation(f.ctx, contract.LANLinkInvitationRequest{ID: f.gateway.ID}); err == nil {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -394,7 +394,7 @@ func TestLANLinkInvitationNeedsRunningGateway(t *testing.T) {
 	if err := f.store.Save(f.ctx, disabled, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.store.CreateLANLinkInvitation(f.ctx, f.gateway.ID); err == nil {
+	if _, err := f.store.CreateLANLinkInvitation(f.ctx, contract.LANLinkInvitationRequest{ID: f.gateway.ID}); err == nil {
 		t.Fatal("an invitation was issued by an inactive gateway")
 	}
 	if got, _ := f.store.Get(f.ctx, f.gateway.ID); len(got.Protocol.LANLink.Clients) != 0 {
@@ -451,4 +451,38 @@ func udpEcho(tb testing.TB) netapi.Address {
 		tb.Fatal(err)
 	}
 	return addr
+}
+
+// Both sides report who the client is and which address carries the tunnel.
+func TestLANLinkReportsNamesAndPaths(t *testing.T) {
+	f := newLANLinkFixture(t)
+	proxy, invite := f.invite("laptop")
+	if err := f.store.UpdateLANLinkClient(f.ctx, contract.LANLinkClientAction{
+		ID: f.gateway.ID, ClientID: invite.ClientID, Action: "rename", Name: "  Alice laptop ",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.UpdateLANLinkClient(f.ctx, contract.LANLinkClientAction{
+		ID: f.gateway.ID, ClientID: invite.ClientID, Action: "rename", Name: "bad\nname",
+	}); err == nil {
+		t.Fatal("a name with control characters was accepted")
+	}
+	f.eventually("TCP", func() error { return f.echo(proxy, f.target) })
+
+	client := f.client(invite.ClientID)
+	if client.Name != "Alice laptop" || client.PeerEndpoint == "" || client.Path != transport.LANLinkPathLAN {
+		t.Fatalf("gateway client status: %+v", client)
+	}
+	peers, err := f.nodes.PeerTunnelPeers(f.ctx, 1)
+	if err != nil || len(peers.Items) != 1 || peers.Items[0].Link == nil {
+		t.Fatalf("peer list: %+v, %v", peers, err)
+	}
+	link := *peers.Items[0].Link
+	gateway, _, _ := f.store.lanLinkConfig(f.ctx, f.gateway.ID)
+	server, _, _ := gateway.Protocol.LANLink.Addresses(1)
+	if link.State != "connected" || link.LocalIP != invite.Address || link.PeerIP != server.String() ||
+		link.PairingID != client.PairingID || link.Listen == "" || link.PeerEndpoint == "" ||
+		link.Path != transport.LANLinkPathLAN || peers.Items[0].TunnelIP != server.String() {
+		t.Fatalf("outbound status: %+v", link)
+	}
 }

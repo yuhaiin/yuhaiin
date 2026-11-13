@@ -54,6 +54,10 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 		wg.Go(func() {
 			peer := lookupTunnelPeer(ctx, pairing.config)
 			peer.NodeID, peer.Name = pairing.id, pairing.name
+			peer.Link = r.lanLinkStatus(pairing.id, pairing.config)
+			if peer.Link.PeerIP != "" {
+				peer.TunnelIP = peer.Link.PeerIP
+			}
 			items[i] = peer
 		})
 	}
@@ -62,6 +66,24 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 		return contract.PeerTunnelPeers{}, err
 	}
 	return contract.PeerTunnelPeers{Items: items, Page: route.Page{Page: page, PageSize: peerPageSize, Total: total}}, nil
+}
+
+// lanLinkStatus reads the running outbound, or describes an idle one from its
+// invitation when the node has not been used yet.
+func (r *NodeRuntime) lanLinkStatus(nodeID string, c peerPairing) *transport.LANLinkStatus {
+	if entry, ok := r.proxies.store.Load(nodeID); ok {
+		entry.mu.RLock()
+		live, ok := entry.Proxy.(interface{ LANLinkStatus() transport.LANLinkStatus })
+		entry.mu.RUnlock()
+		if ok {
+			return new(live.LANLinkStatus())
+		}
+	}
+	status := &transport.LANLinkStatus{State: "idle", Coordinator: c.Coordinator}
+	if key, err := transport.DecodePeerKey(c.Token); err == nil {
+		status.PairingID = transport.PeerPairIDString(key)
+	}
+	return status
 }
 
 // peerPairing is what the coordinator lookup needs from an invitation.

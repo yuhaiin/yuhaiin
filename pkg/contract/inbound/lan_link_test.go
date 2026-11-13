@@ -31,11 +31,11 @@ func TestLANLinkGatewayClientsHaveIndependentCredentials(t *testing.T) {
 	if pool := netip.MustParsePrefix(g.Subnet); !pool.Addr().Is6() || pool.Overlaps(netip.MustParsePrefix("fd00:1234::/64")) {
 		t.Fatalf("IPv6 subnet = %s", g.Subnet)
 	}
-	a, err := g.AddClient(1)
+	a, err := g.AddClient(1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := g.AddClient(2)
+	b, err := g.AddClient(2, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestLANLinkGatewaySubnetIsKeptForExistingClients(t *testing.T) {
 	if err := g.FillDefaults(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := g.AddClient(1); err != nil {
+	if _, err := g.AddClient(1, ""); err != nil {
 		t.Fatal(err)
 	}
 	// A network overlapping the live subnet is an error instead of silently
@@ -91,11 +91,11 @@ func TestLANLinkGatewayPoolExhaustion(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 1021 {
-		if _, err := g.AddClient(1); err != nil {
+		if _, err := g.AddClient(1, ""); err != nil {
 			return
 		}
 	}
-	if _, err := g.AddClient(1); err == nil {
+	if _, err := g.AddClient(1, ""); err == nil {
 		t.Fatal("address pool never reported full")
 	}
 }
