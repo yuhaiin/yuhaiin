@@ -22,19 +22,22 @@ const (
 // Capabilities describes what this platform's adapter can apply. The editor
 // only offers supported targets and features.
 type Capabilities struct {
-	Platform           string   `json:"platform"`
-	RouteManagement    bool     `json:"routeManagement"`
-	MultipleTargets    bool     `json:"multipleTargets"`
-	ExternalInterfaces bool     `json:"externalInterfaces"`
-	Gateways           bool     `json:"gateways"`
-	PolicyRouting      bool     `json:"policyRouting"`
-	IPv4Forwarding     bool     `json:"ipv4Forwarding"`
-	IPv6Forwarding     bool     `json:"ipv6Forwarding"`
-	NAT                bool     `json:"nat"`
-	TProxy             bool     `json:"tproxy"`
-	RouteTargets       []string `json:"routeTargets"`
-	ForwardTargets     []string `json:"forwardTargets"`
-	Notes              []string `json:"notes,omitzero"`
+	Platform           string `json:"platform"`
+	RouteManagement    bool   `json:"routeManagement"`
+	MultipleTargets    bool   `json:"multipleTargets"`
+	ExternalInterfaces bool   `json:"externalInterfaces"`
+	Gateways           bool   `json:"gateways"`
+	PolicyRouting      bool   `json:"policyRouting"`
+	IPv4Forwarding     bool   `json:"ipv4Forwarding"`
+	IPv6Forwarding     bool   `json:"ipv6Forwarding"`
+	NAT                bool   `json:"nat"`
+	// ForwardSourceFilter reports whether forwarding can be limited to
+	// source CIDRs. Without it a rule forwards every device on its ingress.
+	ForwardSourceFilter bool     `json:"forwardSourceFilter"`
+	TProxy              bool     `json:"tproxy"`
+	RouteTargets        []string `json:"routeTargets"`
+	ForwardTargets      []string `json:"forwardTargets"`
+	Notes               []string `json:"notes,omitzero"`
 }
 
 // Status is the runtime state of the System Network Manager.

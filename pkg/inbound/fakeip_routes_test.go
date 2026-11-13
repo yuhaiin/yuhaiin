@@ -3,9 +3,9 @@ package inbound
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"net/netip"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 

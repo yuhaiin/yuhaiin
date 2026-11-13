@@ -204,6 +204,9 @@ func (m *Manager) checkSupported(config sysnet.Config) error {
 		if r.Masquerade && !caps.NAT {
 			return fmt.Errorf("forwarding rule %q: NAT is not supported on %s", r.Name, caps.Platform)
 		}
+		if len(r.SourceCIDRs) != 0 && !caps.ForwardSourceFilter {
+			return fmt.Errorf("forwarding rule %q: %s forwards every device on the ingress; remove the source CIDRs", r.Name, caps.Platform)
+		}
 	}
 	return nil
 }
@@ -581,7 +584,13 @@ func (m *Manager) reconcileLocked(reason string) {
 	for _, n := range platform {
 		status.Routes += len(n)
 	}
-	status.Forwarding = m.applyForwarding(ifaces)
+	current := make([]sysnet.RuleStatus, 0, len(statusByID))
+	for _, rs := range statusByID {
+		if rs.State == sysnet.StateActive || rs.State == sysnet.StateDegraded || rs.State == sysnet.StateConflict {
+			current = append(current, *rs)
+		}
+	}
+	status.Forwarding = m.applyForwarding(ifaces, current)
 	if status.State == sysnet.StateActive && status.Forwarding.State == sysnet.StateFailed {
 		status.State, status.Error = sysnet.StateDegraded, status.Forwarding.Error
 	}
@@ -652,7 +661,7 @@ func (m *Manager) finish(status sysnet.Status, rules []sysnet.RouteRule, byID ma
 }
 
 // applyForwarding resolves and applies the forwarding configuration.
-func (m *Manager) applyForwarding(ifaces []iface.Info) sysnet.ForwardingStatus {
+func (m *Manager) applyForwarding(ifaces []iface.Info, routeRules []sysnet.RuleStatus) sysnet.ForwardingStatus {
 	cfg := m.config.Forwarding
 	fs := sysnet.ForwardingStatus{State: sysnet.StateDisabled, Rules: []sysnet.ForwardRuleStatus{}}
 	if m.opts.Forward == nil {
@@ -681,8 +690,11 @@ func (m *Manager) applyForwarding(ifaces []iface.Info) sysnet.ForwardingStatus {
 		}
 		sources, _ := sysnet.ParseCIDRs("source", rule.SourceCIDRs)
 		destinations, _ := sysnet.ParseCIDRs("destination", rule.DestinationCIDRs)
-		planned := forward.Rule{ID: rule.ID, Ingress: in.Name, Sources: sources, Destinations: destinations, Masquerade: rule.Masquerade}
-		if rule.Egress.Type == sysnet.TargetTProxy {
+		planned := forward.Rule{ID: rule.ID, Ingress: in.Name, IngressLink: in.Index, Sources: sources, Destinations: destinations, Masquerade: rule.Masquerade}
+		if rule.Egress.Type == sysnet.TargetRoutes {
+			planned.Egress = forward.Egress{Routes: true}
+			rs.Egress = "routes"
+		} else if rule.Egress.Type == sysnet.TargetTProxy {
 			port := tproxyPort(tproxy, rule.Egress.InboundID)
 			if port == 0 {
 				rs.State, rs.Error = sysnet.StateUnavailable, "the TProxy inbound does not exist or has no listen port"
@@ -712,6 +724,7 @@ func (m *Manager) applyForwarding(ifaces []iface.Info) sysnet.ForwardingStatus {
 		plan.Rules = append(plan.Rules, planned)
 		fs.Rules = append(fs.Rules, rs)
 	}
+	plan.Links = forwardLinks(ifaces, routeRules, m.tuns)
 	err := m.opts.Forward.Apply(plan)
 	fs.IPv4, fs.IPv6 = cfg.IPv4, cfg.IPv6
 	switch {
@@ -761,4 +774,33 @@ func lastColon(s string) int {
 		}
 	}
 	return -1
+}
+
+// forwardLinks returns interfaces forwarded traffic may leave through when it
+// follows the routing table: interfaces with a default gateway, targets of
+// active route rules and attached TUNs.
+func forwardLinks(ifaces []iface.Info, rules []sysnet.RuleStatus, tuns map[string]TunAttachment) []int {
+	seen := map[int]bool{}
+	var out []int
+	add := func(link int) {
+		if link > 0 && !seen[link] {
+			seen[link] = true
+			out = append(out, link)
+		}
+	}
+	for _, i := range ifaces {
+		if i.Up && (i.Gateway.IsValid() || i.GatewayV6.IsValid()) {
+			add(i.Index)
+		}
+	}
+	for _, r := range rules {
+		add(r.InterfaceIndex)
+	}
+	for _, t := range tuns {
+		if t.Platform == nil {
+			add(t.Index)
+		}
+	}
+	slices.Sort(out)
+	return out
 }

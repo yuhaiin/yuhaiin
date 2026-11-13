@@ -507,3 +507,50 @@ func TestMonitorReconcilesInterfaceChanges(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+func TestForwardingCapabilitiesByPlatform(t *testing.T) {
+	darwin := PlatformCapabilities("darwin", true, true)
+	if !darwin.IPv4Forwarding || !darwin.NAT || !darwin.ForwardSourceFilter || darwin.TProxy || slices.Contains(darwin.ForwardTargets, sysnet.TargetTProxy) {
+		t.Fatalf("darwin = %+v", darwin)
+	}
+	windows := PlatformCapabilities("windows", true, true)
+	if !windows.IPv4Forwarding || windows.NAT || windows.ForwardSourceFilter || !slices.Equal(windows.ForwardTargets, []string{sysnet.TargetRoutes}) {
+		t.Fatalf("windows = %+v", windows)
+	}
+	m := New(Options{Forward: &fakeForward{}, Capabilities: windows, Interfaces: func() ([]iface.Info, error) { return nil, nil }})
+	if err := m.SetStore(t.Context(), &memoryStore{}); err != nil {
+		t.Fatal(err)
+	}
+	withSources := sysnet.Config{Forwarding: sysnet.Forwarding{IPv4: true, Rules: []sysnet.ForwardRule{{ID: "f", Enabled: true, IngressInterface: "Ethernet",
+		SourceCIDRs: []string{"192.168.20.0/24"}, Egress: sysnet.RouteTarget{Type: sysnet.TargetRoutes}}}}}
+	if _, err := m.Save(t.Context(), withSources); err == nil {
+		t.Fatal("Windows accepted source CIDRs it cannot enforce")
+	}
+	withSources.Forwarding.Rules[0].SourceCIDRs = nil
+	if _, err := m.Save(t.Context(), withSources); err != nil {
+		t.Fatal(err)
+	}
+	nat := withSources
+	nat.Forwarding.Rules = []sysnet.ForwardRule{{ID: "n", Enabled: true, IngressInterface: "Ethernet", Masquerade: true, Egress: sysnet.RouteTarget{Type: sysnet.TargetRoutes}}}
+	if _, err := m.Save(t.Context(), nat); err == nil {
+		t.Fatal("NAT without an egress interface accepted")
+	}
+}
+
+func TestForwardingFollowsRoutesAndListsEgressLinks(t *testing.T) {
+	n := newTestNet(t, sysnet.Config{Routes: []sysnet.RouteRule{rule("wg", 100, custom("10.10.0.0/16"), ifTarget("wg0"))}})
+	n.attach("a", 10, false)
+	_, err := n.m.Save(t.Context(), sysnet.Config{Routes: []sysnet.RouteRule{rule("wg", 100, custom("10.10.0.0/16"), ifTarget("wg0"))},
+		Forwarding: sysnet.Forwarding{IPv4: true, Rules: []sysnet.ForwardRule{{ID: "all", Enabled: true, IngressInterface: "eth0", Egress: sysnet.RouteTarget{Type: sysnet.TargetRoutes}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := n.fwd.plans[len(n.fwd.plans)-1]
+	if len(plan.Rules) != 1 || !plan.Rules[0].Egress.Routes || plan.Rules[0].IngressLink != 2 || len(plan.Rules[0].Sources) != 0 {
+		t.Fatalf("plan = %+v", plan)
+	}
+	// eth0 has the default gateway, wg0 is a route target, utuna is a TUN.
+	if !slices.Equal(plan.Links, []int{2, 5, 10}) {
+		t.Fatalf("links = %v", plan.Links)
+	}
+}

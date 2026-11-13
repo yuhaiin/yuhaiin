@@ -20,11 +20,14 @@ const (
 )
 
 // Target types. TProxy is an interception action of forwarding, not a route
-// target: it is only valid as a forwarding egress on Linux.
+// target: it is only valid as a forwarding egress on Linux. Routes is a
+// forwarding egress meaning "follow the system routing table", which already
+// includes the System Network route rules.
 const (
 	TargetTunInbound = "tun_inbound"
 	TargetInterface  = "interface"
 	TargetTProxy     = "tproxy"
+	TargetRoutes     = "routes"
 )
 
 // Bounds for user input. Generated routes have a separate runtime limit.
@@ -94,9 +97,10 @@ type Forwarding struct {
 }
 
 // ForwardRule sends traffic arriving on IngressInterface from SourceCIDRs (and
-// optionally only to DestinationCIDRs) out through Egress. Masquerade rewrites
-// the source address to the egress address, for upstreams without a return
-// route to the LAN.
+// optionally only to DestinationCIDRs) out through Egress. Empty SourceCIDRs
+// mean every device on the ingress; platforms without source filtering
+// (Windows) only accept that. Masquerade rewrites the source address to the
+// egress address, for upstreams without a return route to the LAN.
 type ForwardRule struct {
 	ID               string      `json:"id"`
 	Name             string      `json:"name"`
@@ -228,18 +232,20 @@ func (r ForwardRule) Validate() error {
 	if strings.TrimSpace(r.IngressInterface) == "" {
 		return fmt.Errorf("ingress interface is required")
 	}
-	sources, err := ParseCIDRs("source", r.SourceCIDRs)
-	if err != nil {
+	if _, err := ParseCIDRs("source", r.SourceCIDRs); err != nil {
 		return err
-	}
-	if len(sources) == 0 {
-		return fmt.Errorf("at least one source CIDR is required")
 	}
 	if _, err := ParseCIDRs("destination", r.DestinationCIDRs); err != nil {
 		return err
 	}
 	if r.Egress.Type == TargetTProxy && r.Masquerade {
 		return fmt.Errorf("masquerade does not apply to TProxy interception")
+	}
+	if r.Egress.Type == TargetRoutes {
+		if r.Masquerade {
+			return fmt.Errorf("masquerade needs an egress interface")
+		}
+		return nil
 	}
 	return r.Egress.Validate()
 }

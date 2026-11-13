@@ -5,8 +5,9 @@ changes operating system routing. It owns three things:
 
 - **Routing**: which destinations the OS sends to a Yuhaiin TUN or to another
   interface (WireGuard, Tailscale, Ethernet, Wi-Fi, ...).
-- **Forwarding** (Linux): letting other devices use this host as their
-  gateway (side router), with optional NAT or TProxy interception.
+- **Forwarding** (Linux, macOS, Windows): letting other devices use this host
+  as their gateway (side router), with optional NAT, or TProxy interception
+  on Linux.
 - **Interfaces**: discovery of the interfaces those rules refer to.
 
 This is separate from proxy routing (route rules that pick a node by domain or
@@ -48,6 +49,7 @@ Targets:
 | `tun_inbound` | `inboundId` | Resolved to the TUN's interface at runtime. Unavailable while the TUN is stopped; resynchronized when it starts again. |
 | `interface` | `interfaceName` (+ `hardwareAddr`) | Any interface of the host, including ones other programs own. The hardware address finds it again after a rename. `gateway` / `gatewayV6` override detection. |
 | `tproxy` | `inboundId` | Forwarding egress only (Linux): interception into a TProxy inbound, not a route. |
+| `routes` | — | Forwarding egress only: follow the system routing table, which already contains the route rules. The only egress on Windows. |
 
 Interface indexes are never saved; they are resolved on every update.
 
@@ -163,7 +165,14 @@ TUN do not loop. Because table 63 is consulted before `main`, a global rule
 on Linux also captures LAN destinations; use non_private or bypass CIDRs to
 keep them local.
 
-## Linux forwarding and NAT
+## Forwarding and NAT
+
+A forwarding rule selects traffic arriving on an ingress interface, from
+source CIDRs (empty means every device on that interface), optionally only
+to some destinations, and sends it to an egress. Masquerade needs an egress
+interface; it is not available with the `routes` egress.
+
+### Linux
 
 Forwarding is independent from routing and turned on per IP version.
 
@@ -201,6 +210,44 @@ Side router example: on the LAN device (or DHCP server) set the gateway to
 this host's LAN address, enable IPv4 forwarding, and add a rule
 `ingress eth1, sources 192.168.20.0/24, egress <TUN>`.
 
+### macOS
+
+- **sysctl**: `net.inet.ip.forwarding` and `net.inet6.ip6.forwarding`
+  through `sysctl(8)`, with the same ownership rules as on Linux.
+- **PF**: all rules live in the anchor `com.apple/yuhaiin`. The default
+  `/etc/pf.conf` already evaluates every `com.apple/*` anchor (`anchor` and
+  `nat-anchor`), so `pf.conf` and other anchors are never edited. Before
+  loading, the manager checks that the main ruleset evaluates those anchors
+  and refuses with an explanation if a customized `pf.conf` does not. Rules
+  are parsed first (`pfctl -n`) and then loaded into the anchor in one step,
+  so a rejected ruleset leaves the previous one in place.
+- **Enabling PF** uses the reference-counted `pfctl -E` token, released with
+  `pfctl -X <token>` on stop; PF stays enabled when other software uses it.
+- **Rules** (first match wins, in configuration order): traffic from the
+  selected sources to this host itself passes; traffic to the rule's
+  destinations is sent with `route-to (<egress> <next hop>)` — the gateway,
+  or for utun and other point-to-point interfaces their own address, as for
+  routes; other traffic from those sources follows the routing table;
+  link-local multicast and broadcast pass; everything else that arrives on
+  the ingress and is not for this host is blocked, so only selected devices
+  are forwarded. Masquerade adds `nat on <egress> from <sources> -> (<egress>)`.
+- **Not available**: TProxy interception (macOS has no TPROXY; it would need a
+  separate `rdr` based inbound).
+
+### Windows
+
+- Windows has no global forwarding switch or policy routing. The manager
+  turns on forwarding (`ForwardingEnabled` of the IP interface, per family)
+  on each rule's ingress and on the interfaces forwarded traffic may leave
+  through: interfaces with a default gateway, route rule targets and attached
+  TUNs. It records which interfaces it changed and turns forwarding off again
+  only on those, and only while it is still on.
+- Forwarded traffic follows the routing table, including the System Network
+  route rules, so the only egress is `routes`.
+- **Not available**: limiting forwarding to source CIDRs (the API rejects
+  them), a per-rule egress, NAT (WinNAT only serves one internal prefix and is
+  meant for Hyper-V; ICS conflicts with other settings), and TProxy.
+
 ## Platform support
 
 | | Linux | macOS | Windows | Android |
@@ -209,7 +256,10 @@ this host's LAN address, enable IPv4 forwarding, and add a rule
 | Multiple targets / external interfaces | ✓ | ✓ | ✓ | – |
 | Gateways for physical interfaces | ✓ | ✓ | ✓ | – |
 | Policy routing (dedicated table) | ✓ | – | – | – |
-| Forwarding, NAT, TProxy | ✓ | – | – | – |
+| IPv4 / IPv6 forwarding | ✓ | ✓ | ✓ (per interface) | – |
+| Forwarding source filter, per-rule egress | ✓ | ✓ (PF) | – | – |
+| NAT | ✓ | ✓ (PF) | – | – |
+| TProxy | ✓ | – | – | – |
 
 The capabilities are part of the status, the editor offers only supported
 targets and features, and the API rejects configuration a platform cannot
@@ -223,11 +273,11 @@ interface already has a route for the same prefix (`EEXIST`), that route
 stays and the prefix is reported as a conflict instead of being overwritten.
 A matching route on the same interface is borrowed and never deleted. Routes
 via a utun disappear with it; routes via external interfaces left by a crash
-are not cleaned up automatically. PF is not used, so forwarding is not
-offered.
+are not cleaned up automatically. Forwarding uses PF as described above.
 
 **Windows**: routes are added per interface LUID (`luid.AddRoute`), on-link
-for point-to-point adapters. No policy routing and no forwarding.
+for point-to-point adapters. No policy routing; forwarding per interface as
+described above.
 
 **Android**: `VpnService` owns the only TUN. Rules may target only the
 Yuhaiin VPN; the manager resolves them with the same engine and passes the
@@ -297,3 +347,15 @@ manager with the Linux adapters) and the gated kernel tests, then checks:
 
 It prints PASS / FAIL / SKIP for each check and exits non-zero on any
 failure; skipped checks are never counted as passed.
+
+## macOS checks
+
+```sh
+scripts/integration/system-network-macos.sh          # unit tests, no root
+sudo scripts/integration/system-network-macos.sh --live
+```
+
+`--live` additionally adds and removes routes for documentation prefixes via
+`lo0`, loads rules into the `com.apple/yuhaiin` PF anchor, enables
+forwarding, and checks that closing flushes the anchor, releases the PF token
+and restores the sysctl. It never edits `/etc/pf.conf` or other anchors.

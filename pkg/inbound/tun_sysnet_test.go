@@ -127,7 +127,9 @@ func TestLegacyRouteFieldsDoNotRebuildTun(t *testing.T) {
 
 type memorySysnetStore struct{ config contractsysnet.Config }
 
-func (s *memorySysnetStore) LoadSystemNetwork(context.Context) (contractsysnet.Config, error) { return s.config, nil }
+func (s *memorySysnetStore) LoadSystemNetwork(context.Context) (contractsysnet.Config, error) {
+	return s.config, nil
+}
 func (s *memorySysnetStore) SaveSystemNetwork(_ context.Context, c contractsysnet.Config) error {
 	s.config = c
 	return nil

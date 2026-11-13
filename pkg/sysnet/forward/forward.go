@@ -1,7 +1,14 @@
-// Package forward manages forwarding of other devices' traffic (side router):
-// kernel IP forwarding, per-rule policy routing towards an egress, optional
-// masquerade and TProxy interception. Only Linux has an applier; the plan
-// compiler and sysctl ownership are platform independent and unit tested.
+// Package forward manages forwarding of other devices' traffic (side router).
+//
+//   - Linux: kernel IP forwarding, per-rule policy routing towards an egress,
+//     a Yuhaiin-only nftables table with masquerade and TProxy interception.
+//   - macOS: IP forwarding sysctls and a PF anchor (com.apple/yuhaiin) with
+//     route-to, source restriction and NAT.
+//   - Windows: per-interface forwarding; forwarded traffic follows the
+//     routing table (including System Network route rules).
+//
+// The plan compilers and the ownership of changed settings are platform
+// independent and unit tested; the appliers only talk to the kernel.
 package forward
 
 import (
@@ -34,29 +41,50 @@ const (
 	NFTTable = "yuhaiin_sysnet"
 )
 
-// Plan is the resolved desired forwarding state.
+// Plan is the resolved desired forwarding state. Links are further
+// interfaces traffic may leave through when it follows the routing table
+// (route rule targets and interfaces with a default gateway); per-interface
+// forwarding (Windows) is enabled on them.
 type Plan struct {
 	IPv4, IPv6 bool
 	Rules      []Rule
+	Links      []int
 }
 
-// Rule is a forwarding rule with interfaces already resolved.
+// sources returns a rule's sources of one family; no sources means all.
+func (r Rule) sources(v6 bool) []netip.Prefix {
+	if len(r.Sources) == 0 {
+		if v6 {
+			return []netip.Prefix{netip.MustParsePrefix("::/0")}
+		}
+		return []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}
+	}
+	return split(r.Sources, v6)
+}
+
+// Rule is a forwarding rule with interfaces already resolved. Empty Sources
+// mean every device on the ingress.
 type Rule struct {
 	ID           string
 	Ingress      string
+	IngressLink  int
 	Sources      []netip.Prefix
 	Destinations []netip.Prefix
 	Egress       Egress
 	Masquerade   bool
 }
 
-// Egress is where a rule's traffic leaves: a route through an interface, or
-// TProxy interception into a local transparent listener.
+// Egress is where a rule's traffic leaves: a route through an interface,
+// the system routing table (Routes), or TProxy interception into a local
+// transparent listener.
 type Egress struct {
 	Name      string
 	Link      int
 	Gateway   netip.Addr
 	GatewayV6 netip.Addr
+	// Routes forwards through the system routing table, which already holds
+	// the System Network route rules.
+	Routes bool
 	// TProxyPort is set for TProxy interception instead of a route.
 	TProxyPort uint16
 }
@@ -172,13 +200,17 @@ func Compile(plan Plan) (Compiled, error) {
 			if (v6 && !plan.IPv6) || (!v6 && !plan.IPv4) {
 				continue
 			}
-			sources := split(rule.Sources, v6)
+			sources := rule.sources(v6)
 			if len(sources) == 0 {
 				continue
 			}
 			destinations := split(rule.Destinations, v6)
 			for _, src := range sources {
 				c.Filter = append(c.Filter, FilterRule{Chain: "forward", Ingress: rule.Ingress, Src: src, Action: "accept"})
+			}
+			if rule.Egress.Routes {
+				// The forward chain accepts it; the main table and route rules route it.
+				continue
 			}
 			if rule.Egress.tproxy() {
 				if !slices.Contains(tproxy[v6], rule.Ingress) {
@@ -246,9 +278,12 @@ func Compile(plan Plan) (Compiled, error) {
 // value written here, so a setting another service changed meanwhile, or
 // one that was already enabled, is never reverted.
 type Sysctl struct {
-	Root     string // "/proc/sys" by default
-	mu       sync.Mutex
-	previous map[string]string
+	Root string // "/proc/sys" by default
+	// ReadValue and WriteValue replace /proc/sys access (macOS sysctl).
+	ReadValue  func(key string) (string, error)
+	WriteValue func(key, value string) error
+	mu         sync.Mutex
+	previous   map[string]string
 }
 
 func (s *Sysctl) path(key string) string {
@@ -260,8 +295,19 @@ func (s *Sysctl) path(key string) string {
 }
 
 func (s *Sysctl) read(key string) (string, error) {
+	if s.ReadValue != nil {
+		v, err := s.ReadValue(key)
+		return strings.TrimSpace(v), err
+	}
 	data, err := os.ReadFile(s.path(key))
 	return strings.TrimSpace(string(data)), err
+}
+
+func (s *Sysctl) write(key, value string) error {
+	if s.WriteValue != nil {
+		return s.WriteValue(key, value)
+	}
+	return os.WriteFile(s.path(key), []byte(value), 0o644)
 }
 
 // Set makes key equal to enabled ("1"/"0"). Disabling only restores what Set
@@ -284,7 +330,7 @@ func (s *Sysctl) Set(key string, enabled bool) error {
 		if !owned {
 			s.previous[key] = current
 		}
-		if err := os.WriteFile(s.path(key), []byte("1"), 0o644); err != nil {
+		if err := s.write(key, "1"); err != nil {
 			return fmt.Errorf("enable %s: %w", key, err)
 		}
 		return nil
@@ -293,7 +339,7 @@ func (s *Sysctl) Set(key string, enabled bool) error {
 		return nil
 	}
 	if current == "1" {
-		if err := os.WriteFile(s.path(key), []byte(previous), 0o644); err != nil {
+		if err := s.write(key, previous); err != nil {
 			return fmt.Errorf("restore %s: %w", key, err)
 		}
 	}
@@ -313,3 +359,77 @@ const (
 	SysctlIPv4 = "net.ipv4.ip_forward"
 	SysctlIPv6 = "net.ipv6.conf.all.forwarding"
 )
+
+// LinkForwarding owns per-interface forwarding flags (Windows). Like Sysctl
+// it only turns off what it turned on, and only while it is still on.
+type LinkForwarding struct {
+	Get   func(link int, v6 bool) (bool, error)
+	Set   func(link int, v6, on bool) error
+	owned map[linkFamily]bool
+}
+
+type linkFamily struct {
+	link int
+	v6   bool
+}
+
+// Apply enables forwarding on want and turns it off again on links this
+// owner enabled that are no longer wanted.
+func (l *LinkForwarding) Apply(want map[int]bool, v4, v6 bool) error {
+	if l.owned == nil {
+		l.owned = map[linkFamily]bool{}
+	}
+	desired := map[linkFamily]bool{}
+	for link := range want {
+		if link <= 0 {
+			continue
+		}
+		if v4 {
+			desired[linkFamily{link, false}] = true
+		}
+		if v6 {
+			desired[linkFamily{link, true}] = true
+		}
+	}
+	var result error
+	for k := range desired {
+		if _, done := l.owned[k]; done {
+			continue
+		}
+		on, err := l.Get(k.link, k.v6)
+		if err != nil {
+			result = errors.Join(result, err)
+			continue
+		}
+		if on {
+			// Already forwarding: not ours to turn off later.
+			l.owned[k] = false
+			continue
+		}
+		if err := l.Set(k.link, k.v6, true); err != nil {
+			result = errors.Join(result, err)
+			continue
+		}
+		l.owned[k] = true
+	}
+	for k, changed := range l.owned {
+		if desired[k] {
+			continue
+		}
+		if changed {
+			on, err := l.Get(k.link, k.v6)
+			if err == nil && on {
+				err = l.Set(k.link, k.v6, false)
+			}
+			if err != nil && !errors.Is(err, ErrLinkGone) {
+				result = errors.Join(result, err)
+				continue
+			}
+		}
+		delete(l.owned, k)
+	}
+	return result
+}
+
+// ErrLinkGone is returned by LinkForwarding.Get/Set for removed interfaces.
+var ErrLinkGone = errors.New("interface no longer exists")

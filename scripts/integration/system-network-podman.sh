@@ -259,6 +259,14 @@ fwd "$(jq -s . <(frule lan '["10.77.20.10/32"]' "$tunA" false))"
 expect_dev "forwarding to a Yuhaiin TUN: LAN traffic routed to TUN A" tuna route get 8.8.8.8 from 10.77.20.10 iif eth0
 expect_not_dev "other LAN sources are not sent to TUN A" tuna route get 8.8.8.8 from 10.77.20.11 iif eth0
 
+fwd "$(jq -n '[{id: "all", name: "all", enabled: true, ingressInterface: "eth0", sourceCidrs: [], egress: {type: "routes"}}]')"
+R ip route add 198.51.100.0/24 via 10.77.31.10
+ex up1 ip route add 10.77.20.0/24 via 10.77.31.2
+got1=$(probe client 198.51.100.1:8080) got2=$(probe client2 198.51.100.1:8080)
+[ "$got1" = "up1 10.77.20.10" ] && [ "$got2" = "up1 10.77.20.11" ] && pass "routes egress without sources: every LAN device follows the routing table" || fail "routes egress" "got '$got1' / '$got2'"
+R ip route del 198.51.100.0/24 via 10.77.31.10
+ex up1 ip route del 10.77.20.0/24 via 10.77.31.2
+
 log "D. TProxy interception"
 if R sh -c 'nft add table inet yhsn_probe && nft add chain inet yhsn_probe p "{ type filter hook prerouting priority mangle; }" && nft add rule inet yhsn_probe p meta l4proto tcp tproxy ip to :1 && nft delete table inet yhsn_probe' >/dev/null 2>&1; then
 	apply "$(jq -n --argjson t "$TUNS" --argjson f "$(jq -s . <(frule tp '["10.77.20.10/32"]' '{"type":"tproxy","inboundId":"tp"}' false))" \

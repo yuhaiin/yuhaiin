@@ -10,8 +10,10 @@ import (
 //
 //   - Linux: a dedicated policy-routing table for any interface, kernel
 //     forwarding, nftables masquerade and TProxy interception.
-//   - macOS and Windows: routes to any interface in the single system table;
-//     no policy routing and no forwarding management.
+//   - macOS: routes to any interface in the single system table; forwarding
+//     with a PF anchor (source restriction, per-rule egress, NAT).
+//   - Windows: routes per interface; forwarding per interface that follows
+//     the routing table, without source filtering or NAT.
 //   - Android: routes of the Yuhaiin VPN only, applied by VpnService.
 func PlatformCapabilities(goos string, routes, forwarding bool) sysnet.Capabilities {
 	c := sysnet.Capabilities{Platform: goos, RouteTargets: []string{}, ForwardTargets: []string{}}
@@ -26,12 +28,20 @@ func PlatformCapabilities(goos string, routes, forwarding bool) sysnet.Capabilit
 		}
 		c.RouteManagement, c.MultipleTargets, c.ExternalInterfaces, c.Gateways = true, true, true, true
 		c.RouteTargets = []string{sysnet.TargetTunInbound, sysnet.TargetInterface}
-		if goos == "linux" {
+		if !forwarding {
+			return c
+		}
+		c.IPv4Forwarding, c.IPv6Forwarding = true, true
+		switch goos {
+		case "linux":
 			c.PolicyRouting = true
-			if forwarding {
-				c.IPv4Forwarding, c.IPv6Forwarding, c.NAT, c.TProxy = true, true, true, true
-				c.ForwardTargets = []string{sysnet.TargetTunInbound, sysnet.TargetInterface, sysnet.TargetTProxy}
-			}
+			c.NAT, c.TProxy, c.ForwardSourceFilter = true, true, true
+			c.ForwardTargets = []string{sysnet.TargetTunInbound, sysnet.TargetInterface, sysnet.TargetRoutes, sysnet.TargetTProxy}
+		case "darwin":
+			c.NAT, c.ForwardSourceFilter = true, true
+			c.ForwardTargets = []string{sysnet.TargetTunInbound, sysnet.TargetInterface, sysnet.TargetRoutes}
+		case "windows":
+			c.ForwardTargets = []string{sysnet.TargetRoutes}
 		}
 	}
 	return c

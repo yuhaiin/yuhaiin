@@ -1,6 +1,7 @@
 package forward
 
 import (
+	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -159,5 +160,119 @@ func TestSysctlOwnership(t *testing.T) {
 	}
 	if readFile(t, v4) != "0\n" || s.Owned(SysctlIPv4) {
 		t.Fatal("external change overwritten")
+	}
+}
+
+func TestCompileRoutesEgressAndAllSources(t *testing.T) {
+	c, err := Compile(Plan{IPv4: true, IPv6: true, Rules: []Rule{{ID: "all", Ingress: "eth0", Egress: Egress{Routes: true}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Following the routing table needs no policy rule or table.
+	if len(c.Rules) != 0 || len(c.Routes) != 0 {
+		t.Fatalf("routes egress compiled policy routing: %+v", c)
+	}
+	accepts := 0
+	for _, f := range c.Filter {
+		if f.Action == "accept" {
+			accepts++
+			if f.Src.Bits() != 0 {
+				t.Fatalf("no sources must mean every device: %+v", f)
+			}
+		}
+	}
+	if accepts != 2 {
+		t.Fatalf("filter = %+v", c.Filter)
+	}
+}
+
+func TestCompilePF(t *testing.T) {
+	hop := func(link int, v6 bool) (netip.Addr, error) {
+		if v6 {
+			return netip.MustParseAddr("fdfe:a::1"), nil
+		}
+		return netip.MustParseAddr("172.19.0.1"), nil
+	}
+	plan := Plan{IPv4: true, IPv6: true, Rules: []Rule{
+		{ID: "office", Ingress: "en1", Sources: p("192.168.20.50/32"), Destinations: p("10.10.0.0/16"), Egress: Egress{Name: "en0", Link: 4, Gateway: netip.MustParseAddr("192.168.1.1")}, Masquerade: true},
+		{ID: "lan", Ingress: "en1", Sources: p("192.168.20.0/24", "fd20::/64"), Egress: Egress{Name: "utun8", Link: 9}},
+		{ID: "rest", Ingress: "bridge0", Egress: Egress{Routes: true}},
+	}}
+	got, err := CompilePF(plan, hop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `nat on en0 inet from 192.168.20.50/32 to any -> (en0)
+pass in quick on en1 inet from 192.168.20.50/32 to self keep state
+pass in quick on en1 route-to (en0 192.168.1.1) inet from 192.168.20.50/32 to 10.10.0.0/16 keep state
+pass in quick on en1 inet from 192.168.20.0/24 to self keep state
+pass in quick on en1 route-to (utun8 172.19.0.1) inet from 192.168.20.0/24 to any keep state
+pass in quick on en1 inet6 from fd20::/64 to self keep state
+pass in quick on en1 route-to (utun8 fdfe:a::1) inet6 from fd20::/64 to any keep state
+pass in quick on bridge0 inet from 0.0.0.0/0 to self keep state
+pass in quick on bridge0 inet6 from ::/0 to self keep state
+pass in quick on en1 inet from 192.168.20.50/32 keep state
+pass in quick on en1 inet from 192.168.20.0/24 keep state
+pass in quick on en1 inet6 from fd20::/64 keep state
+pass in quick on bridge0 inet from 0.0.0.0/0 keep state
+pass in quick on bridge0 inet6 from ::/0 keep state
+pass in quick on en1 inet to { 224.0.0.0/4, 255.255.255.255 }
+block in quick on en1 inet to ! self
+pass in quick on en1 inet6 to { ff00::/8, fe80::/10 }
+block in quick on en1 inet6 to ! self
+pass in quick on bridge0 inet to { 224.0.0.0/4, 255.255.255.255 }
+block in quick on bridge0 inet to ! self
+pass in quick on bridge0 inet6 to { ff00::/8, fe80::/10 }
+block in quick on bridge0 inet6 to ! self
+`
+	if got != want {
+		t.Fatalf("pf rules:\n%s\nwant:\n%s", got, want)
+	}
+	if empty, _ := CompilePF(Plan{Rules: plan.Rules}, hop); empty != "" {
+		t.Fatalf("rules compiled with forwarding off: %q", empty)
+	}
+	if _, err := CompilePF(Plan{IPv4: true, Rules: []Rule{{ID: "t", Ingress: "en1", Egress: Egress{TProxyPort: 1}}}}, hop); err == nil {
+		t.Fatal("TProxy accepted on macOS")
+	}
+}
+
+func TestLinkForwardingOwnership(t *testing.T) {
+	state := map[linkFamily]bool{{2, false}: false, {3, false}: true, {2, true}: false}
+	var sets []string
+	l := &LinkForwarding{
+		Get: func(link int, v6 bool) (bool, error) {
+			on, ok := state[linkFamily{link, v6}]
+			if !ok {
+				return false, ErrLinkGone
+			}
+			return on, nil
+		},
+		Set: func(link int, v6, on bool) error {
+			sets = append(sets, fmt.Sprintf("%d/%v=%v", link, v6, on))
+			state[linkFamily{link, v6}] = on
+			return nil
+		},
+	}
+	if err := l.Apply(map[int]bool{2: true, 3: true}, true, true); err == nil {
+		t.Fatal("missing IPv6 interface error was hidden")
+	}
+	if !state[linkFamily{2, false}] || !state[linkFamily{2, true}] {
+		t.Fatal("forwarding not enabled")
+	}
+	// Interface 3 was already forwarding: never turned off by us.
+	if err := l.Apply(nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if state[linkFamily{2, false}] || state[linkFamily{2, true}] || !state[linkFamily{3, false}] {
+		t.Fatalf("restore = %v (sets %v)", state, sets)
+	}
+	// Turned off by someone else meanwhile: left alone.
+	if err := l.Apply(map[int]bool{2: true}, true, false); err != nil {
+		t.Fatal(err)
+	}
+	state[linkFamily{2, false}] = false
+	sets = nil
+	if err := l.Apply(nil, false, false); err != nil || len(sets) != 0 {
+		t.Fatalf("changed a setting turned off elsewhere: %v %v", sets, err)
 	}
 }
