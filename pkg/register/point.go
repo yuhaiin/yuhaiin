@@ -90,6 +90,16 @@ func (n *networkSplit) NodeExtraInfo() contractnode.NodeExtraInfo {
 	return provider.NodeExtraInfo()
 }
 
+func (n *networkSplit) AutoConnect(ctx context.Context) error {
+	var err error
+	for _, p := range []netapi.Proxy{n.tcp, n.udp, n.Proxy} {
+		if c, ok := p.(netapi.AutoConnector); ok {
+			err = errors.Join(err, c.AutoConnect(ctx))
+		}
+	}
+	return err
+}
+
 func (n *networkSplit) Close() error {
 	var err error
 	if er := n.tcp.Close(); er != nil {

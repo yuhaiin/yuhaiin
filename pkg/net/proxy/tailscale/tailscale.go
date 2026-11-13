@@ -254,6 +254,12 @@ func (t *Tailscale) ready(ctx context.Context) (*tsnet.Server, error) {
 	return s, nil
 }
 
+// AutoConnect joins the tailnet without waiting for traffic.
+func (t *Tailscale) AutoConnect(ctx context.Context) error {
+	_, err := t.ready(ctx)
+	return err
+}
+
 func (t *Tailscale) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()

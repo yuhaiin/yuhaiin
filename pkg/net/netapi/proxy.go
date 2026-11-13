@@ -136,3 +136,10 @@ func NewDynamicProxy(p Proxy) *DynamicProxy {
 	d.Set(p)
 	return d
 }
+
+// AutoConnector is an outbound that can establish its session before it
+// carries any traffic. AutoConnect starts the session and returns once it is
+// under way; the outbound keeps it up afterwards. Calling it again is cheap.
+type AutoConnector interface {
+	AutoConnect(ctx context.Context) error
+}

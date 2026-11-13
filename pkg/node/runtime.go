@@ -34,7 +34,9 @@ import (
 // It also implements the route dialer and node HTTP controller contracts so
 // callers do not need a second manager/controller wrapper.
 type NodeRuntime struct {
-	lanLinkRoutes      atomic.Pointer[[]lanLinkRoute]
+	lanLinkRoutes atomic.Pointer[[]lanLinkRoute]
+	// autoConnecting holds the IDs of auto-connect nodes being connected.
+	autoConnecting     sync.Map
 	metrics            *reliabilityMetrics
 	measurementActive  atomic.Int32
 	measurementLimit   atomic.Int32
@@ -279,6 +281,11 @@ func (r *NodeRuntime) clearIdleProxies(ctx context.Context, nodes *plainstore.No
 	used := set.NewSet[string]()
 	for _, id := range ids {
 		used.Push(id)
+	}
+	for _, n := range r.selectors.snapshot.Load().nodes {
+		if autoConnects(n) {
+			used.Push(n.ID)
+		}
 	}
 	for key := range r.proxies.Range {
 		if !used.Has(key) {

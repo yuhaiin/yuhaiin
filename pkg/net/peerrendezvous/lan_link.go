@@ -5,19 +5,25 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	json "encoding/json/v2"
 	"errors"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 )
 
 const (
 	linkControlMagic = "YHL1"
-	linkChunkSize    = 1000
-	linkMaxChunks    = 8
-	linkHeaderSize   = 16 + 16 + 2 + 2
+	// linkPeersMagic marks the peer list messages. Gateways and clients that
+	// predate them pass the messages to WireGuard, which drops them.
+	linkPeersMagic    = "YHP1"
+	linkChunkSize     = 1000
+	linkMaxChunks     = 8
+	linkMaxPeerChunks = 128
+	linkHeaderSize    = 16 + 16 + 2 + 2
 )
 
 type LinkOffer struct {
@@ -29,6 +35,30 @@ type LinkOffer struct {
 	// client-to-client traffic. Empty means clients reach the shared routes
 	// only.
 	Subnet string `json:"subnet,omitempty"`
+	// PublisherIPs, ClientIPs and Subnets hold every address family of a
+	// dual-stack tunnel, IPv4 first. The single-value fields above repeat the
+	// family of the first route for clients that predate them.
+	PublisherIPs []netip.Addr `json:"publisherIps,omitempty"`
+	ClientIPs    []netip.Addr `json:"clientIps,omitempty"`
+	Subnets      []string     `json:"subnets,omitempty"`
+}
+
+// Tunnel returns the tunnel addresses and subnets of every family.
+func (o LinkOffer) Tunnel() (publisher, client []netip.Addr, subnets []string) {
+	if len(o.PublisherIPs) != 0 || len(o.ClientIPs) != 0 {
+		return o.PublisherIPs, o.ClientIPs, o.Subnets
+	}
+	if o.Subnet != "" {
+		subnets = []string{o.Subnet}
+	}
+	return []netip.Addr{o.PublisherIP}, []netip.Addr{o.ClientIP}, subnets
+}
+
+// SameAssignment reports whether two offers assign the same tunnel.
+func (o LinkOffer) SameAssignment(next LinkOffer) bool {
+	return o.PublisherIP == next.PublisherIP && o.ClientIP == next.ClientIP && o.Subnet == next.Subnet &&
+		slices.Equal(o.Routes, next.Routes) && slices.Equal(o.PublisherIPs, next.PublisherIPs) &&
+		slices.Equal(o.ClientIPs, next.ClientIPs) && slices.Equal(o.Subnets, next.Subnets)
 }
 
 // LinkExchange authenticates provisioning independently of the rendezvous
@@ -47,6 +77,16 @@ type LinkExchange struct {
 	chunkCount int
 	chunks     [linkMaxChunks][]byte
 	result     chan LinkOffer
+
+	// The peer list travels separately from the offer: the gateway sends it
+	// again only when the client reports an older version.
+	peers          []byte
+	peersID        [16]byte
+	peersChallenge [16]byte
+	peerChunks     map[uint16][]byte
+	peerReceiving  [16]byte
+	peerTotal      int
+	onPeers        func([]byte)
 }
 
 func NewLinkExchange(token [32]byte, role Role, localKey [32]byte, offer LinkOffer) (*LinkExchange, error) {
@@ -60,6 +100,7 @@ func NewLinkExchange(token [32]byte, role Role, localKey [32]byte, offer LinkOff
 	}
 	x := &LinkExchange{role: role, cipher: aead, localKey: localKey, result: make(chan LinkOffer, 1)}
 	rand.Read(x.challenge[:])
+	rand.Read(x.peersChallenge[:])
 	if role == Publisher {
 		offer.PublicKey = localKey
 		x.offer, err = json.Marshal(offer)
@@ -76,23 +117,47 @@ func NewLinkExchange(token [32]byte, role Role, localKey [32]byte, offer LinkOff
 
 func (x *LinkExchange) Results() <-chan LinkOffer { return x.result }
 
+// SetPeers sets the peer list a publisher serves. Clients fetch it again only
+// when it changes.
+func (x *LinkExchange) SetPeers(data []byte) {
+	sum := sha256.Sum256(data)
+	x.mu.Lock()
+	x.peers, x.peersID = data, [16]byte(sum[:16])
+	x.mu.Unlock()
+}
+
+// OnPeers sets the function that receives each new peer list on a dialer.
+func (x *LinkExchange) OnPeers(f func([]byte)) {
+	x.mu.Lock()
+	x.onPeers = f
+	x.mu.Unlock()
+}
+
 func (x *LinkExchange) request(s *Socket) {
 	if x.role != Dialer || s.peer.Load() == nil {
 		return
 	}
 	x.mu.Lock()
 	request := append(x.challenge[:16:16], x.localKey[:]...)
+	var peers []byte
+	if x.remoteKey != [32]byte{} {
+		peers = append(x.peersChallenge[:16:16], x.peersID[:]...)
+	}
 	x.mu.Unlock()
-	_, _ = s.WriteTo(x.seal(Dialer, request), nil)
+	_, _ = s.WriteTo(x.seal(linkControlMagic, Dialer, request), nil)
+	if peers != nil {
+		_, _ = s.WriteTo(x.seal(linkPeersMagic, Dialer, peers), nil)
+	}
 }
 
-func (x *LinkExchange) seal(role Role, payload []byte) []byte {
-	header := append([]byte(linkControlMagic), byte(role))
+func (x *LinkExchange) seal(magic string, role Role, payload []byte) []byte {
+	header := append([]byte(magic), byte(role))
 	return x.cipher.Seal(header, nil, payload, header)
 }
 
 func (x *LinkExchange) receive(s *Socket, packet []byte, peer *net.UDPAddr) bool {
-	if !bytes.HasPrefix(packet, []byte(linkControlMagic)) {
+	peers := bytes.HasPrefix(packet, []byte(linkPeersMagic))
+	if !peers && !bytes.HasPrefix(packet, []byte(linkControlMagic)) {
 		return false
 	}
 	headerSize := len(linkControlMagic) + 1
@@ -104,13 +169,72 @@ func (x *LinkExchange) receive(s *Socket, packet []byte, peer *net.UDPAddr) bool
 		return true
 	}
 	x.mu.Lock()
-	defer x.mu.Unlock()
-	if x.role == Publisher {
+	switch {
+	case peers && x.role == Publisher:
+		x.respondPeers(s, peer, payload)
+	case peers:
+		if data := x.acceptPeers(payload); data != nil && x.onPeers != nil {
+			f := x.onPeers
+			x.mu.Unlock()
+			f(data)
+			return true
+		}
+	case x.role == Publisher:
 		x.respond(s, peer, payload)
-	} else {
+	default:
 		x.accept(payload)
 	}
+	x.mu.Unlock()
 	return true
+}
+
+// respondPeers sends the peer list when the client holds another version.
+func (x *LinkExchange) respondPeers(s *Socket, peer *net.UDPAddr, request []byte) {
+	if len(request) != 32 || x.peers == nil || [16]byte(request[16:]) == x.peersID {
+		return
+	}
+	total := max(1, (len(x.peers)+linkChunkSize-1)/linkChunkSize)
+	if total > linkMaxPeerChunks {
+		return
+	}
+	for i := range total {
+		payload := append(make([]byte, 0, linkHeaderSize+linkChunkSize), request[:16]...)
+		payload = append(payload, x.peersID[:]...)
+		payload = binary.BigEndian.AppendUint16(payload, uint16(i))
+		payload = binary.BigEndian.AppendUint16(payload, uint16(total))
+		payload = append(payload, x.peers[i*linkChunkSize:min((i+1)*linkChunkSize, len(x.peers))]...)
+		_, _ = s.PacketConn.WriteTo(x.seal(linkPeersMagic, Publisher, payload), peer)
+	}
+}
+
+// acceptPeers collects peer list chunks and returns the list once complete.
+func (x *LinkExchange) acceptPeers(payload []byte) []byte {
+	if len(payload) < linkHeaderSize || len(payload) > linkHeaderSize+linkChunkSize || !bytes.Equal(payload[:16], x.peersChallenge[:]) {
+		return nil
+	}
+	id := [16]byte(payload[16:32])
+	index, total := binary.BigEndian.Uint16(payload[32:34]), int(binary.BigEndian.Uint16(payload[34:36]))
+	if id == x.peersID || total == 0 || total > linkMaxPeerChunks || int(index) >= total {
+		return nil
+	}
+	if x.peerChunks == nil || id != x.peerReceiving || total != x.peerTotal {
+		x.peerChunks, x.peerReceiving, x.peerTotal = make(map[uint16][]byte, total), id, total
+	}
+	x.peerChunks[index] = bytes.Clone(payload[linkHeaderSize:])
+	if len(x.peerChunks) < total {
+		return nil
+	}
+	var data []byte
+	for i := range uint16(total) {
+		data = append(data, x.peerChunks[i]...)
+	}
+	if sum := sha256.Sum256(data); [16]byte(sum[:16]) != id {
+		x.peerChunks = nil
+		return nil
+	}
+	x.peersID, x.peerChunks = id, nil
+	rand.Read(x.peersChallenge[:])
+	return data
 }
 
 func (x *LinkExchange) respond(s *Socket, peer *net.UDPAddr, request []byte) {
@@ -132,7 +256,7 @@ func (x *LinkExchange) respond(s *Socket, peer *net.UDPAddr, request []byte) {
 		payload = binary.BigEndian.AppendUint16(payload, uint16(i))
 		payload = binary.BigEndian.AppendUint16(payload, uint16(total))
 		payload = append(payload, x.offer[i*linkChunkSize:min((i+1)*linkChunkSize, len(x.offer))]...)
-		_, _ = s.PacketConn.WriteTo(x.seal(Publisher, payload), peer)
+		_, _ = s.PacketConn.WriteTo(x.seal(linkControlMagic, Publisher, payload), peer)
 	}
 }
 

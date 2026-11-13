@@ -408,6 +408,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// though ordinary forwarding can still use the default route. Retry after
 	// the inbound/QoS runtime and management services have finished loading.
 	rules.RecoverInitialActivation()
+	// Outbounds marked auto-connect connect now rather than on first use.
+	nodeRuntime.StartAutoConnect()
 
 	tailscale.Mux.Store(app.Mux)
 	if certificateService != nil && !so.DelayCertificateStart {

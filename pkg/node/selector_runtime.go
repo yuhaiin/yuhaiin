@@ -131,12 +131,11 @@ func (s *selectorRuntime) reload(ctx context.Context, store *plainstore.NodeStor
 	}
 	s.nodeGenerations = s.runtime.observer.generations()
 	s.configs, s.nodes, s.counters = configs, byID, counters
-	lanLinks := prepareLANLinkRoutes(nodes)
-	s.runtime.lanLinkRoutes.Store(&lanLinks)
-	s.runtime.startIncomingLANLinks(lanLinks)
+	s.runtime.lanLinkRoutes.Store(new(prepareLANLinkRoutes(nodes)))
 	s.prepareCircuits()
 	s.scheduleLocked()
 	s.rebuild(time.Now())
+	s.runtime.startAutoConnect(nodes, s.nodeGenerations, s.stop)
 	return nil
 }
 

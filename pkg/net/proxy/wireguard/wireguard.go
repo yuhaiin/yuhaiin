@@ -44,9 +44,11 @@ type Wireguard struct {
 	lifecycleMu sync.Mutex
 	closed      bool
 	closeOnce   sync.Once
-	networkWake chan *bindSocket
-	networkStop chan struct{}
-	networkDone chan struct{}
+	// autoConnected is set once AutoConnect has started the handshake.
+	autoConnected bool
+	networkWake   chan *bindSocket
+	networkStop   chan struct{}
+	networkDone   chan struct{}
 }
 
 func init() {
@@ -152,6 +154,46 @@ func (w *Wireguard) init() error {
 		go w.recoverNetwork(dev)
 	})
 	return w.initErr
+}
+
+// autoConnectKeepAlive keeps an auto-connected tunnel's session and NAT
+// mapping alive when its peer sets no keepalive of its own.
+const autoConnectKeepAlive = 25
+
+// AutoConnect brings the device up and handshakes with every peer right away,
+// so the tunnel is reachable before this side sends traffic. Peers without a
+// keepalive get one.
+func (w *Wireguard) AutoConnect(context.Context) error {
+	if err := w.init(); err != nil {
+		return err
+	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
+	if w.closed || w.device == nil || w.autoConnected {
+		return nil
+	}
+	w.autoConnected = true
+	request := bytes.NewBuffer(nil)
+	for _, peer := range w.conf.Peers {
+		if peer.KeepAlive == 0 {
+			fmt.Fprintf(request, "public_key=%s\nupdate_only=true\npersistent_keepalive_interval=%d\n", base64ToHex(peer.PublicKey), autoConnectKeepAlive)
+		}
+	}
+	if request.Len() != 0 {
+		if err := w.device.IpcSetOperation(request); err != nil {
+			return fmt.Errorf("enable WireGuard keepalive: %w", err)
+		}
+	}
+	for _, peer := range w.conf.Peers {
+		key, err := base64.StdEncoding.DecodeString(peer.PublicKey)
+		if err != nil || len(key) != 32 {
+			continue
+		}
+		if p := w.device.LookupPeer(device.NoisePublicKey(key)); p != nil {
+			p.SendKeepalive()
+		}
+	}
+	return nil
 }
 
 // StackDiagnostic reads an existing userspace TCP stack without a peer probe.

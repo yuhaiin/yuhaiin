@@ -26,6 +26,11 @@ type Node struct {
 	IPVersion IPVersion      `json:"ip_version,omitempty"`
 	Chain     []Protocol     `json:"chain" privilege:"secrets:bound"`
 	Latency   *LatencyConfig `json:"latency,omitzero"`
+	// AutoConnect connects the node when the service starts or the node
+	// changes, instead of on its first connection, and keeps it from being
+	// closed as idle. It applies to outbounds that hold a session, such as
+	// LAN Link, WireGuard and Tailscale.
+	AutoConnect bool `json:"autoConnect,omitzero"`
 }
 
 // LatencyConfig overrides the global HTTP latency target for one node.

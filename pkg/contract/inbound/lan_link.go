@@ -35,8 +35,12 @@ const (
 type LANLinkGateway struct {
 	// Networks are the LAN networks shared with clients.
 	Networks []string `json:"networks"`
-	// Subnet is the generated tunnel network. It is stable once assigned.
-	Subnet string `json:"subnet,omitempty"`
+	// Subnet and Subnet6 are the generated IPv4 and IPv6 tunnel networks. They
+	// are stable once assigned. Every client gets an address in each, so the
+	// tunnel is dual-stack whatever families the shared networks use. (Older
+	// configurations may hold an IPv6 network in Subnet; it is moved.)
+	Subnet  string `json:"subnet,omitempty"`
+	Subnet6 string `json:"subnet6,omitempty"`
 	// Listen is the UDP bind address of the built-in coordinator.
 	Listen string `json:"listen,omitempty"`
 	// PublicEndpoint is how clients reach Listen from outside (host:port). It is
@@ -82,23 +86,27 @@ func (p LANLinkGateway) STUNAddress() string {
 	return p.STUNServer
 }
 
-// FillDefaults generates missing secrets and the tunnel subnet. An existing
+// FillDefaults generates missing secrets and tunnel subnets. An existing
 // subnet is kept unless it overlaps the networks and no client uses it.
 func (p *LANLinkGateway) FillDefaults() error {
 	routes, err := transport.ParseLANLinkRoutes(p.Networks)
 	if err != nil {
 		return err
 	}
-	if pool, err := netip.ParsePrefix(p.Subnet); err == nil && len(p.Clients) == 0 &&
-		(pool.Addr().BitLen() != routes[0].Addr().BitLen() || slices.ContainsFunc(routes, pool.Overlaps)) {
-		p.Subnet = ""
+	if pool, err := netip.ParsePrefix(p.Subnet); err == nil && pool.Addr().Is6() && p.Subnet6 == "" {
+		p.Subnet, p.Subnet6 = "", p.Subnet
 	}
-	if p.Subnet == "" {
-		subnet, err := randomLANLinkSubnet(routes)
-		if err != nil {
-			return err
+	for _, subnet := range []*string{&p.Subnet, &p.Subnet6} {
+		if pool, err := netip.ParsePrefix(*subnet); err == nil && len(p.Clients) == 0 && slices.ContainsFunc(routes, pool.Overlaps) {
+			*subnet = ""
 		}
-		p.Subnet = subnet.String()
+		if *subnet == "" {
+			pool, err := randomLANLinkSubnet(routes, subnet == &p.Subnet6)
+			if err != nil {
+				return err
+			}
+			*subnet = pool.String()
+		}
 	}
 	if p.PrivateKey == "" {
 		p.PrivateKey, err = transport.NewLANLinkPrivateKey()
@@ -107,6 +115,31 @@ func (p *LANLinkGateway) FillDefaults() error {
 		}
 	}
 	return p.Validate()
+}
+
+// TunnelSubnets returns the tunnel networks, IPv4 first. A configuration saved
+// before dual-stack tunnels has only one.
+func (p LANLinkGateway) TunnelSubnets() ([]netip.Prefix, error) {
+	var pools []netip.Prefix
+	for _, value := range []string{p.Subnet, p.Subnet6} {
+		if value == "" {
+			continue
+		}
+		pool, err := netip.ParsePrefix(value)
+		if err != nil || pool != pool.Masked() || !pool.Addr().IsGlobalUnicast() || pool.Addr().Is4In6() ||
+			pool.Bits() > pool.Addr().BitLen()-2 || slices.ContainsFunc(pools, func(q netip.Prefix) bool { return q.Addr().BitLen() == pool.Addr().BitLen() }) {
+			return nil, errors.New("LAN Link tunnel subnets must be one IPv4 and one IPv6 unicast network with room for clients")
+		}
+		pools = append(pools, pool)
+	}
+	if p.Subnet6 != "" && !pools[len(pools)-1].Addr().Is6() {
+		return nil, errors.New("LAN Link IPv6 tunnel subnet must be an IPv6 network")
+	}
+	if len(pools) == 0 {
+		return nil, errors.New("LAN Link has no tunnel subnet")
+	}
+	slices.SortFunc(pools, func(a, b netip.Prefix) int { return a.Addr().BitLen() - b.Addr().BitLen() })
+	return pools, nil
 }
 
 func validateHostPort(value string, allowEmptyHost bool) error {
@@ -139,13 +172,14 @@ func (p LANLinkGateway) Validate() error {
 	if _, err := transport.DecodePeerKey(p.PrivateKey); err != nil {
 		return fmt.Errorf("LAN Link private key: %w", err)
 	}
-	pool, err := netip.ParsePrefix(p.Subnet)
-	if err != nil || pool != pool.Masked() || !pool.Addr().IsGlobalUnicast() || pool.Addr().Is4In6() ||
-		pool.Addr().BitLen() != routes[0].Addr().BitLen() || pool.Bits() > pool.Addr().BitLen()-2 {
-		return errors.New("LAN Link tunnel subnet must be a unicast network in the shared networks' address family with room for clients")
+	pools, err := p.TunnelSubnets()
+	if err != nil {
+		return err
 	}
-	if slices.ContainsFunc(routes, pool.Overlaps) {
-		return errors.New("LAN Link tunnel subnet overlaps a shared network")
+	for _, pool := range pools {
+		if slices.ContainsFunc(routes, pool.Overlaps) {
+			return errors.New("LAN Link tunnel subnet overlaps a shared network")
+		}
 	}
 	if len(p.Clients) > maxLANLinkClients {
 		return errors.New("too many LAN Link clients")
@@ -170,8 +204,10 @@ func (p LANLinkGateway) Validate() error {
 		if ids[client.ID] || slots[client.Slot] || registrations[registration] {
 			return errors.New("duplicate LAN Link client ID, address or credential")
 		}
-		if _, err := lanLinkAddress(pool, client.Slot); err != nil {
-			return err
+		for _, pool := range pools {
+			if _, err := lanLinkAddress(pool, client.Slot); err != nil {
+				return err
+			}
 		}
 		ids[client.ID], slots[client.Slot], registrations[registration] = true, true, true
 	}
@@ -184,7 +220,7 @@ func (p *LANLinkGateway) AddClient(now int64, name string) (LANLinkClient, error
 	if err != nil {
 		return LANLinkClient{}, err
 	}
-	pool, err := netip.ParsePrefix(p.Subnet)
+	pools, err := p.TunnelSubnets()
 	if err != nil {
 		return LANLinkClient{}, err
 	}
@@ -196,8 +232,10 @@ func (p *LANLinkGateway) AddClient(now int64, name string) (LANLinkClient, error
 	for used[slot] {
 		slot++
 	}
-	if _, err := lanLinkAddress(pool, slot); err != nil {
-		return LANLinkClient{}, err
+	for _, pool := range pools {
+		if _, err := lanLinkAddress(pool, slot); err != nil {
+			return LANLinkClient{}, err
+		}
 	}
 	var id [16]byte
 	rand.Read(id[:])
@@ -237,13 +275,21 @@ func (c LANLinkClient) PairingID() string {
 	return transport.PeerPairIDString(key)
 }
 
-func (p LANLinkGateway) Addresses(slot int) (netip.Addr, netip.Addr, error) {
-	pool, err := netip.ParsePrefix(p.Subnet)
+// Addresses returns the gateway's and the client's tunnel addresses, one per
+// tunnel subnet, IPv4 first.
+func (p LANLinkGateway) Addresses(slot int) (gateway, client []netip.Addr, err error) {
+	pools, err := p.TunnelSubnets()
 	if err != nil {
-		return netip.Addr{}, netip.Addr{}, err
+		return nil, nil, err
 	}
-	client, err := lanLinkAddress(pool, slot)
-	return pool.Addr().Next(), client, err
+	for _, pool := range pools {
+		addr, err := lanLinkAddress(pool, slot)
+		if err != nil {
+			return nil, nil, err
+		}
+		gateway, client = append(gateway, pool.Addr().Next()), append(client, addr)
+	}
+	return gateway, client, nil
 }
 
 func lanLinkAddress(pool netip.Prefix, slot int) (netip.Addr, error) {
@@ -272,8 +318,8 @@ func lanLinkAddress(pool netip.Prefix, slot int) (netip.Addr, error) {
 
 // randomLANLinkSubnet picks a private /22 (IPv4) or ULA /64 (IPv6) that does
 // not overlap the shared networks.
-func randomLANLinkSubnet(routes []netip.Prefix) (netip.Prefix, error) {
-	if routes[0].Addr().Is4() {
+func randomLANLinkSubnet(routes []netip.Prefix, ipv6 bool) (netip.Prefix, error) {
+	if !ipv6 {
 		const (
 			tenNets = 1 << 14 // 10.0.0.0/8 in /22 steps
 			ranNets = 1 << 10 // 172.16.0.0/12
@@ -322,7 +368,8 @@ type LANLinkInvitationResponse struct {
 	Invitation string `json:"invitation" secret:"true"`
 	ClientID   string `json:"clientId"`
 	Name       string `json:"name,omitempty"`
-	Address    string `json:"address"`
+	// Addresses are the client's tunnel addresses, IPv4 first.
+	Addresses []string `json:"addresses"`
 }
 
 type LANLinkClientRequest struct {
@@ -340,15 +387,16 @@ type LANLinkClientAction struct {
 }
 
 type LANLinkClientStatus struct {
-	ID                string `json:"id"`
-	Name              string `json:"name,omitempty"`
-	Address           string `json:"address"`
-	PairingID         string `json:"pairingId"`
-	Online            bool   `json:"online"`
-	Blocked           bool   `json:"blocked"`
-	RetryAt           int64  `json:"retryAt,omitempty"`
-	DialerEndpoint    string `json:"dialerEndpoint,omitempty"`
-	PublisherEndpoint string `json:"publisherEndpoint,omitempty"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	// Addresses are the client's tunnel addresses, IPv4 first.
+	Addresses         []string `json:"addresses"`
+	PairingID         string   `json:"pairingId"`
+	Online            bool     `json:"online"`
+	Blocked           bool     `json:"blocked"`
+	RetryAt           int64    `json:"retryAt,omitempty"`
+	DialerEndpoint    string   `json:"dialerEndpoint,omitempty"`
+	PublisherEndpoint string   `json:"publisherEndpoint,omitempty"`
 	// Path tells whether DialerEndpoint is a LAN or a public address.
 	Path      string `json:"path,omitempty"`
 	CreatedAt int64  `json:"createdAt,omitempty"`
@@ -357,6 +405,7 @@ type LANLinkClientStatus struct {
 type LANLinkClients struct {
 	Running        bool                  `json:"running"`
 	Subnet         string                `json:"subnet,omitempty"`
+	Subnet6        string                `json:"subnet6,omitempty"`
 	PublicEndpoint string                `json:"publicEndpoint,omitempty"`
 	PublicError    string                `json:"publicError,omitempty"`
 	Items          []LANLinkClientStatus `json:"items"`

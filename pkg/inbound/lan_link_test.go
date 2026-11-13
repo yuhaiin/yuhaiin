@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -29,14 +30,16 @@ const lanTestNetwork = "192.168.50.0/24"
 type lanTestUpstream struct {
 	netapi.Proxy
 	network netip.Prefix
-	target  string
-	udp     string
-	dials   atomic.Int32
+	// network6 is an optional IPv6 shared network served the same way.
+	network6 netip.Prefix
+	target   string
+	udp      string
+	dials    atomic.Int32
 }
 
 func (u *lanTestUpstream) redirect(addr netapi.Address) (netapi.Address, error) {
 	ip, ok := addr.(netapi.IPAddress)
-	if !ok || !u.network.Contains(ip.AddrPort().Addr()) {
+	if !ok || (!u.network.Contains(ip.AddrPort().Addr()) && !u.network6.Contains(ip.AddrPort().Addr())) {
 		return nil, net.UnknownNetworkError("outside the shared LAN")
 	}
 	if addr.Network() == "udp" {
@@ -184,13 +187,7 @@ func (f *lanLinkFixture) inviteWith(id string, options transport.LANLink) (netap
 
 func (f *lanLinkFixture) importOutbound(id string, link transport.LANLink) netapi.Proxy {
 	f.t.Helper()
-	protocol, err := contractnode.NewTypedProtocol(link)
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	if _, err := f.nodes.Save(f.ctx, contractnode.Node{ID: id, Name: id, Origin: "manual", Enabled: true, Chain: []contractnode.Protocol{protocol}}); err != nil {
-		f.t.Fatal(err)
-	}
+	f.saveOutbound(contractnode.Node{ID: id, Name: id}, link)
 	proxy, err := f.nodes.GetDialerByID(f.ctx, id)
 	if err != nil {
 		f.t.Fatal(err)
@@ -250,6 +247,62 @@ func (f *lanLinkFixture) client(id string) contract.LANLinkClientStatus {
 	return contract.LANLinkClientStatus{}
 }
 
+func (f *lanLinkFixture) saveOutbound(n contractnode.Node, link transport.LANLink) {
+	f.t.Helper()
+	protocol, err := contractnode.NewTypedProtocol(link)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	n.Origin, n.Enabled, n.Chain = "manual", true, []contractnode.Protocol{protocol}
+	if _, err := f.nodes.Save(f.ctx, n); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+// An auto-connect outbound links up without any traffic; a plain one waits
+// for its first connection.
+func TestLANLinkAutoConnect(t *testing.T) {
+	f := newLANLinkFixture(t)
+	invitation := func() string {
+		t.Helper()
+		var value contract.LANLinkInvitationResponse
+		var err error
+		for range 40 {
+			if value, err = f.store.CreateLANLinkInvitation(f.ctx, contract.LANLinkInvitationRequest{ID: f.gateway.ID}); err == nil {
+				return value.Invitation
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Fatal(err)
+		return ""
+	}
+	f.saveOutbound(contractnode.Node{ID: "auto", Name: "auto", AutoConnect: true}, transport.LANLink{Invitation: invitation()})
+	f.saveOutbound(contractnode.Node{ID: "lazy", Name: "lazy"}, transport.LANLink{Invitation: invitation()})
+	state := func(id string) string {
+		extra, err := f.nodes.ExtraInfo(f.ctx, id)
+		if err != nil || extra.LANLink == nil {
+			return ""
+		}
+		return extra.LANLink.State
+	}
+	f.eventually("auto-connect", func() error {
+		if got := state("auto"); got != "connected" {
+			return fmt.Errorf("state = %q", got)
+		}
+		return nil
+	})
+	if got := state("lazy"); got != "idle" {
+		t.Fatalf("a plain outbound connected without traffic: %q", got)
+	}
+	// Switching the selection does not close an auto-connect outbound as idle.
+	if err := f.nodes.Use(f.ctx, "lazy"); err != nil {
+		t.Fatal(err)
+	}
+	if got := state("auto"); got != "connected" {
+		t.Fatalf("auto-connect outbound closed as idle: %q", got)
+	}
+}
+
 // A single inbound starts its own coordinator, issues independent invitations
 // and forwards TCP and UDP only inside the shared networks.
 func TestLANLinkSingleInboundForwardsAndManagesClients(t *testing.T) {
@@ -274,9 +327,11 @@ func TestLANLinkSingleInboundForwardsAndManagesClients(t *testing.T) {
 	f.eventually("first TCP", func() error { return f.echo(first, f.target) })
 
 	second, secondInvite := f.invite("second")
-	if firstInvite.Address == secondInvite.Address || !pool.Contains(netip.MustParseAddr(firstInvite.Address)) ||
-		!pool.Contains(netip.MustParseAddr(secondInvite.Address)) {
-		t.Fatalf("invalid address allocations %s and %s in %s", firstInvite.Address, secondInvite.Address, pool)
+	pool6 := netip.MustParsePrefix(link.Subnet6)
+	if len(firstInvite.Addresses) != 2 || len(secondInvite.Addresses) != 2 || firstInvite.Addresses[0] == secondInvite.Addresses[0] ||
+		!pool.Contains(netip.MustParseAddr(firstInvite.Addresses[0])) || !pool.Contains(netip.MustParseAddr(secondInvite.Addresses[0])) ||
+		!pool6.Contains(netip.MustParseAddr(firstInvite.Addresses[1])) || !pool6.Contains(netip.MustParseAddr(secondInvite.Addresses[1])) {
+		t.Fatalf("invalid address allocations %v and %v in %s, %s", firstInvite.Addresses, secondInvite.Addresses, pool, pool6)
 	}
 	if target, ok := f.nodes.LANLinkTarget(f.ctx, netip.MustParseAddr("192.168.50.10")); !ok || target.ID != "" {
 		t.Fatalf("overlapping LAN routes were not reported as ambiguous: %+v, %v", target, ok)
@@ -311,7 +366,7 @@ func TestLANLinkSingleInboundForwardsAndManagesClients(t *testing.T) {
 	// Client management reports the independent pairings.
 	f.eventually("clients online", func() error {
 		for _, id := range []string{firstInvite.ClientID, secondInvite.ClientID} {
-			if c := f.client(id); !c.Online || c.PairingID == "" || c.Address == "" {
+			if c := f.client(id); !c.Online || c.PairingID == "" || len(c.Addresses) == 0 {
 				return net.UnknownNetworkError(id + " offline")
 			}
 		}
@@ -420,7 +475,7 @@ func TestLANLinkInvitationNeedsRunningGateway(t *testing.T) {
 
 func tcpEcho(tb testing.TB, ip string, accepted *atomic.Int32) netapi.Address {
 	tb.Helper()
-	listener, err := net.Listen("tcp4", net.JoinHostPort(ip, "0"))
+	listener, err := net.Listen("tcp", net.JoinHostPort(ip, "0"))
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -496,7 +551,7 @@ func TestLANLinkReportsNamesAndPaths(t *testing.T) {
 		t.Fatalf("extra info: %+v, %v", extra, err)
 	}
 	link := *extra.LANLink
-	if link.State != "connected" || link.LocalIP != invite.Address || link.PeerIP != server.String() ||
+	if link.State != "connected" || !slices.Equal(link.LocalIPs, invite.Addresses) || !slices.Equal(link.PeerIPs, []string{server[0].String(), server[1].String()}) ||
 		link.PairingID != client.PairingID || link.Listen == "" || link.PeerEndpoint == "" ||
 		link.Path != transport.LANLinkPathLAN {
 		t.Fatalf("outbound status: %+v", link)
@@ -558,15 +613,35 @@ func TestLANLinkClientToClient(t *testing.T) {
 	}
 	udpPort := udpAddr.Port()
 
-	f.eventually("alice to bob TCP", func() error { return f.echo(alice, withPort(bobInvite.Address, tcpPort, "tcp")) })
-	f.eventually("alice to bob UDP", func() error { return f.udpEcho(alice, withPort(bobInvite.Address, udpPort, "udp")) })
-	f.eventually("bob to gateway TCP", func() error { return f.echo(bob, withPort(server.String(), tcpPort, "tcp")) })
-	f.eventually("alice to gateway UDP", func() error { return f.udpEcho(alice, withPort(server.String(), udpPort, "udp")) })
+	f.eventually("alice to bob TCP", func() error { return f.echo(alice, withPort(bobInvite.Addresses[0], tcpPort, "tcp")) })
+	f.eventually("alice to bob UDP", func() error { return f.udpEcho(alice, withPort(bobInvite.Addresses[0], udpPort, "udp")) })
+	f.eventually("bob to gateway TCP", func() error { return f.echo(bob, withPort(server[0].String(), tcpPort, "tcp")) })
+	f.eventually("alice to gateway UDP", func() error { return f.udpEcho(alice, withPort(server[0].String(), udpPort, "udp")) })
 	// The shared networks keep working alongside the tunnel subnet.
 	f.eventually("alice to LAN", func() error { return f.echo(alice, f.target) })
+	// The IPv6 tunnel addresses reach the IPv6 loopback.
+	var accepted6 atomic.Int32
+	echo6 := tcpEcho(t, "::1", &accepted6)
+	f.eventually("alice to bob TCP over IPv6", func() error { return f.echo(alice, withPort(bobInvite.Addresses[1], echo6.Port(), "tcp")) })
+	f.eventually("bob to gateway TCP over IPv6", func() error { return f.echo(bob, withPort(server[1].String(), echo6.Port(), "tcp")) })
+
+	// Each client sees the other one in its peer list, never itself.
+	f.eventually("peer lists", func() error {
+		for id, want := range map[string]contract.LANLinkInvitationResponse{"alice": bobInvite, "bob": aliceInvite} {
+			extra, err := f.nodes.ExtraInfo(f.ctx, id)
+			if err != nil || extra.LANLink == nil {
+				return fmt.Errorf("%s extra info: %v", id, err)
+			}
+			peers := extra.LANLink.Peers
+			if len(peers) != 1 || !slices.Equal(peers[0].Addresses, want.Addresses) || !peers[0].Online {
+				return fmt.Errorf("%s peers = %+v", id, peers)
+			}
+		}
+		return nil
+	})
 
 	// Alice did not allow incoming flows, and unassigned addresses go nowhere.
-	if err := f.echo(bob, withPort(aliceInvite.Address, tcpPort, "tcp")); err == nil {
+	if err := f.echo(bob, withPort(aliceInvite.Addresses[0], tcpPort, "tcp")); err == nil {
 		t.Fatal("a client without incoming flows accepted a connection")
 	}
 	pool := netip.MustParsePrefix(gateway.Protocol.LANLink.Subnet)
@@ -585,9 +660,29 @@ func TestLANLinkTunnelAddressesNeedClientToClient(t *testing.T) {
 	f.eventually("bob to LAN", func() error { return f.echo(bob, f.target) })
 	gateway, _, _ := f.store.lanLinkConfig(f.ctx, f.gateway.ID)
 	server, _, _ := gateway.Protocol.LANLink.Addresses(1)
-	for _, ip := range []string{bobInvite.Address, server.String()} {
+	for _, ip := range []string{bobInvite.Addresses[0], bobInvite.Addresses[1], server[0].String(), server[1].String()} {
 		if err := f.echo(alice, withPort(ip, f.target.Port(), "tcp")); err == nil {
 			t.Fatalf("%s was reachable without client-to-client", ip)
 		}
 	}
+}
+
+// A gateway can share IPv4 and IPv6 networks at once; the client reaches both
+// over one link.
+func TestLANLinkDualStackNetworks(t *testing.T) {
+	const network6 = "fd00:50::/64"
+	f := newLANLinkFixtureWith(t, func(g *contract.LANLinkGateway) { g.Networks = []string{lanTestNetwork, network6} })
+	f.upstream.network6 = netip.MustParsePrefix(network6)
+	client, _ := f.invite("dual")
+	for _, ip := range []string{"192.168.50.10", "fd00:50::10"} {
+		if target, ok := f.nodes.LANLinkTarget(f.ctx, netip.MustParseAddr(ip)); !ok || target.ID != "dual" {
+			t.Fatalf("%s is not routed to the link: %+v, %v", ip, target, ok)
+		}
+	}
+	f.eventually("IPv4 LAN", func() error { return f.echo(client, f.target) })
+	f.eventually("IPv6 LAN", func() error { return f.echo(client, withPort("fd00:50::10", f.target.Port(), "tcp")) })
+	f.eventually("IPv6 LAN UDP", func() error {
+		udp, _ := netapi.ParseAddress("udp", f.upstream.udp)
+		return f.udpEcho(client, withPort("fd00:50::10", udp.Port(), "udp"))
+	})
 }
