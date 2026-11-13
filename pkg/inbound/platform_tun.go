@@ -2,6 +2,8 @@ package inbound
 
 import (
 	"net/netip"
+	"slices"
+	"sync"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -27,32 +29,52 @@ var (
 // listenPlatformTun starts a TUN inbound whose device is created on demand by
 // the host platform (Android VpnService). The core keeps running when the
 // platform refuses the interface; the error becomes the inbound runtime state.
+// Its routes come from System Network rules; the first interface already
+// carries them.
 func listenPlatformTun(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix) (netapi.Accepter, error) {
+	p := &platformTunAccepter{id: config.ID}
+	if wrap, ok := handler.(*handlerWrap); ok {
+		p.routes, p.managed = wrap.handler.platformRoutes(config.ID)
+	}
 	open := func(o device.TunConfig) (netapi.Accepter, error) { return platformTunOpen(o, handler) }
-	a, err := platformTunManager.New(config.ID, platformSpec(*config.Protocol.Tun), ranges, open)
+	a, err := platformTunManager.New(config.ID, p.spec(*config.Protocol.Tun), ranges, open)
 	if err != nil {
 		return nil, err
 	}
-	return &platformTunAccepter{Accepter: a, id: config.ID}, nil
+	p.Accepter = a
+	return p, nil
 }
 
-func platformSpec(c contract.TunProtocol) platformvpn.Spec {
-	stack := tunConfig(c)
-	// tunConfig merges excludes into Routes for desktop route managers; the
-	// platform receives them separately.
-	stack.Routes = nil
-	return platformvpn.Spec{
-		Stack:           stack,
-		Routes:          append([]string(nil), c.Routes...),
-		Excludes:        append([]string(nil), c.Excludes...),
-		AutoFakeIPRoute: c.AutoFakeIPRoute,
-		RouteMode:       c.Routing.Mode,
+func platformSpec(c contract.TunProtocol, routes []string, managed bool) platformvpn.Spec {
+	spec := platformvpn.Spec{Stack: tunConfig(c), Routes: slices.Clone(routes), AutoFakeIPRoute: c.AutoFakeIPRoute}
+	if managed {
+		spec.RouteMode = platformvpn.RouteModeSystemNetwork
 	}
+	return spec
 }
 
 type platformTunAccepter struct {
 	*platformvpn.Accepter
 	id string
+
+	mu      sync.Mutex
+	routes  []string
+	managed bool
+}
+
+func (p *platformTunAccepter) spec(c contract.TunProtocol) platformvpn.Spec {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return platformSpec(c, p.routes, p.managed)
+}
+
+// setRoutes receives the routes System Network rules give this TUN.
+func (p *platformTunAccepter) setRoutes(routes []netip.Prefix, managed bool) error {
+	p.mu.Lock()
+	p.routes, p.managed = prefixStrings(routes), managed
+	routesCopy := slices.Clone(p.routes)
+	p.mu.Unlock()
+	return p.SetRoutes(routesCopy, managed)
 }
 
 func (p *platformTunAccepter) ReconfigureContract(req contract.Inbound) (bool, error) {
@@ -64,5 +86,5 @@ func (p *platformTunAccepter) ReconfigureContract(req contract.Inbound) (bool, e
 	if err := req.Validate(); err != nil {
 		return true, err
 	}
-	return true, p.Reconfigure(platformSpec(*req.Protocol.Tun))
+	return true, p.Reconfigure(p.spec(*req.Protocol.Tun))
 }

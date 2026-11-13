@@ -2,6 +2,6 @@
 
 package netlink
 
-func Route(opt *Options) (func(), error) {
-	return nil, nil
-}
+func ConfigureTun(*Options) (func(), error) { return nil, nil }
+
+func newPlatformRouteBackend() (routeBackend, error) { return nil, ErrRoutesUnsupported }

@@ -192,6 +192,7 @@ type V2Services struct {
 	RouteEditor      *plainstore.RouteEditorStore
 	Selectors        SelectorController
 	Subscribe        SubscriptionController
+	SystemNetwork    SystemNetworkController
 }
 type pageV2 struct {
 	Page     int `json:"page"`

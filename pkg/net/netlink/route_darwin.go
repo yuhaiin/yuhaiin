@@ -47,7 +47,10 @@ type addrLifetime6 struct {
 	Pltime    uint32
 }
 
-func Route(options *Options) (close func(), err error) {
+// ConfigureTun sets the MTU, addresses and DNS servers of a utun. It installs
+// no destination routes; the IPv4 subnet route utun needs is reported in
+// RequiredRoutes for the System Network Manager to install.
+func ConfigureTun(options *Options) (close func(), err error) {
 	var iface string
 
 	if options.Interface.Scheme == "tun" {
@@ -91,12 +94,11 @@ func Route(options *Options) (close func(), err error) {
 		}
 		return nil, err
 	}
-	backend := &darwinRouteBackend{index: ifaceInfo.Index, v4: options.V4Address().Addr(), v6: options.V6Address().Addr(), restoreDNS: close}
-	var required []netip.Prefix
+	options.Index = ifaceInfo.Index
 	if options.V4Address().IsValid() {
-		required = append(required, options.V4Address().Masked())
+		options.RequiredRoutes = append(options.RequiredRoutes, options.V4Address().Masked())
 	}
-	return installRoutes(options, backend, required...)
+	return close, nil
 }
 
 func useSocket(domain, typ, proto int, block func(socketFd int) error) error {

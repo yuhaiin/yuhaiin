@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -19,17 +21,55 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
 	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet"
 )
 
 type ContractStore struct {
 	store    *plainstore.InboundStore
 	runtime  *Inbound
+	migrator LegacyTunMigrator
 	configMu sync.Mutex
 	qosMu    sync.Mutex // Serializes durable writes with runtime snapshot activation.
 }
 
 func NewContractStore(store *plainstore.InboundStore, runtime *Inbound) *ContractStore {
 	return &ContractStore{store: store, runtime: runtime}
+}
+
+// LegacyTunMigrator converts TUN route settings into System Network rules
+// and returns the inbounds whose legacy settings can be cleared.
+type LegacyTunMigrator interface {
+	MigrateLegacyTun(ctx context.Context, inbounds []contract.Inbound, readFile func(string) ([]byte, error)) ([]string, error)
+}
+
+// SetLegacyTunMigration migrates legacy TUN routing at Sync and on every
+// save, including inbounds restored from older backups.
+func (s *ContractStore) SetLegacyTunMigration(m LegacyTunMigrator) { s.migrator = m }
+
+// migrateLegacyTun converts legacy TUN routing and clears it from storage.
+// On failure the inbounds keep their legacy fields (which TUNs ignore) and
+// migration is retried next time.
+func (s *ContractStore) migrateLegacyTun(ctx context.Context, items []contract.Inbound) []contract.Inbound {
+	if s.migrator == nil || !slices.ContainsFunc(items, sysnet.HasLegacyRouting) {
+		return items
+	}
+	cleared, err := s.migrator.MigrateLegacyTun(ctx, items, os.ReadFile)
+	if err != nil {
+		log.Error("migrate TUN routing to System Network failed", "err", err)
+		return items
+	}
+	for i, item := range items {
+		if !slices.Contains(cleared, item.ID) {
+			continue
+		}
+		next := sysnet.ClearLegacyRouting(item)
+		if err := s.store.Save(secret.WithResolvedConfiguration(ctx), next, time.Now().Unix()); err != nil {
+			log.Error("clear migrated TUN routing failed", "inbound", item.ID, "err", err)
+			continue
+		}
+		items[i] = next
+	}
+	return items
 }
 
 func (s *ContractStore) Sync(ctx context.Context) error {
@@ -53,6 +93,7 @@ func (s *ContractStore) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	items = s.migrateLegacyTun(ctx, items)
 	var result error
 	for _, item := range items {
 		if err := item.Validate(); err != nil {
@@ -128,6 +169,7 @@ func (s *ContractStore) Save(ctx context.Context, inbound contract.Inbound, upda
 	if err != nil {
 		return err
 	}
+	saved = s.migrateLegacyTun(ctx, []contract.Inbound{saved})[0]
 	return s.runtime.SaveContract(saved)
 }
 

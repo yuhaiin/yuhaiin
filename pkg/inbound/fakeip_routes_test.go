@@ -2,6 +2,8 @@ package inbound
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"net/netip"
 	"reflect"
 	"sync"
@@ -77,15 +79,17 @@ func TestInboundFakeIPRouteLifecycle(t *testing.T) {
 	}
 }
 
-func TestTunConfigCarriesAutoFlagAndPreservesRouteLists(t *testing.T) {
-	config := contract.TunProtocol{AutoFakeIPRoute: true, Routes: []string{"192.0.2.0/24"}, Excludes: []string{"203.0.113.0/24"}}
+// TUNs install no routes: legacy route fields never reach the device.
+func TestTunConfigCarriesAutoFlagWithoutRoutes(t *testing.T) {
+	config := contract.TunProtocol{AutoFakeIPRoute: true, Routes: []string{"192.0.2.0/24"}, Excludes: []string{"203.0.113.0/24"},
+		Routing: contract.TunRouting{Mode: "global"}}
 	got := tunConfig(config)
-	if !got.AutoFakeIPRoute || !reflect.DeepEqual(got.Routes, []string{"192.0.2.0/24", "203.0.113.0/24"}) {
+	if !got.AutoFakeIPRoute {
 		t.Fatalf("unexpected runtime config: %+v", got)
 	}
-	got.Routes[0] = "changed"
-	if config.Routes[0] != "192.0.2.0/24" {
-		t.Fatal("runtime config aliases the persisted config")
+	data := fmt.Sprintf("%+v", got)
+	if strings.Contains(data, "192.0.2.0") || strings.Contains(data, "203.0.113.0") {
+		t.Fatalf("legacy routes reached the TUN device: %s", data)
 	}
 }
 

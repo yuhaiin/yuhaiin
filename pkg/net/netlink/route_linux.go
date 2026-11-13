@@ -12,7 +12,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func Route(opt *Options) (func(), error) {
+// ConfigureTun sets the MTU and addresses of a kernel TUN and brings it up.
+// It installs no destination routes: those belong to the System Network
+// Manager. The kernel adds the connected routes of the addresses itself.
+func ConfigureTun(opt *Options) (func(), error) {
 	if opt.Interface.Scheme != "tun" {
 		return nil, nil
 	}
@@ -43,7 +46,8 @@ func Route(opt *Options) (func(), error) {
 		return nil, fmt.Errorf("unable to set link up: %w", err)
 	}
 
-	return installRoutes(opt, &linuxRouteBackend{linkIndex: link.Attrs().Index, rules: make(map[int]bool)})
+	opt.Index = link.Attrs().Index
+	return nil, nil
 }
 
 const ifReqSize = unix.IFNAMSIZ + 64

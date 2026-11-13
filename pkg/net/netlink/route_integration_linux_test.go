@@ -3,7 +3,6 @@
 package netlink
 
 import (
-	"net"
 	"net/netip"
 	"os"
 	"runtime"
@@ -14,109 +13,192 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Opt-in and namespace-only: never install test routes in the host namespace.
-func TestLinuxRouteLifecycleInNamespace(t *testing.T) {
+// isolatedNamespace enters a fresh network namespace, or, inside a container
+// started by scripts/integration/system-network-podman.sh, uses the
+// container's own namespace. Test routes are never installed on the host.
+func isolatedNamespace(t *testing.T) {
+	t.Helper()
 	if os.Getenv("YUHAIIN_TEST_TUN_ROUTES") != "1" {
 		t.Skip("set YUHAIIN_TEST_TUN_ROUTES=1 in a Linux environment with network namespace privileges")
 	}
+	if os.Getenv("YUHAIIN_TEST_ISOLATED_CONTAINER") == "1" {
+		return
+	}
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	original, err := netns.Get()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer original.Close()
 	isolated, err := netns.New()
 	if err != nil {
+		runtime.UnlockOSThread()
 		t.Skipf("isolated network namespace unavailable: %v", err)
 	}
-	defer isolated.Close()
-	defer func() {
-		if err := netns.Set(original); err != nil {
+	t.Cleanup(func() {
+		_ = netns.Set(original)
+		_ = isolated.Close()
+		_ = original.Close()
+		runtime.UnlockOSThread()
+	})
+}
+
+func dummyLink(t *testing.T, name, address string) int {
+	t.Helper()
+	_ = netlink.LinkDel(&netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: name}})
+	if err := netlink.LinkAdd(&netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: name}}); err != nil {
+		t.Fatal(err)
+	}
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = netlink.LinkDel(link) })
+	if address != "" {
+		addr, err := netlink.ParseAddr(address)
+		if err != nil {
 			t.Fatal(err)
 		}
-	}()
-	for _, name := range []string{"testtun1", "testtun2"} {
-		if err := netlink.LinkAdd(&netlink.Dummy{Name: name}); err != nil {
+		if err := netlink.AddrAdd(link, addr); err != nil {
 			t.Fatal(err)
 		}
 	}
-	firstLink, err := netlink.LinkByName("testtun1")
+	if err := netlink.LinkSetUp(link); err != nil {
+		t.Fatal(err)
+	}
+	return link.Attrs().Index
+}
+
+func tableRoutes(t *testing.T, p string) []netlink.Route {
+	t.Helper()
+	prefix := netip.MustParsePrefix(p)
+	found, err := netlink.RouteListFiltered(family(prefix), &netlink.Route{Table: tunRouteTable, Dst: ipNet(prefix)}, netlink.RT_FILTER_TABLE|netlink.RT_FILTER_DST)
 	if err != nil {
 		t.Fatal(err)
 	}
-	borrowed := netlink.Route{LinkIndex: firstLink.Attrs().Index, Table: tunRouteTable, Dst: netipIPNet(netip.MustParsePrefix("192.0.2.0/24"))}
-	if err := netlink.RouteAdd(&borrowed); err != nil {
-		t.Fatal(err)
-	}
-	first := &Options{Interface: TunScheme{Scheme: "tun", Name: "testtun1"}, MTU: 1500, Inet4Address: prefixes("172.19.0.1/24"), Inet6Address: prefixes("fd00::1/64"), Routes: prefixes("192.0.2.0/24", "198.18.0.0/16", "2001:2::/64")}
-	cleanup1, err := Route(first)
-	if cleanup1 != nil {
-		defer cleanup1()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	second := &Options{Interface: TunScheme{Scheme: "tun", Name: "testtun2"}, MTU: 1500, Inet4Address: prefixes("172.20.0.1/24"), Routes: prefixes("198.19.0.0/16")}
-	cleanup2, err := Route(second)
-	if cleanup2 != nil {
-		defer cleanup2()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := first.RouteManager.Update(prefixes("192.0.2.0/24", "198.20.0.0/16", "2001:2:0:1::/64")); err != nil {
-		t.Fatal(err)
-	}
-	assertLinuxRoute := func(prefix string, present bool) {
-		t.Helper()
-		p := netip.MustParsePrefix(prefix)
-		family := unix.AF_INET6
-		if p.Addr().Is4() {
-			family = unix.AF_INET
-		}
-		found, err := netlink.RouteListFiltered(family, &netlink.Route{Table: tunRouteTable, Dst: netipIPNet(p)}, netlink.RT_FILTER_TABLE|netlink.RT_FILTER_DST)
-		if err != nil || (len(found) > 0) != present {
-			t.Fatalf("route %s present=%v, want %v, err=%v", prefix, len(found) > 0, present, err)
-		}
-	}
-	assertLinuxRoute("198.18.0.0/16", false)
-	assertLinuxRoute("2001:2::/64", false)
-	assertLinuxRoute("198.20.0.0/16", true)
-	assertLinuxRoute("2001:2:0:1::/64", true)
-	if err := first.RouteManager.Close(); err != nil {
-		t.Fatal(err)
-	}
-	assertLinuxRoute("198.20.0.0/16", false)
-	assertLinuxRoute("192.0.2.0/24", true)  // preexisting route was borrowed
-	assertLinuxRoute("198.19.0.0/16", true) // second TUN is still active
-	rules, err := netlink.RuleList(unix.AF_INET)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sharedRule := false
-	for _, r := range rules {
-		if r.Priority == 30001 && r.Table == tunRouteTable {
-			sharedRule = true
-		}
-	}
-	if !sharedRule {
-		t.Fatal("closing the first TUN removed the shared policy rule")
-	}
-	if err := second.RouteManager.Close(); err != nil {
-		t.Fatal(err)
-	}
-	rules, err = netlink.RuleList(unix.AF_INET)
+	return found
+}
+
+func hasRule(t *testing.T, f, priority int) bool {
+	t.Helper()
+	rules, err := netlink.RuleList(f)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range rules {
-		if r.Priority == 30001 && r.Table == tunRouteTable {
-			t.Fatal("owned policy rule remained after the last TUN closed")
+		if r.Priority == priority && r.Table == tunRouteTable {
+			return true
 		}
+	}
+	return false
+}
+
+func TestLinuxSystemRoutesInNamespace(t *testing.T) {
+	isolatedNamespace(t)
+	tunA := dummyLink(t, "yhtesta", "172.19.0.1/24")
+	tunB := dummyLink(t, "yhtestb", "172.20.0.1/24")
+	lan := dummyLink(t, "yhtestlan", "192.168.77.2/24")
+	if err := netlink.AddrAdd(mustLink(t, "yhtesta"), mustAddr(t, "fd00:a::1/64")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A route another program put in the dedicated table is never touched;
+	// asking for the same prefix on another interface is a conflict.
+	foreign := netlink.Route{LinkIndex: tunB, Table: tunRouteTable, Dst: ipNet(netip.MustParsePrefix("203.0.113.0/24"))}
+	if err := netlink.RouteAdd(&foreign); err != nil {
+		t.Fatal(err)
+	}
+	// A route left by a crashed run (our protocol) is removed on start.
+	stale := netlink.Route{LinkIndex: tunA, Table: tunRouteTable, Protocol: routeProtocol, Dst: ipNet(netip.MustParsePrefix("198.51.100.0/24"))}
+	if err := netlink.RouteAdd(&stale); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := NewRouteManager()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tableRoutes(t, "198.51.100.0/24")) != 0 {
+		t.Fatal("stale owned route survived manager start")
+	}
+	desired := append(append(append(via(tunA, "", "0.0.0.0/1", "8.8.8.0/24", "2001:4860::/32"),
+		via(tunB, "", "10.10.0.0/16")...),
+		via(lan, "192.168.77.1", "192.0.2.0/24")...),
+		via(tunA, "", "203.0.113.0/24")...)
+	conflicts, err := m.Update(desired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(conflicts) != 1 || conflicts[0] != netip.MustParsePrefix("203.0.113.0/24") {
+		t.Fatalf("conflicts = %v", conflicts)
+	}
+	for p, link := range map[string]int{"0.0.0.0/1": tunA, "8.8.8.0/24": tunA, "2001:4860::/32": tunA, "10.10.0.0/16": tunB, "192.0.2.0/24": lan} {
+		routes := tableRoutes(t, p)
+		if len(routes) != 1 || routes[0].LinkIndex != link || routes[0].Protocol != routeProtocol {
+			t.Fatalf("route %s = %+v, want link %d", p, routes, link)
+		}
+	}
+	if routes := tableRoutes(t, "203.0.113.0/24"); len(routes) != 1 || routes[0].LinkIndex != tunB || routes[0].Protocol == routeProtocol {
+		t.Fatalf("foreign route changed: %+v", routes)
+	}
+	if gw := tableRoutes(t, "192.0.2.0/24")[0].Gw.String(); gw != "192.168.77.1" {
+		t.Fatalf("gateway = %s", gw)
+	}
+	if !hasRule(t, unix.AF_INET, ruleV4) || !hasRule(t, unix.AF_INET6, ruleV6) {
+		t.Fatal("policy rules missing")
+	}
+	// The kernel resolves destinations through the policy rule and table.
+	for dst, link := range map[string]int{"8.8.8.8": tunA, "10.10.1.1": tunB, "192.0.2.9": lan} {
+		got, err := netlink.RouteGet(netip.MustParseAddr(dst).AsSlice())
+		if err != nil || len(got) == 0 || got[0].LinkIndex != link {
+			t.Fatalf("lookup %s = %+v %v, want link %d", dst, got, err, link)
+		}
+	}
+
+	// Moving a prefix between targets replaces it in place.
+	desired[1] = SystemRoute{Prefix: netip.MustParsePrefix("8.8.8.0/24"), Link: tunB}
+	if _, err := m.Update(desired); err != nil {
+		t.Fatal(err)
+	}
+	if routes := tableRoutes(t, "8.8.8.0/24"); len(routes) != 1 || routes[0].LinkIndex != tunB {
+		t.Fatalf("moved route = %+v", routes)
+	}
+
+	// A disappearing interface takes its routes; the next update tolerates it.
+	if err := netlink.LinkDel(mustLink(t, "yhtestb")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Update(via(tunA, "", "0.0.0.0/1", "2001:4860::/32")); err != nil {
+		t.Fatalf("update after interface removal: %v", err)
+	}
+	if len(tableRoutes(t, "8.8.8.0/24")) != 0 || len(tableRoutes(t, "192.0.2.0/24")) != 0 {
+		t.Fatal("obsolete routes kept")
+	}
+
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(tableRoutes(t, "0.0.0.0/1")) != 0 || len(tableRoutes(t, "2001:4860::/32")) != 0 {
+		t.Fatal("owned routes kept after close")
+	}
+	if hasRule(t, unix.AF_INET, ruleV4) || hasRule(t, unix.AF_INET6, ruleV6) {
+		t.Fatal("owned policy rules kept after close")
 	}
 }
 
-func netipIPNet(p netip.Prefix) *net.IPNet {
-	return &net.IPNet{IP: p.Addr().AsSlice(), Mask: net.CIDRMask(p.Bits(), p.Addr().BitLen())}
+func mustLink(t *testing.T, name string) netlink.Link {
+	t.Helper()
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return link
+}
+
+func mustAddr(t *testing.T, s string) *netlink.Addr {
+	t.Helper()
+	a, err := netlink.ParseAddr(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
 }

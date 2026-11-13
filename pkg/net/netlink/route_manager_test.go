@@ -17,32 +17,21 @@ func prefixes(values ...string) []netip.Prefix {
 	return result
 }
 
-func TestNormalizeRoutes(t *testing.T) {
-	for _, tt := range []struct {
-		name        string
-		input, want []string
-	}{
-		{"dual stack", []string{"2001:2::1/64", "198.18.0.1/16", "198.18.0.0/24", "198.18.0.0/16", "2001:2::/80"}, []string{"198.18.0.0/16", "2001:2::/64"}},
-		{"larger arrives later", []string{"198.18.1.0/24", "198.18.0.0/15"}, []string{"198.18.0.0/15"}},
-		{"default routes", []string{"198.18.0.0/16", "0.0.0.0/0", "2001:2::/64", "::/0"}, []string{"0.0.0.0/0", "::/0"}},
-		{"adjacent stays separate", []string{"198.18.0.0/16", "198.19.0.0/16"}, []string{"198.18.0.0/16", "198.19.0.0/16"}},
-		{"hosts", []string{"198.18.0.1/32", "2001:2::1/128", "198.18.0.1/32"}, []string{"198.18.0.1/32", "2001:2::1/128"}},
-		{"empty", nil, nil},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got := NormalizeRoutes(prefixes(tt.input...))
-			if !reflect.DeepEqual(got, prefixes(tt.want...)) {
-				t.Fatalf("got %v, want %v", got, tt.want)
-			}
-		})
+func via(link int, gateway string, values ...string) []SystemRoute {
+	var out []SystemRoute
+	for _, p := range prefixes(values...) {
+		r := SystemRoute{Prefix: p, Link: link}
+		if gateway != "" {
+			r.Gateway = netip.MustParseAddr(gateway)
+		}
+		out = append(out, r)
 	}
-	if got := NormalizeRoutes([]netip.Prefix{{}}); len(got) != 0 {
-		t.Fatalf("invalid prefix retained: %v", got)
-	}
+	return out
 }
 
 type fakeRouteBackend struct {
-	routes              map[netip.Prefix]bool
+	mu                  sync.Mutex
+	routes              map[netip.Prefix]SystemRoute
 	borrowed            map[netip.Prefix]bool
 	failAdd, failDelete map[netip.Prefix]bool
 	foreign             map[netip.Prefix]bool
@@ -51,124 +40,183 @@ type fakeRouteBackend struct {
 }
 
 func routeBackendForTest() *fakeRouteBackend {
-	return &fakeRouteBackend{routes: make(map[netip.Prefix]bool), borrowed: make(map[netip.Prefix]bool), failAdd: make(map[netip.Prefix]bool), failDelete: make(map[netip.Prefix]bool), foreign: make(map[netip.Prefix]bool)}
+	return &fakeRouteBackend{routes: map[netip.Prefix]SystemRoute{}, borrowed: map[netip.Prefix]bool{}, failAdd: map[netip.Prefix]bool{}, failDelete: map[netip.Prefix]bool{}, foreign: map[netip.Prefix]bool{}}
 }
 
-func (b *fakeRouteBackend) Add(p netip.Prefix) (bool, error) {
-	b.events = append(b.events, "add "+p.String())
-	if b.failAdd[p] {
+func (b *fakeRouteBackend) Add(r SystemRoute) (bool, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, "add "+r.String())
+	if b.failAdd[r.Prefix] {
 		return false, errors.New("injected add failure")
 	}
-	if b.foreign[p] {
+	if b.foreign[r.Prefix] {
 		return false, fmt.Errorf("%w: injected", ErrRouteConflict)
 	}
-	b.routes[p] = true
-	return !b.borrowed[p], nil
+	b.routes[r.Prefix] = r
+	return !b.borrowed[r.Prefix], nil
 }
-func (b *fakeRouteBackend) Delete(p netip.Prefix) error {
-	b.events = append(b.events, "delete "+p.String())
-	if b.borrowed[p] {
+
+func (b *fakeRouteBackend) Delete(r SystemRoute) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, "delete "+r.String())
+	if b.borrowed[r.Prefix] {
 		panic("deleted a borrowed route")
 	}
-	if b.failDelete[p] {
+	if b.failDelete[r.Prefix] {
 		return errors.New("injected delete failure")
 	}
-	delete(b.routes, p)
-	return nil
-}
-func (b *fakeRouteBackend) Close(pending bool) error {
-	if !pending {
-		b.closes++
-	}
+	delete(b.routes, r.Prefix)
 	return nil
 }
 
-func TestRouteManagerUpdateAndOwnership(t *testing.T) {
+func (b *fakeRouteBackend) Close() error { b.closes++; return nil }
+
+type replacingBackend struct{ *fakeRouteBackend }
+
+func (b replacingBackend) Replace(old, new SystemRoute) error {
+	b.events = append(b.events, "replace "+old.String()+" -> "+new.String())
+	if b.failAdd[new.Prefix] {
+		return errors.New("injected replace failure")
+	}
+	b.routes[new.Prefix] = new
+	return nil
+}
+
+func TestRouteManagerMultipleTargetsAndOwnership(t *testing.T) {
 	b := routeBackendForTest()
 	m := newRouteManager(b)
-	old := prefixes("198.18.0.0/16", "2001:2::/64")
-	b.borrowed[old[0]] = true
-	if err := m.Update(old); err != nil {
+	tunA := via(10, "", "0.0.0.0/1", "128.0.0.0/1", "::/1")
+	wg := via(20, "", "10.10.0.0/16")
+	lan := via(2, "192.168.1.1", "203.0.113.0/24")
+	b.borrowed[lan[0].Prefix] = true // an identical route already existed
+	desired := append(append(append([]SystemRoute(nil), tunA...), wg...), lan...)
+	if _, err := m.Update(desired); err != nil {
 		t.Fatal(err)
+	}
+	if len(b.routes) != 5 || b.routes[lan[0].Prefix].Gateway != netip.MustParseAddr("192.168.1.1") || b.routes[wg[0].Prefix].Link != 20 {
+		t.Fatalf("routes = %v", b.routes)
 	}
 	b.events = nil
-	if err := m.Update(old); err != nil {
+	if _, err := m.Update(desired); err != nil || len(b.events) != 0 {
+		t.Fatalf("unchanged update reinstalled routes: %v %v", b.events, err)
+	}
+	if !reflect.DeepEqual(m.Installed(), []SystemRoute{tunA[0], wg[0], tunA[1], lan[0], tunA[2]}) {
+		t.Fatalf("installed = %v", m.Installed())
+	}
+	// Dropping the borrowed route forgets it without deleting it.
+	if _, err := m.Update(desired[:4]); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.events) != 0 {
-		t.Fatalf("unchanged routes were reinstalled: %v", b.events)
-	}
-	if err := m.Update(prefixes("198.19.0.0/16", "2001:2:0:1::/64")); err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"add 198.19.0.0/16", "add 2001:2:0:1::/64", "delete 2001:2::/64"}
-	if !reflect.DeepEqual(b.events, want) {
-		t.Fatalf("events %v, want %v", b.events, want)
+	if _, ok := b.routes[lan[0].Prefix]; !ok {
+		t.Fatal("borrowed route was deleted")
 	}
 	if err := m.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.routes) != 1 || !b.routes[old[0]] {
-		t.Fatalf("borrowed route not preserved: %v", b.routes)
+	if len(b.routes) != 1 || b.closes != 1 {
+		t.Fatalf("after close routes = %v closes = %d", b.routes, b.closes)
 	}
-	if err := m.Update(old); err == nil {
+	if _, err := m.Update(desired); err == nil {
 		t.Fatal("updated a closed manager")
+	}
+}
+
+func TestRouteManagerRejectsAmbiguousTargets(t *testing.T) {
+	m := newRouteManager(routeBackendForTest())
+	if _, err := m.Update(append(via(1, "", "192.0.2.0/24"), via(2, "", "192.0.2.0/24")...)); err == nil {
+		t.Fatal("one prefix accepted for two targets")
+	}
+	if _, err := m.Update(via(0, "", "192.0.2.0/24")); err == nil {
+		t.Fatal("route without an interface accepted")
+	}
+}
+
+func TestRouteManagerTargetChange(t *testing.T) {
+	for name, replace := range map[string]bool{"delete and add": false, "replace": true} {
+		t.Run(name, func(t *testing.T) {
+			fake := routeBackendForTest()
+			var backend routeBackend = fake
+			if replace {
+				backend = replacingBackend{fake}
+			}
+			m := newRouteManager(backend)
+			if _, err := m.Update(via(10, "", "8.8.8.8/32")); err != nil {
+				t.Fatal(err)
+			}
+			// TUN A -> wg0, then a failing update rolls back to wg0.
+			if _, err := m.Update(via(20, "", "8.8.8.8/32")); err != nil {
+				t.Fatal(err)
+			}
+			if fake.routes[netip.MustParsePrefix("8.8.8.8/32")].Link != 20 {
+				t.Fatalf("target not changed: %v", fake.routes)
+			}
+			next := append(via(30, "", "8.8.8.8/32"), via(30, "", "9.9.9.9/32")...)
+			fake.failAdd[netip.MustParsePrefix("9.9.9.9/32")] = true
+			if _, err := m.Update(next); err == nil {
+				t.Fatal("missing add error")
+			}
+			if got := m.Installed(); !reflect.DeepEqual(got, via(20, "", "8.8.8.8/32")) {
+				t.Fatalf("rollback left %v", got)
+			}
+			if fake.routes[netip.MustParsePrefix("8.8.8.8/32")].Link != 20 {
+				t.Fatalf("OS route not restored: %v", fake.routes)
+			}
+		})
 	}
 }
 
 func TestRouteManagerAddRollbackAndRetry(t *testing.T) {
 	b := routeBackendForTest()
 	m := newRouteManager(b)
-	old := prefixes("198.18.0.0/16")
-	if err := m.Update(old); err != nil {
+	old := via(10, "", "198.18.0.0/16")
+	if _, err := m.Update(old); err != nil {
 		t.Fatal(err)
 	}
-	next := prefixes("198.19.0.0/16", "2001:2::/64")
-	b.failAdd[next[1]] = true
-	b.failDelete[next[0]] = true // rollback also fails; retain its cleanup record
-	if err := m.Update(next); err == nil {
+	next := via(10, "", "198.19.0.0/16", "2001:2::/64")
+	b.failAdd[next[1].Prefix] = true
+	b.failDelete[next[0].Prefix] = true // rollback also fails; keep its cleanup record
+	if _, err := m.Update(next); err == nil {
 		t.Fatal("missing add error")
 	}
-	if !b.routes[old[0]] || !m.installed[next[0]] {
-		t.Fatalf("lost old route or failed rollback record: %v", m.installed)
+	if _, ok := b.routes[old[0].Prefix]; !ok {
+		t.Fatal("previous route lost after a failed update")
 	}
-	delete(b.failDelete, next[0])
-	if err := m.Update(old); err != nil {
+	if _, ok := m.installed[next[0].Prefix]; !ok {
+		t.Fatal("failed rollback deletion not tracked for retry")
+	}
+	delete(b.failDelete, next[0].Prefix)
+	if _, err := m.Update(old); err != nil {
 		t.Fatal(err)
 	}
-	if b.routes[next[0]] {
-		t.Fatal("rollback was not retried")
+	if _, ok := b.routes[next[0].Prefix]; ok {
+		t.Fatal("rollback deletion was not retried")
 	}
-	delete(b.failAdd, next[1])
-	if err := m.Update(next); err != nil {
+	delete(b.failAdd, next[1].Prefix)
+	if _, err := m.Update(next); err != nil {
 		t.Fatal(err)
 	}
-	if b.routes[old[0]] {
-		t.Fatal("stale route retained after successful retry")
+	if _, ok := b.routes[old[0].Prefix]; ok {
+		t.Fatal("stale route kept after a successful retry")
 	}
 }
 
 func TestRouteManagerDeleteFailureAndCloseRetry(t *testing.T) {
 	b := routeBackendForTest()
 	m := newRouteManager(b)
-	p := prefixes("198.18.0.0/16")[0]
-	if err := m.Update([]netip.Prefix{p}); err != nil {
+	r := via(10, "", "198.18.0.0/16")
+	if _, err := m.Update(r); err != nil {
 		t.Fatal(err)
 	}
-	b.failDelete[p] = true
-	if err := m.Update(nil); err == nil {
+	b.failDelete[r[0].Prefix] = true
+	if _, err := m.Update(nil); err == nil {
 		t.Fatal("missing delete error")
 	}
-	if !m.installed[p] {
-		t.Fatal("lost failed deletion record")
+	if err := m.Close(); err == nil || b.closes != 0 {
+		t.Fatal("close released state while route cleanup was pending")
 	}
-	if err := m.Close(); err == nil {
-		t.Fatal("missing close error")
-	}
-	if b.closes != 0 {
-		t.Fatal("released policy rules while route cleanup was pending")
-	}
-	delete(b.failDelete, p)
+	delete(b.failDelete, r[0].Prefix)
 	if err := m.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -177,14 +225,45 @@ func TestRouteManagerDeleteFailureAndCloseRetry(t *testing.T) {
 	}
 }
 
+func TestRouteManagerYieldsConflictsToExistingRoutes(t *testing.T) {
+	b := routeBackendForTest()
+	m := newRouteManager(b)
+	routes := via(10, "", "1.0.0.0/8", "2.0.0.0/8", "100.64.0.0/10", "::/1", "8000::/1")
+	b.foreign[routes[2].Prefix] = true // e.g. Tailscale already routes 100.64.0.0/10
+	b.foreign[routes[4].Prefix] = true
+	conflicts, err := m.Update(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(conflicts, prefixes("100.64.0.0/10", "8000::/1")) || len(b.routes) != 3 {
+		t.Fatalf("conflicts = %v, routes = %v", conflicts, b.routes)
+	}
+	// After a network change the other route is gone: retried.
+	delete(b.foreign, routes[2].Prefix)
+	b.events = nil
+	if conflicts, err = m.Update(routes); err != nil || !reflect.DeepEqual(conflicts, prefixes("8000::/1")) {
+		t.Fatalf("retry conflicts = %v, %v", conflicts, err)
+	}
+	if len(b.events) != 2 {
+		t.Fatalf("retry events = %v", b.events)
+	}
+	b.events = nil
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.routes) != 0 || len(b.events) != 4 {
+		t.Fatalf("cleanup events = %v, remaining %v", b.events, b.routes)
+	}
+}
+
 func TestRouteManagerConcurrentUpdateClose(t *testing.T) {
 	b := routeBackendForTest()
 	m := newRouteManager(b)
 	var wg sync.WaitGroup
-	for range 8 {
+	for i := range 8 {
 		wg.Go(func() {
 			for range 100 {
-				_ = m.Update(prefixes("198.18.0.0/16", "2001:2::/64"))
+				_, _ = m.Update(via(10+i%2, "", "198.18.0.0/16", "2001:2::/64"))
 			}
 		})
 	}
@@ -195,70 +274,5 @@ func TestRouteManagerConcurrentUpdateClose(t *testing.T) {
 	}
 	if len(b.routes) != 0 {
 		t.Fatalf("routes remain after close: %v", b.routes)
-	}
-}
-
-func TestRouteManagerRequiredRoutesAndMultipleTUNs(t *testing.T) {
-	b1, b2 := routeBackendForTest(), routeBackendForTest()
-	m1, m2 := newRouteManager(b1), newRouteManager(b2)
-	m1.required = prefixes("172.19.0.0/24")
-	for _, m := range []*RouteManager{m1, m2} {
-		if err := m.Update(prefixes("198.18.0.0/16")); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := m1.Update(nil); err != nil {
-		t.Fatal(err)
-	}
-	if !b1.routes[m1.required[0]] {
-		t.Fatal("required interface route was removed")
-	}
-	if err := m1.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if len(b2.routes) != 1 {
-		t.Fatal("closing one TUN modified another TUN")
-	}
-}
-
-func TestRouteManagerYieldsConflictsToExistingRoutes(t *testing.T) {
-	b := routeBackendForTest()
-	m := newRouteManager(b)
-	routes := prefixes("1.0.0.0/8", "2.0.0.0/8", "100.64.0.0/10", "::/1", "8000::/1")
-	b.foreign[routes[2]] = true // e.g. Tailscale already routes 100.64.0.0/10
-	b.foreign[routes[4]] = true
-	// Legacy route lists keep failing atomically.
-	if err := m.Update(routes); !errors.Is(err, ErrRouteConflict) || len(b.routes) != 0 {
-		t.Fatalf("legacy conflict = %v, routes %v", err, b.routes)
-	}
-	m.SetYieldConflicts(true)
-	if err := m.Update(routes); err != nil {
-		t.Fatal(err)
-	}
-	if got := m.Conflicts(); !reflect.DeepEqual(got, prefixes("100.64.0.0/10", "8000::/1")) {
-		t.Fatalf("conflicts = %v", got)
-	}
-	if len(b.routes) != 3 || b.routes[routes[2]] || !b.routes[routes[0]] || !b.routes[routes[3]] {
-		t.Fatalf("installed = %v", b.routes)
-	}
-	// After a network change the other interface's route is gone: retried.
-	delete(b.foreign, routes[2])
-	b.events = nil
-	if err := m.Update(routes); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(b.events, []string{"add 100.64.0.0/10", "add 8000::/1"}) || !b.routes[routes[2]] {
-		t.Fatalf("retry events = %v", b.events)
-	}
-	if got := m.Conflicts(); !reflect.DeepEqual(got, prefixes("8000::/1")) {
-		t.Fatalf("conflicts after retry = %v", got)
-	}
-	// Conflicting prefixes were never ours, so stopping the TUN deletes only owned routes.
-	b.events = nil
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if len(b.routes) != 0 || len(b.events) != 4 {
-		t.Fatalf("cleanup events = %v, remaining %v", b.events, b.routes)
 	}
 }

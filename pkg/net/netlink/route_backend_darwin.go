@@ -11,66 +11,94 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type darwinRouteBackend struct {
-	index      int
-	v4, v6     netip.Addr
-	restoreDNS func()
-}
+// darwinRouteBackend installs routes in the single macOS routing table. There
+// is no policy routing: the policy engine has already made every prefix
+// unique, and the kernel's longest-prefix match picks between prefixes.
+type darwinRouteBackend struct{}
 
-func (b *darwinRouteBackend) gateway(p netip.Prefix) netip.Addr {
-	if p.Addr().Is4() {
-		return b.v4
+func newPlatformRouteBackend() (routeBackend, error) { return darwinRouteBackend{}, nil }
+
+// gateway returns the next hop written to the routing socket. Point-to-point
+// interfaces such as utun use their own address, like `route add -interface`.
+func gateway(r SystemRoute) (netip.Addr, error) {
+	if r.Gateway.IsValid() {
+		return r.Gateway, nil
 	}
-	return b.v6
+	iface, err := net.InterfaceByIndex(r.Link)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok {
+			if ip, ok := netip.AddrFromSlice(n.IP); ok && ip.Unmap().Is4() == r.Prefix.Addr().Is4() && !ip.IsLinkLocalUnicast() {
+				return ip.Unmap(), nil
+			}
+		}
+	}
+	return netip.Addr{}, fmt.Errorf("interface %s has no %s address to route through", iface.Name, familyName(r.Prefix))
 }
 
-func (b *darwinRouteBackend) Add(p netip.Prefix) (bool, error) {
-	err := writeRoute(p, b.gateway(p), unix.RTM_ADD, b.index)
+func familyName(p netip.Prefix) string {
+	if p.Addr().Is4() {
+		return "IPv4"
+	}
+	return "IPv6"
+}
+
+func (darwinRouteBackend) Add(r SystemRoute) (bool, error) {
+	gw, err := gateway(r)
+	if err != nil {
+		return false, err
+	}
+	err = writeRoute(r.Prefix, gw, unix.RTM_ADD, r.Link)
 	if errors.Is(err, unix.EEXIST) {
-		index, gateway, found, queryErr := lookupDarwinRoute(p)
+		index, existing, found, queryErr := lookupDarwinRoute(r.Prefix)
 		if queryErr == nil && found {
-			return darwinExistingRoute(b.index, b.gateway(p), index, gateway, err)
+			return darwinExistingRoute(r.Link, gw, index, existing, err)
 		}
 	}
 	return err == nil, err
 }
 
 // darwinExistingRoute decides how an RTM_ADD that failed with EEXIST is
-// handled: a matching route on this TUN is borrowed (never deleted), and a
-// route of another interface is reported as a conflict.
-func darwinExistingRoute(tunIndex int, tunGateway netip.Addr, index int, gateway netip.Addr, addErr error) (bool, error) {
-	if index == tunIndex && (!gateway.IsValid() || gateway == tunGateway) {
+// handled: a matching route on the same interface is borrowed (never
+// deleted), and a route of another interface is reported as a conflict.
+func darwinExistingRoute(link int, gw netip.Addr, index int, gateway netip.Addr, addErr error) (bool, error) {
+	if index == link && (!gateway.IsValid() || gateway == gw) {
 		return false, nil
 	}
 	return false, fmt.Errorf("%w (interface index %d): %w", ErrRouteConflict, index, addErr)
 }
 
-func (b *darwinRouteBackend) Delete(p netip.Prefix) error {
-	index, gateway, found, err := lookupDarwinRoute(p)
+func (darwinRouteBackend) Delete(r SystemRoute) error {
+	index, existing, found, err := lookupDarwinRoute(r.Prefix)
 	if err != nil {
 		return err
 	}
-	if !found {
+	if !found || index != r.Link {
+		// Gone with its interface, or replaced: no longer ours to remove.
 		return nil
 	}
-	if index != b.index || gateway != b.gateway(p) {
-		// An external replacement is no longer ours to remove.
+	gw, err := gateway(r)
+	if err != nil {
+		// The interface lost its address; the route went with it.
+		gw = existing
+	}
+	if existing.IsValid() && gw != existing {
 		return nil
 	}
-	err = writeRoute(p, b.gateway(p), unix.RTM_DELETE, b.index)
+	err = writeRoute(r.Prefix, gw, unix.RTM_DELETE, r.Link)
 	if errors.Is(err, unix.ESRCH) {
 		return nil
 	}
 	return err
 }
 
-func (b *darwinRouteBackend) Close(_ bool) error {
-	if b.restoreDNS != nil {
-		b.restoreDNS()
-		b.restoreDNS = nil
-	}
-	return nil
-}
+func (darwinRouteBackend) Close() error { return nil }
 
 func darwinIP(a route.Addr) netip.Addr {
 	switch a := a.(type) {

@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -18,7 +17,6 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/slice"
 )
 
 func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s netapi.Accepter, err error) {
@@ -54,17 +52,13 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 		return nil, err
 	}
 
-	if o.AutoFakeIPRoute && sc.Scheme == "tun" && (!o.FakeIPRanges[0].IsValid() || !o.FakeIPRanges[1].IsValid()) {
-		return nil, errors.New("automatic TUN routes require active FakeIP pools")
-	}
 	sc.Name = checkTunName(sc)
 
 	opt := &device.Opt{
 		Tun: o,
 		Options: &netlink.Options{
-			Interface:           sc,
-			MTU:                 int(o.MTU),
-			YieldRouteConflicts: o.ManagedRoutes,
+			Interface: sc,
+			MTU:       int(o.MTU),
 			Platform: netlink.Platform{
 				Darwin: netlink.Darwin{
 					NetworkService: o.Platform.Darwin.NetworkService,
@@ -82,43 +76,38 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 		opt.Inet6Address = []netip.Prefix{v6address}
 	}
 
-	userRoutes := toRoutes(o.Routes)
-	opt.Routes = effectiveRoutes(opt.Options, userRoutes, o.AutoFakeIPRoute, o.FakeIPRanges)
 	s, err = lightweighttun.New(opt)
 	if err != nil {
 		return nil, err
 	}
-	return &routeAccepter{Accepter: s, options: opt.Options, userRoutes: userRoutes, autoFakeIP: o.AutoFakeIPRoute, ranges: o.FakeIPRanges}, nil
+	return &tunAccepter{Accepter: s, options: opt.Options}, nil
 }
 
-func effectiveRoutes(options *netlink.Options, userRoutes []netip.Prefix, automatic bool, ranges [2]netip.Prefix) []netip.Prefix {
-	routes := slices.Clone(userRoutes)
-	if automatic {
-		for _, p := range options.RoutesForFamilies(ranges[:]) {
-			if p.Addr().Is6() && !configuration.IPv6.Load() {
-				continue
-			}
-			routes = append(routes, p)
-		}
-	}
-	return netlink.NormalizeRoutes(routes)
+// Link describes a running kernel TUN for the System Network Manager, which
+// owns every route towards it. Index is zero for externally supplied fd://
+// devices, whose routes are managed by their host.
+type Link struct {
+	Name           string
+	Index          int
+	IPv4, IPv6     netip.Prefix
+	RequiredRoutes []netip.Prefix
 }
 
-// routeAccepter keeps system route updates and Close mutually exclusive for
-// both TUN drivers. Its userRoutes never include automatically added prefixes.
-type routeAccepter struct {
+// tunAccepter exposes the device's link next to the stack. The TUN itself
+// never installs destination routes.
+type tunAccepter struct {
 	netapi.Accepter
-	mu         sync.Mutex
-	options    *netlink.Options
-	userRoutes []netip.Prefix
-	autoFakeIP bool
-	ranges     [2]netip.Prefix
-	closed     bool
+	options *netlink.Options
 }
 
-// StackDiagnostic forwards the optional lightweight statistics through the
-// route-management wrapper. The underlying stack is sampled only on request.
-func (t *routeAccepter) StackDiagnostic(limit int) lightweight.StackDiagnostics {
+func (t *tunAccepter) TunLink() Link {
+	return Link{Name: t.options.Interface.Name, Index: t.options.Index, IPv4: t.options.V4Address(), IPv6: t.options.V6Address(),
+		RequiredRoutes: slices.Clone(t.options.RequiredRoutes)}
+}
+
+// StackDiagnostic forwards the optional lightweight statistics. The
+// underlying stack is sampled only on request.
+func (t *tunAccepter) StackDiagnostic(limit int) lightweight.StackDiagnostics {
 	if reporter, ok := t.Accepter.(interface {
 		StackDiagnostic(int) lightweight.StackDiagnostics
 	}); ok {
@@ -127,101 +116,11 @@ func (t *routeAccepter) StackDiagnostic(limit int) lightweight.StackDiagnostics 
 	return lightweight.StackDiagnostics{}
 }
 
-func (t *routeAccepter) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
+func (t *tunAccepter) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
 	if reporter, ok := t.Accepter.(trafficcontrol.QueueReporter); ok {
 		return reporter.TrafficControlQueue()
 	}
 	return trafficcontrol.FairStats{}, false
-}
-
-func (t *routeAccepter) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.ranges = ranges
-	if t.closed || !t.autoFakeIP || t.options.RouteManager == nil {
-		return nil
-	}
-	routes := effectiveRoutes(t.options, t.userRoutes, true, ranges)
-	return t.options.RouteManager.Update(t.options.RoutesForFamilies(routes))
-}
-
-// SetRoutes replaces the configured routes of a running TUN in place: new
-// routes are added before obsolete ones are removed, the device is kept and
-// FakeIP routes stay installed. managed selects whether existing routes of
-// other interfaces win over conflicting prefixes. Calling it again with the
-// same routes retries skipped and failed prefixes.
-func (t *routeAccepter) SetRoutes(routes []netip.Prefix, managed bool) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.closed {
-		return errors.New("TUN is closed")
-	}
-	routes = netlink.NormalizeRoutes(routes)
-	if t.options.RouteManager == nil {
-		// Externally supplied fd:// devices have host-managed routes.
-		t.userRoutes = routes
-		return nil
-	}
-	t.options.RouteManager.SetYieldConflicts(managed)
-	if err := t.options.RouteManager.Update(t.options.RoutesForFamilies(effectiveRoutes(t.options, routes, t.autoFakeIP, t.ranges))); err != nil {
-		return err
-	}
-	t.userRoutes = routes
-	return nil
-}
-
-// RouteConflicts returns prefixes left to other interfaces' existing routes.
-func (t *routeAccepter) RouteConflicts() []netip.Prefix {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.closed || t.options.RouteManager == nil {
-		return nil
-	}
-	return t.options.RouteManager.Conflicts()
-}
-
-func (t *routeAccepter) Close() error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	var err error
-	// Clean up while the interface still exists, before either driver closes it.
-	if t.options.RouteManager != nil {
-		err = t.options.RouteManager.Close()
-	}
-	if t.closed {
-		return err
-	}
-	t.closed = true
-	return errors.Join(err, t.Accepter.Close())
-}
-
-func toRoutes(routes []string) []netip.Prefix {
-	if routes == nil {
-		return nil
-	}
-
-	var x []netip.Prefix
-	add := func(s string) {
-		prefix, err := toPrefix(s, false)
-		if err == nil {
-			x = append(x, prefix)
-		}
-	}
-
-	for _, v := range routes {
-		switch {
-		case strings.HasPrefix(v, "file:"):
-			if remain := strings.TrimPrefix(v, "file:"); remain != "" {
-				for v := range slice.RangeFileByLine(remain) {
-					add(v)
-				}
-			}
-		default:
-			add(v)
-		}
-	}
-
-	return netlink.NormalizeRoutes(x)
 }
 
 func toPrefix(str string, gateway bool) (netip.Prefix, error) {
