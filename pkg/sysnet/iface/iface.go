@@ -8,6 +8,8 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 )
 
 // Interface types.
@@ -73,15 +75,21 @@ func (i Info) NeedsGateway() bool {
 	return !i.PointToPoint
 }
 
-// List returns the current interfaces sorted by index.
+// List returns the current interfaces sorted by index. It uses the shared
+// interface source, which on Android is provided by the app: Android 11+
+// denies apps the netlink dumps net.Interfaces needs.
 func List() ([]Info, error) {
-	ifaces, err := net.Interfaces()
+	list, err := interfaces.GetInterfaceList()
 	if err != nil {
 		return nil, err
 	}
 	gateways := platformGateways()
-	out := make([]Info, 0, len(ifaces))
-	for _, ifc := range ifaces {
+	out := make([]Info, 0, len(list))
+	for _, item := range list {
+		if item.Interface == nil {
+			continue
+		}
+		ifc := *item.Interface
 		info := Info{
 			Name:         ifc.Name,
 			Index:        ifc.Index,
@@ -90,7 +98,7 @@ func List() ([]Info, error) {
 			HardwareAddr: ifc.HardwareAddr.String(),
 			PointToPoint: ifc.Flags&net.FlagPointToPoint != 0,
 		}
-		if addrs, err := ifc.Addrs(); err == nil {
+		if addrs, err := item.Addrs(); err == nil {
 			for _, a := range addrs {
 				if n, ok := a.(*net.IPNet); ok {
 					ip, ok := netip.AddrFromSlice(n.IP)

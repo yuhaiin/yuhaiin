@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 )
 
 func TestClassify(t *testing.T) {
@@ -79,5 +81,27 @@ func TestListCurrentInterfaces(t *testing.T) {
 	}
 	if !loopback {
 		t.Fatal("loopback interface not discovered")
+	}
+}
+
+// Android 11+ denies the netlink dumps net.Interfaces uses; the app supplies
+// the list instead and List must use it.
+func TestListUsesPlatformInterfaceSource(t *testing.T) {
+	previous := interfaces.AltNetInterfaces
+	t.Cleanup(func() { interfaces.AltNetInterfaces = previous })
+	interfaces.AltNetInterfaces = func() ([]interfaces.Interface, error) {
+		return []interfaces.Interface{
+			{Interface: &net.Interface{Name: "wlan0", Index: 30, MTU: 1500, Flags: net.FlagUp | net.FlagBroadcast},
+				AltAddrs: []net.Addr{&net.IPNet{IP: net.ParseIP("192.168.1.20"), Mask: net.CIDRMask(24, 32)}}},
+			{Interface: &net.Interface{Name: "tun0", Index: 31, MTU: 1500, Flags: net.FlagUp | net.FlagPointToPoint}, AltAddrs: []net.Addr{}},
+		}, nil
+	}
+	list, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].Name != "wlan0" || list[0].Type != TypeWiFi || list[0].Addresses[0] != netip.MustParsePrefix("192.168.1.20/24") ||
+		list[1].Type != TypeTunnel || len(list[1].Addresses) != 0 {
+		t.Fatalf("list = %+v", list)
 	}
 }

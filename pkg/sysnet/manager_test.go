@@ -554,3 +554,26 @@ func TestForwardingFollowsRoutesAndListsEgressLinks(t *testing.T) {
 		t.Fatalf("links = %v", plan.Links)
 	}
 }
+
+// An interface list failure (Android without the app's list) only matters to
+// rules that name interfaces.
+func TestInterfaceListFailureOnlyAffectsInterfaceRules(t *testing.T) {
+	m := New(Options{Capabilities: PlatformCapabilities("android", false, false),
+		Interfaces: func() ([]iface.Info, error) { return nil, errors.New("netlinkrib: permission denied") }})
+	if err := m.SetStore(t.Context(), &memoryStore{config: sysnet.Config{Routes: []sysnet.RouteRule{rule("vpn", 1, custom("10.0.0.0/8"), tunTarget("tun"))}}}); err != nil {
+		t.Fatal(err)
+	}
+	if s := m.Status(); s.State != sysnet.StateActive || s.Error != "" {
+		t.Fatalf("status = %+v", s)
+	}
+	n := newTestNet(t, sysnet.Config{Routes: []sysnet.RouteRule{rule("wg", 1, custom("10.0.0.0/8"), ifTarget("wg0"))}})
+	n.m.opts.Interfaces = func() ([]iface.Info, error) { return nil, errors.New("denied") }
+	n.m.Reconcile("test")
+	deadline := time.Now().Add(2 * time.Second)
+	for n.m.Status().State != sysnet.StateDegraded {
+		if time.Now().After(deadline) {
+			t.Fatalf("interface rule status = %+v", n.m.Status())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
