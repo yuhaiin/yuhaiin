@@ -182,11 +182,6 @@ func (f *lanLinkFixture) inviteWith(id string, options transport.LANLink) (netap
 	return f.importOutbound(id, options), value
 }
 
-func (f *lanLinkFixture) importInvitation(id, invitation string) netapi.Proxy {
-	f.t.Helper()
-	return f.importOutbound(id, transport.LANLink{Invitation: invitation})
-}
-
 func (f *lanLinkFixture) importOutbound(id string, link transport.LANLink) netapi.Proxy {
 	f.t.Helper()
 	protocol, err := contractnode.NewTypedProtocol(link)

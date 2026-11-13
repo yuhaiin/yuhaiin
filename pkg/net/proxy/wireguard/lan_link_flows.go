@@ -260,4 +260,4 @@ func (loopbackDialer) PacketConn(_ context.Context, addr netapi.Address) (net.Pa
 // connected to the loopback target.
 type connectedPacketConn struct{ *net.UDPConn }
 
-func (c connectedPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) { return c.UDPConn.Write(b) }
+func (c connectedPacketConn) WriteTo(b []byte, _ net.Addr) (int, error) { return c.Write(b) }
