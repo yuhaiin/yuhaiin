@@ -28,6 +28,8 @@ func isV2StreamEndpoint(endpoint v2Endpoint) bool {
 // Secret-bearing requests use small independent bounds without restricting
 // unrelated configuration-import payloads accepted by the same RPC adapter.
 var v2RPCBodyLimits = map[v2Endpoint]int64{
+	v2SystemNetworkConfigPut:    4 << 20,
+	v2SystemNetworkPreview:      4 << 20,
 	v2CertificateSave:           128 << 10,
 	v2CertificateProviderSave:   8 << 10,
 	v2CertificateDelete:         1 << 10,
@@ -115,6 +117,11 @@ const (
 	v2InboundEvents             v2Endpoint = "inbound.events"
 	v2InboundRetry              v2Endpoint = "inbound.retry"
 	v2InboundCapabilities       v2Endpoint = "inbound.capabilities"
+	v2SystemNetworkConfigGet    v2Endpoint = "systemNetwork.config.get"
+	v2SystemNetworkConfigPut    v2Endpoint = "systemNetwork.config.put"
+	v2SystemNetworkStatus       v2Endpoint = "systemNetwork.status"
+	v2SystemNetworkInterfaces   v2Endpoint = "systemNetwork.interfaces"
+	v2SystemNetworkPreview      v2Endpoint = "systemNetwork.preview"
 	v2NodePeerTunnelPeers       v2Endpoint = "nodes.peer_tunnel_peers"
 	v2NodesActive               v2Endpoint = "nodes.active"
 	v2NodeUse                   v2Endpoint = "node.use"
@@ -298,6 +305,11 @@ var v2Routes = []v2Route{
 	{v2InboundConfigPut, "PUT /api/v2/inbounds/config"},
 	{v2InboundsGet, "GET /api/v2/inbounds"},
 	{v2InboundCapabilities, "GET /api/v2/inbounds/capabilities"},
+	{v2SystemNetworkConfigGet, "GET /api/v2/system-network/config"},
+	{v2SystemNetworkConfigPut, "PUT /api/v2/system-network/config"},
+	{v2SystemNetworkStatus, "GET /api/v2/system-network/status"},
+	{v2SystemNetworkInterfaces, "GET /api/v2/system-network/interfaces"},
+	{v2SystemNetworkPreview, "POST /api/v2/system-network/preview"},
 	{v2InboundsPost, "POST /api/v2/inbounds"},
 	{v2InboundStatuses, "GET /api/v2/inbounds/status"},
 	{v2LANLinkInvite, "POST /api/v2/inbounds/{id}/lan-link/invite"},
@@ -391,6 +403,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addNodeRPCRoutesV2(handlers, services)
 	addResolverRPCRoutesV2(handlers, services)
 	addInboundRPCRoutesV2(handlers, services)
+	addSystemNetworkRPCRoutes(handlers, services)
 	addGatewayRPCRoutesV2(handlers, services)
 	addCertificateRPCRoutes(handlers, services)
 	return handlers

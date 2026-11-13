@@ -10,115 +10,219 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
-// NormalizeRoutes removes duplicates and contained prefixes without joining
-// adjacent networks. The covered addresses are unchanged.
-func NormalizeRoutes(routes []netip.Prefix) []netip.Prefix {
-	var normalized []netip.Prefix
-	for _, p := range routes {
-		if p.IsValid() {
-			normalized = append(normalized, p.Masked())
+// SystemRoute is one destination route owned by the System Network Manager.
+// Link is the runtime interface index. Gateway is the next hop for broadcast
+// interfaces; it stays invalid for point-to-point interfaces and TUNs.
+type SystemRoute struct {
+	Prefix  netip.Prefix
+	Link    int
+	Gateway netip.Addr
+}
+
+func (r SystemRoute) String() string {
+	if r.Gateway.IsValid() {
+		return fmt.Sprintf("%s via %s dev #%d", r.Prefix, r.Gateway, r.Link)
+	}
+	return fmt.Sprintf("%s dev #%d", r.Prefix, r.Link)
+}
+
+// ErrRouteConflict reports that another program already owns a route for the
+// same prefix. Backends wrap it so the manager can let that route win.
+var ErrRouteConflict = errors.New("route already exists on another interface")
+
+// ErrRoutesUnsupported is returned on platforms without system route control.
+var ErrRoutesUnsupported = errors.New("system route management is not supported on this platform")
+
+// routeBackend never replaces a route it does not own. Add reports whether
+// this process created the route; an identical preexisting route may be used
+// but is never deleted.
+type routeBackend interface {
+	Add(SystemRoute) (owned bool, err error)
+	Delete(SystemRoute) error
+	// Close releases auxiliary state (policy rules) once no routes remain.
+	Close() error
+}
+
+// routeReplacer atomically changes the target of an owned route.
+type routeReplacer interface {
+	Replace(old, new SystemRoute) error
+}
+
+type installedRoute struct {
+	route SystemRoute
+	owned bool
+}
+
+// RouteManager is the single owner of the system routes Yuhaiin installs. It
+// applies a desired set as a diff: new and changed routes first, then removal
+// of obsolete ones. A failed addition rolls back the routes this update added
+// or changed, so the previous set stays in effect. Failed deletions stay
+// tracked and are retried by the next update or Close.
+type RouteManager struct {
+	mu        sync.Mutex
+	backend   routeBackend
+	installed map[netip.Prefix]installedRoute
+	conflicts []netip.Prefix
+	closed    bool
+}
+
+func newRouteManager(backend routeBackend) *RouteManager {
+	return &RouteManager{backend: backend, installed: make(map[netip.Prefix]installedRoute)}
+}
+
+// NewRouteManager returns the platform route manager, or ErrRoutesUnsupported.
+func NewRouteManager() (*RouteManager, error) {
+	backend, err := newPlatformRouteBackend()
+	if err != nil {
+		return nil, err
+	}
+	return newRouteManager(backend), nil
+}
+
+// Update makes the installed routes equal to desired. Prefixes must be unique.
+// Prefixes another program already routes are skipped and returned as
+// conflicts; they are retried by every update (for example after a network
+// change), and the other program's route keeps priority meanwhile.
+func (m *RouteManager) Update(desired []SystemRoute) (conflicts []netip.Prefix, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return nil, errors.New("system route manager is closed")
+	}
+	want := make(map[netip.Prefix]SystemRoute, len(desired))
+	for _, r := range desired {
+		r.Prefix = r.Prefix.Masked()
+		if !r.Prefix.IsValid() || r.Link <= 0 {
+			return nil, fmt.Errorf("invalid system route %s", r)
+		}
+		if previous, ok := want[r.Prefix]; ok && previous != r {
+			return nil, fmt.Errorf("prefix %s is assigned to two targets", r.Prefix)
+		}
+		want[r.Prefix] = r
+	}
+	type change struct {
+		prefix   netip.Prefix
+		previous *installedRoute
+	}
+	var changes []change
+	rollback := func(cause error) error {
+		for _, c := range slices.Backward(changes) {
+			current := m.installed[c.prefix]
+			if c.previous == nil {
+				cause = errors.Join(cause, m.remove(c.prefix))
+				continue
+			}
+			if err := m.change(current.route, c.previous.route); err != nil {
+				cause = errors.Join(cause, fmt.Errorf("restore route %s: %w", c.previous.route, err))
+				continue
+			}
+			m.installed[c.prefix] = *c.previous
+		}
+		return cause
+	}
+	for _, p := range sortedPrefixes(want) {
+		r := want[p]
+		current, ok := m.installed[p]
+		if ok && current.route == r {
+			continue
+		}
+		if ok && current.owned {
+			if err := m.change(current.route, r); err != nil {
+				return nil, rollback(fmt.Errorf("change route %s: %w", r, err))
+			}
+			previous := current
+			m.installed[p] = installedRoute{route: r, owned: true}
+			changes = append(changes, change{p, &previous})
+			continue
+		}
+		if ok {
+			// A borrowed route is not ours to change; forget it and add anew.
+			delete(m.installed, p)
+		}
+		owned, err := m.backend.Add(r)
+		if errors.Is(err, ErrRouteConflict) {
+			conflicts = append(conflicts, p)
+			continue
+		}
+		if err != nil {
+			return nil, rollback(fmt.Errorf("add route %s: %w", r, err))
+		}
+		m.installed[p] = installedRoute{route: r, owned: owned}
+		changes = append(changes, change{prefix: p})
+	}
+	if len(conflicts) != 0 && !slices.Equal(conflicts, m.conflicts) {
+		log.Warn("system routes skipped because other programs already route them", "count", len(conflicts), "prefixes", firstPrefixes(conflicts, 16))
+	}
+	m.conflicts = conflicts
+	for _, p := range sortedPrefixes(m.installed) {
+		if _, ok := want[p]; !ok {
+			err = errors.Join(err, m.remove(p))
 		}
 	}
-	slices.SortFunc(normalized, func(a, b netip.Prefix) int {
+	return slices.Clone(conflicts), err
+}
+
+func (m *RouteManager) change(old, new SystemRoute) error {
+	if replacer, ok := m.backend.(routeReplacer); ok {
+		return replacer.Replace(old, new)
+	}
+	if err := m.backend.Delete(old); err != nil {
+		return err
+	}
+	_, err := m.backend.Add(new)
+	return err
+}
+
+func (m *RouteManager) remove(p netip.Prefix) error {
+	r := m.installed[p]
+	if r.owned {
+		if err := m.backend.Delete(r.route); err != nil {
+			return fmt.Errorf("delete route %s: %w", r.route, err)
+		}
+	}
+	delete(m.installed, p)
+	return nil
+}
+
+// Installed returns the routes currently tracked, sorted by prefix.
+func (m *RouteManager) Installed() []SystemRoute {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]SystemRoute, 0, len(m.installed))
+	for _, p := range sortedPrefixes(m.installed) {
+		out = append(out, m.installed[p].route)
+	}
+	return out
+}
+
+// Close deletes every owned route and releases auxiliary state. Calling it
+// again retries failed deletions.
+func (m *RouteManager) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.closed = true
+	var err error
+	for _, p := range sortedPrefixes(m.installed) {
+		err = errors.Join(err, m.remove(p))
+	}
+	if len(m.installed) == 0 {
+		err = errors.Join(err, m.backend.Close())
+	}
+	return err
+}
+
+func sortedPrefixes[V any](m map[netip.Prefix]V) []netip.Prefix {
+	out := make([]netip.Prefix, 0, len(m))
+	for p := range m {
+		out = append(out, p)
+	}
+	slices.SortFunc(out, func(a, b netip.Prefix) int {
 		if n := a.Addr().Compare(b.Addr()); n != 0 {
 			return n
 		}
 		return a.Bits() - b.Bits()
 	})
-	result := normalized[:0]
-	for _, p := range normalized {
-		if len(result) > 0 && result[len(result)-1].Contains(p.Addr()) && result[len(result)-1].Bits() <= p.Bits() {
-			continue
-		}
-		result = append(result, p)
-	}
-	return result
-}
-
-// ErrRouteConflict reports that another interface already owns a route for
-// the same prefix. Backends wrap it so the manager can let that route win.
-var ErrRouteConflict = errors.New("route already exists on another interface")
-
-// routeBackend never replaces an existing route. Add reports whether this
-// process created it; matching preexisting routes may be used but not deleted.
-type routeBackend interface {
-	Add(netip.Prefix) (bool, error)
-	Delete(netip.Prefix) error
-	Close(routesPending bool) error
-}
-
-// RouteManager tracks the routes installed for one TUN, including failed
-// deletions, so an update or repeated Close can retry their cleanup.
-type RouteManager struct {
-	mu        sync.Mutex
-	backend   routeBackend
-	installed map[netip.Prefix]bool
-	required  []netip.Prefix
-	closed    bool
-	// yield skips prefixes owned by other interfaces; they are retried by
-	// every Update, for example after a network change.
-	yield     bool
-	conflicts []netip.Prefix
-}
-
-func newRouteManager(backend routeBackend) *RouteManager {
-	return &RouteManager{backend: backend, installed: make(map[netip.Prefix]bool)}
-}
-
-func (m *RouteManager) Update(routes []netip.Prefix) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closed {
-		return errors.New("TUN route manager is closed")
-	}
-	desired := make(map[netip.Prefix]bool)
-	var added, conflicts []netip.Prefix
-	for _, p := range NormalizeRoutes(append(slices.Clone(routes), m.required...)) {
-		desired[p] = true
-		if _, ok := m.installed[p]; ok {
-			continue
-		}
-		owned, err := m.backend.Add(p)
-		if err != nil && m.yield && errors.Is(err, ErrRouteConflict) {
-			conflicts = append(conflicts, p)
-			continue
-		}
-		if err != nil {
-			result := fmt.Errorf("add TUN route %s: %w", p, err)
-			for _, previous := range added {
-				result = errors.Join(result, m.remove(previous))
-			}
-			return result
-		}
-		m.installed[p] = owned
-		added = append(added, p)
-	}
-	if !slices.Equal(conflicts, m.conflicts) && len(conflicts) != 0 {
-		log.Warn("TUN routes skipped because other interfaces already route them", "count", len(conflicts), "prefixes", firstPrefixes(conflicts, 16))
-	}
-	m.conflicts = conflicts
-	var err error
-	for _, p := range m.prefixes() {
-		if !desired[p] {
-			err = errors.Join(err, m.remove(p))
-		}
-	}
-	return err
-}
-
-// SetYieldConflicts selects whether existing routes of other interfaces win
-// over this TUN's routes. It applies from the next Update.
-func (m *RouteManager) SetYieldConflicts(yield bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.yield = yield
-}
-
-// Conflicts returns the prefixes the last Update left to other interfaces.
-func (m *RouteManager) Conflicts() []netip.Prefix {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return slices.Clone(m.conflicts)
+	return out
 }
 
 func firstPrefixes(prefixes []netip.Prefix, limit int) []string {
@@ -127,61 +231,4 @@ func firstPrefixes(prefixes []netip.Prefix, limit int) []string {
 		out = append(out, p.String())
 	}
 	return out
-}
-
-func (m *RouteManager) prefixes() []netip.Prefix {
-	prefixes := make([]netip.Prefix, 0, len(m.installed))
-	for p := range m.installed {
-		prefixes = append(prefixes, p)
-	}
-	slices.SortFunc(prefixes, func(a, b netip.Prefix) int { return a.Addr().Compare(b.Addr()) })
-	return prefixes
-}
-
-func (m *RouteManager) remove(p netip.Prefix) error {
-	if m.installed[p] {
-		if err := m.backend.Delete(p); err != nil {
-			return fmt.Errorf("delete TUN route %s: %w", p, err)
-		}
-	}
-	delete(m.installed, p)
-	return nil
-}
-
-func (m *RouteManager) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.closed = true
-	var err error
-	for _, p := range m.prefixes() {
-		err = errors.Join(err, m.remove(p))
-	}
-	// Restore auxiliary state (e.g. system DNS) even if deletion failed.
-	// The Linux backend retains policy rule leases until all routes are gone.
-	err = errors.Join(err, m.backend.Close(len(m.installed) != 0))
-	return err
-}
-
-func installRoutes(opt *Options, backend routeBackend, required ...netip.Prefix) (func(), error) {
-	manager := newRouteManager(backend)
-	manager.required = required
-	manager.yield = opt.YieldRouteConflicts
-	opt.RouteManager = manager
-	cleanup := func() {
-		if err := manager.Close(); err != nil {
-			log.Error("clean up TUN routes failed", "interface", opt.Interface.Name, "err", err)
-		}
-	}
-	return cleanup, manager.Update(opt.RoutesForFamilies(opt.Routes))
-}
-
-// RoutesForFamilies excludes routes for address families unavailable on the TUN.
-func (o *Options) RoutesForFamilies(routes []netip.Prefix) []netip.Prefix {
-	var result []netip.Prefix
-	for _, p := range routes {
-		if p.IsValid() && ((p.Addr().Is4() && o.V4Address().IsValid()) || (p.Addr().Is6() && o.V6Address().IsValid())) {
-			result = append(result, p)
-		}
-	}
-	return result
 }

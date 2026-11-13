@@ -20,17 +20,17 @@ type Darwin struct {
 }
 
 type Options struct {
-	RouteManager *RouteManager
 	Device       Tun
 	Platform     Platform
 	Interface    TunScheme
 	Inet6Address []netip.Prefix
 	Inet4Address []netip.Prefix
-	Routes       []netip.Prefix
 	MTU          int
-	// YieldRouteConflicts keeps existing routes of other interfaces instead
-	// of failing when a route for the same prefix already exists.
-	YieldRouteConflicts bool
+	// Index is the interface index after ConfigureTun.
+	Index int
+	// RequiredRoutes are routes the platform needs for this TUN to work (the
+	// utun subnet on macOS), for the System Network Manager to install.
+	RequiredRoutes []netip.Prefix
 }
 
 type Tun interface {

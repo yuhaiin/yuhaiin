@@ -82,14 +82,14 @@ func New(o *device.Opt) (netapi.Accepter, error) {
 		_ = stack.Close()
 		return nil, err
 	}
-	o.UnsetRoute, err = netlink.Route(o.Options)
+	o.UnsetRoute, err = netlink.ConfigureTun(o.Options)
 	if err != nil {
 		_ = l.Close()
 		_ = stack.Close()
 		if o.UnsetRoute != nil {
 			o.UnsetRoute()
 		}
-		return nil, fmt.Errorf("install lightweight TUN routes: %w", err)
+		return nil, fmt.Errorf("configure lightweight TUN: %w", err)
 	}
 	o.PostUp()
 	s := &server{stack: stack, options: o, handler: o.Handler, addresses: append(append([]netip.Prefix(nil), o.Inet4Address...), o.Inet6Address...), listener: l, streams: make(chan struct{}, 8192)}

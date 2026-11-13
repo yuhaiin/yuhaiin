@@ -39,6 +39,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
@@ -64,6 +65,7 @@ type AppInstance struct {
 	Backup               httpapi.BackupController
 	Setting              httpapi.SettingsController
 	Inbound              *inbound.Inbound
+	SystemNetwork        *sysnet.Manager
 	Mux                  *http.ServeMux
 	ConfigurationChanges configchange.Backend
 	*StartOptions
@@ -166,7 +168,17 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 			log.Error("init v2 sqlite store failed", "err", err)
 		} else {
 			plainInboundStore := plainstore.NewInboundStore(db)
+			if app.SystemNetwork != nil {
+				// Load before inbounds start so their TUNs attach to saved rules.
+				if err := app.SystemNetwork.SetStore(ctx, plainstore.NewSystemNetworkStore(db)); err != nil {
+					log.Error("load System Network configuration failed", "err", err)
+				}
+				app.SystemNetwork.SetInbounds(systemNetworkInbounds{plainInboundStore})
+			}
 			inboundRuntimeStore := inbound.NewContractStore(plainInboundStore, app.Inbound)
+			if app.SystemNetwork != nil {
+				inboundRuntimeStore.SetLegacyTunMigration(app.SystemNetwork)
+			}
 			if err := inboundRuntimeStore.Sync(ctx); err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -231,6 +243,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		RouteEditor:      routeEditor,
 		Selectors:        selectors,
 		Subscribe:        subscribeController,
+		SystemNetwork:    systemNetworkController(app.SystemNetwork),
 	})
 	return ctx.Err()
 }

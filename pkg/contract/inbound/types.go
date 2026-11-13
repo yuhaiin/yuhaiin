@@ -273,9 +273,10 @@ type TunProtocol struct {
 	Driver            string           `json:"driver"`
 	Portal            string           `json:"portal"`
 	PortalV6          string           `json:"portalV6"`
-	Routes            []string         `json:"routes"`
-	Excludes          []string         `json:"excludes"`
-	// Routing replaces Routes/Excludes when its mode is set.
+	// Legacy: Routes, Excludes and Routing are read only by the System
+	// Network migration and then cleared. TUNs install no routes themselves.
+	Routes   []string   `json:"routes,omitzero"`
+	Excludes []string   `json:"excludes,omitzero"`
 	Routing  TunRouting `json:"routing,omitzero"`
 	PostUp   []string   `json:"postUp" secret:"true" privilege:"system:execute"`
 	PostDown []string   `json:"postDown" secret:"true" privilege:"system:execute"`
@@ -824,10 +825,6 @@ func (i Inbound) Validate() error {
 		return fmt.Errorf("protocol: %w", err)
 	}
 	switch i.Protocol.Type {
-	case ProtocolTun:
-		if err := i.Protocol.Tun.Routing.Validate(); err != nil {
-			return err
-		}
 	case ProtocolLANLink:
 		if i.Network.Type != NetworkEmpty || len(i.Transports) != 0 {
 			return fmt.Errorf("LAN Link inbound requires an empty network without transports")
