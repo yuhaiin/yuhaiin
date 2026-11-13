@@ -424,7 +424,9 @@ func (m *Manager) reconcileLocked(reason string) {
 	ifaces, ifaceErr := m.opts.Interfaces()
 	status := sysnet.Status{State: sysnet.StateActive, Generation: m.status.Generation + 1, Rules: []sysnet.RuleStatus{},
 		Forwarding: sysnet.ForwardingStatus{State: sysnet.StateDisabled, Rules: []sysnet.ForwardRuleStatus{}}}
-	if ifaceErr != nil {
+	if ifaceErr != nil && m.needsInterfaces() {
+		// Only rules that name interfaces depend on the list; TUN targets and
+		// the Android VPN do not.
 		status.State, status.Error = sysnet.StateDegraded, "list interfaces: "+ifaceErr.Error()
 	}
 
@@ -804,4 +806,19 @@ func forwardLinks(ifaces []iface.Info, rules []sysnet.RuleStatus, tuns map[strin
 	}
 	slices.Sort(out)
 	return out
+}
+
+// needsInterfaces reports whether enabled rules refer to interfaces by name.
+func (m *Manager) needsInterfaces() bool {
+	for _, r := range m.config.Routes {
+		if r.Enabled && r.Target.Type == sysnet.TargetInterface {
+			return true
+		}
+	}
+	for _, r := range m.config.Forwarding.Rules {
+		if r.Enabled {
+			return true
+		}
+	}
+	return false
 }
