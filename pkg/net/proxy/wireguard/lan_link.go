@@ -312,10 +312,10 @@ func (m *managedLink) receivePeers(exchange *peerrendezvous.LinkExchange, data [
 		return
 	}
 	m.mu.Lock()
-	switch {
-	case m.exchange == exchange:
+	switch m.exchange {
+	case exchange:
 		m.peers = peers
-	case m.exchange == nil:
+	case nil:
 		m.early.exchange, m.early.peers = exchange, peers
 	}
 	m.mu.Unlock()

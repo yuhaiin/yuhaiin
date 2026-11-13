@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
 	json "encoding/json/v2"
 	"errors"
@@ -117,13 +116,16 @@ func NewLinkExchange(token [32]byte, role Role, localKey [32]byte, offer LinkOff
 
 func (x *LinkExchange) Results() <-chan LinkOffer { return x.result }
 
-// SetPeers sets the peer list a publisher serves. Clients fetch it again only
-// when it changes.
+// SetPeers sets the peer list a publisher serves. A changed list gets a new
+// random version; clients fetch it again only when the version changes.
 func (x *LinkExchange) SetPeers(data []byte) {
-	sum := sha256.Sum256(data)
 	x.mu.Lock()
-	x.peers, x.peersID = data, [16]byte(sum[:16])
-	x.mu.Unlock()
+	defer x.mu.Unlock()
+	if x.peers != nil && bytes.Equal(x.peers, data) {
+		return
+	}
+	x.peers = bytes.Clone(data)
+	rand.Read(x.peersID[:])
 }
 
 // OnPeers sets the function that receives each new peer list on a dialer.
@@ -227,10 +229,6 @@ func (x *LinkExchange) acceptPeers(payload []byte) []byte {
 	var data []byte
 	for i := range uint16(total) {
 		data = append(data, x.peerChunks[i]...)
-	}
-	if sum := sha256.Sum256(data); [16]byte(sum[:16]) != id {
-		x.peerChunks = nil
-		return nil
 	}
 	x.peersID, x.peerChunks = id, nil
 	rand.Read(x.peersChallenge[:])
