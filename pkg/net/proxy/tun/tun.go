@@ -62,8 +62,9 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 	opt := &device.Opt{
 		Tun: o,
 		Options: &netlink.Options{
-			Interface: sc,
-			MTU:       int(o.MTU),
+			Interface:           sc,
+			MTU:                 int(o.MTU),
+			YieldRouteConflicts: o.ManagedRoutes,
 			Platform: netlink.Platform{
 				Darwin: netlink.Darwin{
 					NetworkService: o.Platform.Darwin.NetworkService,
@@ -87,7 +88,7 @@ func NewTun(o device.TunConfig, l netapi.Listener, handler netapi.Handler) (s ne
 	if err != nil {
 		return nil, err
 	}
-	return &routeAccepter{Accepter: s, options: opt.Options, userRoutes: userRoutes, autoFakeIP: o.AutoFakeIPRoute}, nil
+	return &routeAccepter{Accepter: s, options: opt.Options, userRoutes: userRoutes, autoFakeIP: o.AutoFakeIPRoute, ranges: o.FakeIPRanges}, nil
 }
 
 func effectiveRoutes(options *netlink.Options, userRoutes []netip.Prefix, automatic bool, ranges [2]netip.Prefix) []netip.Prefix {
@@ -111,6 +112,7 @@ type routeAccepter struct {
 	options    *netlink.Options
 	userRoutes []netip.Prefix
 	autoFakeIP bool
+	ranges     [2]netip.Prefix
 	closed     bool
 }
 
@@ -135,11 +137,47 @@ func (t *routeAccepter) TrafficControlQueue() (trafficcontrol.FairStats, bool) {
 func (t *routeAccepter) UpdateFakeIPRanges(ranges [2]netip.Prefix) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.ranges = ranges
 	if t.closed || !t.autoFakeIP || t.options.RouteManager == nil {
 		return nil
 	}
 	routes := effectiveRoutes(t.options, t.userRoutes, true, ranges)
 	return t.options.RouteManager.Update(t.options.RoutesForFamilies(routes))
+}
+
+// SetRoutes replaces the configured routes of a running TUN in place: new
+// routes are added before obsolete ones are removed, the device is kept and
+// FakeIP routes stay installed. managed selects whether existing routes of
+// other interfaces win over conflicting prefixes. Calling it again with the
+// same routes retries skipped and failed prefixes.
+func (t *routeAccepter) SetRoutes(routes []netip.Prefix, managed bool) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return errors.New("TUN is closed")
+	}
+	routes = netlink.NormalizeRoutes(routes)
+	if t.options.RouteManager == nil {
+		// Externally supplied fd:// devices have host-managed routes.
+		t.userRoutes = routes
+		return nil
+	}
+	t.options.RouteManager.SetYieldConflicts(managed)
+	if err := t.options.RouteManager.Update(t.options.RoutesForFamilies(effectiveRoutes(t.options, routes, t.autoFakeIP, t.ranges))); err != nil {
+		return err
+	}
+	t.userRoutes = routes
+	return nil
+}
+
+// RouteConflicts returns prefixes left to other interfaces' existing routes.
+func (t *routeAccepter) RouteConflicts() []netip.Prefix {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed || t.options.RouteManager == nil {
+		return nil
+	}
+	return t.options.RouteManager.Conflicts()
 }
 
 func (t *routeAccepter) Close() error {

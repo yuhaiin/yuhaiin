@@ -191,3 +191,38 @@ func TestSSTPRejectsLegacyAuthentication(t *testing.T) {
 		}
 	}
 }
+
+func TestTunRoutingJSONCompatibility(t *testing.T) {
+	var legacy TunProtocol
+	if err := json.Unmarshal([]byte(`{"name":"tun://utun8","routes":["0.0.0.0/1"],"excludes":["10.0.0.0/8"]}`), &legacy); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.Routing.Managed() || !slices.Equal(legacy.Routes, []string{"0.0.0.0/1"}) || !slices.Equal(legacy.Excludes, []string{"10.0.0.0/8"}) {
+		t.Fatalf("legacy routes changed: %+v", legacy)
+	}
+	data, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "routing") {
+		t.Fatalf("legacy configuration gained a routing field: %s", data)
+	}
+	configured := TunProtocol{Routing: TunRouting{Mode: TunRouteModeCustom, IncludeCIDRs: []string{"192.0.2.0/24"},
+		BypassCIDRs: []string{"192.0.2.128/25"}, GeoIPCountries: []string{"JP", "US"}, GeoIPInvert: true}}
+	data, err = json.Marshal(configured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored TunProtocol
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.Routing.Mode != TunRouteModeCustom || !restored.Routing.GeoIPInvert ||
+		!slices.Equal(restored.Routing.GeoIPCountries, configured.Routing.GeoIPCountries) ||
+		!slices.Equal(restored.Routing.BypassCIDRs, configured.Routing.BypassCIDRs) {
+		t.Fatalf("routing lost during JSON roundtrip: %s", data)
+	}
+	if !strings.Contains(string(data), `"includeCidrs"`) || !strings.Contains(string(data), `"geoipInvert":true`) {
+		t.Fatalf("unexpected JSON field names: %s", data)
+	}
+}

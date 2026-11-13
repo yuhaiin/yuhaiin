@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -212,6 +213,9 @@ type Lists struct {
 	processTrie *processMatcher
 
 	geoipmu sync.RWMutex
+	// geoipChanged is notified after a different GeoIP database generation
+	// becomes current, for consumers such as TUN GeoIP routes.
+	geoipChanged atomic.Pointer[func()]
 
 	tickermu sync.RWMutex
 
@@ -390,6 +394,31 @@ func (s *Lists) GeoIPCountries() (contractroute.GeoIPCountries, error) {
 	return contractroute.GeoIPCountries{Codes: codes, Loaded: true}, err
 }
 
+// ErrGeoIPNotLoaded is returned while no GeoIP database is available.
+var ErrGeoIPNotLoaded = errors.New("GeoIP database is not loaded; set and refresh the MaxMind GeoIP database in routing list settings")
+
+// PrefixesByCountries resolves country codes against the current GeoIP
+// database, holding that generation for the whole query.
+func (s *Lists) PrefixesByCountries(countries []string) ([]netip.Prefix, error) {
+	s.LoadGeoip()
+	s.geoipmu.RLock()
+	defer s.geoipmu.RUnlock()
+	if s.geoip == nil || s.geoip.m == nil {
+		return nil, ErrGeoIPNotLoaded
+	}
+	return s.geoip.m.PrefixesByCountries(countries)
+}
+
+// OnGeoIPChange registers f to run, in its own goroutine, after the GeoIP
+// database is replaced. A later call replaces the previous callback.
+func (s *Lists) OnGeoIPChange(f func()) { s.geoipChanged.Store(&f) }
+
+func (s *Lists) notifyGeoIPChanged() {
+	if f := s.geoipChanged.Load(); f != nil && *f != nil {
+		go (*f)()
+	}
+}
+
 func (s *Lists) resetRefreshInterval(minute uint64) {
 	s.tickermu.Lock()
 	defer s.tickermu.Unlock()
@@ -472,6 +501,10 @@ func (s *Lists) refreshGeoip(ctx context.Context, download string, force bool) s
 	if err != nil {
 		log.Error("get remote failed", "err", err)
 		return err.Error()
+	}
+	if s.scheduleCoordinator.Load() == nil {
+		// Without a coordinator the new file is loaded lazily on next use.
+		s.notifyGeoIPChanged()
 	}
 
 	return ""

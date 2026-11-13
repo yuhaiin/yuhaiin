@@ -277,6 +277,7 @@ func (s *Lists) installPrepared(prepared *preparedLists) {
 			_ = old.m.Close()
 		}
 		s.geoipmu.Unlock()
+		s.notifyGeoIPChanged()
 	}
 	if prepared.host == nil {
 		return

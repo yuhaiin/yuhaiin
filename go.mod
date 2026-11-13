@@ -41,6 +41,7 @@ require (
 	github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v4 v4.0.0
+	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
 	golang.org/x/crypto v0.59.0
 	golang.org/x/exp v0.0.0-20261112173441-d10d3b464990
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
@@ -135,7 +136,6 @@ require (
 	github.com/xtls/utls v0.0.0-20261106062530-666e20f266ac // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
-	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb // indirect
 	golang.org/x/tools v0.52.1-0.20261106145633-d407941a339a // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446 // indirect

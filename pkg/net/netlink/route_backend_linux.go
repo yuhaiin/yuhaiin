@@ -45,6 +45,8 @@ func (b *linuxRouteBackend) Add(p netip.Prefix) (bool, error) {
 					return false, nil
 				}
 			}
+			// Table 63 already routes this prefix through another TUN.
+			return false, fmt.Errorf("%w: %w", ErrRouteConflict, err)
 		}
 	}
 	return err == nil, err

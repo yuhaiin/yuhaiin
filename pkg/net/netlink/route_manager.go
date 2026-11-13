@@ -35,6 +35,10 @@ func NormalizeRoutes(routes []netip.Prefix) []netip.Prefix {
 	return result
 }
 
+// ErrRouteConflict reports that another interface already owns a route for
+// the same prefix. Backends wrap it so the manager can let that route win.
+var ErrRouteConflict = errors.New("route already exists on another interface")
+
 // routeBackend never replaces an existing route. Add reports whether this
 // process created it; matching preexisting routes may be used but not deleted.
 type routeBackend interface {
@@ -51,6 +55,10 @@ type RouteManager struct {
 	installed map[netip.Prefix]bool
 	required  []netip.Prefix
 	closed    bool
+	// yield skips prefixes owned by other interfaces; they are retried by
+	// every Update, for example after a network change.
+	yield     bool
+	conflicts []netip.Prefix
 }
 
 func newRouteManager(backend routeBackend) *RouteManager {
@@ -64,13 +72,17 @@ func (m *RouteManager) Update(routes []netip.Prefix) error {
 		return errors.New("TUN route manager is closed")
 	}
 	desired := make(map[netip.Prefix]bool)
-	var added []netip.Prefix
+	var added, conflicts []netip.Prefix
 	for _, p := range NormalizeRoutes(append(slices.Clone(routes), m.required...)) {
 		desired[p] = true
 		if _, ok := m.installed[p]; ok {
 			continue
 		}
 		owned, err := m.backend.Add(p)
+		if err != nil && m.yield && errors.Is(err, ErrRouteConflict) {
+			conflicts = append(conflicts, p)
+			continue
+		}
 		if err != nil {
 			result := fmt.Errorf("add TUN route %s: %w", p, err)
 			for _, previous := range added {
@@ -81,6 +93,10 @@ func (m *RouteManager) Update(routes []netip.Prefix) error {
 		m.installed[p] = owned
 		added = append(added, p)
 	}
+	if !slices.Equal(conflicts, m.conflicts) && len(conflicts) != 0 {
+		log.Warn("TUN routes skipped because other interfaces already route them", "count", len(conflicts), "prefixes", firstPrefixes(conflicts, 16))
+	}
+	m.conflicts = conflicts
 	var err error
 	for _, p := range m.prefixes() {
 		if !desired[p] {
@@ -88,6 +104,29 @@ func (m *RouteManager) Update(routes []netip.Prefix) error {
 		}
 	}
 	return err
+}
+
+// SetYieldConflicts selects whether existing routes of other interfaces win
+// over this TUN's routes. It applies from the next Update.
+func (m *RouteManager) SetYieldConflicts(yield bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.yield = yield
+}
+
+// Conflicts returns the prefixes the last Update left to other interfaces.
+func (m *RouteManager) Conflicts() []netip.Prefix {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.conflicts)
+}
+
+func firstPrefixes(prefixes []netip.Prefix, limit int) []string {
+	out := make([]string, 0, min(limit, len(prefixes)))
+	for _, p := range prefixes[:min(limit, len(prefixes))] {
+		out = append(out, p.String())
+	}
+	return out
 }
 
 func (m *RouteManager) prefixes() []netip.Prefix {
@@ -126,6 +165,7 @@ func (m *RouteManager) Close() error {
 func installRoutes(opt *Options, backend routeBackend, required ...netip.Prefix) (func(), error) {
 	manager := newRouteManager(backend)
 	manager.required = required
+	manager.yield = opt.YieldRouteConflicts
 	opt.RouteManager = manager
 	cleanup := func() {
 		if err := manager.Close(); err != nil {

@@ -46,6 +46,7 @@ func platformSpec(c contract.TunProtocol) platformvpn.Spec {
 		Routes:          append([]string(nil), c.Routes...),
 		Excludes:        append([]string(nil), c.Excludes...),
 		AutoFakeIPRoute: c.AutoFakeIPRoute,
+		RouteMode:       c.Routing.Mode,
 	}
 }
 

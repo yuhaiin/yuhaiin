@@ -46,6 +46,8 @@ type Inbound struct {
 	fakeIPSource        FakeIPRangeSource
 	fakeIPRanges        [2]netip.Prefix
 	unsubscribeFakeIP   func()
+	geoip               GeoIPPrefixSource
+	stopNetworkWatch    func()
 	closed              bool
 	pendingRouteCleanup []netapi.Accepter
 	ctx                 context.Context
@@ -242,6 +244,8 @@ func NewInbound(dialer netapi.Proxy, opts ...Option) *Inbound {
 			log.Error("subscribe TUN FakeIP routes failed", "err", err)
 		}
 	}
+
+	l.watchNetworkForTunRoutes()
 
 	l.hijackDNS.Store(true)
 	l.fakeip.Store(true)
@@ -492,9 +496,18 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		return err
 	}
 
+	// Generated TUN routes are runtime state; req stays the stored form.
+	runtimeReq, routeErr := runtimeTun(req, l.geoip)
+
 	x, ok := l.store.Load(key)
 	if ok {
 		if x.contractConfig != nil && reflect.DeepEqual(*x.contractConfig, req) {
+			if req.Enabled && req.Protocol.Tun != nil && req.Protocol.Tun.Routing.Managed() {
+				// Saving the same TUN again regenerates and retries its routes.
+				if handled, err := applyTunRoutes(x.server, runtimeReq, routeErr); handled {
+					return err
+				}
+			}
 			if req.Protocol.Tun != nil && req.Protocol.Tun.AutoFakeIPRoute {
 				if updater, ok := x.server.(interface{ UpdateFakeIPRanges([2]netip.Prefix) error }); ok {
 					return updater.UpdateFakeIPRanges(l.fakeIPRanges)
@@ -506,10 +519,22 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		// A platform VPN rebuilds its interface in place (make before break)
 		// instead of tearing the TUN down for every configuration change.
 		if req.Enabled && x.server != nil {
+			// A desktop TUN whose route selection changed updates its system
+			// routes in place instead of being rebuilt.
+			if _, desktop := x.server.(tunRouteSetter); desktop && x.contractConfig != nil && tunRoutesOnlyChanged(*x.contractConfig, req) {
+				if handled, err := applyTunRoutes(x.server, runtimeReq, routeErr); handled {
+					// The stored configuration follows the request even if some
+					// routes failed: the TUN keeps running and a retry
+					// (another save, GeoIP update or network change) reapplies it.
+					l.store.Store(key, entry{contractConfig: &req, server: x.server, counters: x.counters})
+					return err
+				}
+			}
 			if r, ok := x.server.(contractReconfigurer); ok {
-				if handled, err := r.ReconfigureContract(req); handled {
+				if handled, err := r.ReconfigureContract(runtimeReq); handled {
 					if err == nil {
 						l.store.Store(key, entry{contractConfig: &req, server: x.server, counters: x.counters})
+						err = routeErr
 					}
 					return err
 				}
@@ -538,16 +563,18 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		counters = new(ingressCounters)
 		l.countersByID[key] = counters
 	}
-	server, err := listenContract(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges, l.authentication)
+	server, err := listenContract(runtimeReq, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges, l.authentication)
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
-		return err
+		return errors.Join(err, routeErr)
 	}
 
 	log.Info("start contract server", "name", req.Name, "id", req.ID)
 	l.store.Store(key, entry{contractConfig: &req, server: server, counters: counters})
 
-	return nil
+	// A TUN whose routes could not be generated runs degraded with only its
+	// subnet and FakeIP routes until a retry succeeds.
+	return routeErr
 }
 
 func (l *Inbound) refreshInterfaces() {
@@ -612,6 +639,9 @@ func (l *Inbound) Close() error {
 	// Cancel before acquiring mu: the source may be finishing a callback that needs mu.
 	if l.unsubscribeFakeIP != nil {
 		l.unsubscribeFakeIP()
+	}
+	if l.stopNetworkWatch != nil {
+		l.stopNetworkWatch()
 	}
 	// Stop the background writer before the final flush and before SQLite closes.
 	l.close()

@@ -72,3 +72,21 @@ func TestEffectiveFakeIPRoutes(t *testing.T) {
 		t.Fatalf("lost user-authored old FakeIP route: %v", got)
 	}
 }
+
+func TestRouteAccepterSetRoutesWithoutSystemRoutes(t *testing.T) {
+	accepter := &routeAccepter{Accepter: nil, options: &netlink.Options{}}
+	routes := toRoutes([]string{"192.0.2.0/24", "192.0.2.0/25", "2001:db8::/32"})
+	if err := accepter.SetRoutes(routes, true); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(accepter.userRoutes, toRoutes([]string{"192.0.2.0/24", "2001:db8::/32"})) {
+		t.Fatalf("user routes = %v", accepter.userRoutes)
+	}
+	if accepter.RouteConflicts() != nil {
+		t.Fatal("fd devices have no route conflicts")
+	}
+	accepter.closed = true
+	if err := accepter.SetRoutes(routes, true); err == nil {
+		t.Fatal("updated routes of a closed TUN")
+	}
+}

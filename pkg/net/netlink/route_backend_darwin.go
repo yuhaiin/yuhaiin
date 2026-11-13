@@ -2,6 +2,7 @@ package netlink
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"syscall"
@@ -27,11 +28,21 @@ func (b *darwinRouteBackend) Add(p netip.Prefix) (bool, error) {
 	err := writeRoute(p, b.gateway(p), unix.RTM_ADD, b.index)
 	if errors.Is(err, unix.EEXIST) {
 		index, gateway, found, queryErr := lookupDarwinRoute(p)
-		if queryErr == nil && found && index == b.index && (!gateway.IsValid() || gateway == b.gateway(p)) {
-			return false, nil
+		if queryErr == nil && found {
+			return darwinExistingRoute(b.index, b.gateway(p), index, gateway, err)
 		}
 	}
 	return err == nil, err
+}
+
+// darwinExistingRoute decides how an RTM_ADD that failed with EEXIST is
+// handled: a matching route on this TUN is borrowed (never deleted), and a
+// route of another interface is reported as a conflict.
+func darwinExistingRoute(tunIndex int, tunGateway netip.Addr, index int, gateway netip.Addr, addErr error) (bool, error) {
+	if index == tunIndex && (!gateway.IsValid() || gateway == tunGateway) {
+		return false, nil
+	}
+	return false, fmt.Errorf("%w (interface index %d): %w", ErrRouteConflict, index, addErr)
 }
 
 func (b *darwinRouteBackend) Delete(p netip.Prefix) error {

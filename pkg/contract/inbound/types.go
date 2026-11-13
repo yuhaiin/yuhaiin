@@ -275,8 +275,10 @@ type TunProtocol struct {
 	PortalV6          string           `json:"portalV6"`
 	Routes            []string         `json:"routes"`
 	Excludes          []string         `json:"excludes"`
-	PostUp            []string         `json:"postUp" secret:"true" privilege:"system:execute"`
-	PostDown          []string         `json:"postDown" secret:"true" privilege:"system:execute"`
+	// Routing replaces Routes/Excludes when its mode is set.
+	Routing  TunRouting `json:"routing,omitzero"`
+	PostUp   []string   `json:"postUp" secret:"true" privilege:"system:execute"`
+	PostDown []string   `json:"postDown" secret:"true" privilege:"system:execute"`
 }
 
 type DarwinTunOptions struct {
@@ -822,6 +824,10 @@ func (i Inbound) Validate() error {
 		return fmt.Errorf("protocol: %w", err)
 	}
 	switch i.Protocol.Type {
+	case ProtocolTun:
+		if err := i.Protocol.Tun.Routing.Validate(); err != nil {
+			return err
+		}
 	case ProtocolLANLink:
 		if i.Network.Type != NetworkEmpty || len(i.Transports) != 0 {
 			return fmt.Errorf("LAN Link inbound requires an empty network without transports")
