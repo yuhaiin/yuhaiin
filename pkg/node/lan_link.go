@@ -7,11 +7,15 @@ import (
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
 
 type lanLinkRoute struct {
 	nodeID   string
 	prefixes []netip.Prefix
+	// incoming outbounds accept flows from the gateway and run without
+	// waiting for outgoing traffic.
+	incoming bool
 }
 
 func prepareLANLinkRoutes(nodes []contractnode.Node) []lanLinkRoute {
@@ -24,12 +28,26 @@ func prepareLANLinkRoutes(nodes []contractnode.Node) []lanLinkRoute {
 		if err != nil {
 			continue
 		}
-		prefixes, err := transport.ParseLANLinkRoutes(invitation.Routes)
+		prefixes, err := invitation.Prefixes()
 		if err == nil {
-			routes = append(routes, lanLinkRoute{nodeID: node.ID, prefixes: prefixes})
+			routes = append(routes, lanLinkRoute{nodeID: node.ID, prefixes: prefixes, incoming: node.Chain[0].LANLink.AllowIncoming})
 		}
 	}
 	return routes
+}
+
+// startIncomingLANLinks opens the LAN Link outbounds that accept incoming
+// flows, so other clients can reach them before they send anything.
+func (r *NodeRuntime) startIncomingLANLinks(routes []lanLinkRoute) {
+	for _, route := range routes {
+		if route.incoming {
+			go func() {
+				if _, err := r.GetDialerByID(context.Background(), route.nodeID); err != nil {
+					log.Warn("start LAN Link outbound", "node", route.nodeID, "err", err)
+				}
+			}()
+		}
+	}
 }
 
 func (r *NodeRuntime) LANLinkTarget(ctx context.Context, addr netip.Addr) (route.Target, bool) {

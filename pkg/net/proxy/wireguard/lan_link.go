@@ -35,7 +35,15 @@ func init() {
 				return nil, err
 			}
 		}
-		return newManagedLink(invite, c.PrivateKey, nil, peerrendezvous.LinkOffer{}, nil)
+		link, err := newManagedLink(invite, c.PrivateKey, nil, peerrendezvous.LinkOffer{}, nil)
+		if err != nil {
+			return nil, err
+		}
+		if link.allowIncoming = c.AllowIncoming; link.allowIncoming {
+			// Incoming flows cannot wait for outgoing traffic to start the link.
+			link.start()
+		}
+		return link, nil
 	})
 }
 
@@ -50,6 +58,10 @@ type managedLink struct {
 	hub          *peerrendezvous.Hub
 	assignment   peerrendezvous.LinkOffer
 	handler      netapi.Handler
+	// relay forwards client-to-client flows on the gateway.
+	relay lanLinkRelay
+	// allowIncoming delivers flows to this client's tunnel address locally.
+	allowIncoming bool
 
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -218,6 +230,9 @@ func (m *managedLink) run() {
 			if session.flows != nil {
 				_ = session.flows.Close()
 			}
+			if session.dispatch != nil {
+				session.dispatch.Close()
+			}
 			_ = session.peer.Close()
 			continue
 		}
@@ -236,7 +251,7 @@ func (m *managedLink) waitForAssignmentChange(exchange *peerrendezvous.LinkExcha
 			return
 		case next := <-exchange.Results():
 			if next.PublisherIP != offer.PublisherIP || next.ClientIP != offer.ClientIP ||
-				!slices.Equal(next.Routes, offer.Routes) {
+				!slices.Equal(next.Routes, offer.Routes) || next.Subnet != offer.Subnet {
 				return
 			}
 		}
@@ -246,6 +261,7 @@ func (m *managedLink) waitForAssignmentChange(exchange *peerrendezvous.LinkExcha
 type lanLinkSession struct {
 	peer     *peerDialer
 	flows    netapi.Accepter
+	dispatch *lanLinkFlows
 	exchange *peerrendezvous.LinkExchange
 	offer    peerrendezvous.LinkOffer
 	// localIP and peerIP are this side's and the peer's tunnel addresses.
@@ -309,9 +325,9 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		break
 	}
 
-	local, remote, routes := offer.ClientIP, offer.PublisherIP, offer.Routes
+	local, remote, routes, subnetValue := offer.ClientIP, offer.PublisherIP, offer.Routes, offer.Subnet
 	if role == peerrendezvous.Publisher {
-		local, remote, routes = m.assignment.PublisherIP, m.assignment.ClientIP, m.assignment.Routes
+		local, remote, routes, subnetValue = m.assignment.PublisherIP, m.assignment.ClientIP, m.assignment.Routes, m.assignment.Subnet
 	}
 	cfg := tunnelConfig{
 		PrivateKey: m.privateKey, PeerPublicKey: base64.StdEncoding.EncodeToString(offer.PublicKey[:]),
@@ -331,23 +347,41 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		_ = socket.Close()
 		return nil, err
 	}
+	subnet, err := parseLANLinkSubnet(subnetValue, local, remote, routes)
+	if err != nil {
+		_ = socket.Close()
+		return nil, err
+	}
 	allowed := cfg.Routes
 	if role == peerrendezvous.Publisher {
 		allowed = []string{fmt.Sprintf("%s/%d", remote, remote.BitLen())}
+	} else if subnet.IsValid() {
+		allowed = append(slices.Clone(allowed), subnet.String())
 	}
+	incoming := role == peerrendezvous.Publisher || (subnet.IsValid() && m.allowIncoming)
 	w, err := newClient(Config{
 		SecretKey: cfg.PrivateKey, Endpoint: []string{cfg.LocalIP}, MTU: 1280,
 		Peers: []PeerConfig{{PublicKey: cfg.PeerPublicKey, Endpoint: bind.openAddr.Load().String(), AllowedIPs: allowed}},
-	}, bind, role == peerrendezvous.Publisher)
+	}, bind, incoming)
 	if err != nil {
 		_ = socket.Close()
 		return nil, err
 	}
 	var flows netapi.Accepter
-	if role == peerrendezvous.Publisher {
-		prefixes, err := ParseEndpoints(routes)
+	var dispatch *lanLinkFlows
+	if incoming {
+		spec := lanLinkFlowSpec{peer: remote, subnet: subnet}
+		if role == peerrendezvous.Publisher {
+			spec.handler, spec.relay = m.handler, m.relay
+			spec.routes, err = ParseEndpoints(routes)
+		}
+		if subnet.IsValid() {
+			// Client-to-client mode makes this side's own address reachable.
+			spec.local = local
+		}
 		if err == nil {
-			flows, err = lightweighttun.NewFromStack(w.net.Stack(), peerRouteFilter{Handler: m.handler, routes: prefixes}, nil, transport.LANLinkType)
+			dispatch = newLANLinkFlows(m.ctx, spec)
+			flows, err = lightweighttun.NewFromStack(w.net.Stack(), dispatch, nil, transport.LANLinkType)
 		}
 		if err != nil {
 			_ = socket.Close()
@@ -360,15 +394,21 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		if flows != nil {
 			_ = flows.Close()
 		}
+		if dispatch != nil {
+			dispatch.Close()
+		}
 		_ = socket.Close()
 		_ = w.Close()
 		return nil, err
 	}
 	if role == peerrendezvous.Dialer {
 		prefixes, _ := transport.ParseLANLinkRoutes(routes)
+		if subnet.IsValid() {
+			prefixes = append(prefixes, subnet)
+		}
 		m.routes.Store(&prefixes)
 	}
-	return &lanLinkSession{peer: &peerDialer{Wireguard: w}, flows: flows, exchange: exchange, offer: offer, localIP: local, peerIP: remote}, nil
+	return &lanLinkSession{peer: &peerDialer{Wireguard: w}, flows: flows, dispatch: dispatch, exchange: exchange, offer: offer, localIP: local, peerIP: remote}, nil
 }
 
 func awaitLinkOffer(ctx context.Context, socket *peerrendezvous.Socket, exchange *peerrendezvous.LinkExchange) (peerrendezvous.LinkOffer, error) {
@@ -388,4 +428,23 @@ func awaitLinkOffer(ctx context.Context, socket *peerrendezvous.Socket, exchange
 			return peerrendezvous.LinkOffer{}, err
 		}
 	}
+}
+
+// parseLANLinkSubnet validates the tunnel network of a client-to-client
+// assignment. An empty value disables client-to-client traffic.
+func parseLANLinkSubnet(value string, local, remote netip.Addr, routes []string) (netip.Prefix, error) {
+	if value == "" {
+		return netip.Prefix{}, nil
+	}
+	subnet, err := netip.ParsePrefix(value)
+	if err != nil || subnet != subnet.Masked() || subnet.Addr().BitLen() != local.BitLen() ||
+		!subnet.Contains(local) || !subnet.Contains(remote) {
+		return netip.Prefix{}, fmt.Errorf("LAN Link: invalid tunnel subnet %q", value)
+	}
+	for _, route := range routes {
+		if p, err := netip.ParsePrefix(route); err == nil && p.Overlaps(subnet) {
+			return netip.Prefix{}, fmt.Errorf("LAN Link: tunnel subnet %q overlaps route %q", value, route)
+		}
+	}
+	return subnet, nil
 }

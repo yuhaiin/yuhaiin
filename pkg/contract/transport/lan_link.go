@@ -19,6 +19,10 @@ const lanLinkInvitationPrefix = "lan-link:v1:"
 type LANLink struct {
 	Invitation string `json:"invitation" secret:"true"`
 	PrivateKey string `json:"privateKey,omitempty" secret:"true"`
+	// AllowIncoming delivers flows addressed to this client's tunnel address to
+	// the same port on its loopback address. It takes effect only when the
+	// gateway enables client-to-client traffic.
+	AllowIncoming bool `json:"allowIncoming,omitempty"`
 }
 
 func (LANLink) ProtocolType() string { return LANLinkType }
@@ -42,6 +46,27 @@ type LANLinkInvitation struct {
 	Registration string   `json:"registration" secret:"true"`
 	Token        string   `json:"token" secret:"true"`
 	Routes       []string `json:"routes"`
+	// Subnet is the tunnel network when the gateway relays client-to-client
+	// traffic. The live assignment from the gateway takes precedence.
+	Subnet string `json:"subnet,omitempty"`
+}
+
+// Prefixes returns the routes and, when present, the tunnel subnet.
+func (i LANLinkInvitation) Prefixes() ([]netip.Prefix, error) {
+	routes, err := ParseLANLinkRoutes(i.Routes)
+	if err != nil || i.Subnet == "" {
+		return routes, err
+	}
+	subnet, err := netip.ParsePrefix(i.Subnet)
+	if err != nil || subnet != subnet.Masked() || subnet.Bits() == 0 || subnet.Addr().BitLen() != routes[0].Addr().BitLen() {
+		return nil, fmt.Errorf("invalid LAN Link tunnel subnet %q", i.Subnet)
+	}
+	for _, route := range routes {
+		if route.Overlaps(subnet) {
+			return nil, fmt.Errorf("LAN Link tunnel subnet %q overlaps route %s", i.Subnet, route)
+		}
+	}
+	return append(routes, subnet), nil
 }
 
 func (i LANLinkInvitation) Encode() (string, error) {
@@ -78,7 +103,7 @@ func (i LANLinkInvitation) validate() error {
 	if _, err := DecodePeerKey(i.Token); err != nil {
 		return errors.New("invalid LAN Link invitation token")
 	}
-	_, err := ParseLANLinkRoutes(i.Routes)
+	_, err := i.Prefixes()
 	return err
 }
 

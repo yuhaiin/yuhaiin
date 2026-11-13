@@ -25,6 +25,10 @@ type LinkOffer struct {
 	PublisherIP netip.Addr `json:"publisherIp"`
 	ClientIP    netip.Addr `json:"clientIp"`
 	Routes      []string   `json:"routes"`
+	// Subnet is the tunnel network, advertised when the gateway relays
+	// client-to-client traffic. Empty means clients reach the shared routes
+	// only.
+	Subnet string `json:"subnet,omitempty"`
 }
 
 // LinkExchange authenticates provisioning independently of the rendezvous
