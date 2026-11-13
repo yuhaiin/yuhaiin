@@ -3,6 +3,7 @@ package wireguard
 import (
 	"context"
 	"encoding/hex"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -22,6 +23,9 @@ import (
 const (
 	publicRefreshInterval = 5 * time.Minute
 	publicRetryInterval   = 15 * time.Second
+	// peerListInterval is how often clients' peer lists are refreshed. A list
+	// is sent to a client only when it changed.
+	peerListInterval = 3 * time.Second
 )
 
 // LANLinkGateway owns everything a LAN Link inbound needs: the rendezvous
@@ -47,8 +51,9 @@ type gatewayLink struct {
 	spec string
 	link *managedLink
 	key  [32]byte
-	// address is the client's tunnel address.
-	address netip.Addr
+	// addresses are the client's tunnel addresses.
+	addresses []netip.Addr
+	client    contract.LANLinkClient
 }
 
 func (*LANLinkGateway) Interface() string { return transport.LANLinkType }
@@ -73,6 +78,7 @@ func NewLANLinkGateway(cfg contract.LANLinkGateway, socket net.PacketConn, handl
 		_ = g.Close()
 		return nil, err
 	}
+	g.wg.Go(g.maintainPeers)
 	return g, nil
 }
 
@@ -100,7 +106,7 @@ func (g *LANLinkGateway) Close() error {
 }
 
 func linkSpec(cfg contract.LANLinkGateway, c contract.LANLinkClient) string {
-	return strings.Join([]string{c.Token, c.Registration, fmt.Sprint(c.Slot), cfg.Subnet, cfg.PrivateKey, strings.Join(cfg.Networks, ","), fmt.Sprint(cfg.ClientToClient)}, "|")
+	return strings.Join([]string{c.Token, c.Registration, fmt.Sprint(c.Slot), cfg.Subnet, cfg.Subnet6, cfg.PrivateKey, strings.Join(cfg.Networks, ","), fmt.Sprint(cfg.ClientToClient)}, "|")
 }
 
 // Apply reconciles clients with cfg. Clients whose credentials, address and
@@ -152,10 +158,11 @@ func (g *LANLinkGateway) Apply(cfg contract.LANLinkGateway) error {
 			}
 		}
 	}
+	g.publishPeersLocked(cfg, next)
 	for _, l := range created {
 		l.link.start()
 	}
-	changed := g.config.PublicEndpoint != cfg.PublicEndpoint || g.config.STUNServer != cfg.STUNServer || g.config.Networks == nil
+	changed := g.config.PublicEndpoint != cfg.PublicEndpoint || g.config.PublicEndpoint6 != cfg.PublicEndpoint6 || g.config.STUNServer != cfg.STUNServer || g.config.Networks == nil
 	g.links, g.config = next, cfg
 	if changed {
 		select {
@@ -175,9 +182,9 @@ func (g *LANLinkGateway) newLink(cfg contract.LANLinkGateway, client contract.LA
 	if err != nil {
 		return nil, err
 	}
-	offer := peerrendezvous.LinkOffer{PublisherIP: server, ClientIP: address, Routes: cfg.Networks}
-	if cfg.ClientToClient {
-		offer.Subnet = cfg.Subnet
+	offer, err := gatewayOffer(cfg, server, address)
+	if err != nil {
+		return nil, err
 	}
 	link, err := newManagedLink(transport.LANLinkInvitation{
 		Coordinator: "gateway.invalid:1", Registration: client.Registration, Token: client.Token,
@@ -188,12 +195,40 @@ func (g *LANLinkGateway) newLink(cfg contract.LANLinkGateway, client contract.LA
 	if cfg.ClientToClient {
 		link.relay = g
 	}
-	return &gatewayLink{spec: spec, link: link, key: key, address: address}, nil
+	return &gatewayLink{spec: spec, link: link, key: key, addresses: address, client: client}, nil
+}
+
+// gatewayOffer builds a client's assignment. The single-value fields carry the
+// family of the first shared network for clients without dual-stack support.
+func gatewayOffer(cfg contract.LANLinkGateway, server, client []netip.Addr) (peerrendezvous.LinkOffer, error) {
+	routes, err := transport.ParseLANLinkRoutes(cfg.Networks)
+	if err != nil {
+		return peerrendezvous.LinkOffer{}, err
+	}
+	pools, err := cfg.TunnelSubnets()
+	if err != nil {
+		return peerrendezvous.LinkOffer{}, err
+	}
+	offer := peerrendezvous.LinkOffer{Routes: cfg.Networks, PublisherIPs: server, ClientIPs: client}
+	primary := 0
+	for i, ip := range server {
+		if ip.BitLen() == routes[0].Addr().BitLen() {
+			primary = i
+		}
+	}
+	offer.PublisherIP, offer.ClientIP = server[primary], client[primary]
+	if cfg.ClientToClient {
+		offer.Subnet = pools[primary].String()
+		for _, pool := range pools {
+			offer.Subnets = append(offer.Subnets, pool.String())
+		}
+	}
+	return offer, nil
 }
 
 // relayTarget returns the link of the client that owns the tunnel address to.
-func (g *LANLinkGateway) relayTarget(from, to netip.Addr) (lanLinkDialer, bool) {
-	if from == to {
+func (g *LANLinkGateway) relayTarget(from []netip.Addr, to netip.Addr) (lanLinkDialer, bool) {
+	if slices.Contains(from, to) {
 		return nil, false
 	}
 	g.mu.Lock()
@@ -202,11 +237,62 @@ func (g *LANLinkGateway) relayTarget(from, to netip.Addr) (lanLinkDialer, bool) 
 		return nil, false
 	}
 	for _, l := range g.links {
-		if l.address == to {
+		if slices.Contains(l.addresses, to) {
 			return l.link, true
 		}
 	}
 	return nil, false
+}
+
+func (g *LANLinkGateway) maintainPeers() {
+	ticker := time.NewTicker(peerListInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-g.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		g.mu.Lock()
+		if !g.closed {
+			g.publishPeersLocked(g.config, g.links)
+		}
+		g.mu.Unlock()
+	}
+}
+
+// publishPeersLocked gives every client the list of the other clients, or an
+// empty list when client-to-client traffic is off.
+func (g *LANLinkGateway) publishPeersLocked(cfg contract.LANLinkGateway, links map[string]*gatewayLink) {
+	pairs := g.hub.Pairs()
+	all := make([]transport.LANLinkPeer, 0, len(cfg.Clients))
+	owners := make([]string, 0, len(cfg.Clients))
+	if cfg.ClientToClient {
+		for _, client := range cfg.Clients {
+			l := links[client.ID]
+			if l == nil || client.Blocked {
+				continue
+			}
+			state := pairs[client.PairingID()]
+			all = append(all, transport.LANLinkPeer{
+				Name: client.Name, Addresses: addrStrings(l.addresses),
+				Online: state.Dialer.IsValid() && state.KickUntil.IsZero(),
+			})
+			owners = append(owners, client.ID)
+		}
+	}
+	for id, l := range links {
+		peers := make([]transport.LANLinkPeer, 0, len(all))
+		for i, peer := range all {
+			if owners[i] != id {
+				peers = append(peers, peer)
+			}
+		}
+		data, err := json.Marshal(peers)
+		if err == nil {
+			l.link.setPeerList(data)
+		}
+	}
 }
 
 // Clients reports the live state of every pairing, keyed by pairing ID.
@@ -266,19 +352,22 @@ func (g *LANLinkGateway) maintainPublic() {
 	}
 }
 
+// refreshPublic finds the gateway's public endpoints: the configured one,
+// resolved in every IP family it has, or one per family from STUN. A family
+// that STUN cannot reach, such as IPv6 on an IPv4-only host, is skipped.
 func (g *LANLinkGateway) refreshPublic() error {
 	g.mu.Lock()
 	cfg := g.config
 	g.mu.Unlock()
 	ctx, cancel := context.WithTimeout(g.ctx, 10*time.Second)
 	defer cancel()
-	var endpoint netip.AddrPort
+	var endpoints []netip.AddrPort
 	if cfg.PublicEndpoint != "" {
-		candidates, err := peerrendezvous.ResolveCoordinators(ctx, cfg.PublicEndpoint)
+		candidates, err := peerrendezvous.ResolveCoordinatorList(ctx, cfg.PublicEndpoints())
 		if err != nil {
 			return fmt.Errorf("resolve public endpoint: %w", err)
 		}
-		endpoint = candidates[0]
+		endpoints = candidates
 	} else {
 		if cfg.Networks == nil {
 			return errors.New("LAN Link is not configured yet")
@@ -289,34 +378,28 @@ func (g *LANLinkGateway) refreshPublic() error {
 		}
 		var failure error
 		for _, server := range servers {
-			endpoint, err = g.hub.DiscoverPublic(server, 3*time.Second)
-			if err == nil {
-				break
+			endpoint, err := g.hub.DiscoverPublic(server, 3*time.Second)
+			if err != nil {
+				failure = errors.Join(failure, err)
+				continue
 			}
-			failure = errors.Join(failure, err)
+			endpoints = append(endpoints, endpoint)
 		}
-		if !endpoint.IsValid() {
+		if len(endpoints) == 0 {
 			return fmt.Errorf("could not detect the public endpoint with STUN; set it manually: %w", failure)
 		}
 	}
-	return g.setPublic(endpoint)
+	g.hub.SetPublic(endpoints...)
+	return nil
 }
 
-func (g *LANLinkGateway) setPublic(endpoint netip.AddrPort) error {
-	previous := g.hub.Public()
-	g.hub.SetPublic(endpoint)
-	if previous.IsValid() && previous.Addr().BitLen() != endpoint.Addr().BitLen() {
-		// Pairing sockets are bound to an address family; rebuild them.
-		g.mu.Lock()
-		cfg := g.config
-		for id, l := range g.links {
-			_ = l.link.Close()
-			delete(g.links, id)
-		}
-		g.mu.Unlock()
-		return g.Apply(cfg)
+// Publics returns the gateway's public endpoints, IPv4 first.
+func (g *LANLinkGateway) Publics() []string {
+	var out []string
+	for _, endpoint := range g.hub.Publics() {
+		out = append(out, endpoint.String())
 	}
-	return nil
+	return out
 }
 
 // Invitation builds the invitation for client using the current public endpoint.
@@ -330,8 +413,31 @@ func (g *LANLinkGateway) Invitation(client contract.LANLinkClient) (string, erro
 		Coordinator: public, Registration: client.Registration, Token: client.Token,
 		Routes: slices.Clone(g.config.Networks),
 	}
+	if g.config.PublicEndpoint == "" {
+		// Detected endpoints are addresses; list every family so clients of
+		// both can connect.
+		if publics := g.Publics(); len(publics) > 1 {
+			invitation.Coordinators = publics
+		}
+	} else if g.config.PublicEndpoint6 != "" {
+		// A configured hostname resolves on the client in every family.
+		invitation.Coordinators = g.config.PublicEndpoints()
+	}
 	if g.config.ClientToClient {
-		invitation.Subnet = g.config.Subnet
+		if pools, err := g.config.TunnelSubnets(); err == nil {
+			for _, pool := range pools {
+				invitation.Subnets = append(invitation.Subnets, pool.String())
+			}
+			// Clients that predate dual-stack tunnels read only Subnet, in the
+			// family of the first route.
+			if routes, err := transport.ParseLANLinkRoutes(invitation.Routes); err == nil {
+				for _, pool := range pools {
+					if pool.Addr().BitLen() == routes[0].Addr().BitLen() {
+						invitation.Subnet = pool.String()
+					}
+				}
+			}
+		}
 	}
 	g.mu.Unlock()
 	return invitation.Encode()

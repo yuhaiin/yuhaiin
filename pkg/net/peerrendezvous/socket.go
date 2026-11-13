@@ -30,7 +30,10 @@ type Socket struct {
 	lan         *localPath
 	// hosted is set when the coordinator and the publisher share one socket,
 	// as in a LAN Link gateway: data then arrives from the coordinator address.
-	hosted    atomic.Bool
+	hosted atomic.Bool
+	// dualStack is set when the socket reaches peers of either IP family,
+	// whatever the coordinator's family, as a LAN Link gateway's does.
+	dualStack atomic.Bool
 	peer      atomic.Pointer[net.UDPAddr]
 	done      chan struct{}
 	stopped   chan struct{}
@@ -77,6 +80,9 @@ func NewManagedSocket(pc net.PacketConn, coordinator netip.AddrPort, key [32]byt
 
 // SetHosted declares that the coordinator also serves as the peer's publisher.
 func (s *Socket) SetHosted() { s.hosted.Store(true) }
+
+// SetDualStack declares that the socket can reach peers of either IP family.
+func (s *Socket) SetDualStack() { s.dualStack.Store(true) }
 
 func (s *Socket) NetworkPath() netstate.Path {
 	if p, ok := s.PacketConn.(interface{ NetworkPath() netstate.Path }); ok {
@@ -337,7 +343,7 @@ func (s *Socket) receiveControl(m message, addr net.Addr) {
 			s.signalChange()
 		}
 		endpoint := m.endpoint()
-		sameFamily := endpoint.Addr().BitLen() == s.coordinator.Addr().BitLen()
+		sameFamily := endpoint.Addr().BitLen() == s.coordinator.Addr().BitLen() || s.dualStack.Load()
 		s.mismatch = netip.Addr{}
 		if endpoint.IsValid() && !sameFamily {
 			s.mismatch = endpoint.Addr()

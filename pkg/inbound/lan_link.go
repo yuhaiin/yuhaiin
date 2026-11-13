@@ -51,8 +51,8 @@ func (s *lanLinkAccepter) ReconfigureContract(next contract.Inbound) (bool, erro
 	current := s.config
 	link := *current.Protocol.LANLink
 	n := next.Protocol.LANLink
-	link.Networks, link.Subnet, link.Clients = n.Networks, n.Subnet, n.Clients
-	link.PublicEndpoint, link.STUNServer = n.PublicEndpoint, n.STUNServer
+	link.Networks, link.Subnet, link.Subnet6, link.Clients = n.Networks, n.Subnet, n.Subnet6, n.Clients
+	link.PublicEndpoint, link.PublicEndpoint6, link.STUNServer = n.PublicEndpoint, n.PublicEndpoint6, n.STUNServer
 	current.Protocol.LANLink = &link
 	if !reflect.DeepEqual(current, next) {
 		return false, nil
@@ -107,14 +107,14 @@ func (s *ContractStore) CreateLANLinkInvitation(ctx context.Context, request con
 	if err != nil {
 		return contract.LANLinkInvitationResponse{}, err
 	}
-	_, addr, err := gateway.Addresses(client.Slot)
+	_, addrs, err := gateway.Addresses(client.Slot)
 	if err != nil {
 		return contract.LANLinkInvitationResponse{}, err
 	}
 	if err := s.saveLANLinkConfig(ctx, config); err != nil {
 		return contract.LANLinkInvitationResponse{}, err
 	}
-	return contract.LANLinkInvitationResponse{Invitation: invitation, ClientID: client.ID, Name: client.Name, Address: addr.String()}, nil
+	return contract.LANLinkInvitationResponse{Invitation: invitation, ClientID: client.ID, Name: client.Name, Addresses: addrStrings(addrs)}, nil
 }
 
 // RevokeLANLinkClient deletes a client. Its tunnel is closed before this
@@ -141,19 +141,20 @@ func (s *ContractStore) LANLinkClients(ctx context.Context, id string) (contract
 	if err != nil {
 		return contract.LANLinkClients{}, err
 	}
-	result := contract.LANLinkClients{Subnet: gateway.Subnet, Items: make([]contract.LANLinkClientStatus, 0, len(gateway.Clients))}
+	result := contract.LANLinkClients{Subnet: gateway.Subnet, Subnet6: gateway.Subnet6, Items: make([]contract.LANLinkClientStatus, 0, len(gateway.Clients))}
 	running := s.lanLinkGateway(id)
 	var live map[string]peerrendezvous.PairStatus
 	if running != nil {
 		live = running.Clients()
 		result.Running = true
 		result.PublicEndpoint, _ = running.Public()
+		result.PublicEndpoints = running.Publics()
 		result.PublicError = running.PublicError()
 	}
 	for _, client := range gateway.Clients {
-		_, address, _ := gateway.Addresses(client.Slot)
+		_, addresses, _ := gateway.Addresses(client.Slot)
 		item := contract.LANLinkClientStatus{
-			ID: client.ID, Name: client.Name, Address: address.String(), PairingID: client.PairingID(),
+			ID: client.ID, Name: client.Name, Addresses: addrStrings(addresses), PairingID: client.PairingID(),
 			Blocked: client.Blocked, CreatedAt: client.CreatedAt,
 		}
 		state := live[item.PairingID]
@@ -223,6 +224,14 @@ func (s *ContractStore) saveLANLinkConfig(ctx context.Context, config contract.I
 func (l *Inbound) LANLinkInbound(id string) bool {
 	entry, ok := l.store.Load(id)
 	return ok && entry.contractConfig != nil && entry.contractConfig.Protocol.Type == contract.ProtocolLANLink
+}
+
+func addrStrings(addrs []netip.Addr) []string {
+	out := make([]string, len(addrs))
+	for i, a := range addrs {
+		out[i] = a.String()
+	}
+	return out
 }
 
 func endpointString(addr netip.AddrPort) string {

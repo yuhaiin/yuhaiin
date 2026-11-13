@@ -17,12 +17,17 @@ after a public UDP discovery inbound introduces them.
    Use a separate invitation for each client. The gateway can revoke any one
    invitation from its client list.
 
-The **Tunnel subnet** defaults to a random private subnet in the address family
-of the LAN routes. You can override it with a unicast subnet that has enough
-addresses and does not overlap the allowed LAN CIDRs. The gateway assigns its
-own address and a distinct address per invitation. The addresses survive
-restarts. Clients reconnect automatically with their new assignments after a
-subnet change.
+The allowed LAN CIDRs may mix IPv4 and IPv6 networks. The tunnel is
+dual-stack: the gateway keeps a random private IPv4 subnet (`subnet`, a /22)
+and a random ULA IPv6 subnet (`subnet6`, a /64) that do not overlap the
+allowed LAN CIDRs. You can override either with a unicast subnet that has
+enough addresses. The gateway assigns its own address and a distinct address
+per invitation in each subnet. The addresses survive restarts. Clients
+reconnect automatically with their new assignments after a subnet change. A
+gateway saved by an older version keeps its single subnet until the inbound is
+saved again; an IPv6 network in `subnet` then moves to `subnet6`. A client
+that predates dual-stack tunnels keeps working against a single-family
+gateway, using the family of the first LAN CIDR.
 
 Each instance generates and stores its own WireGuard private key. It uses the
 invitation to authenticate the public key exchange and the gateway's address
@@ -35,6 +40,23 @@ The most specific prefix wins. If two LAN Links advertise the same matching
 prefix, add an explicit rule to choose the outbound. On the gateway, explicit
 rules apply before the default direct path to the allowed LAN destinations.
 A default block policy takes precedence over these automatic routes.
+
+### Dual-stack gateway
+
+The gateway serves IPv4 and IPv6 clients at once from its one UDP listener,
+as long as the listener is dual-stack (the default `:51821` is; an address
+such as `0.0.0.0:51821` is IPv4 only). Without a configured public endpoint,
+the gateway detects one endpoint per family with STUN and skips a family the
+host cannot reach. Invitations then carry both endpoints. A client prefers
+IPv6 and falls back to IPv4, and the gateway tells each client its own
+endpoint in the client's family. Clients of both families can be online at
+the same time.
+
+To set the endpoints manually, enter a host name with both A and AAAA
+records as the **Public endpoint**, or an IPv4 endpoint as the **Public
+endpoint** plus an IPv6 one as the **Second public endpoint**
+(`publicEndpoint6`). Clients from older versions read only the first
+endpoint.
 
 Both peers need working UDP paths to discovery and to each other. The NAT and
 network constraints below also apply to LAN Link.
@@ -52,12 +74,28 @@ gateway to make the tunnel subnet routable for every client:
   only when its LAN Link outbound enables **Allow incoming**
   (`allowIncoming`). Otherwise the flow is dropped.
 
-Both TCP and UDP are supported. Services bound only to loopback become
+Both TCP and UDP are supported, over IPv4 and IPv6 tunnel addresses alike;
+an IPv6 tunnel address maps to `::1`. Services bound only to loopback become
 reachable this way, so enable these options only for trusted clients. A client
 with **Allow incoming** keeps its link up from startup instead of waiting for
-outgoing traffic. Clients pick up the tunnel subnet route automatically when
-they connect, and invitations issued while the option is on carry it from the
+outgoing traffic. Clients pick up the tunnel subnet routes automatically when
+they connect, and invitations issued while the option is on carry them from the
 start. The gateway host itself does not route to client addresses.
+
+While client-to-client is on, each client's node editor lists the gateway's
+other clients with their names, tunnel addresses and whether they are online.
+The gateway sends the list over the link, encrypted with the invitation's
+token, and only when it changes.
+
+### Auto connect
+
+A LAN Link outbound normally starts its link the first time a connection uses
+it. Turn on **Auto connect** (`autoConnect`) on the node to connect it when the
+service starts or the node is saved, and to keep it connected while no
+selector or rule uses it. The same switch is available for WireGuard
+(the handshake starts right away, and peers without a keepalive get a 25-second
+one) and Tailscale (the node joins the tailnet right away). A failed attempt is
+retried with backoff.
 
 ## Manual Peer Tunnel configuration
 

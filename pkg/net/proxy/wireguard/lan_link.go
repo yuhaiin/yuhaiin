@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/ecdh"
 	"encoding/base64"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
 	"net/netip"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,8 +51,9 @@ func init() {
 
 type managedLink struct {
 	netapi.EmptyDispatch
-	routes       atomic.Pointer[[]netip.Prefix]
-	address      string
+	routes atomic.Pointer[[]netip.Prefix]
+	// addresses are the gateway's endpoints, one per IP family.
+	addresses    []string
 	privateKey   string
 	publicKey    [32]byte
 	registration [32]byte
@@ -72,8 +75,19 @@ type managedLink struct {
 	active    *peerDialer
 	changed   chan struct{}
 	lastError error
-	// localIP and peerIP are the tunnel addresses of the active session.
-	localIP, peerIP netip.Addr
+	// localIPs and peerIPs are the tunnel addresses of the active session.
+	localIPs, peerIPs []netip.Addr
+	// exchange is the active session's provisioning exchange.
+	exchange *peerrendezvous.LinkExchange
+	// peerList is what a gateway link serves to its client; peers is what a
+	// client last received from its gateway.
+	peerList []byte
+	peers    []transport.LANLinkPeer
+	// early holds a peer list that arrived before its session was active.
+	early struct {
+		exchange *peerrendezvous.LinkExchange
+		peers    []transport.LANLinkPeer
+	}
 }
 
 func newManagedLink(invite transport.LANLinkInvitation, privateKey string, hub *peerrendezvous.Hub, assignment peerrendezvous.LinkOffer, handler netapi.Handler) (*managedLink, error) {
@@ -95,7 +109,7 @@ func newManagedLink(invite transport.LANLinkInvitation, privateKey string, hub *
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &managedLink{
-		address: invite.Coordinator, privateKey: privateKey, publicKey: [32]byte(private.PublicKey().Bytes()),
+		addresses: invite.CoordinatorList(), privateKey: privateKey, publicKey: [32]byte(private.PublicKey().Bytes()),
 		registration: registration, token: token, hub: hub, assignment: assignment, handler: handler,
 		ctx: ctx, cancel: cancel, done: make(chan struct{}), changed: make(chan struct{}),
 	}, nil
@@ -117,18 +131,25 @@ func (m *managedLink) start() {
 	})
 }
 
+// AutoConnect starts the link without waiting for traffic. It keeps
+// reconnecting until closed.
+func (m *managedLink) AutoConnect(context.Context) error {
+	m.start()
+	return nil
+}
+
 func (m *managedLink) NodeExtraInfo() contractnode.NodeExtraInfo {
 	return contractnode.NodeExtraInfo{LANLink: new(m.status())}
 }
 
 // status reports the live pairing state without starting the link.
 func (m *managedLink) status() transport.LANLinkStatus {
-	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle", Coordinator: m.address}
+	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle", Coordinator: strings.Join(m.addresses, ", ")}
 	if !m.started.Load() {
 		return status
 	}
 	m.mu.Lock()
-	peer, lastError, local, remote := m.active, m.lastError, m.localIP, m.peerIP
+	peer, lastError, local, remote, peers := m.active, m.lastError, m.localIPs, m.peerIPs, m.peers
 	m.mu.Unlock()
 	status.State = "connecting"
 	if lastError != nil {
@@ -137,7 +158,7 @@ func (m *managedLink) status() transport.LANLinkStatus {
 	if peer == nil {
 		return status
 	}
-	status.LocalIP, status.PeerIP = local.String(), remote.String()
+	status.LocalIPs, status.PeerIPs, status.Peers = addrStrings(local), addrStrings(remote), slices.Clone(peers)
 	active := peer.bind.active.Load()
 	if active == nil {
 		return status
@@ -210,10 +231,14 @@ func (m *managedLink) peer(ctx context.Context) (*peerDialer, error) {
 
 func (m *managedLink) update(session *lanLinkSession, err error) {
 	m.mu.Lock()
-	m.active, m.lastError, m.localIP, m.peerIP = nil, err, netip.Addr{}, netip.Addr{}
+	m.active, m.lastError, m.localIPs, m.peerIPs, m.exchange, m.peers = nil, err, nil, nil, nil, nil
 	if session != nil {
-		m.active, m.localIP, m.peerIP = session.peer, session.localIP, session.peerIP
+		m.active, m.localIPs, m.peerIPs, m.exchange = session.peer, session.localIPs, session.peerIPs, session.exchange
+		if m.early.exchange == session.exchange {
+			m.peers = m.early.peers
+		}
 	}
+	m.early.exchange, m.early.peers = nil, nil
 	close(m.changed)
 	m.changed = make(chan struct{})
 	m.mu.Unlock()
@@ -250,8 +275,7 @@ func (m *managedLink) waitForAssignmentChange(exchange *peerrendezvous.LinkExcha
 		case <-m.ctx.Done():
 			return
 		case next := <-exchange.Results():
-			if next.PublisherIP != offer.PublisherIP || next.ClientIP != offer.ClientIP ||
-				!slices.Equal(next.Routes, offer.Routes) || next.Subnet != offer.Subnet {
+			if !offer.SameAssignment(next) {
 				return
 			}
 		}
@@ -264,8 +288,48 @@ type lanLinkSession struct {
 	dispatch *lanLinkFlows
 	exchange *peerrendezvous.LinkExchange
 	offer    peerrendezvous.LinkOffer
-	// localIP and peerIP are this side's and the peer's tunnel addresses.
-	localIP, peerIP netip.Addr
+	// localIPs and peerIPs are this side's and the peer's tunnel addresses.
+	localIPs, peerIPs []netip.Addr
+}
+
+// setPeerList sets the peer list a gateway link serves to its client.
+func (m *managedLink) setPeerList(data []byte) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if slices.Equal(m.peerList, data) {
+		return
+	}
+	m.peerList = data
+	if m.exchange != nil {
+		m.exchange.SetPeers(data)
+	}
+}
+
+// receivePeers stores the peer list a client received from its gateway.
+func (m *managedLink) receivePeers(exchange *peerrendezvous.LinkExchange, data []byte) {
+	var peers []transport.LANLinkPeer
+	if json.Unmarshal(data, &peers) != nil {
+		return
+	}
+	m.mu.Lock()
+	switch m.exchange {
+	case exchange:
+		m.peers = peers
+	case nil:
+		m.early.exchange, m.early.peers = exchange, peers
+	}
+	m.mu.Unlock()
+}
+
+func addrStrings(addrs []netip.Addr) []string {
+	if len(addrs) == 0 {
+		return nil
+	}
+	out := make([]string, len(addrs))
+	for i, a := range addrs {
+		out[i] = a.String()
+	}
+	return out
 }
 
 func (m *managedLink) connect() (*lanLinkSession, error) {
@@ -281,7 +345,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 	} else {
 		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		var err error
-		underlay, err = newPeerUnderlay(ctx, m.address, m.registration, role)
+		underlay, err = newPeerUnderlay(ctx, m.addresses, m.registration, role)
 		cancel()
 		if err != nil {
 			return nil, err
@@ -294,6 +358,15 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		return nil, err
 	}
 	underlay.exchange = exchange
+	if role == peerrendezvous.Publisher {
+		m.mu.Lock()
+		if m.peerList != nil {
+			exchange.SetPeers(m.peerList)
+		}
+		m.mu.Unlock()
+	} else {
+		exchange.OnPeers(func(data []byte) { m.receivePeers(exchange, data) })
+	}
 	var boot atomic.Pointer[peerrendezvous.Socket]
 	var device atomic.Pointer[Wireguard]
 	underlay.rebind = func() {
@@ -325,13 +398,15 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		break
 	}
 
-	local, remote, routes, subnetValue := offer.ClientIP, offer.PublisherIP, offer.Routes, offer.Subnet
+	publisherIPs, clientIPs, subnetValues := offer.Tunnel()
+	local, remote, routes := clientIPs, publisherIPs, offer.Routes
 	if role == peerrendezvous.Publisher {
-		local, remote, routes, subnetValue = m.assignment.PublisherIP, m.assignment.ClientIP, m.assignment.Routes, m.assignment.Subnet
+		publisherIPs, clientIPs, subnetValues = m.assignment.Tunnel()
+		local, remote, routes = publisherIPs, clientIPs, m.assignment.Routes
 	}
 	cfg := tunnelConfig{
 		PrivateKey: m.privateKey, PeerPublicKey: base64.StdEncoding.EncodeToString(offer.PublicKey[:]),
-		LocalIP: local.String(), PeerIP: remote.String(), Routes: routes,
+		LocalIPs: local, PeerIPs: remote, Routes: routes,
 	}
 	socket := boot.Load()
 	var first atomic.Pointer[peerrendezvous.Socket]
@@ -347,20 +422,25 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		_ = socket.Close()
 		return nil, err
 	}
-	subnet, err := parseLANLinkSubnet(subnetValue, local, remote, routes)
+	subnets, err := parseLANLinkSubnets(subnetValues, local, remote, routes)
 	if err != nil {
 		_ = socket.Close()
 		return nil, err
 	}
-	allowed := cfg.Routes
+	var allowed []string
 	if role == peerrendezvous.Publisher {
-		allowed = []string{fmt.Sprintf("%s/%d", remote, remote.BitLen())}
-	} else if subnet.IsValid() {
-		allowed = append(slices.Clone(allowed), subnet.String())
+		for _, ip := range remote {
+			allowed = append(allowed, netip.PrefixFrom(ip, ip.BitLen()).String())
+		}
+	} else {
+		allowed = slices.Clone(cfg.Routes)
+		for _, subnet := range subnets {
+			allowed = append(allowed, subnet.String())
+		}
 	}
-	incoming := role == peerrendezvous.Publisher || (subnet.IsValid() && m.allowIncoming)
+	incoming := role == peerrendezvous.Publisher || (len(subnets) != 0 && m.allowIncoming)
 	w, err := newClient(Config{
-		SecretKey: cfg.PrivateKey, Endpoint: []string{cfg.LocalIP}, MTU: 1280,
+		SecretKey: cfg.PrivateKey, Endpoint: addrStrings(local), MTU: 1280,
 		Peers: []PeerConfig{{PublicKey: cfg.PeerPublicKey, Endpoint: bind.openAddr.Load().String(), AllowedIPs: allowed}},
 	}, bind, incoming)
 	if err != nil {
@@ -370,14 +450,14 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 	var flows netapi.Accepter
 	var dispatch *lanLinkFlows
 	if incoming {
-		spec := lanLinkFlowSpec{peer: remote, subnet: subnet}
+		spec := lanLinkFlowSpec{peers: remote, subnets: subnets}
 		if role == peerrendezvous.Publisher {
 			spec.handler, spec.relay = m.handler, m.relay
 			spec.routes, err = ParseEndpoints(routes)
 		}
-		if subnet.IsValid() {
-			// Client-to-client mode makes this side's own address reachable.
-			spec.local = local
+		if len(subnets) != 0 {
+			// Client-to-client mode makes this side's own addresses reachable.
+			spec.locals = local
 		}
 		if err == nil {
 			dispatch = newLANLinkFlows(m.ctx, spec)
@@ -403,12 +483,10 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 	}
 	if role == peerrendezvous.Dialer {
 		prefixes, _ := transport.ParseLANLinkRoutes(routes)
-		if subnet.IsValid() {
-			prefixes = append(prefixes, subnet)
-		}
+		prefixes = append(prefixes, subnets...)
 		m.routes.Store(&prefixes)
 	}
-	return &lanLinkSession{peer: &peerDialer{Wireguard: w}, flows: flows, dispatch: dispatch, exchange: exchange, offer: offer, localIP: local, peerIP: remote}, nil
+	return &lanLinkSession{peer: &peerDialer{Wireguard: w}, flows: flows, dispatch: dispatch, exchange: exchange, offer: offer, localIPs: local, peerIPs: remote}, nil
 }
 
 func awaitLinkOffer(ctx context.Context, socket *peerrendezvous.Socket, exchange *peerrendezvous.LinkExchange) (peerrendezvous.LinkOffer, error) {
@@ -430,21 +508,22 @@ func awaitLinkOffer(ctx context.Context, socket *peerrendezvous.Socket, exchange
 	}
 }
 
-// parseLANLinkSubnet validates the tunnel network of a client-to-client
-// assignment. An empty value disables client-to-client traffic.
-func parseLANLinkSubnet(value string, local, remote netip.Addr, routes []string) (netip.Prefix, error) {
-	if value == "" {
-		return netip.Prefix{}, nil
+// parseLANLinkSubnets validates the tunnel networks of a client-to-client
+// assignment: each holds this side's and the peer's address of its family. No
+// subnet disables client-to-client traffic.
+func parseLANLinkSubnets(values []string, local, remote []netip.Addr, routes []string) ([]netip.Prefix, error) {
+	prefixes, err := transport.ParseLANLinkRoutes(routes)
+	if err != nil {
+		return nil, err
 	}
-	subnet, err := netip.ParsePrefix(value)
-	if err != nil || subnet != subnet.Masked() || subnet.Addr().BitLen() != local.BitLen() ||
-		!subnet.Contains(local) || !subnet.Contains(remote) {
-		return netip.Prefix{}, fmt.Errorf("LAN Link: invalid tunnel subnet %q", value)
+	subnets, err := transport.ParseLANLinkSubnets(values, prefixes)
+	if err != nil {
+		return nil, err
 	}
-	for _, route := range routes {
-		if p, err := netip.ParsePrefix(route); err == nil && p.Overlaps(subnet) {
-			return netip.Prefix{}, fmt.Errorf("LAN Link: tunnel subnet %q overlaps route %q", value, route)
+	for _, subnet := range subnets {
+		if !slices.ContainsFunc(local, subnet.Contains) || !slices.ContainsFunc(remote, subnet.Contains) {
+			return nil, fmt.Errorf("LAN Link: tunnel subnet %s does not hold both tunnel addresses", subnet)
 		}
 	}
-	return subnet, nil
+	return subnets, nil
 }

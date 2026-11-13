@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,7 +19,9 @@ import (
 type Hub struct {
 	*Coordinator
 	socket net.PacketConn
-	public atomic.Pointer[netip.AddrPort]
+	// public holds the endpoint peers use to reach this hub, one per IP
+	// family: a dual-stack socket serves both.
+	public atomic.Pointer[[]netip.AddrPort]
 	stun   *stunClient
 
 	mu     sync.Mutex
@@ -37,21 +40,50 @@ func NewHub(socket net.PacketConn) *Hub {
 	h := &Hub{Coordinator: newCoordinator(socket, nil, nil), socket: socket, conns: make(map[[16]byte]*hubConn)}
 	h.stun = newSTUNClient(socket)
 	h.data = h.dispatch
+	h.publisherFor = h.publicFor
 	go h.run()
 	return h
 }
 
-// SetPublic sets the endpoint peers use to reach this hub.
-func (h *Hub) SetPublic(endpoint netip.AddrPort) {
-	endpoint = netip.AddrPortFrom(endpoint.Addr().Unmap(), endpoint.Port())
-	h.public.Store(&endpoint)
+// SetPublic sets the endpoints peers use to reach this hub, at most one per
+// IP family. A later endpoint of a family already given is ignored.
+func (h *Hub) SetPublic(endpoints ...netip.AddrPort) {
+	var public []netip.AddrPort
+	for _, endpoint := range endpoints {
+		endpoint = netip.AddrPortFrom(endpoint.Addr().Unmap(), endpoint.Port())
+		if endpoint.IsValid() && !slices.ContainsFunc(public, func(p netip.AddrPort) bool { return p.Addr().BitLen() == endpoint.Addr().BitLen() }) {
+			public = append(public, endpoint)
+		}
+	}
+	slices.SortFunc(public, func(a, b netip.AddrPort) int { return a.Addr().BitLen() - b.Addr().BitLen() })
+	h.public.Store(&public)
 }
 
+// Public returns the preferred public endpoint, IPv4 first.
 func (h *Hub) Public() netip.AddrPort {
-	if p := h.public.Load(); p != nil {
-		return *p
+	if public := h.Publics(); len(public) != 0 {
+		return public[0]
 	}
 	return netip.AddrPort{}
+}
+
+// Publics returns every public endpoint, IPv4 first.
+func (h *Hub) Publics() []netip.AddrPort {
+	if p := h.public.Load(); p != nil {
+		return slices.Clone(*p)
+	}
+	return nil
+}
+
+// publicFor tells a dialer the hub's endpoint in the dialer's IP family, so
+// clients of either family reach the same gateway.
+func (h *Hub) publicFor(dialer, registered netip.AddrPort) netip.AddrPort {
+	for _, public := range h.Publics() {
+		if public.Addr().BitLen() == dialer.Addr().BitLen() {
+			return public
+		}
+	}
+	return registered
 }
 
 // DiscoverPublic asks a STUN server for the mapped address of the hub's socket.

@@ -28,10 +28,10 @@ type lanLinkDialer interface {
 }
 
 // lanLinkRelay finds the link that owns a tunnel address on the gateway.
-// from is the tunnel address of the client that opened the flow; a client is
-// never relayed back to itself.
+// from are the tunnel addresses of the client that opened the flow; a client
+// is never relayed back to itself.
 type lanLinkRelay interface {
-	relayTarget(from, to netip.Addr) (lanLinkDialer, bool)
+	relayTarget(from []netip.Addr, to netip.Addr) (lanLinkDialer, bool)
 }
 
 // lanLinkFlows dispatches the flows that a LAN Link peer sends into this
@@ -56,12 +56,12 @@ type lanLinkFlows struct {
 type lanLinkFlowSpec struct {
 	handler netapi.Handler
 	routes  []netip.Prefix
-	// peer is the tunnel address of the remote side of this link.
-	peer netip.Addr
-	// local is this side's tunnel address; invalid disables local delivery.
-	local  netip.Addr
-	subnet netip.Prefix
-	relay  lanLinkRelay
+	// peers are the tunnel addresses of the remote side of this link.
+	peers []netip.Addr
+	// locals are this side's tunnel addresses; none disables local delivery.
+	locals  []netip.Addr
+	subnets []netip.Prefix
+	relay   lanLinkRelay
 }
 
 type lanLinkPacketKey struct{ src, dst netip.AddrPort }
@@ -82,14 +82,14 @@ func (f *lanLinkFlows) target(addr netapi.Address) (lanLinkDialer, netip.AddrPor
 	if f.handler != nil && slices.ContainsFunc(f.routes, func(p netip.Prefix) bool { return p.Contains(dst.Addr()) }) {
 		return nil, dst, true
 	}
-	if !f.subnet.IsValid() || !f.subnet.Contains(dst.Addr()) {
+	if !slices.ContainsFunc(f.subnets, func(p netip.Prefix) bool { return p.Contains(dst.Addr()) }) {
 		return nil, dst, false
 	}
-	if f.local.IsValid() && dst.Addr() == f.local {
+	if slices.Contains(f.locals, dst.Addr()) {
 		return loopbackDialer{}, dst, true
 	}
 	if f.relay != nil {
-		if d, ok := f.relay.relayTarget(f.peer, dst.Addr()); ok {
+		if d, ok := f.relay.relayTarget(f.peers, dst.Addr()); ok {
 			return d, dst, true
 		}
 	}

@@ -53,6 +53,35 @@ func ResolveCoordinators(ctx context.Context, address string) ([]netip.AddrPort,
 	return out, nil
 }
 
+// ResolveCoordinatorList resolves several addresses of one coordinator, such
+// as a gateway's IPv4 and IPv6 endpoints, into at most one address per IP
+// family, IPv6 first. An address that fails to resolve is skipped while
+// another succeeds.
+func ResolveCoordinatorList(ctx context.Context, addresses []string) ([]netip.AddrPort, error) {
+	var out []netip.AddrPort
+	var failed error
+	for _, address := range addresses {
+		resolved, err := ResolveCoordinators(ctx, address)
+		if err != nil {
+			failed = errors.Join(failed, err)
+			continue
+		}
+		for _, c := range resolved {
+			if !slices.ContainsFunc(out, func(o netip.AddrPort) bool { return o.Addr().BitLen() == c.Addr().BitLen() }) {
+				out = append(out, c)
+			}
+		}
+	}
+	if len(out) == 0 {
+		if failed == nil {
+			failed = errors.New("peer discovery requires a reachable unicast address")
+		}
+		return nil, failed
+	}
+	slices.SortStableFunc(out, func(a, b netip.AddrPort) int { return b.Addr().BitLen() - a.Addr().BitLen() })
+	return out, nil
+}
+
 // LookupAny asks every coordinator address at once and returns the first
 // answer. A host without one IP family still gets an answer from the other.
 func LookupAny(ctx context.Context, coordinators []netip.AddrPort, key [32]byte) (LookupResult, error) {

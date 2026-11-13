@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,7 +36,7 @@ func (r *NodeRuntime) PeerTunnelPeers(ctx context.Context, page int) (contract.P
 			if step.LANLink != nil {
 				if invitation, err := transport.ParseLANLinkInvitation(step.LANLink.Invitation); err == nil {
 					pairings = append(pairings, pairing{n.ID, n.Name, peerPairing{
-						Coordinator: invitation.Coordinator, Token: invitation.Registration, Routes: invitation.Routes,
+						Coordinators: invitation.CoordinatorList(), Token: invitation.Registration, Routes: invitation.Routes,
 					}})
 				}
 				break
@@ -85,7 +86,7 @@ func (r *NodeRuntime) idleLANLinkStatus(ctx context.Context, id string) *transpo
 			if err != nil {
 				return nil
 			}
-			return &transport.LANLinkStatus{PairingID: transport.PeerPairIDString(key), State: "idle", Coordinator: invitation.Coordinator}
+			return &transport.LANLinkStatus{PairingID: transport.PeerPairIDString(key), State: "idle", Coordinator: strings.Join(invitation.CoordinatorList(), ", ")}
 		}
 	}
 	return nil
@@ -93,9 +94,9 @@ func (r *NodeRuntime) idleLANLinkStatus(ctx context.Context, id string) *transpo
 
 // peerPairing is what the coordinator lookup needs from an invitation.
 type peerPairing struct {
-	Coordinator string
-	Token       string
-	Routes      []string
+	Coordinators []string
+	Token        string
+	Routes       []string
 }
 
 func lookupTunnelPeer(ctx context.Context, c peerPairing) contract.PeerTunnelPeer {
@@ -106,7 +107,7 @@ func lookupTunnelPeer(ctx context.Context, c peerPairing) contract.PeerTunnelPee
 	if err != nil {
 		return result
 	}
-	coordinators, err := peerrendezvous.ResolveCoordinators(ctx, c.Coordinator)
+	coordinators, err := peerrendezvous.ResolveCoordinatorList(ctx, c.Coordinators)
 	if err != nil {
 		return result
 	}

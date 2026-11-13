@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -42,31 +43,61 @@ func (c LANLink) Validate() error {
 // LANLinkInvitation carries separate credentials for rendezvous and peer
 // authentication. Only the publisher and the invited outbound know the token.
 type LANLinkInvitation struct {
-	Coordinator  string   `json:"coordinator"`
+	Coordinator string `json:"coordinator"`
+	// Coordinators lists every gateway endpoint, one per IP family, when the
+	// gateway is reachable over both. Coordinator repeats the first for
+	// clients that predate it.
+	Coordinators []string `json:"coordinators,omitempty"`
 	Registration string   `json:"registration" secret:"true"`
 	Token        string   `json:"token" secret:"true"`
 	Routes       []string `json:"routes"`
 	// Subnet is the tunnel network when the gateway relays client-to-client
 	// traffic. The live assignment from the gateway takes precedence.
 	Subnet string `json:"subnet,omitempty"`
+	// Subnets lists every tunnel network of a dual-stack gateway, including
+	// Subnet.
+	Subnets []string `json:"subnets,omitempty"`
 }
 
-// Prefixes returns the routes and, when present, the tunnel subnet.
+// Prefixes returns the routes and, when present, the tunnel subnets.
 func (i LANLinkInvitation) Prefixes() ([]netip.Prefix, error) {
 	routes, err := ParseLANLinkRoutes(i.Routes)
-	if err != nil || i.Subnet == "" {
-		return routes, err
+	if err != nil {
+		return nil, err
 	}
-	subnet, err := netip.ParsePrefix(i.Subnet)
-	if err != nil || subnet != subnet.Masked() || subnet.Bits() == 0 || subnet.Addr().BitLen() != routes[0].Addr().BitLen() {
-		return nil, fmt.Errorf("invalid LAN Link tunnel subnet %q", i.Subnet)
+	subnets, err := ParseLANLinkSubnets(append([]string{i.Subnet}, i.Subnets...), routes)
+	if err != nil {
+		return nil, err
 	}
-	for _, route := range routes {
-		if route.Overlaps(subnet) {
-			return nil, fmt.Errorf("LAN Link tunnel subnet %q overlaps route %s", i.Subnet, route)
+	return append(routes, subnets...), nil
+}
+
+// ParseLANLinkSubnets parses tunnel subnets, at most one per IP family, that
+// must not overlap routes. Empty and repeated values are skipped.
+func ParseLANLinkSubnets(values []string, routes []netip.Prefix) ([]netip.Prefix, error) {
+	var subnets []netip.Prefix
+	for _, value := range values {
+		if value == "" {
+			continue
 		}
+		subnet, err := netip.ParsePrefix(value)
+		if err != nil || subnet != subnet.Masked() || subnet.Bits() == 0 || subnet.Addr().Is4In6() {
+			return nil, fmt.Errorf("invalid LAN Link tunnel subnet %q", value)
+		}
+		if slices.Contains(subnets, subnet) {
+			continue
+		}
+		if slices.ContainsFunc(subnets, func(p netip.Prefix) bool { return p.Addr().BitLen() == subnet.Addr().BitLen() }) {
+			return nil, fmt.Errorf("LAN Link has two tunnel subnets in the family of %q", value)
+		}
+		for _, route := range routes {
+			if route.Overlaps(subnet) {
+				return nil, fmt.Errorf("LAN Link tunnel subnet %q overlaps route %s", value, route)
+			}
+		}
+		subnets = append(subnets, subnet)
 	}
-	return append(routes, subnet), nil
+	return subnets, nil
 }
 
 func (i LANLinkInvitation) Encode() (string, error) {
@@ -93,9 +124,25 @@ func ParseLANLinkInvitation(value string) (LANLinkInvitation, error) {
 	return invitation, invitation.validate()
 }
 
+// CoordinatorList returns every gateway endpoint of the invitation.
+func (i LANLinkInvitation) CoordinatorList() []string {
+	if len(i.Coordinators) == 0 {
+		return []string{i.Coordinator}
+	}
+	return i.Coordinators
+}
+
 func (i LANLinkInvitation) validate() error {
 	if err := ValidatePeerCoordinator(i.Coordinator); err != nil {
 		return err
+	}
+	if len(i.Coordinators) > 2 {
+		return errors.New("invalid LAN Link gateway endpoints")
+	}
+	for _, c := range i.Coordinators {
+		if err := ValidatePeerCoordinator(c); err != nil {
+			return err
+		}
 	}
 	if _, err := DecodePeerKey(i.Registration); err != nil {
 		return errors.New("invalid LAN Link registration credential")
@@ -129,7 +176,7 @@ func ParseLANLinkRoutes(values []string) ([]netip.Prefix, error) {
 	for _, value := range values {
 		p, err := netip.ParsePrefix(value)
 		if err != nil || p != p.Masked() || p.Bits() == 0 || p.Addr().Is4In6() ||
-			p.Addr().IsMulticast() || p.Addr().IsLoopback() || p.Addr().IsLinkLocalUnicast() || p.Addr().IsUnspecified() || (len(routes) != 0 && p.Addr().BitLen() != routes[0].Addr().BitLen()) {
+			p.Addr().IsMulticast() || p.Addr().IsLoopback() || p.Addr().IsLinkLocalUnicast() || p.Addr().IsUnspecified() {
 			return nil, fmt.Errorf("invalid LAN Link route %q", value)
 		}
 		routes = append(routes, p)
@@ -162,13 +209,25 @@ type LANLinkStatus struct {
 	Error string `json:"error,omitempty"`
 	// Coordinator is the gateway address from the invitation.
 	Coordinator string `json:"coordinator,omitempty"`
-	// LocalIP and PeerIP are the tunnel addresses of this side and the peer.
-	LocalIP string `json:"localIp,omitempty"`
-	PeerIP  string `json:"peerIp,omitempty"`
+	// LocalIPs and PeerIPs are the tunnel addresses of this side and the
+	// peer, IPv4 first.
+	LocalIPs []string `json:"localIps,omitempty"`
+	PeerIPs  []string `json:"peerIps,omitempty"`
 	// Listen is the local UDP address carrying the tunnel.
 	Listen string `json:"listen,omitempty"`
 	// PeerEndpoint is the UDP address the tunnel currently sends to, and Path
 	// says whether it is a LAN or a public address.
 	PeerEndpoint string `json:"peerEndpoint,omitempty"`
 	Path         string `json:"path,omitempty"`
+	// Peers are the other clients of the gateway, reported when it enables
+	// client-to-client traffic.
+	Peers []LANLinkPeer `json:"peers,omitempty"`
+}
+
+// LANLinkPeer is another client of the same gateway as seen by a client.
+type LANLinkPeer struct {
+	Name string `json:"name,omitempty"`
+	// Addresses are the peer's tunnel addresses, IPv4 first.
+	Addresses []string `json:"addresses"`
+	Online    bool     `json:"online"`
 }

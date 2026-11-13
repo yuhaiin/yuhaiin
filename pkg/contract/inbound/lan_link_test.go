@@ -28,8 +28,8 @@ func TestLANLinkGatewayClientsHaveIndependentCredentials(t *testing.T) {
 	if err := g.FillDefaults(); err != nil {
 		t.Fatal(err)
 	}
-	if pool := netip.MustParsePrefix(g.Subnet); !pool.Addr().Is6() || pool.Overlaps(netip.MustParsePrefix("fd00:1234::/64")) {
-		t.Fatalf("IPv6 subnet = %s", g.Subnet)
+	if pool := netip.MustParsePrefix(g.Subnet6); !pool.Addr().Is6() || pool.Overlaps(netip.MustParsePrefix("fd00:1234::/64")) {
+		t.Fatalf("IPv6 subnet = %s", g.Subnet6)
 	}
 	a, err := g.AddClient(1, "")
 	if err != nil {
@@ -46,16 +46,51 @@ func TestLANLinkGatewayClientsHaveIndependentCredentials(t *testing.T) {
 	if err := g.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	_, ip, err := g.Addresses(b.Slot)
-	if err != nil || !netip.MustParsePrefix(g.Subnet).Contains(ip) {
-		t.Fatalf("address = %v, %v", ip, err)
+	_, ips, err := g.Addresses(b.Slot)
+	if err != nil || len(ips) != 2 || !netip.MustParsePrefix(g.Subnet).Contains(ips[0]) || !netip.MustParsePrefix(g.Subnet6).Contains(ips[1]) {
+		t.Fatalf("addresses = %v, %v", ips, err)
+	}
+}
+
+func TestLANLinkGatewayDualStack(t *testing.T) {
+	g := LANLinkGateway{Networks: []string{"192.168.1.0/24", "fd00:1234::/64"}}
+	if err := g.FillDefaults(); err != nil {
+		t.Fatal(err)
+	}
+	v4, v6 := netip.MustParsePrefix(g.Subnet), netip.MustParsePrefix(g.Subnet6)
+	if !v4.Addr().Is4() || !v6.Addr().Is6() {
+		t.Fatalf("subnets = %s, %s", g.Subnet, g.Subnet6)
+	}
+	client, err := g.AddClient(1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, ips, err := g.Addresses(client.Slot)
+	if err != nil || len(gateway) != 2 || !v4.Contains(gateway[0]) || !v6.Contains(gateway[1]) || !v4.Contains(ips[0]) || !v6.Contains(ips[1]) {
+		t.Fatalf("addresses = %v %v, %v", gateway, ips, err)
+	}
+}
+
+func TestLANLinkGatewayMovesLegacyIPv6Subnet(t *testing.T) {
+	g := LANLinkGateway{Networks: []string{"fd00:1234::/64"}}
+	if err := g.FillDefaults(); err != nil {
+		t.Fatal(err)
+	}
+	legacy := g.Subnet6
+	g.Subnet, g.Subnet6 = legacy, ""
+	// A configuration saved before dual-stack tunnels still runs.
+	if err := g.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.FillDefaults(); err != nil || g.Subnet6 != legacy || !netip.MustParsePrefix(g.Subnet).Addr().Is4() {
+		t.Fatalf("migrated %+v, %v", g, err)
 	}
 }
 
 func TestLANLinkGatewayRejectsUnsafeNetworks(t *testing.T) {
 	for _, networks := range [][]string{
 		nil, {"127.0.0.0/8"}, {"169.254.0.0/16"}, {"224.0.0.0/4"}, {"0.0.0.0/0"}, {"192.168.1.5/24"},
-		{"192.168.1.0/24", "fd00::/64"}, {"not a cidr"},
+		{"not a cidr"},
 	} {
 		g := LANLinkGateway{Networks: networks}
 		if err := g.FillDefaults(); err == nil {
@@ -97,5 +132,16 @@ func TestLANLinkGatewayPoolExhaustion(t *testing.T) {
 	}
 	if _, err := g.AddClient(1, ""); err == nil {
 		t.Fatal("address pool never reported full")
+	}
+}
+
+func TestLANLinkGatewaySecondPublicEndpoint(t *testing.T) {
+	g := LANLinkGateway{Networks: []string{"192.168.1.0/24"}, PublicEndpoint6: "[2001:db8::1]:51821"}
+	if err := g.FillDefaults(); err == nil {
+		t.Fatal("a second public endpoint without a first was accepted")
+	}
+	g.PublicEndpoint = "198.51.100.1:51821"
+	if err := g.FillDefaults(); err != nil || !slices.Equal(g.PublicEndpoints(), []string{"198.51.100.1:51821", "[2001:db8::1]:51821"}) {
+		t.Fatalf("endpoints = %v, %v", g.PublicEndpoints(), err)
 	}
 }
