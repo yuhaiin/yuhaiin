@@ -53,11 +53,14 @@ type managedLink struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	runOnce   sync.Once
+	started   atomic.Bool
 	done      chan struct{}
 	mu        sync.Mutex
 	active    *peerDialer
 	changed   chan struct{}
 	lastError error
+	// localIP and peerIP are the tunnel addresses of the active session.
+	localIP, peerIP netip.Addr
 }
 
 func newManagedLink(invite transport.LANLinkInvitation, privateKey string, hub *peerrendezvous.Hub, assignment peerrendezvous.LinkOffer, handler netapi.Handler) (*managedLink, error) {
@@ -95,7 +98,52 @@ func (m *managedLink) LANLinkRoutes() ([]netip.Prefix, bool) {
 }
 
 func (m *managedLink) start() {
-	m.runOnce.Do(func() { go m.run() })
+	m.runOnce.Do(func() {
+		m.started.Store(true)
+		go m.run()
+	})
+}
+
+// LANLinkStatus reports the live pairing state without starting the link.
+func (m *managedLink) LANLinkStatus() transport.LANLinkStatus {
+	status := transport.LANLinkStatus{PairingID: transport.PeerPairIDString(m.registration), State: "idle"}
+	if m.hub == nil {
+		status.Coordinator = m.address
+	}
+	if !m.started.Load() {
+		return status
+	}
+	m.mu.Lock()
+	peer, lastError, local, remote := m.active, m.lastError, m.localIP, m.peerIP
+	m.mu.Unlock()
+	status.State = "connecting"
+	if lastError != nil {
+		status.Error = lastError.Error()
+	}
+	if peer == nil {
+		return status
+	}
+	status.LocalIP, status.PeerIP = local.String(), remote.String()
+	active := peer.bind.active.Load()
+	if active == nil {
+		return status
+	}
+	socket, ok := active.conn.(*peerrendezvous.Socket)
+	if !ok {
+		return status
+	}
+	path := socket.Path()
+	if path.Local.IsValid() {
+		status.Listen = path.Local.String()
+	}
+	if path.Peer.IsValid() {
+		status.PeerEndpoint = path.Peer.String()
+		status.Path = transport.LANLinkPathKind(path.Peer.Addr(), path.OnLink)
+		if path.Ready {
+			status.State = "connected"
+		}
+	}
+	return status
 }
 
 func (m *managedLink) Close() error {
@@ -146,9 +194,12 @@ func (m *managedLink) peer(ctx context.Context) (*peerDialer, error) {
 	}
 }
 
-func (m *managedLink) update(peer *peerDialer, err error) {
+func (m *managedLink) update(session *lanLinkSession, err error) {
 	m.mu.Lock()
-	m.active, m.lastError = peer, err
+	m.active, m.lastError, m.localIP, m.peerIP = nil, err, netip.Addr{}, netip.Addr{}
+	if session != nil {
+		m.active, m.localIP, m.peerIP = session.peer, session.localIP, session.peerIP
+	}
 	close(m.changed)
 	m.changed = make(chan struct{})
 	m.mu.Unlock()
@@ -159,7 +210,7 @@ func (m *managedLink) run() {
 	for m.ctx.Err() == nil {
 		session, err := m.connect()
 		if err == nil {
-			m.update(session.peer, nil)
+			m.update(session, nil)
 			m.waitForAssignmentChange(session.exchange, session.offer)
 			m.update(nil, nil)
 			if session.flows != nil {
@@ -195,6 +246,8 @@ type lanLinkSession struct {
 	flows    netapi.Accepter
 	exchange *peerrendezvous.LinkExchange
 	offer    peerrendezvous.LinkOffer
+	// localIP and peerIP are this side's and the peer's tunnel addresses.
+	localIP, peerIP netip.Addr
 }
 
 func (m *managedLink) connect() (*lanLinkSession, error) {
@@ -313,7 +366,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 		prefixes, _ := transport.ParseLANLinkRoutes(routes)
 		m.routes.Store(&prefixes)
 	}
-	return &lanLinkSession{peer: &peerDialer{Wireguard: w}, flows: flows, exchange: exchange, offer: offer}, nil
+	return &lanLinkSession{peer: &peerDialer{Wireguard: w}, flows: flows, exchange: exchange, offer: offer, localIP: local, peerIP: remote}, nil
 }
 
 func awaitLinkOffer(ctx context.Context, socket *peerrendezvous.Socket, exchange *peerrendezvous.LinkExchange) (peerrendezvous.LinkOffer, error) {

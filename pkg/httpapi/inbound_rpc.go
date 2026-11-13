@@ -45,7 +45,7 @@ func addInboundRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 }
 
 type lanLinkController interface {
-	CreateLANLinkInvitation(context.Context, string) (contractinbound.LANLinkInvitationResponse, error)
+	CreateLANLinkInvitation(context.Context, contractinbound.LANLinkInvitationRequest) (contractinbound.LANLinkInvitationResponse, error)
 	RevokeLANLinkClient(context.Context, contractinbound.LANLinkClientRequest) error
 	LANLinkClients(context.Context, string) (contractinbound.LANLinkClients, error)
 	UpdateLANLinkClient(context.Context, contractinbound.LANLinkClientAction) error
@@ -90,12 +90,12 @@ func (a v2API) lanLinkNetworks(ctx context.Context, _ *emptyRequest) (*contracti
 	return &value, nil
 }
 
-func (a v2API) createLANLinkInvitation(ctx context.Context, request *idRequest) (*contractinbound.LANLinkInvitationResponse, error) {
+func (a v2API) createLANLinkInvitation(ctx context.Context, request *contractinbound.LANLinkInvitationRequest) (*contractinbound.LANLinkInvitationResponse, error) {
 	controller, ok := a.services.Inbounds.(lanLinkController)
 	if !ok {
 		return nil, unavailable("LAN Link is unavailable")
 	}
-	value, err := controller.CreateLANLinkInvitation(ctx, request.ID)
+	value, err := controller.CreateLANLinkInvitation(ctx, *request)
 	if errors.Is(err, plainstore.ErrNotFound) {
 		return nil, notFound(err)
 	}

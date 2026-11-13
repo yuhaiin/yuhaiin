@@ -11,6 +11,9 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 )
@@ -18,7 +21,8 @@ import (
 const ProtocolLANLink = transport.LANLinkType
 
 const (
-	maxLANLinkClients = 1024
+	maxLANLinkClients    = 1024
+	maxLANLinkClientName = 64
 	// DefaultLANLinkListen is the UDP address of the gateway's built-in
 	// coordinator. All clients and their data share this one port.
 	DefaultLANLinkListen = ":51821"
@@ -46,7 +50,9 @@ type LANLinkGateway struct {
 
 // LANLinkClient holds the independent credentials of one invitation.
 type LANLinkClient struct {
-	ID           string `json:"id"`
+	ID string `json:"id"`
+	// Name is a user label that tells clients apart.
+	Name         string `json:"name,omitempty"`
 	Slot         int    `json:"slot"`
 	Token        string `json:"token" secret:"true"`
 	Registration string `json:"registration" secret:"true"`
@@ -145,6 +151,9 @@ func (p LANLinkGateway) Validate() error {
 		if _, err := client.InvitationID(); err != nil {
 			return err
 		}
+		if _, err := NormalizeLANLinkClientName(client.Name); err != nil {
+			return err
+		}
 		if _, err := transport.DecodePeerKey(client.Token); err != nil {
 			return fmt.Errorf("LAN Link client token: %w", err)
 		}
@@ -164,7 +173,11 @@ func (p LANLinkGateway) Validate() error {
 }
 
 // AddClient allocates an address and fresh, client-specific credentials.
-func (p *LANLinkGateway) AddClient(now int64) (LANLinkClient, error) {
+func (p *LANLinkGateway) AddClient(now int64, name string) (LANLinkClient, error) {
+	name, err := NormalizeLANLinkClientName(name)
+	if err != nil {
+		return LANLinkClient{}, err
+	}
 	pool, err := netip.ParsePrefix(p.Subnet)
 	if err != nil {
 		return LANLinkClient{}, err
@@ -183,11 +196,22 @@ func (p *LANLinkGateway) AddClient(now int64) (LANLinkClient, error) {
 	var id [16]byte
 	rand.Read(id[:])
 	client := LANLinkClient{
-		ID: hex.EncodeToString(id[:]), Slot: slot, Token: transport.NewLANLinkToken(),
+		ID: hex.EncodeToString(id[:]), Name: name, Slot: slot, Token: transport.NewLANLinkToken(),
 		Registration: transport.NewLANLinkToken(), CreatedAt: now,
 	}
 	p.Clients = append(p.Clients, client)
 	return client, nil
+}
+
+// NormalizeLANLinkClientName trims a client label and rejects one that is too
+// long or holds control characters.
+func NormalizeLANLinkClientName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if !utf8.ValidString(name) || utf8.RuneCountInString(name) > maxLANLinkClientName ||
+		strings.IndexFunc(name, unicode.IsControl) >= 0 {
+		return "", fmt.Errorf("LAN Link client name must be at most %d characters without control characters", maxLANLinkClientName)
+	}
+	return name, nil
 }
 
 func (c LANLinkClient) InvitationID() ([16]byte, error) {
@@ -282,9 +306,16 @@ func randomLANLinkSubnet(routes []netip.Prefix) (netip.Prefix, error) {
 	return netip.Prefix{}, errors.New("no private address range is free for the LAN Link tunnel; the shared networks cover every candidate")
 }
 
+// LANLinkInvitationRequest creates a client; Name is an optional label.
+type LANLinkInvitationRequest struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+}
+
 type LANLinkInvitationResponse struct {
 	Invitation string `json:"invitation" secret:"true"`
 	ClientID   string `json:"clientId"`
+	Name       string `json:"name,omitempty"`
 	Address    string `json:"address"`
 }
 
@@ -293,15 +324,18 @@ type LANLinkClientRequest struct {
 	ClientID string `json:"clientId"`
 }
 
-// LANLinkClientAction is one of kick, block or unblock.
+// LANLinkClientAction is one of kick, block, unblock or rename. Name is the
+// new label for rename.
 type LANLinkClientAction struct {
 	ID       string `json:"id"`
 	ClientID string `json:"clientId"`
 	Action   string `json:"action"`
+	Name     string `json:"name,omitempty"`
 }
 
 type LANLinkClientStatus struct {
 	ID                string `json:"id"`
+	Name              string `json:"name,omitempty"`
 	Address           string `json:"address"`
 	PairingID         string `json:"pairingId"`
 	Online            bool   `json:"online"`
@@ -309,7 +343,11 @@ type LANLinkClientStatus struct {
 	RetryAt           int64  `json:"retryAt,omitempty"`
 	DialerEndpoint    string `json:"dialerEndpoint,omitempty"`
 	PublisherEndpoint string `json:"publisherEndpoint,omitempty"`
-	CreatedAt         int64  `json:"createdAt,omitempty"`
+	// PeerEndpoint is where the gateway sends this client's tunnel traffic,
+	// and Path tells whether that is a LAN or a public address.
+	PeerEndpoint string `json:"peerEndpoint,omitempty"`
+	Path         string `json:"path,omitempty"`
+	CreatedAt    int64  `json:"createdAt,omitempty"`
 }
 
 type LANLinkClients struct {

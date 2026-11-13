@@ -111,3 +111,39 @@ func ParseLANLinkRoutes(values []string) ([]netip.Prefix, error) {
 	}
 	return routes, nil
 }
+
+// LAN Link path kinds: how the data plane reaches the peer.
+const (
+	LANLinkPathLAN    = "lan"
+	LANLinkPathPublic = "public"
+)
+
+// LANLinkPathKind classifies a peer endpoint. onLink is set when the peer was
+// verified on a directly attached network.
+func LANLinkPathKind(addr netip.Addr, onLink bool) string {
+	addr = addr.Unmap()
+	if onLink || addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() {
+		return LANLinkPathLAN
+	}
+	return LANLinkPathPublic
+}
+
+// LANLinkStatus is the live state of one LAN Link pairing. It holds no secrets.
+type LANLinkStatus struct {
+	// PairingID identifies the pairing on the gateway.
+	PairingID string `json:"pairingId"`
+	// State is idle (not started yet), connecting or connected.
+	State string `json:"state"`
+	Error string `json:"error,omitempty"`
+	// Coordinator is the gateway address from the invitation.
+	Coordinator string `json:"coordinator,omitempty"`
+	// LocalIP and PeerIP are the tunnel addresses of this side and the peer.
+	LocalIP string `json:"localIp,omitempty"`
+	PeerIP  string `json:"peerIp,omitempty"`
+	// Listen is the local UDP address carrying the tunnel.
+	Listen string `json:"listen,omitempty"`
+	// PeerEndpoint is the UDP address the tunnel currently sends to, and Path
+	// says whether it is a LAN or a public address.
+	PeerEndpoint string `json:"peerEndpoint,omitempty"`
+	Path         string `json:"path,omitempty"`
+}

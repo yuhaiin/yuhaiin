@@ -9,6 +9,7 @@ import (
 	"time"
 
 	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/peerrendezvous"
@@ -81,7 +82,8 @@ func (s *ContractStore) lanLinkConfig(ctx context.Context, id string) (contract.
 	return config, config.Protocol.LANLink, nil
 }
 
-func (s *ContractStore) CreateLANLinkInvitation(ctx context.Context, id string) (contract.LANLinkInvitationResponse, error) {
+func (s *ContractStore) CreateLANLinkInvitation(ctx context.Context, request contract.LANLinkInvitationRequest) (contract.LANLinkInvitationResponse, error) {
+	id := request.ID
 	s.configMu.Lock()
 	defer s.configMu.Unlock()
 	if c, managed := secret.FromContext(ctx); managed && (!c.Reveal || !c.Manage) {
@@ -95,7 +97,7 @@ func (s *ContractStore) CreateLANLinkInvitation(ctx context.Context, id string) 
 	if running == nil {
 		return contract.LANLinkInvitationResponse{}, errors.New("enable the LAN Link gateway before generating an invitation")
 	}
-	client, err := gateway.AddClient(time.Now().Unix())
+	client, err := gateway.AddClient(time.Now().Unix(), request.Name)
 	if err != nil {
 		return contract.LANLinkInvitationResponse{}, err
 	}
@@ -112,7 +114,7 @@ func (s *ContractStore) CreateLANLinkInvitation(ctx context.Context, id string) 
 	if err := s.saveLANLinkConfig(ctx, config); err != nil {
 		return contract.LANLinkInvitationResponse{}, err
 	}
-	return contract.LANLinkInvitationResponse{Invitation: invitation, ClientID: client.ID, Address: addr.String()}, nil
+	return contract.LANLinkInvitationResponse{Invitation: invitation, ClientID: client.ID, Name: client.Name, Address: addr.String()}, nil
 }
 
 // RevokeLANLinkClient deletes a client. Its tunnel is closed before this
@@ -142,8 +144,9 @@ func (s *ContractStore) LANLinkClients(ctx context.Context, id string) (contract
 	result := contract.LANLinkClients{Subnet: gateway.Subnet, Items: make([]contract.LANLinkClientStatus, 0, len(gateway.Clients))}
 	running := s.lanLinkGateway(id)
 	var live map[string]peerrendezvous.PairStatus
+	var links map[string]transport.LANLinkStatus
 	if running != nil {
-		live = running.Clients()
+		live, links = running.Clients(), running.Links()
 		result.Running = true
 		result.PublicEndpoint, _ = running.Public()
 		result.PublicError = running.PublicError()
@@ -151,12 +154,15 @@ func (s *ContractStore) LANLinkClients(ctx context.Context, id string) (contract
 	for _, client := range gateway.Clients {
 		_, address, _ := gateway.Addresses(client.Slot)
 		item := contract.LANLinkClientStatus{
-			ID: client.ID, Address: address.String(), PairingID: client.PairingID(),
+			ID: client.ID, Name: client.Name, Address: address.String(), PairingID: client.PairingID(),
 			Blocked: client.Blocked, CreatedAt: client.CreatedAt,
 		}
 		state := live[item.PairingID]
 		item.DialerEndpoint, item.PublisherEndpoint = endpointString(state.Dialer), endpointString(state.Publisher)
 		item.Online = state.Dialer.IsValid() && !client.Blocked
+		if link := links[client.ID]; item.Online && link.PeerEndpoint != "" {
+			item.PeerEndpoint, item.Path = link.PeerEndpoint, link.Path
+		}
 		if !state.KickUntil.IsZero() {
 			item.RetryAt = state.KickUntil.UnixMilli()
 			item.Online = false
@@ -190,6 +196,13 @@ func (s *ContractStore) UpdateLANLinkClient(ctx context.Context, request contrac
 		return running.Kick(client.PairingID())
 	case "block", "unblock":
 		client.Blocked = request.Action == "block"
+		return s.saveLANLinkConfig(ctx, config)
+	case "rename":
+		name, err := contract.NormalizeLANLinkClientName(request.Name)
+		if err != nil {
+			return err
+		}
+		client.Name = name
 		return s.saveLANLinkConfig(ctx, config)
 	default:
 		return errors.New("unknown LAN Link client action")
