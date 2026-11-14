@@ -1,7 +1,6 @@
 package dialer
 
 import (
-	"net"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -47,11 +46,8 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 0)
 		// }
 
-		if opts.InterfaceName != "" {
-			host, _, _ := net.SplitHostPort(address)
-			if ip := net.ParseIP(host); ip != nil && !ip.IsGlobalUnicast() {
-				return
-			}
+		if opts.InterfaceName != "" && skipInterfaceBind(address) {
+			return
 		}
 
 		innerErr = BindInterface(network, fd, opts.InterfaceName)
