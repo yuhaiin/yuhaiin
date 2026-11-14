@@ -53,9 +53,7 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			}
 		}
 
-		host, _, _ := net.SplitHostPort(address)
-		ip := net.ParseIP(host)
-		if ip != nil && !ip.IsGlobalUnicast() {
+		if skipInterfaceBind(address) {
 			return
 		}
 
