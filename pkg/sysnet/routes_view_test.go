@@ -71,6 +71,33 @@ func TestSystemRoutesMarksYuhaiinRoutes(t *testing.T) {
 	}
 }
 
+func TestSystemRoutesMarksClonedTUNHostRoutes(t *testing.T) {
+	n := newTestNet(t, sysnet.Config{})
+	n.attach("a", 10, false, "198.18.0.0/16")
+	n.m.opts.ListRoutes = func() ([]netlink.RouteEntry, []netlink.PolicyRuleEntry, error) {
+		return []netlink.RouteEntry{
+			{Destination: netip.MustParsePrefix("198.18.0.0/16"), Link: 10},
+			{Destination: netip.MustParsePrefix("198.18.0.6/32"), Link: 10, Cloned: true},
+			// Cloned through another interface: not derived from the TUN route.
+			{Destination: netip.MustParsePrefix("198.18.0.30/32"), Gateway: netip.MustParseAddr("192.168.2.1"), Link: 2, Cloned: true},
+			// Not cloned: a host route someone else added on the TUN.
+			{Destination: netip.MustParsePrefix("198.18.0.40/32"), Link: 10},
+		}, nil, nil
+	}
+	v := n.m.SystemRoutes(t.Context())
+	if r := viewRoute(t, v, "198.18.0.6/32"); !r.Yuhaiin || r.Source != sysnet.SourceRequired || r.RuleName != "TUN a" {
+		t.Fatalf("cloned TUN route = %+v", r)
+	}
+	for _, dst := range []string{"198.18.0.30/32", "198.18.0.40/32"} {
+		if r := viewRoute(t, v, dst); r.Yuhaiin {
+			t.Fatalf("%s marked as Yuhaiin: %+v", dst, r)
+		}
+	}
+	if v.YuhaiinRoutes != 2 {
+		t.Fatalf("yuhaiin routes = %d", v.YuhaiinRoutes)
+	}
+}
+
 func TestSystemRoutesAndroid(t *testing.T) {
 	var list func() ([]netlink.RouteEntry, []netlink.PolicyRuleEntry, error)
 	m := New(Options{Capabilities: PlatformCapabilities("android", false, false),

@@ -93,6 +93,9 @@ func (m *Manager) SystemRoutes(context.Context) sysnet.SystemRoutes {
 			}
 		} else if o, ok := owned[e.Destination]; ok && o.link == e.Link && (e.Table == 0 || e.Table == yuhaiinTable) {
 			v.Yuhaiin, v.Source, v.RuleID = true, o.source, o.ruleID
+		} else if o, ok := clonedFrom(owned, e); ok {
+			// macOS clones a host route per destination from a TUN route.
+			v.Yuhaiin, v.Source, v.RuleID = true, o.source, o.ruleID
 		} else if e.Protocol == netlink.RouteProtocolYuhaiin {
 			v.Yuhaiin, v.Source = true, sysnet.SourceStale
 			if id, ok := tables[e.Table]; ok || e.Table == forward.TProxyTable {
@@ -118,6 +121,22 @@ func (m *Manager) SystemRoutes(context.Context) sysnet.SystemRoutes {
 		return cmp.Or(cmp.Compare(a.Family, b.Family), cmp.Compare(a.Priority, b.Priority))
 	})
 	return out
+}
+
+// clonedFrom returns the most specific owned route a kernel-cloned host
+// route was derived from: one on the same link that contains it.
+func clonedFrom(owned map[netip.Prefix]ownedRoute, e netlink.RouteEntry) (ownedRoute, bool) {
+	if !e.Cloned {
+		return ownedRoute{}, false
+	}
+	var best ownedRoute
+	bits := -1
+	for p, o := range owned {
+		if o.link == e.Link && p.Bits() > bits && p.Bits() <= e.Destination.Bits() && p.Contains(e.Destination.Addr()) {
+			best, bits = o, p.Bits()
+		}
+	}
+	return best, bits >= 0
 }
 
 // sortRoutes orders by table, family, then prefix: the default routes and

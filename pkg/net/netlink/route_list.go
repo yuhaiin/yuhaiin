@@ -21,6 +21,9 @@ type RouteEntry struct {
 	Interface string
 	// OwnVPN marks routes of this app's own VPN network (Android).
 	OwnVPN bool
+	// Cloned marks host routes the kernel derived from a broader route
+	// (macOS RTF_WASCLONED), e.g. per-destination entries of a TUN route.
+	Cloned bool
 }
 
 // AltListRoutes replaces reading the kernel routing table where apps may

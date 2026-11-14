@@ -40,7 +40,7 @@ func ListRoutes() ([]RouteEntry, []PolicyRuleEntry, error) {
 					}
 				}
 			}
-			e := RouteEntry{Destination: netip.PrefixFrom(dst, bits).Masked(), Link: r.Index, Type: "unicast"}
+			e := RouteEntry{Destination: netip.PrefixFrom(dst, bits).Masked(), Link: r.Index, Type: "unicast", Cloned: r.Flags&unix.RTF_WASCLONED != 0}
 			if r.Flags&unix.RTF_GATEWAY != 0 && len(r.Addrs) > syscall.RTAX_GATEWAY {
 				e.Gateway = darwinIP(r.Addrs[syscall.RTAX_GATEWAY])
 			}
