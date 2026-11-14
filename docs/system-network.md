@@ -139,6 +139,41 @@ pool changes, GeoIP updates, the shared network monitor (default-route
 changes) and a 3-second poll of interface identities, addresses and gateways,
 so rules follow interfaces that disappear, return or change index.
 
+## System routes view
+
+`GET /api/v2/system-network/routes` (`systemNetwork.routes`, settings read)
+returns the routing table the OS uses right now. It is read-only. The System
+Routes tab in the System Network page shows it, groups Linux routes by table,
+can filter to Yuhaiin's routes and lists the Linux policy rules. At most 5000
+routes are returned (`truncated` is set beyond that).
+
+Each route Yuhaiin owns has `yuhaiin: true`, a `source` and, where one
+applies, the rule it comes from (`ruleId`, `ruleName`):
+
+| source | meaning |
+|---|---|
+| `rule` | installed for a route rule |
+| `required` | keeps a TUN working (its subnet, FakeIP pools); the rule is the TUN inbound |
+| `forwarding` | in a forwarding table (6300+, or the TProxy table 6299) |
+| `vpn` | passed to the Android VPN for a route rule |
+| `stale` | carries Yuhaiin's mark but is not in the current configuration; removed on the next start |
+
+How a route is recognized: the manager remembers which rule each installed
+prefix belongs to and matches prefix and interface (on Linux, in table 63).
+On Linux, routes and policy rules Yuhaiin creates also carry the protocol
+number `0xa5`, which marks forwarding and left-over routes.
+On macOS the table comes from the routing socket (sysctl RIB) and on Windows
+from `GetIPForwardTable2`; neither has tables, so routes are listed flat.
+
+Android does not let apps read the kernel routing table (netlink dumps are
+denied). The app answers the `routes.list` host call with the routes of
+every network from `ConnectivityManager.getLinkProperties(network).routes`,
+flagging the networks of its own VPN (`NetworkCapabilities.ownerUid`, API 30+;
+before that, Android's single VPN is taken as Yuhaiin's). Routes of the
+Yuhaiin VPN are marked: those of a route rule as `vpn`, the rest as
+`required`. Policy rules are not available. An app without `routes.list`
+shows only the routes passed to the VPN (`readable: false`).
+
 ## Linux policy routing
 
 All rule and required routes go into one dedicated table, **63**, selected by

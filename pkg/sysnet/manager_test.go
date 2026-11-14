@@ -48,6 +48,8 @@ func (f *fakeRoutes) Close() error { f.closed = true; f.installed = nil; return 
 // lookup returns the link and gateway the installed routes send addr to,
 // using longest-prefix match like the kernel.
 func (f *fakeRoutes) lookup(addr string) (int, netip.Addr) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	a := netip.MustParseAddr(addr)
 	best, link, gw := -1, 0, netip.Addr{}
 	for _, r := range f.installed {

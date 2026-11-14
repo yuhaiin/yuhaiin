@@ -122,6 +122,7 @@ const (
 	v2SystemNetworkStatus       v2Endpoint = "systemNetwork.status"
 	v2SystemNetworkInterfaces   v2Endpoint = "systemNetwork.interfaces"
 	v2SystemNetworkPreview      v2Endpoint = "systemNetwork.preview"
+	v2SystemNetworkRoutes       v2Endpoint = "systemNetwork.routes"
 	v2NodePeerTunnelPeers       v2Endpoint = "nodes.peer_tunnel_peers"
 	v2NodesActive               v2Endpoint = "nodes.active"
 	v2NodeUse                   v2Endpoint = "node.use"
@@ -310,6 +311,7 @@ var v2Routes = []v2Route{
 	{v2SystemNetworkStatus, "GET /api/v2/system-network/status"},
 	{v2SystemNetworkInterfaces, "GET /api/v2/system-network/interfaces"},
 	{v2SystemNetworkPreview, "POST /api/v2/system-network/preview"},
+	{v2SystemNetworkRoutes, "GET /api/v2/system-network/routes"},
 	{v2InboundsPost, "POST /api/v2/inbounds"},
 	{v2InboundStatuses, "GET /api/v2/inbounds/status"},
 	{v2LANLinkInvite, "POST /api/v2/inbounds/{id}/lan-link/invite"},

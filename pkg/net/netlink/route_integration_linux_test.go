@@ -154,6 +154,30 @@ func TestLinuxSystemRoutesInNamespace(t *testing.T) {
 		}
 	}
 
+	// The routes view reads both tables and marks our routes and rules.
+	entries, rules, err := ListRoutes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ours := map[string]bool{}
+	for _, e := range entries {
+		if e.Table == tunRouteTable {
+			ours[e.Destination.String()] = e.Protocol == RouteProtocolYuhaiin
+		}
+	}
+	if !ours["8.8.8.0/24"] || !ours["2001:4860::/32"] || ours["203.0.113.0/24"] {
+		t.Fatalf("table %d in routes view = %v", tunRouteTable, ours)
+	}
+	ownedRules := 0
+	for _, r := range rules {
+		if r.Table == tunRouteTable && r.Protocol == RouteProtocolYuhaiin {
+			ownedRules++
+		}
+	}
+	if ownedRules != 2 {
+		t.Fatalf("policy rules in routes view = %+v", rules)
+	}
+
 	// Moving a prefix between targets replaces it in place.
 	desired[1] = SystemRoute{Prefix: netip.MustParsePrefix("8.8.8.0/24"), Link: tunB}
 	if _, err := m.Update(desired); err != nil {

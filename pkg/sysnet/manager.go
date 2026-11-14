@@ -73,11 +73,19 @@ type TunAttachment struct {
 
 // Options configure a Manager. Nil appliers mark features unsupported.
 type Options struct {
-	Routes       RouteApplier
-	Forward      ForwardApplier
-	GeoIP        policy.GeoIPSource
-	Interfaces   func() ([]iface.Info, error)
+	Routes     RouteApplier
+	Forward    ForwardApplier
+	GeoIP      policy.GeoIPSource
+	Interfaces func() ([]iface.Info, error)
+	// ListRoutes reads the OS routing table for the system routes view.
+	ListRoutes   func() ([]netlink.RouteEntry, []netlink.PolicyRuleEntry, error)
 	Capabilities sysnet.Capabilities
+}
+
+type ownedRoute struct {
+	link   int
+	ruleID string
+	source string
 }
 
 type generated struct {
@@ -101,6 +109,14 @@ type Manager struct {
 	closed bool
 	// platformApplied remembers what each platform TUN last received.
 	platformApplied map[string]string
+	// owned records, for the system routes view, which rule each installed
+	// route belongs to; platformRoutes what each platform TUN received and
+	// platformRule the rule of each of those prefixes;
+	// forwardTables which forwarding rule owns each Linux table.
+	owned          map[netip.Prefix]ownedRoute
+	platformRoutes map[string][]netip.Prefix
+	platformRule   map[netip.Prefix]string
+	forwardTables  map[int]string
 
 	pending  atomic.Bool
 	running  atomic.Bool
@@ -111,7 +127,11 @@ func New(opts Options) *Manager {
 	if opts.Interfaces == nil {
 		opts.Interfaces = iface.List
 	}
-	m := &Manager{opts: opts, tuns: map[string]TunAttachment{}, cache: map[string]generated{}, platformApplied: map[string]string{}}
+	if opts.ListRoutes == nil {
+		opts.ListRoutes = netlink.ListRoutes
+	}
+	m := &Manager{opts: opts, tuns: map[string]TunAttachment{}, cache: map[string]generated{}, platformApplied: map[string]string{},
+		owned: map[netip.Prefix]ownedRoute{}, platformRoutes: map[string][]netip.Prefix{}, platformRule: map[netip.Prefix]string{}, forwardTables: map[int]string{}}
 	m.status = sysnet.Status{State: sysnet.StatePending, Rules: []sysnet.RuleStatus{}, Capabilities: opts.Capabilities,
 		Forwarding: sysnet.ForwardingStatus{State: sysnet.StateDisabled, Rules: []sysnet.ForwardRuleStatus{}}}
 	return m
@@ -229,6 +249,7 @@ func (m *Manager) DetachTun(inboundID string) {
 	}
 	delete(m.tuns, inboundID)
 	delete(m.platformApplied, inboundID)
+	delete(m.platformRoutes, inboundID)
 	m.reconcileLocked("TUN " + inboundID + " detached")
 }
 
@@ -492,8 +513,10 @@ func (m *Manager) reconcileLocked(reason string) {
 
 	var desired []netlink.SystemRoute
 	owner := map[netip.Prefix]int{}
+	owned := map[netip.Prefix]ownedRoute{}
 	platform := map[string][]netip.Prefix{}
 	platformManaged := map[string]bool{}
+	platformRule := map[netip.Prefix]string{}
 	for i, a := range assignments {
 		info := infos[i]
 		routes := policy.Routes(a.Set)
@@ -510,9 +533,17 @@ func (m *Manager) reconcileLocked(reason string) {
 		if info.target.platform != nil {
 			platform[info.target.platformID] = append(platform[info.target.platformID], routes...)
 			platformManaged[info.target.platformID] = true
+			for _, p := range routes {
+				platformRule[p] = a.ID
+			}
 			continue
 		}
+		source, ruleID := sysnet.SourceRule, a.ID
+		if info.required != nil {
+			source, ruleID = sysnet.SourceRequired, info.required.InboundID
+		}
 		for _, p := range routes {
+			owned[p] = ownedRoute{link: info.target.link, ruleID: ruleID, source: source}
 			r := netlink.SystemRoute{Prefix: p, Link: info.target.link}
 			if p.Addr().Is4() {
 				r.Gateway = info.target.gateway
@@ -562,7 +593,10 @@ func (m *Manager) reconcileLocked(reason string) {
 			continue
 		}
 		m.platformApplied[id] = fingerprint
+		m.platformRoutes[id] = slices.Clone(routes)
 	}
+	// A fresh map each reconcile, so SystemRoutes may read it unlocked.
+	m.platformRule = platformRule
 	for _, info := range infos {
 		if info.status == nil || info.status.State != sysnet.StatePending {
 			continue
@@ -578,6 +612,9 @@ func (m *Manager) reconcileLocked(reason string) {
 		default:
 			info.status.State = sysnet.StateActive
 		}
+	}
+	if applyErr == nil {
+		m.owned = owned
 	}
 	if applyErr != nil {
 		status.State, status.Error = sysnet.StateFailed, applyErr.Error()
@@ -728,6 +765,10 @@ func (m *Manager) applyForwarding(ifaces []iface.Info, routeRules []sysnet.RuleS
 		fs.Rules = append(fs.Rules, rs)
 	}
 	plan.Links = forwardLinks(ifaces, routeRules, m.tuns)
+	m.forwardTables = map[int]string{}
+	for i, r := range plan.Rules {
+		m.forwardTables[forward.FirstTable+i] = r.ID
+	}
 	err := m.opts.Forward.Apply(plan)
 	fs.IPv4, fs.IPv6 = cfg.IPv4, cfg.IPv6
 	switch {

@@ -176,3 +176,52 @@ type SaveResult struct {
 	Config Config `json:"config"`
 	Status Status `json:"status"`
 }
+
+// Route sources of Yuhaiin routes.
+const (
+	SourceRule       = "rule"       // a route rule
+	SourceRequired   = "required"   // a running TUN's requirement (FakeIP pool, subnet)
+	SourceForwarding = "forwarding" // a forwarding rule's table
+	SourceVPN        = "vpn"        // passed to the Android VPN
+	SourceStale      = "stale"      // carries Yuhaiin's marker but no longer desired
+)
+
+// SystemRoutes is a read-only view of the operating system routing table,
+// with routes Yuhaiin owns marked.
+type SystemRoutes struct {
+	Platform string `json:"platform"`
+	// Readable is false where apps cannot read the routing table (Android);
+	// Routes then lists what Yuhaiin passed to the platform VPN.
+	Readable bool `json:"readable"`
+	// Total is the number of routes before truncation to Routes.
+	Total         int                `json:"total"`
+	Truncated     bool               `json:"truncated,omitzero"`
+	YuhaiinRoutes int                `json:"yuhaiinRoutes"`
+	Routes        []SystemRouteEntry `json:"routes"`
+	Rules         []SystemPolicyRule `json:"rules"`
+	Error         string             `json:"error,omitzero"`
+}
+
+type SystemRouteEntry struct {
+	Destination    string `json:"destination"`
+	Gateway        string `json:"gateway,omitzero"`
+	Interface      string `json:"interface,omitzero"`
+	InterfaceIndex int    `json:"interfaceIndex,omitzero"`
+	Table          int    `json:"table,omitzero"`
+	Metric         int    `json:"metric,omitzero"`
+	Type           string `json:"type,omitzero"`
+	// Yuhaiin is set for routes this process owns; Source and RuleID say why.
+	Yuhaiin  bool   `json:"yuhaiin"`
+	Source   string `json:"source,omitzero"`
+	RuleID   string `json:"ruleId,omitzero"`
+	RuleName string `json:"ruleName,omitzero"`
+}
+
+// SystemPolicyRule is a Linux policy routing rule.
+type SystemPolicyRule struct {
+	Priority int    `json:"priority"`
+	Family   int    `json:"family"`
+	Selector string `json:"selector"`
+	Table    int    `json:"table"`
+	Yuhaiin  bool   `json:"yuhaiin"`
+}
