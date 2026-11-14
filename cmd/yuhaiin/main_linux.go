@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
@@ -19,28 +18,9 @@ import (
 )
 
 func init() {
-	dialer.DefaultRoutingMark = device.Mark
-
-	var disabledMark bool
-	dialer.DefaultMarkSymbol = func(socket int32) bool {
-		if disabledMark {
-			return false
-		}
-
-		err := dialer.LinuxMarkSymbol(socket, device.Mark)
-		if err != nil {
-			if errors.Is(err, syscall.EPERM) {
-				log.Info("check mark symbol no permission, disable it")
-				disabledMark = true
-				return false
-			}
-
-			log.Error("check mark symbol failed", "err", err)
-		}
-
-		return err == nil
+	if err := dialer.InstallMarkProtector(uint32(device.Mark)); err != nil {
+		log.Warn("outbound sockets fall back to interface binding", "err", err)
 	}
-
 }
 
 const systemdServiceTemplate = `[Unit]

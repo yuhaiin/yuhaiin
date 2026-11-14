@@ -9,6 +9,7 @@ import (
 	contractsysnet "github.com/Asutorufa/yuhaiin/pkg/contract/sysnet"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/platformvpn"
 	"github.com/Asutorufa/yuhaiin/pkg/route"
@@ -30,6 +31,9 @@ func newSystemNetwork(lists *route.Lists) *sysnet.Manager {
 	}
 	if forward.Supported() {
 		opts.Forward = forward.New()
+	}
+	if scoped := netlink.NewScopedRouteManager(func(name string) bool { return dialer.SkipInterface().Has(name) }); scoped != nil {
+		opts.Scoped = scoped
 	}
 	opts.Capabilities = sysnet.PlatformCapabilities(runtime.GOOS, opts.Routes != nil, opts.Forward != nil)
 	m := sysnet.New(opts)

@@ -105,9 +105,10 @@ func routesFromMessages(msgs []route.Message, ifaces map[int]Interface) router {
 			// Interface-scoped routes only apply after the caller chooses that
 			// interface. Flattening them into this trie can replace the global
 			// default with an unrelated tunnel, especially for IPv6.
-			if msg.Flags&unix.RTF_IFSCOPE != 0 || churnRoute(msg.Flags) {
+			if churnRoute(msg.Flags) {
 				continue
 			}
+			scoped := msg.Flags&unix.RTF_IFSCOPE != 0
 			if len(msg.Addrs) < 3 {
 				continue
 			}
@@ -156,6 +157,14 @@ func routesFromMessages(msgs []route.Message, ifaces map[int]Interface) router {
 			}
 			prefix := netip.PrefixFrom(ip, bits)
 
+			if scoped {
+				// Only attached networks: a scoped default or gateway route
+				// says nothing about reachability outside that scope.
+				if bits > 0 && msg.Flags&unix.RTF_GATEWAY == 0 {
+					ret.scoped = append(ret.scoped, rtInfo{Dst: prefix, OutputIface: iface.Name})
+				}
+				continue
+			}
 			if ip.Is4() {
 				ret.v4 = append(ret.v4, rtInfo{Dst: prefix, OutputIface: iface.Name, Gateway: gateway})
 			} else {

@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"net"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -124,19 +125,26 @@ func TestEchoOnceCancelled(t *testing.T) {
 }
 
 func TestApplyPingSocketOptions(t *testing.T) {
-	called := false
-	err := applyPingSocketOptions("udp4", 5, "", func(fd int32) bool {
-		called = true
-		return false
-	})
-	if !called {
-		t.Fatal("mark/protect callback was not invoked")
+	called := 0
+	dialer.SetSocketProtector(&dialer.SocketProtector{Method: "test", Protect: func(int32) error {
+		called++
+		return errors.New("denied")
+	}})
+	oldSkip := dialer.SkipInterface
+	t.Cleanup(func() { dialer.SetSocketProtector(nil); dialer.SkipInterface = oldSkip })
+
+	// No TUN of ours: an unprotected echo cannot loop.
+	dialer.SkipInterface = func() *set.Set[string] { return set.NewSet[string]() }
+	if err := applyPingSocketOptions("udp4", 5, ""); err != nil {
+		t.Fatalf("protect failure without own TUN: %v", err)
 	}
-	if runtime.GOOS == "android" && err == nil {
-		t.Fatal("Android protect failure must stop ping")
+	// With our TUN up the failure stops the ping.
+	dialer.SkipInterface = func() *set.Set[string] { s := set.NewSet[string](); s.Push("utun9"); return s }
+	if err := applyPingSocketOptions("udp4", 5, ""); !errors.Is(err, dialer.ErrUnprotected) {
+		t.Fatalf("protect failure with own TUN: got %v, want ErrUnprotected", err)
 	}
-	if runtime.GOOS != "android" && err != nil {
-		t.Fatalf("unexpected platform mark failure: %v", err)
+	if called != 2 {
+		t.Fatalf("protector called %d times, want 2", called)
 	}
 }
 

@@ -8,11 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime"
 	"syscall"
 	"time"
 
-	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"golang.org/x/net/icmp"
@@ -78,7 +76,7 @@ func (d *direct) Ping(ctx context.Context, addr netapi.Address) (uint64, error) 
 	}
 	defer conn.Close()
 
-	if err := configurePingSocket(conn, network, iface, dialer.DefaultMarkSymbol); err != nil {
+	if err := configurePingSocket(conn, network, iface); err != nil {
 		return 0, fmt.Errorf("ping %v: configure ICMP socket: %w", addr, err)
 	}
 
@@ -185,7 +183,7 @@ func matchesEchoReply(proto int, packet []byte, src net.Addr, dst *net.UDPAddr, 
 	return ok && echo.Seq == seq && bytes.Equal(echo.Data, token)
 }
 
-func configurePingSocket(conn *icmp.PacketConn, network, iface string, mark func(int32) bool) error {
+func configurePingSocket(conn *icmp.PacketConn, network, iface string) error {
 	var pc net.PacketConn
 	if network == "udp4" {
 		pc = conn.IPv4PacketConn().PacketConn
@@ -202,7 +200,7 @@ func configurePingSocket(conn *icmp.PacketConn, network, iface string, mark func
 	}
 	var optionErr error
 	err = raw.Control(func(fd uintptr) {
-		optionErr = applyPingSocketOptions(network, fd, iface, mark)
+		optionErr = applyPingSocketOptions(network, fd, iface)
 	})
 	if err != nil {
 		return err
@@ -210,20 +208,13 @@ func configurePingSocket(conn *icmp.PacketConn, network, iface string, mark func
 	return optionErr
 }
 
-func applyPingSocketOptions(network string, fd uintptr, iface string, mark func(int32) bool) error {
+func applyPingSocketOptions(network string, fd uintptr, iface string) error {
 	if iface != "" {
 		if err := dialer.BindInterface(network, fd, iface); err != nil {
 			return fmt.Errorf("bind to interface %q: %w", iface, err)
 		}
 	}
-	if mark != nil && !mark(int32(fd)) {
-		// On Android this is VpnService.protect(fd). Sending anyway can loop
-		// the packet into our own TUN. Linux SO_MARK historically allows a
-		// permission-denied fallback, so don't change that policy here.
-		if runtime.GOOS == "android" {
-			return errors.New("VpnService.protect failed")
-		}
-		log.Warn("ping socket mark failed", "interface", iface)
-	}
-	return nil
+	// Android: VpnService.protect(fd); Linux: SO_MARK. Sending unprotected
+	// while our TUN is up could loop the echo into it.
+	return dialer.ProtectRawSocket(fd)
 }

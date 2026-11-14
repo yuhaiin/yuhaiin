@@ -177,7 +177,12 @@ shows only the routes passed to the VPN (`readable: false`).
 ## Linux policy routing
 
 All rule and required routes go into one dedicated table, **63**, selected by
-one policy rule per family (`30001` IPv4, `30002` IPv6) ahead of `main`. The
+one policy rule per family (`30001` IPv4, `30002` IPv6) ahead of `main`:
+`not fwmark 0x500 lookup 63`. Packets carrying the Socket Protection mark
+skip the table (see [Outbound socket routing](#outbound-socket-routing)); a
+rule of ours from an older version without the mark exclusion is replaced on
+the next update, and another program's rule at the same priority is reported
+as a conflict, never replaced. The
 table may hold routes to many interfaces at once; prefixes are unique by
 construction. The System Network Manager is the only owner of the table and
 the two rules — TUNs no longer add or remove them.
@@ -195,10 +200,87 @@ rolls back what the update added or changed, so the previous routes stay in
 effect. Failed deletions are retried. Stopping removes every owned route and
 the policy rules.
 
-Yuhaiin's own connections bind to the default interface, so routes towards a
-TUN do not loop. Because table 63 is consulted before `main`, a global rule
-on Linux also captures LAN destinations; use non_private or bypass CIDRs to
-keep them local.
+Yuhaiin's own connections carry the mark and are routed by `main`, so routes
+towards a TUN do not loop and need no interface binding. Because table 63 is
+consulted before `main`, a global rule on Linux also captures other
+applications' LAN destinations; use non_private or bypass CIDRs to keep them
+local.
+
+## Outbound socket routing
+
+Route rules decide where **other applications'** traffic goes. Sockets
+Yuhaiin opens for its own outbound traffic (proxies, DNS upstreams, QUIC,
+Hysteria 2, WireGuard, MASQUE, VPN clients, audit delivery, ping) must never
+enter Yuhaiin's own TUN, whatever the route rules say. Two separate mechanisms
+handle that:
+
+- **Socket Protection** keeps the socket out of the TUN.
+- **Egress Selection** decides which interface it leaves through: by default
+  the one the OS routing table would use for the destination, never the TUN.
+  A configured network interface means "use exactly this interface" and is
+  the only reason a socket is pinned regardless of destination.
+
+```text
+Applications ──> OS routing ──> route rules ──> Yuhaiin TUN / WireGuard / physical NIC
+
+Yuhaiin proxy / DNS / QUIC / HY2 ──> Socket Protection ──> Egress Selection ──> physical or other NIC
+                                         (never the TUN)
+```
+
+| Platform | Protection | Egress Selection |
+|---|---|---|
+| Linux | `SO_MARK 0x500` excluded by the TUN policy rule | the kernel routes each packet (`main` table); sockets stay unbound |
+| macOS | `IP_BOUND_IF` / `IPV6_BOUND_IF` to the chosen interface | the OS route for the destination with the TUN excluded; interface-scoped defaults (`RTF_IFSCOPE`) keep bound sockets routable |
+| Windows | `IP_UNICAST_IF` / `IPV6_UNICAST_IF` to the chosen interface | longest prefix, then lowest route + interface metric, TUN excluded |
+| Android | `VpnService.protect(fd)` plus Android Network binding | the platform's underlying network |
+
+While no Yuhaiin TUN is up, sockets are neither marked into a different path
+nor bound: they follow the OS routing table like any other program.
+
+**Linux.** Setting `SO_MARK` needs `CAP_NET_ADMIN`. Yuhaiin probes it once at
+start. Without it the status is *degraded*: sockets fall back to the
+interface binding used on macOS and Windows (correct, but each UDP flow then
+uses one interface per destination socket). A marked packet that finds no
+route in `main` fails with `ENETUNREACH`; it can never fall back into table
+63. If `main` itself routes a destination through the TUN, the nftables
+SkipMark rule (`mark 0x500 oif <tun> reject`) rejects it instead of letting it
+loop. The forwarding rules (priorities 28999–29999) match on the input
+interface only and are not affected; the TProxy mark `0x5953` is unrelated.
+Listener sockets are marked too, so replies to clients leave through the
+physical network, but are never bound.
+
+**macOS.** A bound socket uses only routes scoped to its interface or, on the
+primary interface, the global default. macOS installs a scoped default for
+every non-primary interface with a router. When a VPN takes over the global
+default, the former primary can be left with neither; Yuhaiin then installs a
+scoped default (`default <router> ifscope <if>`) from the router it last saw
+on that interface, only while the interface keeps the same addresses. Existing
+scoped defaults are borrowed and never changed. Yuhaiin deletes only routes
+it created, after checking the routing table still holds them with its
+gateway, and removes them all when it stops. An interface without a known
+router reaches only its directly attached networks.
+
+**UDP with many destinations.** Where protection binds sockets (macOS,
+Windows, Linux without `SO_MARK`), a direct UDP relay keeps one socket per
+egress interface and picks it per datagram, so one flow can reach the
+Internet through Ethernet and a LAN through Wi-Fi. Loopback and link-local
+destinations are never bound. On Linux with the mark one socket serves every
+destination.
+
+The **Outbound** tab of the System Network page shows the method, the policy
+rules (Linux), the egress chosen for Internet destinations, every interface
+with its gateway, default-route metric and scoped defaults (macOS), and any
+problem. It is read from `GET /api/v2/system-network/outbound`
+(`settings:read`), which changes nothing.
+
+Yuhaiin adds these OS objects for outbound routing, and removes them on stop:
+
+| Platform | Object | Owner check | Cleanup |
+|---|---|---|---|
+| Linux | rules `30001`/`30002` `not fwmark 0x500 lookup 63` | protocol `0xa5`, priority, table | deleted with the System Network Manager; stale ones replaced on start |
+| Linux | nftables `mark 0x500 oif <tun> reject` (SkipMark) | Yuhaiin's table | deleted with the TUN |
+| macOS | `default <router> ifscope <if>` routes | gateway, interface index, `RTF_IFSCOPE` | deleted when no longer needed and on stop |
+| Windows | none: sockets are bound, routes are not changed | | |
 
 ## Forwarding and NAT
 
@@ -382,6 +464,30 @@ manager with the Linux adapters) and the gated kernel tests, then checks:
 
 It prints PASS / FAIL / SKIP for each check and exits non-zero on any
 failure; skipped checks are never counted as passed.
+
+### Outbound routing checks
+
+Linux (as root, in fresh network namespaces; host routes are never changed):
+
+```sh
+CGO_ENABLED=0 go test -c -o dialer.test ./pkg/net/dialer
+CGO_ENABLED=0 go test -c -o netlink.test ./pkg/net/netlink
+sudo YUHAIIN_TEST_TUN_ROUTES=1 ./dialer.test -test.run TestRouting -test.v
+sudo YUHAIIN_TEST_TUN_ROUTES=1 ./netlink.test -test.run 'TestLinux' -test.v
+```
+
+They build two NICs and a TUN table, and assert from each interface's transmit
+counter where marked and unmarked UDP/TCP (IPv4 and IPv6) actually left.
+
+macOS, with a UDP echo reachable through a second interface (for example a
+local VM: `socat UDP-LISTEN:9999,fork EXEC:cat`):
+
+```sh
+YUHAIIN_TEST_MACOS_EGRESS_PEER=10.211.55.6:9999 go test -run TestMacOSEgress ./pkg/net/dialer
+```
+
+One relay conn must get answers both from 8.8.8.8 (through the primary
+interface, bypassing a running TUN) and from the peer (through the second).
 
 ## macOS checks
 

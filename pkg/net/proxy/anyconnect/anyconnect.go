@@ -169,6 +169,7 @@ func Dial(ctx context.Context, cfg Config) (client.Session, client.Result, error
 		Password: cfg.Password,
 		BaseMTU:  cfg.MTU,
 		NoDTLS:   cfg.NoDTLS,
+		DialUDP:  dtlsDialer(cfg.DialContext),
 		Logger:   logger,
 	})
 
@@ -274,4 +275,13 @@ func (s *session) Close() error {
 	err := s.engine.Close()
 	s.tun.Close()
 	return err
+}
+
+// dtlsDialer opens the DTLS socket through the same dialer as the TLS
+// control connection, so both are protected from Yuhaiin's own TUN.
+func dtlsDialer(dial func(context.Context, string, string) (net.Conn, error)) func(context.Context, string) (net.Conn, error) {
+	if dial == nil {
+		return nil
+	}
+	return func(ctx context.Context, address string) (net.Conn, error) { return dial(ctx, "udp", address) }
 }

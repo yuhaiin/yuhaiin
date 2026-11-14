@@ -30,15 +30,15 @@ var KeepAliveConfig = net.KeepAliveConfig{
 	Count:    9,
 }
 
+// ListenContext opens an inbound listener. Listeners are protected (so replies
+// to clients leave through the physical network, never our TUN) but are never
+// bound to an egress interface.
 func ListenContext(ctx context.Context, network string, address string) (net.Listener, error) {
-	return ListenContextWithOptions(ctx, network, address, &Options{
-		InterfaceName: DefaultInterfaceName(),
-		MarkSymbol:    DefaultMarkSymbol,
-		listener:      true,
-	})
+	return ListenContextWithOptions(ctx, network, address, &Options{listener: true})
 }
 
 func ListenContextWithOptions(ctx context.Context, network string, address string, opts *Options) (net.Listener, error) {
+	opts.listener = true
 	config := &net.ListenConfig{
 		KeepAliveConfig: KeepAliveConfig,
 		Control: func(network, address string, c syscall.RawConn) error {
@@ -50,10 +50,7 @@ func ListenContextWithOptions(ctx context.Context, network string, address strin
 }
 
 func DialTCPContext(ctx context.Context, address netip.AddrPort, opts ...func(*Options)) (*TCPConn, error) {
-	opt := &Options{
-		InterfaceName: DefaultInterfaceName(),
-		MarkSymbol:    DefaultMarkSymbol,
-	}
+	opt := &Options{}
 
 	for _, o := range opts {
 		o(opt)
@@ -62,8 +59,44 @@ func DialTCPContext(ctx context.Context, address netip.AddrPort, opts ...func(*O
 	return DialTCPContextWithOptions(ctx, address, opt)
 }
 
+// SkipInterface lists our own TUN interfaces. Sockets are never bound to
+// them, and their presence means unprotected sockets could loop.
 var SkipInterface = func() *set.Set[string] {
 	return set.NewSet[string]()
+}
+
+// prepareEgress resolves the interface a new outbound socket is bound to
+// (opts.InterfaceName, "" for none) and records it in the context.
+func prepareEgress(ctx context.Context, opts *Options, dst netip.Addr) error {
+	explicit := explicitInterface(netapi.GetContext(ctx).ConnOptions().BindInterface(), opts.InterfaceName)
+	iface, err := resolveEgress(explicit, dst, markProtects())
+	if err != nil {
+		return err
+	}
+	opts.InterfaceName = iface
+	opts.egressDst = dst
+	opts.explicit = explicit != ""
+	opts.pathInterface = pathInterface(iface, dst)
+	netapi.GetContext(ctx).SetInterface(opts.pathInterface)
+	return nil
+}
+
+// pathInterface is the interface a socket's traffic actually uses, for
+// network lifecycle tracking: the bound one, or for an unbound socket the one
+// the OS routes its destination (or, without one, the default) through.
+func pathInterface(bound string, dst netip.Addr) string {
+	if bound != "" {
+		return bound
+	}
+	if dst.IsValid() && dst.Unmap().IsGlobalUnicast() {
+		if c, ok := selectRoute(dst.Unmap(), isOwnTun); ok {
+			return c.Interface
+		}
+	}
+	if name := defaultInterface(); !isOwnTun(name) {
+		return name
+	}
+	return ""
 }
 
 func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts *Options) (*TCPConn, error) {
@@ -76,9 +109,8 @@ func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts
 	if native != nil {
 		ctx = native.ctx
 	}
-	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
-	if iface != "" {
-		opts.InterfaceName = iface
+	if err := prepareEgress(ctx, opts, address.Addr()); err != nil {
+		return nil, err
 	}
 
 	d := &net.Dialer{
@@ -87,13 +119,7 @@ func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts
 		// Go stdlib from enabling TCP keepalives by default.
 		KeepAlive:       -1,
 		KeepAliveConfig: KeepAliveConfig,
-		// This method is called after the underlying network socket is created,
-		// but before dialing the socket (or calling its connect() method). The
-		// combination of unconditionally enabling TCP keepalives here, and
-		// disabling the overriding of TCP keepalive parameters by setting the
-		// KeepAlive field to a negative value above, results in OS defaults for
-		// the TCP keealive interval and time parameters.
-		LocalAddr: opts.LocalAddr,
+		LocalAddr:       opts.LocalAddr,
 		Control: func(network, address string, c syscall.RawConn) error {
 			if err := setSocketOptions(network, address, c, opts); err != nil {
 				return err
@@ -104,25 +130,7 @@ func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts
 
 	d.SetMultipathTCP(false)
 
-	store := netapi.GetContext(ctx)
-
-	if opts.InterfaceName != "" {
-		if SkipInterface().Has(opts.InterfaceName) {
-			return nil, fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %s", iface, address)
-		}
-
-		store.SetInterface(opts.InterfaceName)
-	} else {
-		iface, err := getInterface(address)
-		if err != nil {
-			return nil, err
-		}
-
-		opts.InterfaceName = iface
-		store.SetInterface(iface)
-	}
-
-	before := dialPath(netstate.Default, opts.InterfaceName, localIP(opts.LocalAddr), address.Addr())
+	before := dialPath(netstate.Default, opts.pathInterface, localIP(opts.LocalAddr), address.Addr())
 	if native != nil {
 		before = netstate.Path{}
 	}
@@ -138,24 +146,6 @@ func DialTCPContextWithOptions(ctx context.Context, address netip.AddrPort, opts
 	return trackTCP(netstate.Default, raw, before, opts.networkID)
 }
 
-func getInterface(address netip.AddrPort) (string, error) {
-	return GetInterfaceByIP(address.Addr().AsSlice())
-}
-
-func GetInterfaceByIP(ip net.IP) (string, error) {
-	iface, ok := interfaces.DefaultRouter().SearchIP(ip)
-	if ok && !SkipInterface().Has(iface) {
-		return iface, nil
-	}
-
-	iface = interfaces.DefaultInterfaceName()
-	if SkipInterface().Has(iface) {
-		return "", fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %v", iface, ip)
-	}
-
-	return iface, nil
-}
-
 func WithListener() func(*Options) {
 	return func(opts *Options) {
 		opts.listener = true
@@ -163,10 +153,7 @@ func WithListener() func(*Options) {
 }
 
 func ListenPacket(ctx context.Context, network, address string, opts ...func(*Options)) (net.PacketConn, error) {
-	opt := &Options{
-		InterfaceName: DefaultInterfaceName(),
-		MarkSymbol:    DefaultMarkSymbol,
-	}
+	opt := &Options{}
 
 	for _, o := range opts {
 		o(opt)
@@ -181,23 +168,12 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 	opts.networkID = ""
 	var native *nativeBinding
 	defer func() { native.close() }()
-	iface := netapi.GetContext(ctx).ConnOptions().BindInterface()
-	if iface != "" {
-		opts.InterfaceName = iface
-	}
 
 	lc := &net.ListenConfig{
 		// Setting a negative value here prevents the Go stdlib from overriding
-		// the values of TCP keepalive time and interval. It also prevents the
-		// Go stdlib from enabling TCP keepalives by default.
+		// the values of TCP keepalive time and interval.
 		KeepAlive:       -1,
 		KeepAliveConfig: KeepAliveConfig,
-		// This method is called after the underlying network socket is created,
-		// but before dialing the socket (or calling its connect() method). The
-		// combination of unconditionally enabling TCP keepalives here, and
-		// disabling the overriding of TCP keepalive parameters by setting the
-		// KeepAlive field to a negative value above, results in OS defaults for
-		// the TCP keealive interval and time parameters.
 		Control: func(network, address string, c syscall.RawConn) error {
 			if err := setSocketOptions(network, address, c, opts); err != nil {
 				return err
@@ -208,30 +184,16 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 
 	lc.SetMultipathTCP(false)
 
-	store := netapi.GetContext(ctx)
-
-	if opts.InterfaceName != "" {
-		if SkipInterface().Has(opts.InterfaceName) {
-			return nil, fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %s", iface, opts.PacketConnHintAddress)
+	if !opts.listener {
+		// A listen-style outbound socket may send anywhere; its egress is
+		// chosen from the destination hint, or the default route without one.
+		var dst netip.Addr
+		if opts.PacketConnHintAddress != nil {
+			dst = localIP(opts.PacketConnHintAddress)
 		}
-
-		store.SetInterface(opts.InterfaceName)
-	} else if opts.PacketConnHintAddress != nil {
-		iface, err := GetInterfaceByIP(opts.PacketConnHintAddress.IP)
-		if err != nil {
+		if err := prepareEgress(ctx, opts, dst); err != nil {
 			return nil, err
 		}
-
-		opts.InterfaceName = iface
-		store.SetInterface(iface)
-	} else {
-		iface = interfaces.DefaultInterfaceName()
-		if SkipInterface().Has(iface) {
-			return nil, fmt.Errorf("block dial to skip infinite loop: iface: %s, addr: %v", iface, opts.PacketConnHintAddress)
-		}
-
-		opts.InterfaceName = iface
-		store.SetInterface(iface)
 	}
 
 	var family uint8
@@ -244,10 +206,14 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 	case "udp6":
 		family = 6
 	}
-	before := netstate.Default.Capture(opts.InterfaceName, netip.Addr{}, family)
+	before := netstate.Default.Capture(opts.pathInterface, netip.Addr{}, family)
 	bindNative := !opts.listener
 	if hint := opts.PacketConnHintAddress; hint != nil && !localIP(hint).IsGlobalUnicast() {
+		// A socket for loopback or link-local peers belongs to no network:
+		// a change of the default network must not invalidate it.
 		bindNative = false
+		before = netstate.Path{}
+		opts.untracked = true
 	}
 	if host, _, err := net.SplitHostPort(address); err == nil {
 		if ip, err := netip.ParseAddr(host); err == nil && !ip.IsUnspecified() && !ip.IsGlobalUnicast() {
@@ -288,12 +254,6 @@ func ListenPacketWithOptions(ctx context.Context, network, address string, opts 
 	return pc, nil
 }
 
-var (
-	DefaultInterfaceName = func() string { return "" }
-	DefaultRoutingMark   = 0 // maybe need root permission
-	DefaultMarkSymbol    func(socket int32) bool
-)
-
 type Options struct {
 	networkID string // actual native binding, populated only by Control
 	// OnNetworkInvalidated replaces automatic UDP socket closure for owners
@@ -302,18 +262,24 @@ type Options struct {
 	OnNetworkInvalidated func()
 	LocalAddr            net.Addr
 
-	// RoutingMark is the mark for each packet sent through this
-	// socket. Changing the mark can be used for mark-based routing
-	// without netfilter or for packet filtering.
-	MarkSymbol func(socket int32) bool
-
-	// PacketConnHintAddress to detect default interface
+	// PacketConnHintAddress is the first destination of a listen-style UDP
+	// socket; Egress Selection picks its interface from it.
 	PacketConnHintAddress *net.UDPAddr
 
-	// InterfaceName is the name of interface/device to bind.
-	// If a socket is bound to an interface, only packets received
-	// from that particular interface are processed by the socket.
+	// InterfaceName pins the socket to this interface ("use exactly this
+	// one"). Left empty, Egress Selection decides; after preparation it
+	// holds the chosen interface, or "" when the socket stays unbound.
 	InterfaceName string
+
+	// egressDst is the destination the egress was chosen for, and explicit
+	// whether InterfaceName came from the caller or configuration.
+	egressDst netip.Addr
+	explicit  bool
+	// pathInterface is the interface tracked for network changes (the
+	// bound one, or the routed one for unbound sockets); untracked sockets
+	// talk to scoped peers and follow no network path.
+	pathInterface string
+	untracked     bool
 
 	listener          bool
 	tryUpgradeToBatch bool
@@ -339,7 +305,10 @@ func isUDPSocket(network string) bool {
 
 func GetDefaultInterfaceAddress(v6 bool) (net.IP, error) {
 	var iface *net.Interface
-	name := DefaultInterfaceName()
+	name := ConfiguredInterface()
+	if name == "" {
+		name = interfaces.DefaultInterfaceName()
+	}
 	if name != "" {
 		var err error
 		iface, err = net.InterfaceByName(name)

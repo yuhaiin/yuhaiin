@@ -9,7 +9,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 )
 
-var Mark = 0x00000500
+// Mark is the Socket Protection mark; see netlink.SocketProtectionMark.
+var Mark = netlink.SocketProtectionMark
 
 type Driver string
 

@@ -17,10 +17,6 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 
 	var innerErr error
 	err = c.Control(func(fd uintptr) {
-		if opts.MarkSymbol != nil {
-			opts.MarkSymbol(int32(fd))
-		}
-
 		if opts.listener {
 			// Set up to *mem_max
 			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_RCVBUF, SocketBufferSize)
@@ -29,28 +25,8 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			// Set beyond *mem_max if CAP_NET_ADMIN
 			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_RCVBUFFORCE, SocketBufferSize)
 			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_SNDBUFFORCE, SocketBufferSize)
-
-			return
 		}
-
-		// if isTCPSocket(network) {
-		// https://github.com/golang/go/issues/48622
-		/*
-			TCP_KEEPIDLE=180
-			TCP_KEEPINTVL=15
-			TCP_KEEPCNT=2
-		*/
-		// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, int(15))
-		// _ = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, int(180))
-		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
-		// _ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 0)
-		// }
-
-		if opts.InterfaceName != "" && skipInterfaceBind(address) {
-			return
-		}
-
-		innerErr = BindInterface(network, fd, opts.InterfaceName)
+		innerErr = applySocketRouting(network, address, fd, opts)
 	})
 
 	if innerErr != nil {

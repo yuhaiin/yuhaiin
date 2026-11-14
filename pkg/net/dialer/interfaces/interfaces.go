@@ -390,10 +390,31 @@ func updateDefaultRouter(routes router) {
 	}
 	// Remember metadata and ordering changes too, so the next identical
 	// snapshot takes the allocation-free equality path. Reuse the holder.
+	if lastPublishedRoutes == nil || !lastPublishedRoutes.equal(routes) {
+		snapshot := routes
+		publishedRoutes.Store(&snapshot)
+	}
 	if lastPublishedRoutes == nil {
 		lastPublishedRoutes = new(router)
 	}
 	*lastPublishedRoutes = routes
+}
+
+// publishedRoutes is the route snapshot behind DefaultRouter, kept as a list
+// so lookups can exclude interfaces (our own TUN) the trie cannot skip.
+var publishedRoutes atomic.Pointer[router]
+
+// SelectRoute returns the route the OS would use for dst among interfaces
+// exclude does not reject: the longest prefix, then the lowest metric.
+func SelectRoute(dst netip.Addr, exclude func(string) bool) (RouteChoice, bool) {
+	r := publishedRoutes.Load()
+	if r == nil {
+		DefaultRouter()
+		if r = publishedRoutes.Load(); r == nil {
+			return RouteChoice{}, false
+		}
+	}
+	return r.selectRoute(dst, exclude)
 }
 
 type networkMonitorCloser func()
@@ -582,7 +603,25 @@ func DefaultRouter() *cidr.Cidr[string] {
 
 	trie := rs.ToTrie()
 	if defaultrouter.CompareAndSwap(nil, trie) {
+		publishedRoutes.CompareAndSwap(nil, &rs)
 		return trie
 	}
 	return defaultrouter.Load()
 }
+
+// DefaultRoutes lists the default routes of the published snapshot (macOS:
+// unscoped only).
+func DefaultRoutes() []RouteChoice {
+	r := publishedRoutes.Load()
+	if r == nil {
+		DefaultRouter()
+		if r = publishedRoutes.Load(); r == nil {
+			return nil
+		}
+	}
+	return r.defaults()
+}
+
+// Refresh rereads interfaces, routes and the default route now, as a network
+// change notification would.
+func Refresh(reason string) error { return reGetDefaultInterface(reason) }

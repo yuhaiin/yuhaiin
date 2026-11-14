@@ -78,8 +78,18 @@ type Options struct {
 	GeoIP      policy.GeoIPSource
 	Interfaces func() ([]iface.Info, error)
 	// ListRoutes reads the OS routing table for the system routes view.
-	ListRoutes   func() ([]netlink.RouteEntry, []netlink.PolicyRuleEntry, error)
+	ListRoutes func() ([]netlink.RouteEntry, []netlink.PolicyRuleEntry, error)
+	// Scoped keeps macOS interface-scoped default routes for protected
+	// sockets; nil elsewhere.
+	Scoped       ScopedRoutes
 	Capabilities sysnet.Capabilities
+}
+
+// ScopedRoutes is netlink.ScopedRouteManager.
+type ScopedRoutes interface {
+	Reconcile() error
+	Routes() ([]netlink.ScopedRoute, error)
+	Close() error
 }
 
 type ownedRoute struct {
@@ -307,6 +317,10 @@ func (m *Manager) Close() error {
 	if m.opts.Routes != nil {
 		err = errors.Join(err, m.opts.Routes.Close())
 	}
+	// After the TUN routes: protected sockets keep working until the end.
+	if m.opts.Scoped != nil {
+		err = errors.Join(err, m.opts.Scoped.Close())
+	}
 	return err
 }
 
@@ -440,6 +454,13 @@ type candidateInfo struct {
 func (m *Manager) reconcileLocked(reason string) {
 	if m.closed {
 		return
+	}
+	// Scoped defaults first: they keep Yuhaiin's own sockets working before
+	// TUN routes take the global default.
+	if m.opts.Scoped != nil {
+		if err := m.opts.Scoped.Reconcile(); err != nil {
+			log.Warn("interface-scoped default routes", "err", err, "reason", reason)
+		}
 	}
 	caps := m.opts.Capabilities
 	ifaces, ifaceErr := m.opts.Interfaces()

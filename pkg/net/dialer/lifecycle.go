@@ -162,7 +162,10 @@ func trackTCP(m *netstate.Manager, raw *net.TCPConn, before netstate.Path, netwo
 }
 
 func trackUDP(m *netstate.Manager, raw *net.UDPConn, opts *Options, before netstate.Path, family uint8) (*UDPConn, error) {
-	p := m.Capture(opts.InterfaceName, localIP(raw.LocalAddr()), family)
+	p := m.Capture(opts.pathInterface, localIP(raw.LocalAddr()), family)
+	if opts.untracked {
+		p = netstate.Path{}
+	}
 	if opts.networkID != "" {
 		p = m.CaptureNetwork(opts.networkID, localIP(raw.LocalAddr()), family)
 	}
@@ -205,11 +208,7 @@ func DialUDPContext(ctx context.Context, remote netip.AddrPort) (*net.UDPConn, e
 // DialUDPContextWithPath also hands the creation token to the native owner,
 // closing the gap between a completed connect syscall and owner registration.
 func DialUDPContextWithPath(ctx context.Context, remote netip.AddrPort) (*net.UDPConn, netstate.Path, error) {
-	iface, err := getInterface(remote)
-	if err != nil {
-		return nil, netstate.Path{}, err
-	}
-	opt := &Options{InterfaceName: iface, MarkSymbol: DefaultMarkSymbol}
+	opt := &Options{}
 	var native *nativeBinding
 	if remote.Addr().IsGlobalUnicast() {
 		native = newNativeBinding(ctx, addressFamily(remote.Addr()))
@@ -218,7 +217,10 @@ func DialUDPContextWithPath(ctx context.Context, remote netip.AddrPort) (*net.UD
 	if native != nil {
 		ctx = native.ctx
 	}
-	p := dialPath(netstate.Default, iface, netip.Addr{}, remote.Addr())
+	if err := prepareEgress(ctx, opt, remote.Addr()); err != nil {
+		return nil, netstate.Path{}, err
+	}
+	p := dialPath(netstate.Default, opt.pathInterface, netip.Addr{}, remote.Addr())
 	if native != nil {
 		p = netstate.Path{}
 	}

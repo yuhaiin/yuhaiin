@@ -12,6 +12,9 @@
 #                                                   └──up2── Upstream 2
 #
 # Usage: scripts/integration/system-network-podman.sh
+#   SYSNET_PREBUILT=DIR uses sysnettest, netlink.test, forward.test and
+#   dialer.test already built in DIR (CGO_ENABLED=0, GOOS=linux) instead of
+#   building them, for hosts without Go.
 # Results are PASS, FAIL or SKIP; the script exits non-zero on any FAIL and
 # never reports a check it could not run as passed.
 set -uo pipefail
@@ -37,7 +40,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for tool in podman go jq; do
+PREBUILT=${SYSNET_PREBUILT:-}
+TOOLS="podman jq"
+[ -n "$PREBUILT" ] || TOOLS="$TOOLS go"
+for tool in $TOOLS; do
 	command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 2; }
 done
 if ! podman info >/dev/null 2>&1; then
@@ -50,13 +56,21 @@ host_state() { ip rule show 2>/dev/null; ip route show table 63 2>/dev/null; cat
 HOST_STATE=$(host_state)
 log "podman $(podman --version | awk '{print $3}'), rootless=$ROOTLESS"
 
-log "build test binaries"
-(
-	cd "$ROOT" &&
-		CGO_ENABLED=0 go build -o "$WORK/sysnettest" ./internal/sysnettest &&
-		CGO_ENABLED=0 go test -c -o "$WORK/netlink.test" ./pkg/net/netlink &&
-		CGO_ENABLED=0 go test -c -o "$WORK/forward.test" ./pkg/sysnet/forward
-) || { echo "build failed" >&2; exit 1; }
+if [ -n "$PREBUILT" ]; then
+	log "use prebuilt test binaries from $PREBUILT"
+	for b in sysnettest netlink.test forward.test dialer.test; do
+		cp "$PREBUILT/$b" "$WORK/" || { echo "missing $PREBUILT/$b" >&2; exit 1; }
+	done
+else
+	log "build test binaries"
+	(
+		cd "$ROOT" &&
+			CGO_ENABLED=0 go build -o "$WORK/sysnettest" ./internal/sysnettest &&
+			CGO_ENABLED=0 go test -c -o "$WORK/netlink.test" ./pkg/net/netlink &&
+			CGO_ENABLED=0 go test -c -o "$WORK/forward.test" ./pkg/sysnet/forward &&
+			CGO_ENABLED=0 go test -c -o "$WORK/dialer.test" ./pkg/net/dialer
+	) || { echo "build failed" >&2; exit 1; }
+fi
 cp "$ROOT/pkg/net/trie/maxminddb/testdata/countries.mmdb" "$WORK/"
 mkdir -p "$WORK/router"
 
@@ -112,6 +126,19 @@ if out=$(R env YUHAIIN_TEST_TUN_ROUTES=1 YUHAIIN_TEST_ISOLATED_CONTAINER=1 /work
 	pass "route manager: add/delete, ownership, gateway, stale cleanup, external route preserved, interface removal"
 else
 	fail "route manager kernel test" "$(tail -5 <<<"$out")"
+fi
+if out=$(R env YUHAIIN_TEST_TUN_ROUTES=1 YUHAIIN_TEST_ISOLATED_CONTAINER=1 /work/netlink.test -test.run 'TestLinuxPolicyRule' -test.v 2>&1) && grep -q -- '--- PASS' <<<"$out" && ! grep -q -- '--- FAIL' <<<"$out"; then
+	pass "TUN policy rule: mark exclusion, migration of an unmarked rule, foreign rule preserved"
+else
+	fail "TUN policy rule kernel test" "$(tail -5 <<<"$out")"
+fi
+# Outbound socket routing: each test builds two NICs and a TUN table in a
+# fresh namespace nested in the router, and checks which interface really
+# transmitted marked and unmarked UDP/TCP.
+if out=$(R env YUHAIIN_TEST_TUN_ROUTES=1 /work/dialer.test -test.run 'TestRouting' -test.v 2>&1) && grep -q -- '--- PASS' <<<"$out" && ! grep -q -- '--- FAIL' <<<"$out"; then
+	pass "outbound sockets: marked UDP/TCP per destination on two NICs, never the TUN; SO_MARK fallback; explicit interface"
+else
+	fail "outbound socket routing kernel test" "$(grep -E -- '--- FAIL|_test.go' <<<"$out" | tail -5)"
 fi
 if out=$(R env YUHAIIN_TEST_ISOLATED_CONTAINER=1 /work/forward.test -test.run 'TestKernelForwardingLifecycle' -test.v 2>&1) && grep -q -- '--- PASS' <<<"$out"; then
 	pass "forwarding manager: nftables table, foreign table preserved, policy rules, sysctl restore"

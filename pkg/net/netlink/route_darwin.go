@@ -115,10 +115,16 @@ func useSocket(domain, typ, proto int, block func(socketFd int) error) error {
 }
 
 func writeRoute(destination netip.Prefix, gateway netip.Addr, operation int, index int) error {
+	return writeRouteFlags(destination, gateway, operation, index, 0)
+}
+
+// writeRouteFlags writes a route message with extra flags, such as
+// RTF_IFSCOPE for a route that only sockets bound to index use.
+func writeRouteFlags(destination netip.Prefix, gateway netip.Addr, operation int, index int, flags int) error {
 	routeMessage := route.RouteMessage{
 		Type:    operation,
 		Index:   index,
-		Flags:   unix.RTF_UP | unix.RTF_STATIC | unix.RTF_GATEWAY,
+		Flags:   unix.RTF_UP | unix.RTF_STATIC | unix.RTF_GATEWAY | flags,
 		Version: unix.RTM_VERSION,
 		Seq:     1,
 	}
@@ -132,7 +138,7 @@ func writeRoute(destination netip.Prefix, gateway netip.Addr, operation int, ind
 		routeMessage.Addrs = []route.Addr{
 			syscall.RTAX_DST:     &route.Inet6Addr{IP: destination.Addr().As16()},
 			syscall.RTAX_NETMASK: &route.Inet6Addr{IP: netip.MustParseAddr(net.IP(net.CIDRMask(destination.Bits(), 128)).String()).As16()},
-			syscall.RTAX_GATEWAY: &route.Inet6Addr{IP: gateway.As16()},
+			syscall.RTAX_GATEWAY: &route.Inet6Addr{IP: gateway.As16(), ZoneID: zoneIndex(gateway, index)},
 		}
 	}
 	request, err := routeMessage.Marshal()
@@ -143,6 +149,20 @@ func writeRoute(destination netip.Prefix, gateway netip.Addr, operation int, ind
 		_, err := unix.Write(socketFd, request)
 		return err
 	})
+}
+
+// zoneIndex is the scope of a link-local IPv6 next hop: its own zone, or the
+// route's interface.
+func zoneIndex(gateway netip.Addr, index int) int {
+	if !gateway.IsLinkLocalUnicast() {
+		return 0
+	}
+	if z := gateway.Zone(); z != "" {
+		if i, err := net.InterfaceByName(z); err == nil {
+			return i.Index
+		}
+	}
+	return index
 }
 
 func setAddress(ifaceName string, address netip.Prefix) error {

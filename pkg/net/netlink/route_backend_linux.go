@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"reflect"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -16,6 +15,13 @@ import (
 // Linux system routes live in one dedicated table, consulted by one policy
 // rule per family ahead of the main table. The table may hold routes to
 // several interfaces: the policy engine guarantees each prefix has one target.
+//
+// The rule matches only packets without the Socket Protection mark
+// ("not fwmark 0x500 lookup 63"): sockets Yuhaiin opens for its own outbound
+// traffic carry the mark, skip the table and are routed by the main table as
+// if no TUN existed. They can never reach the TUN table through a fallback;
+// if the main table itself routes them to our TUN, the nftables SkipMark rule
+// rejects them instead of letting them loop.
 const (
 	tunRouteTable = 63
 	// routeProtocol marks routes this process installs (rtm_protocol), so a
@@ -155,12 +161,29 @@ func policyRule(f int) *netlink.Rule {
 	r.Table = tunRouteTable
 	r.Family = f
 	r.Protocol = RouteProtocolYuhaiin
+	r.Mark = SocketProtectionMark
+	r.Mask = new(uint32(0xffffffff))
+	r.Invert = true
 	return r
 }
 
+// ownRule reports whether existing is a policy rule this program installed at
+// want's priority, in the current or an older (unmarked) shape.
+func ownRule(existing netlink.Rule, want *netlink.Rule) bool {
+	return existing.Priority == want.Priority && existing.Table == want.Table && existing.Protocol == want.Protocol
+}
+
+func sameRule(existing netlink.Rule, want *netlink.Rule) bool {
+	if !ownRule(existing, want) || existing.Mark != want.Mark || existing.Invert != want.Invert {
+		return false
+	}
+	return existing.Mask != nil && want.Mask != nil && *existing.Mask == *want.Mask
+}
+
 // ensureRule installs the family's policy rule once. A matching existing rule
-// (for example from a crashed run) is reused; a different rule at the same
-// priority belongs to someone else and is reported instead of replaced.
+// (for example from a crashed run) is reused, and an older unmarked rule of
+// ours is replaced; a different rule at the same priority belongs to someone
+// else and is reported instead of replaced.
 func (b *linuxRouteBackend) ensureRule(f int) error {
 	if b.rules[f] {
 		return nil
@@ -174,13 +197,18 @@ func (b *linuxRouteBackend) ensureRule(f int) error {
 		if existing.Priority != want.Priority {
 			continue
 		}
-		existing.Protocol = want.Protocol
-		if reflect.DeepEqual(existing, *want) {
-			// Created by this program before (same table and priority).
+		if sameRule(existing, want) {
 			b.rules[f] = true
 			return nil
 		}
-		return fmt.Errorf("policy rule priority %d is already used by another program", want.Priority)
+		if !ownRule(existing, want) {
+			return fmt.Errorf("policy rule priority %d is already used by another program", want.Priority)
+		}
+		// Ours from a version without Socket Protection: it would send our
+		// own marked sockets into the TUN, so replace it.
+		if err := netlink.RuleDel(&existing); err != nil && !errors.Is(err, unix.ENOENT) {
+			return fmt.Errorf("replace old policy rule: %w", err)
+		}
 	}
 	if err := netlink.RuleAdd(want); err != nil {
 		return fmt.Errorf("add policy rule: %w", err)

@@ -42,6 +42,11 @@ type PolicyRuleEntry struct {
 // RouteProtocolYuhaiin is the rtm_protocol of routes and rules Yuhaiin owns.
 const RouteProtocolYuhaiin = 0xa5
 
+// SocketProtectionMark is the Linux SO_MARK carried by sockets Yuhaiin opens
+// for its own outbound traffic. The TUN policy rule excludes it, so those
+// sockets never route into Yuhaiin's TUN. It is distinct from the TProxy mark.
+const SocketProtectionMark = 0x500
+
 // ErrRouteListUnsupported is returned where apps cannot read the routing
 // table (Android).
 var ErrRouteListUnsupported = errors.New("this platform does not allow reading the routing table")

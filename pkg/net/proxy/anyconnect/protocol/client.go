@@ -57,7 +57,11 @@ type ClientConfig struct {
 	BaseMTU int
 	// NoDTLS keeps the tunnel on TLS even when the server offers a UDP channel.
 	NoDTLS bool
-	Logger *vlog.Logger
+	// DialUDP opens the DTLS channel's socket. Embedders pass their own
+	// dialer so the socket is protected like the TLS connection; nil uses an
+	// unprotected net.DialUDP.
+	DialUDP func(ctx context.Context, address string) (net.Conn, error)
+	Logger  *vlog.Logger
 }
 
 // Client is a running AnyConnect tunnel over one TLS connection: it
@@ -131,7 +135,7 @@ func (c *Client) StartDTLS() {
 	if !c.dtlsParams.Enabled || c.cfg.NoDTLS {
 		return
 	}
-	ch, err := dialDTLS(c.conn, c.dtlsParams, dtlsHandshakeTimeout)
+	ch, err := dialDTLS(c.conn, c.dtlsParams, dtlsHandshakeTimeout, c.cfg.DialUDP)
 	if err != nil {
 		c.logger.Printf("anyconnect: DTLS unavailable, staying on TLS: %v", err)
 		return

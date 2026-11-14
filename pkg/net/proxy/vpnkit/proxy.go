@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -121,8 +122,27 @@ func EndpointDialer(up netapi.Proxy) func(context.Context, string, string) (net.
 		if IsChained(up) {
 			return up.Conn(ctx, address)
 		}
+		if strings.HasPrefix(network, "udp") {
+			// A datagram channel (DTLS): a connected UDP socket through the
+			// protected dialer, never a TCP connection.
+			return dialEndpointUDP(ctx, address)
+		}
 		return dialer.DialHappyEyeballsv1(ctx, address)
 	}
+}
+
+func dialEndpointUDP(ctx context.Context, address netapi.Address) (net.Conn, error) {
+	var target netip.AddrPort
+	if address.IsFqdn() {
+		ips, err := netapi.ResolverIP(ctx, address.Hostname())
+		if err != nil {
+			return nil, err
+		}
+		target = ips.RandUDPAddr(address.Port()).AddrPort()
+	} else {
+		target = address.(netapi.IPAddress).AddrPort()
+	}
+	return dialer.DialUDPContext(ctx, target)
 }
 func (c *Client) Conn(ctx context.Context, addr netapi.Address) (net.Conn, error) {
 	conn, err := c.tcp.DialHappyEyeballsv2(ctx, addr)

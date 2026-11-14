@@ -8,6 +8,8 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"io"
 	"net"
 	"net/http"
@@ -55,7 +57,7 @@ func (sender networkAuditSender) send(ctx context.Context, cfg auditConfiguratio
 		req.Header.Set("Authorization", "Bearer "+cfg.token)
 	}
 	// No redirects, environment proxies, credentials in URL, or remote body logs.
-	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: sender.roots}, DisableKeepAlives: true}
+	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: sender.roots}, DisableKeepAlives: true, DialContext: auditDial}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Timeout: 5 * time.Second, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(req)
@@ -77,9 +79,15 @@ func sendAuditSyslog(ctx context.Context, cfg auditConfiguration, records []Audi
 	if port == "" {
 		port = "6514"
 	}
-	dialer := tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: &tls.Config{MinVersion: tls.VersionTLS12, ServerName: endpoint.Hostname(), RootCAs: roots}}
-	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(endpoint.Hostname(), port))
+	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	raw, err := auditDial(dialCtx, "tcp", net.JoinHostPort(endpoint.Hostname(), port))
 	if err != nil {
+		return auditDeliveryError("delivery_unavailable")
+	}
+	conn := tls.Client(raw, &tls.Config{MinVersion: tls.VersionTLS12, ServerName: endpoint.Hostname(), RootCAs: roots})
+	if err := conn.HandshakeContext(dialCtx); err != nil {
+		_ = raw.Close()
 		return auditDeliveryError("delivery_unavailable")
 	}
 	defer conn.Close()
@@ -104,4 +112,14 @@ func sendAuditSyslog(ctx context.Context, cfg auditConfiguration, records []Audi
 		}
 	}
 	return nil
+}
+
+// auditDial connects through Yuhaiin's dialer, so audit delivery is protected
+// from Yuhaiin's own TUN like every other outbound socket.
+func auditDial(ctx context.Context, network, address string) (net.Conn, error) {
+	addr, err := netapi.ParseAddress(network, address)
+	if err != nil {
+		return nil, err
+	}
+	return dialer.DialHappyEyeballsv2(ctx, addr)
 }

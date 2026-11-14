@@ -53,12 +53,7 @@ func setSocketOptions(network, address string, c syscall.RawConn, opts *Options)
 			}
 		}
 
-		if skipInterfaceBind(address) {
-			return
-		}
-
-		innerErr = BindInterface(network, fd, opts.InterfaceName)
-
+		innerErr = applySocketRouting(network, address, fd, opts)
 	})
 
 	if innerErr != nil {
@@ -87,26 +82,27 @@ func BindInterface(network string, fd uintptr, ifaceName string) error {
 			ifaceIndex = iface.Index
 		}
 	}
-
-	var err error
-
-	if ifaceIndex != 0 {
-		switch network {
-		case "ip4", "tcp4", "udp4":
-			err = bindSocketToInterface4(windows.Handle(fd), uint32(ifaceIndex))
-		case "ip6", "tcp6", "udp6":
-			err = bindSocketToInterface6(windows.Handle(fd), uint32(ifaceIndex))
-			// if network == "udp6" && ip == nil {
-			if network == "udp6" {
-				// The underlying IP net maybe IPv4 even if the `network` param is `udp6`,
-				// so we should bind socket to interface4 at the same time.
-				er := bindSocketToInterface4(windows.Handle(fd), uint32(ifaceIndex))
-				if er != nil {
-					err = errors.Join(err, er)
-				}
-			}
-		}
+	if ifaceIndex == 0 {
+		return nil
 	}
 
-	return err
+	handle := windows.Handle(fd)
+	switch network {
+	case "ip4", "tcp4", "udp4":
+		return bindSocketToInterface4(handle, uint32(ifaceIndex))
+	case "ip6", "tcp6", "udp6", "ip", "tcp", "udp":
+		// A family-less network is a dual-stack AF_INET6 socket (or AF_INET
+		// where IPv6 is off). IPv4 traffic of a dual-stack socket, including
+		// IPv4-mapped destinations, follows IP_UNICAST_IF, so set both.
+		err6 := bindSocketToInterface6(handle, uint32(ifaceIndex))
+		err4 := bindSocketToInterface4(handle, uint32(ifaceIndex))
+		if err6 != nil && err4 != nil {
+			return errors.Join(err6, err4)
+		}
+		if err6 != nil && network != "ip" && network != "tcp" && network != "udp" {
+			return err6
+		}
+		return nil
+	}
+	return nil
 }

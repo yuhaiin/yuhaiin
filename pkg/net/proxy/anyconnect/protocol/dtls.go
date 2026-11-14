@@ -1,6 +1,7 @@
 package anyconnect
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -70,7 +71,7 @@ type dtlsChannel struct {
 // dialDTLS brings up the UDP data channel against the server the TLS connection
 // is already talking to. A failure here is not fatal to the tunnel: the caller
 // keeps running on TLS, which is what the protocol expects when UDP is blocked.
-func dialDTLS(tlsConn net.Conn, p DTLSParams, timeout time.Duration) (*dtlsChannel, error) {
+func dialDTLS(tlsConn net.Conn, p DTLSParams, timeout time.Duration, dial func(context.Context, string) (net.Conn, error)) (*dtlsChannel, error) {
 	psk, err := dtlsPSK(tlsConn)
 	if err != nil {
 		return nil, err
@@ -79,11 +80,20 @@ func dialDTLS(tlsConn net.Conn, p DTLSParams, timeout time.Duration) (*dtlsChann
 	if err != nil {
 		return nil, fmt.Errorf("anyconnect: server address: %w", err)
 	}
-	raddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, strconv.Itoa(p.Port)))
-	if err != nil {
-		return nil, fmt.Errorf("anyconnect: resolving the DTLS endpoint: %w", err)
+	address := net.JoinHostPort(host, strconv.Itoa(p.Port))
+	var udp net.Conn
+	if dial != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		udp, err = dial(ctx, address)
+		cancel()
+	} else {
+		var raddr *net.UDPAddr
+		raddr, err = net.ResolveUDPAddr("udp", address)
+		if err != nil {
+			return nil, fmt.Errorf("anyconnect: resolving the DTLS endpoint: %w", err)
+		}
+		udp, err = net.DialUDP("udp", nil, raddr)
 	}
-	udp, err := net.DialUDP("udp", nil, raddr)
 	if err != nil {
 		return nil, fmt.Errorf("anyconnect: dialling the DTLS endpoint: %w", err)
 	}

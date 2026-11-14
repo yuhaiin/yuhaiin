@@ -175,10 +175,19 @@ func (a *App) Start(opt *Opts) error {
 	// Socket protection and Network binding are installed with the core, not
 	// with the VPN: the VPN is created later, on demand, and the adapters
 	// return "no VPN" results while it is down.
-	dialer.DefaultMarkSymbol = nil
+	dialer.SetSocketProtector(nil)
 	dialer.SocketNetworkBinder = nil
 	if opt.TUN != nil && opt.TUN.SocketProtect != nil {
-		dialer.DefaultMarkSymbol = opt.TUN.SocketProtect.Protect
+		protect := opt.TUN.SocketProtect
+		dialer.SetSocketProtector(&dialer.SocketProtector{
+			Method: "VpnService.protect",
+			Protect: func(fd int32) error {
+				if !protect.Protect(fd) {
+					return errors.New("VpnService.protect returned false")
+				}
+				return nil
+			},
+		})
 	}
 	if opt.TUN != nil && opt.TUN.SocketBind != nil {
 		bind := opt.TUN.SocketBind

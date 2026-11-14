@@ -16,6 +16,9 @@ type SystemNetworkController interface {
 	Interfaces(context.Context) (contractsysnet.Interfaces, error)
 	Preview(context.Context, contractsysnet.Config) contractsysnet.Preview
 	SystemRoutes(context.Context) contractsysnet.SystemRoutes
+	// OutboundRouting is the read-only state of Socket Protection and
+	// Egress Selection for Yuhaiin's own sockets.
+	OutboundRouting(context.Context) contractsysnet.OutboundRouting
 }
 
 func addSystemNetworkRPCRoutes(handlers *v2Handlers, services V2Services) {
@@ -26,6 +29,7 @@ func addSystemNetworkRPCRoutes(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SystemNetworkInterfaces, api.systemNetworkInterfaces)
 	addRPCRoute(handlers, v2SystemNetworkPreview, api.previewSystemNetwork)
 	addRPCRoute(handlers, v2SystemNetworkRoutes, api.systemNetworkRoutes)
+	addRPCRoute(handlers, v2SystemNetworkOutbound, api.systemNetworkOutbound)
 }
 
 func (a v2API) systemNetwork() (SystemNetworkController, error) {
@@ -96,4 +100,13 @@ func (a v2API) systemNetworkRoutes(ctx context.Context, _ *emptyRequest) (*contr
 	}
 	routes := m.SystemRoutes(ctx)
 	return &routes, nil
+}
+
+func (a v2API) systemNetworkOutbound(ctx context.Context, _ *emptyRequest) (*contractsysnet.OutboundRouting, error) {
+	m, err := a.systemNetwork()
+	if err != nil {
+		return nil, err
+	}
+	status := m.OutboundRouting(ctx)
+	return &status, nil
 }

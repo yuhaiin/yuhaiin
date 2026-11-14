@@ -62,28 +62,36 @@ func (d *direct) PacketConn(ctx context.Context, addr netapi.Address) (net.Packe
 		network = "udp"
 	}
 
-	p, err := dialer.ListenPacket(ctx, network, bindAddr,
-		func(o *dialer.Options) {
-			if d.iface != "" {
-				o.InterfaceName = d.iface
-			}
+	options := func(o *dialer.Options) {
+		if d.iface != "" {
+			o.InterfaceName = d.iface
+		}
 
-			// if bind address is not empty, we will use it
-			// skip use hint address
-			if bindAddr != "" || (addr.Hostname() == "" && addr.Port() == 0) {
-				return
-			}
+		// if bind address is not empty, we will use it
+		// skip use hint address
+		if bindAddr != "" || (addr.Hostname() == "" && addr.Port() == 0) {
+			return
+		}
 
-			if !addr.IsFqdn() {
-				o.PacketConnHintAddress = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
-				return
-			}
+		if !addr.IsFqdn() {
+			o.PacketConnHintAddress = net.UDPAddrFromAddrPort(addr.(netapi.IPAddress).AddrPort())
+			return
+		}
 
-			ur, err := netapi.ResolverIP(ctx, addr.Hostname())
-			if err == nil {
-				o.PacketConnHintAddress = ur.RandUDPAddr(addr.Port())
-			}
-		})
+		ur, err := netapi.ResolverIP(ctx, addr.Hostname())
+		if err == nil {
+			o.PacketConnHintAddress = ur.RandUDPAddr(addr.Port())
+		}
+	}
+	var p net.PacketConn
+	var err error
+	if bindAddr == "" {
+		// A relay may send to many destinations: on platforms that bind
+		// sockets to keep them out of our TUN, each egress gets its own.
+		p, err = dialer.ListenPacketEgress(ctx, network, options)
+	} else {
+		p, err = dialer.ListenPacket(ctx, network, bindAddr, options)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("listen packet failed: %w", err)
 	}

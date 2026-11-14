@@ -113,6 +113,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2SystemNetworkInterfaces: managementpermission.SettingsRead,
 	v2SystemNetworkPreview:    managementpermission.SettingsRead,
 	v2SystemNetworkRoutes:     managementpermission.SettingsRead,
+	v2SystemNetworkOutbound:   managementpermission.SettingsRead,
 	v2SystemNetworkConfigPut:  managementpermission.SettingsWrite,
 	v2InboundConfigGet:        managementpermission.InboundsRead,
 	v2InboundsGet:             managementpermission.InboundsRead,

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
-	"github.com/Asutorufa/yuhaiin/pkg/net/dialer/interfaces"
 	"github.com/Asutorufa/yuhaiin/pkg/paths"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
@@ -67,15 +65,15 @@ func (c *SettingsController) Apply(settings contractsettings.Settings) {
 
 	sysproxy.Update(systemHTTPHost(settings), systemSocks5Host(settings))
 
-	defaultInterfaceName := settings.NetInterface
-	useDefaultInterface := settings.UseDefaultInterface
-	if useDefaultInterface && runtime.GOOS != "android" {
-		dialer.DefaultInterfaceName = func() string { return "" }
-	} else if defaultInterfaceName == "default" {
-		dialer.DefaultInterfaceName = interfaces.DefaultInterfaceName
-	} else {
-		dialer.DefaultInterfaceName = func() string { return defaultInterfaceName }
+	// A concrete interface name pins every outbound socket to it. "default"
+	// and "use the system default" leave the choice to Egress Selection,
+	// which follows the OS routing table and only binds where that is what
+	// keeps sockets out of our TUN.
+	configuredInterface := settings.NetInterface
+	if settings.UseDefaultInterface || configuredInterface == "default" {
+		configuredInterface = ""
 	}
+	dialer.ConfiguredInterface = func() string { return configuredInterface }
 
 	configuration.IPv6.Store(settings.IPv6)
 	setPprofEnabled(settings.Pprof)
