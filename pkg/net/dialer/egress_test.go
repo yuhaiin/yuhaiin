@@ -288,9 +288,7 @@ func TestEgressPacketConnConcurrent(t *testing.T) {
 	}
 	var wg sync.WaitGroup
 	for i := range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			dst := "8.8.8.8:53"
 			if i%2 == 0 {
 				dst = "192.168.20.9:53"
@@ -301,7 +299,7 @@ func TestEgressPacketConnConcurrent(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	go func() {
 		buf := make([]byte, 8)

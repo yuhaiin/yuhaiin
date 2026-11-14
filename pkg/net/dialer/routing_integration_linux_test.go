@@ -59,7 +59,7 @@ func routingNamespace(t *testing.T) {
 
 func addDummy(t *testing.T, name string, addrs ...string) vnl.Link {
 	t.Helper()
-	if err := vnl.LinkAdd(&vnl.Dummy{LinkAttrs: vnl.LinkAttrs{Name: name}}); err != nil {
+	if err := vnl.LinkAdd(&vnl.Dummy{Name: name}); err != nil {
 		t.Fatal(err)
 	}
 	link, err := vnl.LinkByName(name)
