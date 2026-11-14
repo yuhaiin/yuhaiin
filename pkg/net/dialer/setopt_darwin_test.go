@@ -27,7 +27,7 @@ func TestSetSocketOptionsBindsWildcardUDP(t *testing.T) {
 		// Family-less network: Go opens a dual-stack AF_INET6 socket even
 		// for 0.0.0.0, which the old network-name switch left unbound.
 		{"udp", ":0", syscall.IPPROTO_IPV6, syscall.IPV6_BOUND_IF},
-		{"udp", "0.0.0.0:0", syscall.IPPROTO_IPV6, syscall.IPV6_BOUND_IF},	} {
+		{"udp", "0.0.0.0:0", syscall.IPPROTO_IPV6, syscall.IPV6_BOUND_IF}} {
 		t.Run(tc.network+"/"+tc.address, func(t *testing.T) {
 			opts := &Options{InterfaceName: lo.Name}
 			lc := net.ListenConfig{Control: func(network, address string, c syscall.RawConn) error {
