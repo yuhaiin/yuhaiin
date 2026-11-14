@@ -5,6 +5,8 @@ c2sp.org/CCTV/age v0.0.0-20260829155415-4448f2097b2d/go.mod h1:SrHC2C7r5GkDk8R+N
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 codeberg.org/miekg/dns v0.6.132 h1:aZCritc6R8RwUv+S6m+JunIFbY2wQ/zGFyLZZ8n5lCY=
 codeberg.org/miekg/dns v0.6.132/go.mod h1:CRdTEkDK9YPcVEH7sq/bwnnSz7syhHqbxfvY3IO0xlo=
+codeberg.org/miekg/dns v0.6.133 h1:c9mJDfQ1HFQ69Wk1p4HKwPf/kFOmF1leQs4LhRLwY9Q=
+codeberg.org/miekg/dns v0.6.133/go.mod h1:KFZNWDP1ssH2HHYpcOAt1IIjz3yLlmF3xYrYxArbnkk=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 filippo.io/age v1.3.2 h1:r6RSZLFSMm6rzKepZ7ZAYkKCu14f3/Me8c7uKYh7C8c=
@@ -394,6 +396,8 @@ github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMk
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261112145225-89d6491d0ce9 h1:jw96r96gWXWYJTcYyuE9VFM55WWr839UQwadumDsSKI=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261112145225-89d6491d0ce9/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261114062752-c683faf7b989 h1:rVZlg40oxn1mKcLgWpxgK156q1XPkhFsecpnAQS0Gfo=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261114062752-c683faf7b989/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc h1:ZiA2zUDzCyAZt2pPraifRvfletbIHF739KZpXTQf9nM=
 github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc/go.mod h1:tj43hgM1bWIR/0HMUwaEOFVxPxCbr/HAnbAkSjn//Uo=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
@@ -423,6 +427,8 @@ golang.org/x/crypto v0.59.0 h1:xS2jhqYbzNrpvkWP2YTDf4TJwBy3ykR03i8vFDxEc7c=
 golang.org/x/crypto v0.59.0/go.mod h1:veDyUwATGs3c+vN3VfTbzViMGXeTBk3WyhBOkn+F/4U=
 golang.org/x/exp v0.0.0-20261112173441-d10d3b464990 h1:Ki27Rkann+mW+hv34e1eegTr8npmBX7sTq/1TV1eW8Y=
 golang.org/x/exp v0.0.0-20261112173441-d10d3b464990/go.mod h1:J3U+E8RzytcGvwz+uJuAP4zULJ2TkAQBnmPZMexpdXs=
+golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4 h1:lfvjMWyv5q5oJgIhGfBDf7Szvu8POtgSpMy2XbXlEFs=
+golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4/go.mod h1:J3U+E8RzytcGvwz+uJuAP4zULJ2TkAQBnmPZMexpdXs=
 golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f h1:+lI8cDJ4uceLipg2f1ODay7fEuLkk0BIHXd6PB8icxo=
 golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f/go.mod h1:PqrXSW65cXDZH0k4IeUbhmg/bcAZDbzNz3byBpKCsXo=
 golang.org/x/image v0.47.0 h1:za/8gVz++PPZqmZJBNSISICN5Rrj5zixP/8K++fgmqo=
