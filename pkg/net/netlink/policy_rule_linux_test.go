@@ -94,3 +94,29 @@ func TestLinuxPolicyRuleConflict(t *testing.T) {
 		t.Fatalf("foreign rule changed: %+v", got)
 	}
 }
+
+// The TUN's own connected subnets and fe80::/64 are not problems; a route
+// another program added through the TUN in main is.
+func TestLinuxMainRoutesViaIgnoresConnected(t *testing.T) {
+	isolatedNamespace(t)
+	tun := dummyLink(t, "yhtestv", "172.23.0.1/24")
+	addr, err := netlink.ParseAddr("fdfe:dcba:9876::1/64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr.Flags = unix.IFA_F_NODAD
+	if err := netlink.AddrAdd(mustLink(t, "yhtestv"), addr); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := MainRoutesVia([]int{tun}); err != nil || len(got) != 0 {
+		t.Fatalf("connected routes reported: %v %v", got, err)
+	}
+	static := netlink.Route{LinkIndex: tun, Dst: ipNet(netip.MustParsePrefix("2001:db8:77::/48"))}
+	if err := netlink.RouteAdd(&static); err != nil {
+		t.Fatal(err)
+	}
+	got, err := MainRoutesVia([]int{tun})
+	if err != nil || len(got) != 1 || got[0] != netip.MustParsePrefix("2001:db8:77::/48") {
+		t.Fatalf("static route through the TUN = %v %v", got, err)
+	}
+}

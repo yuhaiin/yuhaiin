@@ -66,12 +66,18 @@ func MainRoutesVia(links []int) ([]netip.Prefix, error) {
 				if r.LinkIndex != l || r.Dst == nil {
 					continue
 				}
-				// Connected subnets of the TUN itself are expected.
-				if r.Scope == netlink.SCOPE_LINK && r.Protocol == unix.RTPROT_KERNEL {
+				// The kernel adds the TUN's own subnets (and the IPv6
+				// link-local fe80::/64) when its addresses are set. They are
+				// expected; IPv6 routes always have global scope, so the
+				// protocol, not the scope, identifies them.
+				if r.Protocol == unix.RTPROT_KERNEL {
 					continue
 				}
 				ip, _ := netip.AddrFromSlice(r.Dst.IP)
 				bits, _ := r.Dst.Mask.Size()
+				if ip.Unmap().IsLinkLocalUnicast() {
+					continue
+				}
 				out = append(out, netip.PrefixFrom(ip.Unmap(), bits))
 			}
 		}
