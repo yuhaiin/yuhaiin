@@ -13,7 +13,6 @@ var (
 	AdvRegisterUnderlyingNetworkCallbackKey = `register_underlying_network_callback`
 	AdvRouteKey                             = `route`
 	AdvRouteAll                             = `All (Default)`
-	AdvRouteNonChn                          = `Non-Chinese IPs`
 	AdvRouteNonLocal                        = `Non-Local IPs`
 	AdvTunDriverKey                         = `Tun Driver`
 	AdvTunStackKey                          = `android_tun_stack`
@@ -48,7 +47,6 @@ var (
 	AdvRoutes = []string{
 		AdvRouteAll,
 		AdvRouteNonLocal,
-		AdvRouteNonChn,
 	}
 
 	TunDriversValue = []string{TunDriverChannelValue}
