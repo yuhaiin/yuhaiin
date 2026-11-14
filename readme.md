@@ -38,6 +38,7 @@ Yuhaiin is an open-source, cross-platform networking toolkit bringing enterprise
 | Capability | Highlights |
 | --- | --- |
 | **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process, and inbound-based rules; DNS and FakeIP integration |
+| **System Network Routing & Forwarding** | Ownership-aware OS route management; global, non-private and custom CIDR/GeoIP route policies; cross-platform side-router forwarding with platform-specific NAT and TProxy support |
 | **Management Identity & API Security** | Local and custom RBAC roles, scoped API tokens, revocable sessions, WebAuthn Passkeys, GitHub/Google OAuth, generic OIDC, management security audit |
 | **Proxy User Authentication & Credentials** | Independently revocable device credentials for HTTP, SOCKS5, Mixed, Hysteria 2, Yuubinsya and SSTP inbounds; explicit legacy/users/mixed modes; shared outbound credential references |
 | **Per-user Usage & Session Audits** | Lifetime and UTC-period traffic reports, credential/inbound/node/protocol breakdowns, rates and concurrency, filterable connection metadata audits, configurable retention |
@@ -80,7 +81,7 @@ The Traffic Access Policy is **optional** and acts before the ordinary L4 forwar
 | **Additional inbounds** | Experimental Linux SSH shell/exec with isolated per-connection networking; Krunlet microVM TCP/UDP over a local Unix socket |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
 
-**LAN Link** connects Yuhaiin instances to remote LAN services over direct WireGuard connections. A gateway issues invitations and assigns tunnel addresses. See [the LAN Link guide](docs/peer-tunnel.md).
+**LAN Link** connects Yuhaiin instances to remote LAN services over direct, encrypted WireGuard connections. Its self-contained gateway issues per-client invitations and dual-stack tunnel addresses, discovers public endpoints when possible, reports live peer status, and can optionally allow client-to-client traffic. See [the LAN Link guide](docs/peer-tunnel.md).
 
 **MASQUE:** standard CONNECT-IP outbound supports HTTP/3 and HTTP/2; the bearer-token-protected server currently supports HTTP/3 only. See [the MASQUE guide](docs/masque.md) for setup and limitations.
 
@@ -89,6 +90,46 @@ The Traffic Access Policy is **optional** and acts before the ordinary L4 forwar
 **Tailnet:** Tailscale connectivity uses the proven embedded `tsnet.Server` integration with Yuhaiin's configured outbound as its per-node network Underlay. TCP/UDP application traffic still runs through the shared lightweight userspace stack rather than an OS TUN. The previous `tailscaled.state` identity is reused when available; a node created only with `tailscale-lite` may need explicit enrollment or state recovery. See [Tailnet compatibility and rollback](docs/tailscale-rollback.md).
 
 **Support varies by protocol and platform.** The Linux-only SSH inbound is experimental and its network namespace does not provide filesystem or process isolation. The Krunlet inbound is a local Unix-socket integration, not a remote proxy listener. Some integrations have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
+
+## System Network Management & Side Routing
+
+Yuhaiin includes a dedicated **System Network Manager** that owns the operating-system routing and forwarding changes made by Yuhaiin. It is separate from the ordinary proxy routing engine:
+
+- **Proxy routing** decides what Yuhaiin does with a connection it has already received: direct it, select an outbound, or block it using domain, IP, port, process, inbound, and identity-aware rules.
+- **System network routing** decides which destinations the operating system sends to a Yuhaiin TUN or another network interface in the first place. It also controls forwarding when this host is used as a side router.
+
+TUN inbounds create and report their devices; they no longer independently install destination routes. The System Network Manager coordinates route rules, required TUN/FakeIP routes, forwarding, and cleanup. Existing routes owned by other software are not intentionally overwritten or removed. Conflicts and shadowed rules are reported instead of silently choosing two destinations for the same prefix.
+
+### Route policies
+
+Create ordered system route rules with a target of a Yuhaiin TUN or a host interface such as Ethernet, Wi-Fi, WireGuard, or Tailscale. Built-in match modes reduce the need to maintain long CIDR lists:
+
+- **Global:** route publicly routable IPv4 and IPv6 destinations, excluding reserved, link-local, multicast, and loopback ranges.
+- **Non-private:** route public destinations while leaving private, CGNAT, and unique-local networks outside the rule by default.
+- **Custom:** select CIDRs and/or MaxMind GeoIP countries, optionally invert the country selection, then use include and bypass CIDRs for exceptions.
+
+Rules are evaluated by priority with first-match ownership. The manager computes exact prefix differences so overlapping rules do not send the same destination to multiple targets. The Web UI provides route previews, conflict/shadowing status, interface discovery, and a read-only view of the operating system's routes with Yuhaiin-owned routes identified.
+
+### Side-router forwarding
+
+A host can also forward traffic arriving from another device or LAN to a selected egress. Rules can match an ingress interface, source CIDRs, and optional destination CIDRs. The available controls depend on the operating system:
+
+| Platform | System route rules | Side-router forwarding |
+| --- | --- | --- |
+| **Linux** | IPv4/IPv6 routes, policy routing, TUN or external-interface targets | IPv4/IPv6 forwarding, per-rule source/destination selection and egress, optional masquerade, and Linux TProxy interception |
+| **macOS** | IPv4/IPv6 routes through the system routing table; scoped routes keep bound sockets usable | IPv4/IPv6 forwarding through a dedicated PF anchor, source/destination matching, route-to egress, and optional NAT; no TProxy |
+| **Windows** | IPv4/IPv6 routes associated with interface LUIDs | Per-interface forwarding; forwarded packets follow the system routing table. Per-rule source filtering, custom egress, NAT, and TProxy are not provided |
+| **Android** | Route policies are resolved into the Android VPN's route set only | Host forwarding and external-interface targets are not available |
+
+On Linux and macOS, forwarding can send selected LAN traffic through a Yuhaiin TUN, making the host a VPN side router. NAT/masquerade is optional and is useful when the upstream network has no return route to the LAN. On Windows, forwarding is intentionally simpler and follows the system route table. The UI and API expose platform capabilities and reject unsupported combinations rather than pretending every operating system offers identical controls.
+
+### Protecting Yuhaiin's own outbound sockets
+
+Traffic generated by Yuhaiin itself (for example DNS, proxy, QUIC, VPN, and tunnel sockets) must not loop back into its own TUN. **Socket Protection** keeps those sockets outside the TUN; **Egress Selection** independently chooses the interface the operating system would use for each destination, unless an interface is explicitly pinned.
+
+The implementation uses platform-native mechanisms: Linux socket marks and policy rules, interface binding plus scoped routes on macOS, interface binding on Windows, and `VpnService.protect` with Android network selection on Android. The System Network page reports the protection method, selected egress, interface details, and any degraded state. With no Yuhaiin TUN running, sockets follow the operating system's normal routing.
+
+See the [System Network Manager guide](docs/system-network.md) for configuration, API details, platform limitations, route ownership, forwarding examples, and integration tests.
 
 ## Identity, Credentials & Auditing
 
