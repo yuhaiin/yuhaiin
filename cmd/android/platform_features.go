@@ -69,7 +69,7 @@ const (
 	routeContentKey = "route_content_"
 )
 
-var presetRoutes = []string{AdvRouteAll, AdvRouteNonLocal, AdvRouteNonChn}
+var presetRoutes = []string{AdvRouteAll, AdvRouteNonLocal}
 
 func (p *platformAPI) registerFeatures() {
 	p.mux.HandleFunc("GET "+platformAPIPrefix+"app", p.authorized(p.appInfo))
