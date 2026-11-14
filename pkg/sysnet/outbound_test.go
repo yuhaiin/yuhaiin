@@ -181,3 +181,41 @@ func TestOutboundUnsupported(t *testing.T) {
 		t.Fatalf("status = %+v", got)
 	}
 }
+
+// Android apps cannot read routes and the VPN has no interface in the TUN
+// list: a protected core is active, never "failed" for a missing route.
+func TestOutboundAndroid(t *testing.T) {
+	src := fakeOutbound("android")
+	src.ownTuns = func() []string { return nil }
+	src.selectRoute = func(netip.Addr, func(string) bool) (interfaces.RouteChoice, bool) {
+		return interfaces.RouteChoice{}, false
+	}
+	src.protection = func() dialer.ProtectionReport {
+		return dialer.ProtectionReport{Installed: true, Method: "VpnService.protect", Successes: 30}
+	}
+	got := buildOutboundRouting(src, nil)
+	if got.State != sysnet.StateActive || !got.ProtectionActive || got.EgressMode != sysnet.EgressKernel || len(got.Problems) != 0 {
+		t.Fatalf("protected = %+v", got)
+	}
+	if len(got.Egress) != 0 {
+		t.Fatalf("unreadable routes reported as egress errors: %+v", got.Egress)
+	}
+
+	// Own TUN listed (as in the report): still active, not failed.
+	src.ownTuns = func() []string { return []string{"tun0"} }
+	if got := buildOutboundRouting(src, nil); got.State != sysnet.StateActive || got.EgressMode != sysnet.EgressKernel {
+		t.Fatalf("protected with TUN listed = %+v", got)
+	}
+
+	src.protection = func() dialer.ProtectionReport {
+		return dialer.ProtectionReport{Installed: true, Method: "VpnService.protect", Failures: 2, LastError: "VpnService.protect returned false"}
+	}
+	if got := buildOutboundRouting(src, nil); got.State != sysnet.StateDegraded || got.ProtectionActive {
+		t.Fatalf("protect failures = %+v", got)
+	}
+
+	src.protection = func() dialer.ProtectionReport { return dialer.ProtectionReport{} }
+	if got := buildOutboundRouting(src, nil); got.State != sysnet.StateUnavailable || got.EgressMode != sysnet.EgressSystem {
+		t.Fatalf("VPN not running = %+v", got)
+	}
+}

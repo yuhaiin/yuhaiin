@@ -52,16 +52,17 @@ func explicitInterface(contextInterface, optionInterface string) string {
 	return ConfiguredInterface()
 }
 
+// goos is runtime.GOOS, replaceable in tests.
+var goos = runtime.GOOS
+
 // bindsAutomatically reports whether this platform must bind sockets to keep
-// them out of the TUN, given whether the protector succeeded.
+// them out of the TUN, given whether the protector succeeded. A working mark
+// (Linux) or VpnService.protect (Android) keeps a socket out of the TUN on
+// its own; macOS and Windows have only the binding.
 func bindsAutomatically(protected bool) bool {
-	switch runtime.GOOS {
-	case "linux":
+	switch goos {
+	case "linux", "android":
 		return !protected
-	case "android":
-		// VpnService.protect plus Android Network binding; keep the
-		// interface choice the platform adapters expect.
-		return true
 	default:
 		return true
 	}
@@ -94,7 +95,7 @@ func GetInterfaceByIP(ip []byte) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("invalid address %v", ip)
 	}
-	return autoEgress(addr)
+	return resolveEgress("", addr, protectorTrusted())
 }
 
 // resolveEgress decides the interface name to bind, or "" for none, for a
@@ -106,10 +107,21 @@ func resolveEgress(explicit string, dst netip.Addr, protected bool) (string, err
 		}
 		return explicit, nil
 	}
-	if !ownTunActive() && runtime.GOOS != "android" {
-		return "", nil
+	if goos == "android" {
+		// The VPN has no interface name in the TUN list, so protection is
+		// decided by VpnService.protect alone. Apps cannot read the routing
+		// table here: when protect failed, bind best-effort and otherwise
+		// leave the choice to the platform's Network binding.
+		if protected {
+			return "", nil
+		}
+		iface, err := autoEgress(dst)
+		if err != nil {
+			return "", nil
+		}
+		return iface, nil
 	}
-	if !bindsAutomatically(protected) {
+	if !ownTunActive() || !bindsAutomatically(protected) {
 		return "", nil
 	}
 	return autoEgress(dst)

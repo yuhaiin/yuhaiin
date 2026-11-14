@@ -123,12 +123,12 @@ func Protection() ProtectionReport {
 	return r
 }
 
-// markProtects reports whether the installed protector is a routing mark
-// that has not failed: then the kernel keeps protected sockets out of the TUN
-// on its own and Egress Selection can leave them unbound.
-func markProtects() bool {
+// protectorTrusted reports whether the installed protector (SO_MARK,
+// VpnService.protect) has not failed: then it keeps sockets out of the TUN on
+// its own and Egress Selection can leave them unbound.
+func protectorTrusted() bool {
 	p := protector.Load()
-	return p != nil && p.Mark != 0 && protection.failures.Load() == 0
+	return p != nil && p.Protect != nil && protection.failures.Load() == 0
 }
 
 // ProtectRawSocket protects a socket created outside the dialer (ICMP). A

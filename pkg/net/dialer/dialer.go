@@ -69,7 +69,7 @@ var SkipInterface = func() *set.Set[string] {
 // (opts.InterfaceName, "" for none) and records it in the context.
 func prepareEgress(ctx context.Context, opts *Options, dst netip.Addr) error {
 	explicit := explicitInterface(netapi.GetContext(ctx).ConnOptions().BindInterface(), opts.InterfaceName)
-	iface, err := resolveEgress(explicit, dst, markProtects())
+	iface, err := resolveEgress(explicit, dst, protectorTrusted())
 	if err != nil {
 		return err
 	}

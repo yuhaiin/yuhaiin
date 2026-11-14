@@ -71,24 +71,62 @@ func TestResolveEgress(t *testing.T) {
 		{name: "no destination takes default", tun: true, dst: "", want: "nic1", platforms: []string{"darwin", "windows"}},
 		{name: "linux with mark is unbound", tun: true, mark: true, dst: "8.8.8.8", want: "", platforms: []string{"linux"}},
 		{name: "linux without mark binds", tun: true, dst: "192.168.20.9", want: "nic2", platforms: []string{"linux"}},
+		// Android: VpnService.protect alone keeps sockets out of the VPN,
+		// whose TUN has no interface name, and routes are unreadable.
+		{name: "android protected is unbound", tun: false, mark: true, dst: "8.8.8.8", want: "", platforms: []string{"android"}},
+		{name: "android protected with TUN listed", tun: true, mark: true, dst: "8.8.8.8", want: "", platforms: []string{"android"}},
+		{name: "android unprotected binds best-effort", tun: false, dst: "192.168.20.9", want: "nic2", platforms: []string{"android"}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if len(tc.platforms) > 0 && !slices.Contains(tc.platforms, runtime.GOOS) {
-				t.Skipf("not %v", tc.platforms)
-			}
-			fakeRoutes(t, tc.tun)
-			if tc.mark {
-				SetSocketProtector(mark)
-			}
-			var dst netip.Addr
-			if tc.dst != "" {
-				dst = netip.MustParseAddr(tc.dst)
-			}
-			got, err := resolveEgress(tc.explicit, dst, markProtects())
-			if (err != nil) != tc.wantErr || got != tc.want {
-				t.Fatalf("resolveEgress = %q, %v; want %q (err %v)", got, err, tc.want, tc.wantErr)
-			}
-		})
+		platforms := tc.platforms
+		if len(platforms) == 0 {
+			platforms = []string{"darwin", "linux", "windows", "android"}
+		}
+		for _, platform := range platforms {
+			t.Run(tc.name+"/"+platform, func(t *testing.T) {
+				fakeRoutes(t, tc.tun)
+				oldGOOS := goos
+				goos = platform
+				t.Cleanup(func() { goos = oldGOOS })
+				if tc.mark {
+					SetSocketProtector(mark)
+				}
+				var dst netip.Addr
+				if tc.dst != "" {
+					dst = netip.MustParseAddr(tc.dst)
+				}
+				got, err := resolveEgress(tc.explicit, dst, protectorTrusted())
+				if (err != nil) != tc.wantErr || got != tc.want {
+					t.Fatalf("resolveEgress = %q, %v; want %q (err %v)", got, err, tc.want, tc.wantErr)
+				}
+			})
+		}
+	}
+}
+
+// Android cannot read routes: without route data and with protect failing,
+// a dial still proceeds (unbound) instead of failing with ErrNoEgress, which
+// broke every outbound connection.
+func TestResolveEgressAndroidWithoutRoutes(t *testing.T) {
+	fakeRoutes(t, false)
+	oldGOOS := goos
+	goos = "android"
+	t.Cleanup(func() { goos = oldGOOS })
+	selectRoute = func(netip.Addr, func(string) bool) (interfaces.RouteChoice, bool) {
+		return interfaces.RouteChoice{}, false
+	}
+	defaultInterface = func() string { return "" }
+	for _, protected := range []bool{true, false} {
+		if got, err := resolveEgress("", netip.MustParseAddr("2407:cdc0:8205::1"), protected); err != nil || got != "" {
+			t.Fatalf("protected=%v: %q %v, want unbound without error", protected, got, err)
+		}
+	}
+	if got, err := GetInterfaceByIP(netip.MustParseAddr("8.8.8.8").AsSlice()); err != nil || got != "" {
+		t.Fatalf("ping egress = %q %v", got, err)
+	}
+	// An Android protector makes direct UDP a single socket, not per egress.
+	SetSocketProtector(&SocketProtector{Method: "VpnService.protect", Protect: func(int32) error { return nil }})
+	if perDestinationEgress(context.Background(), &Options{}) {
+		t.Fatal("protected Android relay split per egress")
 	}
 }
 
@@ -122,7 +160,7 @@ func TestProtectionReport(t *testing.T) {
 		}
 		return nil
 	}})
-	if !markProtects() {
+	if !protectorTrusted() {
 		t.Fatal("fresh mark protector not trusted")
 	}
 	if ok, err := protectSocket(3); !ok || err != nil {
@@ -135,7 +173,7 @@ func TestProtectionReport(t *testing.T) {
 	if r.Successes != 1 || r.Failures != 1 || r.LastError == "" {
 		t.Fatalf("report = %+v", r)
 	}
-	if markProtects() {
+	if protectorTrusted() {
 		t.Fatal("a failed mark must stop leaving sockets unbound")
 	}
 }

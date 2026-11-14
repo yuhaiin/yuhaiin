@@ -43,7 +43,7 @@ func perDestinationEgress(ctx context.Context, opts *Options) bool {
 	if explicitInterface(contextBindInterface(ctx), opts.InterfaceName) != "" {
 		return false
 	}
-	return ownTunActive() && bindsAutomatically(markProtects())
+	return ownTunActive() && bindsAutomatically(protectorTrusted())
 }
 
 type listenFunc func(ctx context.Context, network string, opts *Options) (net.PacketConn, error)
@@ -115,7 +115,7 @@ func newEgressPacketConn(ctx context.Context, network string, base Options, list
 // socketFor returns the socket for dst's egress interface, opening it on
 // first use.
 func (c *egressPacketConn) socketFor(dst netip.Addr) (*egressSocket, error) {
-	iface, err := resolveEgress("", dst, markProtects())
+	iface, err := resolveEgress("", dst, protectorTrusted())
 	if err != nil {
 		return nil, err
 	}

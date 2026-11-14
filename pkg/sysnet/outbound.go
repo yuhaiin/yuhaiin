@@ -97,6 +97,13 @@ func buildOutboundRouting(src outboundSources, tunLinks map[string]int) sysnet.O
 	case "android":
 		out.Method = "VpnService.protect"
 		out.ProtectionActive = p.Installed && p.Failures == 0
+		switch {
+		case !p.Installed:
+			out.State = sysnet.StateUnavailable
+			out.Problems = append(out.Problems, "VpnService.protect is available only while the Yuhaiin VPN runs; until then connections follow the system network")
+		case p.Failures > 0:
+			degrade(fmt.Sprintf("VpnService.protect failed for %d sockets (last: %s)", p.Failures, p.LastError))
+		}
 	case "darwin":
 		out.Method = "IP_BOUND_IF / IPV6_BOUND_IF"
 		out.ProtectionActive = true
@@ -115,6 +122,12 @@ func buildOutboundRouting(src outboundSources, tunLinks map[string]int) sysnet.O
 	case len(own) == 0 && src.goos != "android":
 		out.EgressMode = sysnet.EgressSystem
 	case src.goos == "linux" && markWorks:
+		out.EgressMode = sysnet.EgressKernel
+	case src.goos == "android" && !p.Installed:
+		out.EgressMode = sysnet.EgressSystem
+	case src.goos == "android" && p.Failures == 0:
+		// Protected sockets leave through the platform's underlying
+		// network, chosen by Android for every packet.
 		out.EgressMode = sysnet.EgressKernel
 	default:
 		out.EgressMode = sysnet.EgressBound
@@ -181,13 +194,17 @@ func buildOutboundRouting(src outboundSources, tunLinks map[string]int) sysnet.O
 				if c.Gateway.IsValid() {
 					e.Gateway = c.Gateway.String()
 				}
+			} else if src.goos == "android" {
+				// Apps cannot read Android's routing table; no entry is
+				// not a missing route.
+				continue
 			} else {
 				e.Error = "no route outside Yuhaiin's TUN"
 			}
 		}
 		out.Egress = append(out.Egress, e)
 	}
-	if len(own) > 0 && out.EgressMode == sysnet.EgressBound {
+	if len(own) > 0 && out.EgressMode == sysnet.EgressBound && len(out.Egress) == 2 {
 		if out.Egress[0].Error != "" && out.Egress[1].Error != "" {
 			fail("no interface other than Yuhaiin's TUN routes the Internet; outbound connections fail instead of looping")
 		}
