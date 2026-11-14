@@ -20,7 +20,7 @@ const (
 	tunRouteTable = 63
 	// routeProtocol marks routes this process installs (rtm_protocol), so a
 	// restart can remove routes left by a crash without touching others.
-	routeProtocol = netlink.RouteProtocol(0xa5)
+	routeProtocol = netlink.RouteProtocol(RouteProtocolYuhaiin)
 	ruleV4        = 30001
 	ruleV6        = 30002
 )
@@ -154,6 +154,7 @@ func policyRule(f int) *netlink.Rule {
 	}
 	r.Table = tunRouteTable
 	r.Family = f
+	r.Protocol = RouteProtocolYuhaiin
 	return r
 }
 

@@ -15,6 +15,7 @@ type SystemNetworkController interface {
 	Status() contractsysnet.Status
 	Interfaces(context.Context) (contractsysnet.Interfaces, error)
 	Preview(context.Context, contractsysnet.Config) contractsysnet.Preview
+	SystemRoutes(context.Context) contractsysnet.SystemRoutes
 }
 
 func addSystemNetworkRPCRoutes(handlers *v2Handlers, services V2Services) {
@@ -24,6 +25,7 @@ func addSystemNetworkRPCRoutes(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SystemNetworkStatus, api.systemNetworkStatus)
 	addRPCRoute(handlers, v2SystemNetworkInterfaces, api.systemNetworkInterfaces)
 	addRPCRoute(handlers, v2SystemNetworkPreview, api.previewSystemNetwork)
+	addRPCRoute(handlers, v2SystemNetworkRoutes, api.systemNetworkRoutes)
 }
 
 func (a v2API) systemNetwork() (SystemNetworkController, error) {
@@ -85,4 +87,13 @@ func (a v2API) previewSystemNetwork(ctx context.Context, request *contractsysnet
 	}
 	preview := m.Preview(ctx, *request)
 	return &preview, nil
+}
+
+func (a v2API) systemNetworkRoutes(ctx context.Context, _ *emptyRequest) (*contractsysnet.SystemRoutes, error) {
+	m, err := a.systemNetwork()
+	if err != nil {
+		return nil, err
+	}
+	routes := m.SystemRoutes(ctx)
+	return &routes, nil
 }

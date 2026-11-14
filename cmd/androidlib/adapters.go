@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"net/netip"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	core "github.com/Asutorufa/yuhaiin/cmd/android"
+	"github.com/Asutorufa/yuhaiin/pkg/net/netlink"
 )
 
 // coreActive is true from the start of core.start until core.stop returns.
@@ -251,9 +254,46 @@ func (i *networkIter) Next() *core.UnderlyingNetwork {
 // installPlatform registers the host-backed adapters with the core package.
 func installPlatform() {
 	core.SetInterfaces(interfaces{})
+	netlink.AltListRoutes = listRoutes
 	core.SetProcessDumper(uidDumper{})
 	core.SetVpnProvider(vpnProvider{})
 	core.SetAppCatalog(appCatalog{})
 	core.SetAppIconProvider(appCatalog{})
 	core.SetPlatformActions(platformActions{})
+}
+
+// routeJSON is one route of an Android network's LinkProperties.
+type routeJSON struct {
+	Destination string `json:"destination"`
+	Gateway     string `json:"gateway"`
+	Interface   string `json:"interface"`
+	Type        string `json:"type"`
+	OwnVPN      bool   `json:"ownVpn"`
+}
+
+// listRoutes asks the app for the routes Android reports for each network.
+// Apps may not read the kernel routing table, so policy rules and tables are
+// not available. An app without "routes.list" reports an error.
+func listRoutes() ([]netlink.RouteEntry, error) {
+	data, err := hostCall("routes.list", nil)
+	if err != nil {
+		return nil, err
+	}
+	var list []routeJSON
+	if err := json.Unmarshal(data, &list); err != nil {
+		return nil, err
+	}
+	out := make([]netlink.RouteEntry, 0, len(list))
+	for _, r := range list {
+		dst, err := netip.ParsePrefix(strings.TrimSpace(r.Destination))
+		if err != nil {
+			continue
+		}
+		e := netlink.RouteEntry{Destination: dst.Masked(), Interface: r.Interface, Type: r.Type, OwnVPN: r.OwnVPN}
+		if gw, err := netip.ParseAddr(strings.TrimSpace(r.Gateway)); err == nil && !gw.IsUnspecified() {
+			e.Gateway = gw.Unmap()
+		}
+		out = append(out, e)
+	}
+	return out, nil
 }
