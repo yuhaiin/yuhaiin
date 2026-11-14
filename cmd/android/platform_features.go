@@ -41,7 +41,7 @@ type PlatformActions interface {
 	WithdrawConsent() error
 	// UpdateState returns the software update state as JSON.
 	UpdateState() string
-	// UpdateAction runs "check", "apply", "permission" or "channel" (arg).
+	// UpdateAction runs "check", "apply", "permission", "cancel" or "channel" (arg).
 	UpdateAction(action, arg string) error
 	// AppInfo returns application version information as JSON.
 	AppInfo() string
@@ -469,7 +469,7 @@ func (p *platformAPI) updateAction(w http.ResponseWriter, r *http.Request) {
 		Action  string `json:"action"`
 		Channel string `json:"channel"`
 	}
-	if err := json.UnmarshalRead(r.Body, &req); err != nil || !slices.Contains([]string{"check", "apply", "permission", "channel"}, req.Action) {
+	if err := json.UnmarshalRead(r.Body, &req); err != nil || !slices.Contains([]string{"check", "apply", "permission", "cancel", "channel"}, req.Action) {
 		writeError(w, http.StatusBadRequest, "invalid_request", `action must be check, apply, permission or channel`)
 		return
 	}
