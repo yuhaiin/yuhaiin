@@ -3,6 +3,7 @@ package node
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -43,7 +44,7 @@ func TestShareLinkRejectsInvalidEndpointAndScheme(t *testing.T) {
 	}
 }
 
-func TestYuhaiinRemoteLinkWithoutLegacySchema(t *testing.T) {
+func TestYuhaiinRemotePublishLinkIsRejected(t *testing.T) {
 	payload, err := json.Marshal(map[string]any{
 		"name": "share",
 		"remote": map[string]any{
@@ -59,12 +60,8 @@ func TestYuhaiinRemoteLinkWithoutLegacySchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	link := "yuhaiin://" + base64.RawURLEncoding.EncodeToString(payload)
-	parsed, err := parseYuhaiinURL(link)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if parsed.Remote == nil || parsed.Name != "share" || parsed.Remote.Address != "example.com:8000" {
-		t.Fatalf("unexpected parsed remote: %+v", parsed)
+	if _, err := parseYuhaiinURL(link); !errors.Is(err, ErrLegacyPublishLink) {
+		t.Fatalf("parseYuhaiinURL error = %v, want ErrLegacyPublishLink", err)
 	}
 }
 

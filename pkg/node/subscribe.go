@@ -5,14 +5,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json/jsontext"
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 	"io"
+	"mime"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/internal/version"
@@ -28,8 +29,14 @@ import (
 type ParsedYuhaiinURL struct {
 	Name   string
 	Points []contractnode.Node
-	Remote *contractsubscription.Publish
 }
+
+// ErrLegacyPublishLink rejects yuhaiin:// links that pointed at the publish
+// feature which share feeds replaced.
+var ErrLegacyPublishLink = errors.New("this yuhaiin:// link points to a retired publish configuration; ask the publisher for a share feed link")
+
+// maxSubscriptionBody bounds one subscription response.
+const maxSubscriptionBody = 32 << 20
 
 type Subscribe struct {
 	runtime       *NodeRuntime
@@ -83,14 +90,18 @@ func (s *Subscribe) Update(ctx context.Context, names []string) error {
 	return errs
 }
 
+// newSubscriptionClient is replaced by tests, which have no proxy chain.
+var newSubscriptionClient = subscriptionHTTPClient
+
 func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) error {
-	hc := subscriptionHTTPClient()
+	hc := newSubscriptionClient()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", link.URL, nil)
 	if err != nil {
 		return fmt.Errorf("create request failed: %w", secret.RemoteError(err))
 	}
 	req.Header.Set("User-Agent", fmt.Sprintf("%s/%s-%s", version.AppName, version.Version, version.GitCommit))
+	req.Header.Set("Accept", contractsubscription.ShareFeedContentType+", */*;q=0.5")
 
 	res, err := hc.Do(req)
 	if err != nil {
@@ -98,7 +109,75 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 	}
 	defer res.Body.Close()
 
-	base64r := base64.NewDecoder(base64.RawStdEncoding, &trimBase64Reader{res.Body})
+	// A failed fetch must never replace the nodes from the last good one.
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("get %s failed: status=%d", link.Name, res.StatusCode)
+	}
+	body := io.LimitReader(res.Body, maxSubscriptionBody+1)
+
+	var nodes []contractnode.Node
+	if isShareFeedResponse(res.Header.Get("Content-Type")) {
+		nodes, err = readShareFeed(body)
+		if err != nil {
+			return fmt.Errorf("read share feed %s failed: %w", link.Name, err)
+		}
+	} else {
+		nodes, err = readBase64Subscription(body, link)
+		if err != nil {
+			return err
+		}
+		// An empty share-link list is far more often an error page or an expired
+		// account than an intentional empty subscription.
+		if len(nodes) == 0 {
+			return fmt.Errorf("subscription %s returned no usable nodes", link.Name)
+		}
+	}
+	for i := range nodes {
+		nodes[i].Group = link.Name
+		nodes[i].Origin = "remote"
+	}
+	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
+}
+
+func isShareFeedResponse(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	return err == nil && mediaType == contractsubscription.ShareFeedContentType
+}
+
+// readShareFeed decodes a share feed. An empty node list is the publisher's
+// current selection and replaces the group like any other.
+func readShareFeed(r io.Reader) ([]contractnode.Node, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxSubscriptionBody {
+		return nil, errors.New("share feed is too large")
+	}
+	var document struct {
+		Version int              `json:"version"`
+		Nodes   []jsontext.Value `json:"nodes"`
+	}
+	if err := json.Unmarshal(data, &document); err != nil {
+		return nil, errors.New("invalid share feed document")
+	}
+	if document.Version != 1 {
+		return nil, fmt.Errorf("unsupported share feed version %d", document.Version)
+	}
+	nodes := make([]contractnode.Node, 0, len(document.Nodes))
+	for _, raw := range document.Nodes {
+		node, err := decodeSharedPoint([]byte(raw))
+		if err != nil {
+			return nil, fmt.Errorf("invalid node in share feed: %w", err)
+		}
+		node.Enabled = true
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
+}
+
+func readBase64Subscription(r io.Reader, link contractsubscription.Link) ([]contractnode.Node, error) {
+	base64r := base64.NewDecoder(base64.RawStdEncoding, &trimBase64Reader{r})
 	scanner := bufio.NewScanner(base64r)
 	var nodes []contractnode.Node
 	for scanner.Scan() {
@@ -110,17 +189,14 @@ func (n *Subscribe) fetch(ctx context.Context, link contractsubscription.Link) e
 		if err != nil {
 			log.Error("parse subscription entry failed")
 		} else {
-			node.Group = link.Name
-			node.Origin = "remote"
 			nodes = append(nodes, node)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return err
+		return nil, err
 	}
-
-	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
+	return nodes, nil
 }
 
 type trimBase64Reader struct {
@@ -144,84 +220,7 @@ func (n *Subscribe) savePublish(ctx context.Context, link contractsubscription.L
 	if err != nil {
 		return err
 	}
-
-	if len(yu.Points) > 0 {
-		return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, yu.Points)
-	}
-	if yu.Remote == nil {
-		return nil
-	}
-
-	nodes, err := n.resolveRemotePublish(ctx, *yu.Remote)
-	if err != nil {
-		return err
-	}
-	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, nodes)
-}
-
-func (n *Subscribe) resolveRemotePublish(ctx context.Context, publish contractsubscription.Publish) ([]contractnode.Node, error) {
-	u := publish.Address
-	if _, port, _ := net.SplitHostPort(u); port == "" {
-		if publish.Insecure {
-			u = net.JoinHostPort(u, "80")
-		} else {
-			u = net.JoinHostPort(u, "443")
-		}
-	}
-
-	scheme := "https"
-	if publish.Insecure {
-		scheme = "http"
-	}
-	endpoint := url.URL{
-		Scheme: scheme,
-		Host:   u,
-		Path:   "/api/v2/publishes/" + url.PathEscape(publish.Name) + "/resolve",
-	}
-
-	body := contractsubscription.ResolvePublishRequest{
-		Path:     publish.Path,
-		Password: publish.Password,
-	}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("marshal publish request failed: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("create publish request failed: %w", secret.RemoteError(err))
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	res, err := subscriptionHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("publish request failed: %w", secret.RemoteError(err))
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("publish request failed: status=%d", res.StatusCode)
-	}
-
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read publish response failed: %w", err)
-	}
-
-	var resp contractsubscription.ResolvePublishResponse
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, errors.New("invalid publish response")
-	}
-	return resp.Points, nil
-}
-
-func (s *Subscribe) ResolvePublish(ctx context.Context, name string, req contractsubscription.ResolvePublishRequest) (contractsubscription.ResolvePublishResponse, error) {
-	if s == nil || s.subscriptions == nil {
-		return contractsubscription.ResolvePublishResponse{}, errors.New("subscription store is unavailable")
-	}
-	return s.subscriptions.ResolvePublish(ctx, name, req.Path, req.Password)
+	return n.runtime.ReplaceRemoteContractNodes(ctx, link.Name, yu.Points)
 }
 
 func subscriptionHTTPClient() *http.Client {

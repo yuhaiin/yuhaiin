@@ -42,7 +42,7 @@ var configBackupTables = []string{
 	"settings_kv", "settings_json", "android_extra_preferences",
 	"dns_settings", "dns_hosts", "dns_fakedns_lists", "dns_resolvers", "resolvers_v2",
 	"inbound_settings", "inbounds", "inbounds_v2", "nodes", "nodes_v2", "node_tags", "outbound_selectors",
-	"subscriptions", "publishes", "route_settings", "route_rules", "route_rules_v2",
+	"subscriptions", "share_feeds", "route_settings", "route_rules", "route_rules_v2",
 	"route_lists", "route_list_refresh", "route_lists_v2", "route_registries", "backup_settings", "metadata",
 	"gateway_configuration", "gateway_references", "node_monitoring_settings",
 	"user_usage_settings", "inbound_traffic_control", "route_configuration_state",
@@ -118,7 +118,7 @@ func SanitizeConfigurationSnapshotContent(ctx context.Context, tx *sql.Tx) error
 			return err
 		}
 	}
-	for _, spec := range []struct{ table, key string }{{"publishes", "name"}, {"gateway_configuration", "id"}, {"route_lists_v2", "id"}} {
+	for _, spec := range []struct{ table, key string }{{"share_feeds", "id"}, {"gateway_configuration", "id"}, {"route_lists_v2", "id"}} {
 		if err := sanitizeSnapshotDocuments(ctx, tx, spec.table, spec.key, ""); err != nil {
 			return err
 		}
@@ -153,8 +153,8 @@ func sanitizeSnapshotDocuments(ctx context.Context, tx *sql.Tx, table, key, disa
 			switch table {
 			case "route_lists_v2":
 				redacted, changed, err = configbackup.RouteRefreshErrors(raw, "errorMsgs")
-			case "publishes":
-				redacted, changed, err = configbackup.Publish(raw)
+			case "share_feeds":
+				redacted, changed, err = configbackup.ShareFeed(raw)
 			case "gateway_configuration":
 				redacted, changed, _, err = configbackup.Gateway(raw)
 			default:
@@ -255,7 +255,7 @@ const (
 	// exportLocalRestore feeds the private offline importer.
 	exportLocalRestore
 	// exportDevice is a complete backup for the same user: credentials,
-	// enabled state, publishes, gateway policy and subscriptions are kept so a
+	// enabled state, share feed tokens, gateway policy and subscriptions are kept so a
 	// restore works without re-entering anything.
 	exportDevice
 )
@@ -451,7 +451,7 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, mode exportM
 				}
 			}
 		}
-		if !device && (table == "publishes" || table == "gateway_configuration") {
+		if !device && (table == "share_feeds" || table == "gateway_configuration") {
 			index := slices.Index(columns, "data_json")
 			if index < 0 {
 				return out, errors.New("invalid configuration document schema")
@@ -463,8 +463,8 @@ func readConfigTable(ctx context.Context, tx *sql.Tx, table string, mode exportM
 			if !ok {
 				return out, errors.New("invalid configuration document in export")
 			}
-			if table == "publishes" {
-				values[index], _, err = configbackup.Publish(raw)
+			if table == "share_feeds" {
+				values[index], _, err = configbackup.ShareFeed(raw)
 			} else {
 				var guarded bool
 				values[index], _, guarded, err = configbackup.Gateway(raw)
@@ -549,6 +549,9 @@ func decodeConfigBackup(data []byte) (ConfigBackup, error) {
 			backup.Tables[name] = ConfigBackupTable{Columns: columns, Rows: [][]jsontext.Value{}}
 			backup.missingLegacyTables[name] = true
 		}
+	}
+	if err := upgradeLegacyPublishes(&backup); err != nil {
+		return backup, err
 	}
 	for name := range backup.Tables {
 		if slices.Contains(deviceBackupTables, name) {
@@ -759,4 +762,50 @@ func restoreConfig(ctx context.Context, db *sql.DB, data []byte, commit bool) er
 		return nil
 	}
 	return tx.Commit()
+}
+
+// upgradeLegacyPublishes converts the publishes table of exports made before
+// share feeds into share_feeds rows, as the schema migration does.
+func upgradeLegacyPublishes(backup *ConfigBackup) error {
+	publishes, ok := backup.Tables["publishes"]
+	if !ok {
+		return nil
+	}
+	if _, ok := backup.Tables["share_feeds"]; ok {
+		return errors.New("configuration backup has both publishes and share feeds")
+	}
+	if !slices.Equal(publishes.Columns, []string{"name", "updated_at", "data_json"}) {
+		return errors.New("incompatible backup schema for publishes")
+	}
+	feeds := ConfigBackupTable{Columns: []string{"id", "updated_at", "data_json"}, Rows: [][]jsontext.Value{}}
+	for _, row := range publishes.Rows {
+		if len(row) != 3 {
+			return errors.New("invalid row in publishes")
+		}
+		name, nameErr := configCell(row[0])
+		updatedAt, updatedErr := configCell(row[1])
+		data, dataErr := configCell(row[2])
+		nameText, nameOK := name.(string)
+		updated, updatedOK := updatedAt.(int64)
+		dataText, dataOK := data.(string)
+		if err := errors.Join(nameErr, updatedErr, dataErr); err != nil || !nameOK || !updatedOK || !dataOK {
+			return errors.New("invalid row in publishes")
+		}
+		id, document, err := configbackup.LegacyPublishShareFeed(nameText, dataText, updated)
+		if err != nil {
+			return fmt.Errorf("invalid publish %q in backup: %w", nameText, err)
+		}
+		cells := make([]jsontext.Value, 0, 3)
+		for _, value := range []any{id, updated, document} {
+			cell, err := json.Marshal(value)
+			if err != nil {
+				return err
+			}
+			cells = append(cells, cell)
+		}
+		feeds.Rows = append(feeds.Rows, cells)
+	}
+	delete(backup.Tables, "publishes")
+	backup.Tables["share_feeds"] = feeds
+	return nil
 }

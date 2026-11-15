@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"crypto/subtle"
 	"database/sql"
 	json "encoding/json/v2"
 	"errors"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
 	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 )
@@ -141,134 +139,6 @@ func (s *SubscriptionStore) GetLink(ctx context.Context, name string) (contracts
 	return link, true, nil
 }
 
-func (s *SubscriptionStore) ListPublishes(ctx context.Context) (contractsubscription.PublishList, error) {
-	if s == nil || s.db == nil {
-		return contractsubscription.PublishList{}, errors.New("subscription store database is nil")
-	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT name, data_json
-		FROM publishes
-		ORDER BY name
-	`)
-	if err != nil {
-		return contractsubscription.PublishList{}, fmt.Errorf("query publish contracts failed: %w", err)
-	}
-	defer rows.Close()
-
-	var out contractsubscription.PublishList
-	for rows.Next() {
-		var name, dataJSON string
-		if err := rows.Scan(&name, &dataJSON); err != nil {
-			return contractsubscription.PublishList{}, fmt.Errorf("scan publish contract failed: %w", err)
-		}
-		publish, err := decodePublish(name, dataJSON)
-		if err != nil {
-			log.Warn("skip invalid stored publish", "name", name, "err", err)
-			continue
-		}
-		out.Items = append(out.Items, publish)
-	}
-	if err := rows.Err(); err != nil {
-		return contractsubscription.PublishList{}, fmt.Errorf("iterate publish contracts failed: %w", err)
-	}
-	return out, nil
-}
-
-func (s *SubscriptionStore) SavePublish(ctx context.Context, publish contractsubscription.Publish, updatedAt int64) error {
-	if s == nil || s.db == nil {
-		return errors.New("subscription store database is nil")
-	}
-	return savePublish(ctx, s.db, publish, updatedAt)
-}
-
-func savePublish(ctx context.Context, execer NodeExecer, publish contractsubscription.Publish, updatedAt int64) error {
-	if handled, err := protectedTransaction(ctx, execer, func(tx any) error { return savePublish(ctx, tx.(NodeExecer), publish, updatedAt) }); handled {
-		return err
-	}
-	merged, err := mergeProtected(ctx, execer, publish, `SELECT data_json FROM publishes WHERE name=?`, publish.Name)
-	if err != nil {
-		return err
-	}
-	publish = merged
-	publish = normalizePublish(publish)
-	if strings.TrimSpace(publish.Name) == "" {
-		return errors.New("publish name is empty")
-	}
-	if updatedAt == 0 {
-		updatedAt = time.Now().Unix()
-	}
-	dataJSON, err := json.Marshal(publish)
-	if err != nil {
-		return fmt.Errorf("encode publish %q failed: %w", publish.Name, err)
-	}
-	if _, err := execer.ExecContext(ctx, `
-		INSERT INTO publishes(name, updated_at, data_json)
-		VALUES (?, ?, ?)
-		ON CONFLICT(name) DO UPDATE SET
-			updated_at = excluded.updated_at,
-			data_json = excluded.data_json
-	`, publish.Name, updatedAt, string(dataJSON)); err != nil {
-		return fmt.Errorf("upsert publish %q failed: %w", publish.Name, err)
-	}
-	return nil
-}
-
-func (s *SubscriptionStore) DeletePublish(ctx context.Context, name string) error {
-	if s == nil || s.db == nil {
-		return errors.New("subscription store database is nil")
-	}
-	res, err := s.db.ExecContext(ctx, `DELETE FROM publishes WHERE name = ?`, name)
-	if err != nil {
-		return fmt.Errorf("delete publish %q failed: %w", name, err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("%w: publish %s not found", ErrNotFound, name)
-	}
-	return nil
-}
-
-func (s *SubscriptionStore) ResolvePublish(ctx context.Context, name, path, password string) (contractsubscription.ResolvePublishResponse, error) {
-	if s == nil || s.db == nil {
-		return contractsubscription.ResolvePublishResponse{}, errors.New("subscription store database is nil")
-	}
-	var dataJSON string
-	err := s.db.QueryRowContext(ctx, `
-		SELECT data_json
-		FROM publishes
-		WHERE name = ?
-	`, name).Scan(&dataJSON)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		return contractsubscription.ResolvePublishResponse{}, nil
-	case err != nil:
-		return contractsubscription.ResolvePublishResponse{}, fmt.Errorf("query publish %q failed: %w", name, err)
-	}
-	publish, err := decodePublish(name, dataJSON)
-	if err != nil {
-		return contractsubscription.ResolvePublishResponse{}, err
-	}
-	if publish.Path != path {
-		return contractsubscription.ResolvePublishResponse{}, nil
-	}
-	if subtle.ConstantTimeCompare([]byte(publish.Password), []byte(password)) != 1 {
-		return contractsubscription.ResolvePublishResponse{}, nil
-	}
-	out := contractsubscription.ResolvePublishResponse{
-		Points: make([]contractnode.Node, 0, len(publish.Points)),
-	}
-	for _, id := range publish.Points {
-		node, err := getNodeContract(ctx, s.db, id)
-		if errors.Is(err, ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return contractsubscription.ResolvePublishResponse{}, err
-		}
-		out.Points = append(out.Points, node)
-	}
-	return out, nil
-}
-
 func decodeSubscriptionLink(name, dataJSON string) (contractsubscription.Link, error) {
 	var link contractsubscription.Link
 	if err := json.Unmarshal([]byte(dataJSON), &link); err != nil {
@@ -282,21 +152,6 @@ func decodeSubscriptionLink(name, dataJSON string) (contractsubscription.Link, e
 		return contractsubscription.Link{}, fmt.Errorf("stored subscription %q is invalid: %w", name, err)
 	}
 	return link, nil
-}
-
-func decodePublish(name, dataJSON string) (contractsubscription.Publish, error) {
-	var publish contractsubscription.Publish
-	if err := json.Unmarshal([]byte(dataJSON), &publish); err != nil {
-		return contractsubscription.Publish{}, fmt.Errorf("decode publish %q failed: %w", name, err)
-	}
-	publish = normalizePublish(publish)
-	if publish.Name == "" {
-		publish.Name = name
-	}
-	if strings.TrimSpace(publish.Name) == "" {
-		return contractsubscription.Publish{}, fmt.Errorf("stored publish %q is invalid: publish name is empty", name)
-	}
-	return publish, nil
 }
 
 func normalizeLink(link contractsubscription.Link) contractsubscription.Link {
@@ -316,12 +171,4 @@ func validateLink(link contractsubscription.Link) error {
 		return fmt.Errorf("subscription %q url is empty", link.Name)
 	}
 	return nil
-}
-
-func normalizePublish(publish contractsubscription.Publish) contractsubscription.Publish {
-	publish.Name = strings.TrimSpace(publish.Name)
-	if publish.Points == nil {
-		publish.Points = []string{}
-	}
-	return publish
 }
