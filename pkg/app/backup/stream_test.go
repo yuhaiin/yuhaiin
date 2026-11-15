@@ -113,7 +113,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		`INSERT INTO inbounds(name,enabled,inbound_type,listen_host,updated_at,data_json) VALUES('legacy-inbound',1,'http','127.0.0.1:1080',1,'{"name":"legacy-inbound","identityRecord":"legacy-inbound-opaque-marker","http":{"password":"legacy-password-marker"}}')`,
 		`INSERT INTO node_tags(tag_name,target_kind,target_id,updated_at) VALUES('legacy-tag-marker','node','legacy',1)`,
 		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/subscription-path-marker","type":"reserve"}')`,
-		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
+		`INSERT INTO share_feeds(id,updated_at,data_json) VALUES('publication',1,'{"name":"publication","enabled":true,"token":"share-token-marker","entries":[{"kind":"node","value":"wg"}]}')`,
 		`INSERT INTO gateway_configuration(id,revision,data_json) VALUES(1,1,'{"version":2,"revision":1,"gateways":[{"id":"g1","name":"Protected","enabled":true,"revision":1,"policies":[{"id":"policy","name":"auth","enabled":true,"match":{"all":[{"field":"header","operator":"exact","key":"Authorization","values":["Bearer condition-secret-marker"]},{"not":{"field":"query","operator":"exact","key":"token","values":["query-secret-marker"]}}]},"action":{"type":"forward","rewrite":{"query":"token=rewrite-query-secret-marker","headers":{"Authorization":["Bearer rewrite-secret-marker"]}},"responseHeaders":{"Set-Cookie":["session=response-secret-marker"]}}}],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}},{"id":"g2","name":"Unchanged","enabled":true,"revision":1,"policies":[],"backendPools":[],"filters":[],"fallback":{"type":"block","rewrite":{}}}]}')`,
 	} {
 		if _, err := db.DB().ExecContext(t.Context(), statement); err != nil {
@@ -188,7 +188,7 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 	if err := b.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"legacy-root-private-marker", "legacy-root-credential-marker", "legacy-node-opaque-marker", "legacy-inbound-opaque-marker", "legacy-tag-marker", "site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "publish-password-marker", "publish-path-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
+	for _, marker := range []string{"legacy-root-private-marker", "legacy-root-credential-marker", "legacy-node-opaque-marker", "legacy-inbound-opaque-marker", "legacy-tag-marker", "site-private-key-marker", "acme-private-key-marker", "dns-provider-token-marker", "gateway-ca-private-key-marker", "private-runtime-marker", "s3-access-key-marker", "s3-secret-key-marker", "wire-private-marker", "wire-preshared-marker", "inbound-password-marker", "legacy-search-secret-marker", "legacy-wire-key-marker", "legacy-password-marker", "subscription-path-marker", "share-token-marker", "condition-secret-marker", "query-secret-marker", "rewrite-secret-marker", "response-secret-marker"} {
 		if bytes.Contains(object, []byte(marker)) {
 			t.Errorf("configuration S3 object contains %s", marker)
 		}
@@ -245,12 +245,11 @@ func TestConfigurationS3SnapshotDoesNotContainPrivateRuntimeMaterial(t *testing.
 		t.Fatal("S3 snapshot retained subscription URL", count, err)
 	}
 	var publication string
-	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT data_json FROM publishes WHERE name='publication'`).Scan(&publication); err != nil || bytes.Contains([]byte(publication), []byte(`"wg"`)) {
-		t.Fatal("S3 snapshot retained publish targets", publication, err)
+	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT data_json FROM share_feeds WHERE id='publication'`).Scan(&publication); err != nil || bytes.Contains([]byte(publication), []byte(`share-token-marker`)) {
+		t.Fatal("S3 snapshot retained the share feed token", publication, err)
 	}
-	resolved, err := plainstore.NewSubscriptionStore(snapshot.DB()).ResolvePublish(t.Context(), "publication", "", "")
-	if err != nil || len(resolved.Points) != 0 {
-		t.Fatal("redacted publication exposes nodes with an empty password", resolved, err)
+	if _, _, ok, err := plainstore.NewSubscriptionStore(snapshot.DB()).ResolveShareFeed(t.Context(), ""); err != nil || ok {
+		t.Fatal("redacted share feed exposes nodes with an empty token", ok, err)
 	}
 	var exportedEnabled int
 	if err := snapshot.DB().QueryRowContext(t.Context(), `SELECT enabled FROM nodes_v2 WHERE id='wg'`).Scan(&exportedEnabled); err != nil || exportedEnabled != 0 {
@@ -769,7 +768,7 @@ func TestBackupDownloadVerificationAndSkipUnchanged(t *testing.T) {
 	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('node','Node','','manual',1,'["ssh"]',1,'{"id":"node","name":"Node","enabled":true,"origin":"manual","chain":[{"type":"simple","simple":{"host":"host.example"}},{"type":"ssh","ssh":{"user":"admin","password":"private","hostKey":"public"}}]}')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"private","path":"private-path","points":["node"],"address":"example.org","insecure":false}')`); err != nil {
+	if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO share_feeds(id,updated_at,data_json) VALUES('publication',1,'{"name":"publication","enabled":true,"token":"private","entries":[{"kind":"node","value":"node"}]}')`); err != nil {
 		t.Fatal(err)
 	}
 	corrupt.Store(true)

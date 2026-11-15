@@ -103,7 +103,7 @@ func TestConfigurationExportOmitsS3SecretsAndDisablesAutomaticBackup(t *testing.
 	}
 }
 
-func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *testing.T) {
+func TestConfigurationExportOmitsSubscriptionCredentialsAndShareFeedTokens(t *testing.T) {
 	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *tes
 	defer source.Close()
 	for _, statement := range []string{
 		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/secret-url-path-marker","type":"reserve"}')`,
-		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["node-id"],"address":"example.com","insecure":false}')`,
+		`INSERT INTO share_feeds(id,updated_at,data_json) VALUES('feed',1,'{"name":"publication","enabled":true,"token":"share-token-marker","entries":[{"kind":"node","value":"node-id"}]}')`,
 	} {
 		if _, err := source.DB().ExecContext(t.Context(), statement); err != nil {
 			t.Fatal(err)
@@ -121,7 +121,7 @@ func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"secret-url-path-marker", "publish-password-marker", "publish-path-marker"} {
+	for _, marker := range []string{"secret-url-path-marker", "share-token-marker"} {
 		if bytes.Contains(data, []byte(marker)) {
 			t.Fatalf("configuration export contains %s", marker)
 		}
@@ -142,19 +142,18 @@ func TestConfigurationExportOmitsSubscriptionCredentialsAndDisarmsPublish(t *tes
 		t.Fatal("subscription URL was retained", count, err)
 	}
 	var raw string
-	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM publishes WHERE name='publication'`).Scan(&raw); err != nil {
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM share_feeds WHERE id='feed'`).Scan(&raw); err != nil {
 		t.Fatal(err)
 	}
-	var publish struct {
-		Password string   `json:"password"`
-		Path     string   `json:"path"`
-		Points   []string `json:"points"`
+	var feed struct {
+		Token   string           `json:"token"`
+		Entries []jsontext.Value `json:"entries"`
 	}
-	if err := json.Unmarshal([]byte(raw), &publish); err != nil {
+	if err := json.Unmarshal([]byte(raw), &feed); err != nil {
 		t.Fatal(err)
 	}
-	if publish.Password != "" || publish.Path != "" || len(publish.Points) != 0 {
-		t.Fatal("import could expose the protected publication", raw)
+	if feed.Token != "" || len(feed.Entries) != 1 {
+		t.Fatal("import could expose the share feed or lost its selection", raw)
 	}
 	if err := source.DB().QueryRowContext(t.Context(), `SELECT count(*) FROM subscriptions`).Scan(&count); err != nil || count != 1 {
 		t.Fatal("live subscriptions were changed", count, err)
@@ -896,7 +895,7 @@ func TestConfigBackupRejectsIncompleteOrUnknownFormat(t *testing.T) {
 }
 
 // A device backup restores a working setup: credentials, enabled state,
-// subscriptions, publishes and traffic statistics survive unchanged.
+// subscriptions, share feed tokens and traffic statistics survive unchanged.
 func TestDeviceBackupKeepsCredentialsStateAndStatistics(t *testing.T) {
 	source, err := Open(t.Context(), filepath.Join(t.TempDir(), "state.db"))
 	if err != nil {
@@ -907,7 +906,7 @@ func TestDeviceBackupKeepsCredentialsStateAndStatistics(t *testing.T) {
 	for _, statement := range []string{
 		`INSERT INTO nodes_v2(id,name,group_name,origin,enabled,chain_types_json,updated_at,data_json) VALUES('wg','WireGuard','','manual',1,'["wireguard"]',0,'` + node + `')`,
 		`INSERT INTO subscriptions(name,updated_at,data_json) VALUES('upstream',1,'{"name":"upstream","url":"https://example.com/secret-url-path-marker","type":"reserve"}')`,
-		`INSERT INTO publishes(name,updated_at,data_json) VALUES('publication',1,'{"name":"publication","password":"publish-password-marker","path":"publish-path-marker","points":["wg"],"address":"example.com","insecure":false}')`,
+		`INSERT INTO share_feeds(id,updated_at,data_json) VALUES('feed',1,'{"name":"publication","enabled":true,"token":"share-token-marker","entries":[{"kind":"node","value":"wg"}]}')`,
 		`INSERT OR REPLACE INTO statistics_kv(key,value_int,updated_at) VALUES('total_download',123456,1),('total_upload',654321,1)`,
 		`INSERT INTO traffic_hourly(bucket_start_utc,upload_bytes,download_bytes,updated_at) VALUES(3600,11,22,1)`,
 		`CREATE TABLE IF NOT EXISTS gateway_ca (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, certificate_pem BLOB NOT NULL, private_key_pem BLOB NOT NULL)`,
@@ -940,9 +939,9 @@ func TestDeviceBackupKeepsCredentialsStateAndStatistics(t *testing.T) {
 	if enabled != 1 || restored != node {
 		t.Fatal("node changed by a device backup", enabled, restored)
 	}
-	var publish string
-	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM publishes WHERE name='publication'`).Scan(&publish); err != nil || !strings.Contains(publish, "publish-password-marker") {
-		t.Fatal("publish changed", publish, err)
+	var feed string
+	if err := target.DB().QueryRowContext(t.Context(), `SELECT data_json FROM share_feeds WHERE id='feed'`).Scan(&feed); err != nil || !strings.Contains(feed, "share-token-marker") {
+		t.Fatal("share feed changed", feed, err)
 	}
 	var subscriptions, download, upload, hourly int
 	db := target.DB()

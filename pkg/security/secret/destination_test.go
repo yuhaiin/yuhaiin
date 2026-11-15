@@ -7,7 +7,6 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/gateway"
 	"github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	"github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	"github.com/Asutorufa/yuhaiin/pkg/security/secret"
 )
 
@@ -62,21 +61,8 @@ func TestDestinationWithoutCredentialNeedsNoManage(t *testing.T) {
 	}
 }
 
-func TestPublicationAndGatewayDestinationsAreBound(t *testing.T) {
+func TestGatewayDestinationsAreBound(t *testing.T) {
 	unmanaged := secret.WithCapabilities(t.Context(), secret.Capabilities{})
-	publish := subscription.Publish{Name: "p", Password: "hunter2", Address: "real.example"}
-	maskedPublish, err := secret.Redact(publish)
-	if err != nil {
-		t.Fatal(err)
-	}
-	maskedPublish.Address = "attacker.example"
-	if _, err := secret.Merge(unmanaged, maskedPublish, publish); !errors.Is(err, secret.ErrManage) {
-		t.Fatal("publication credential was redirected", err)
-	}
-	maskedPublish.Address, maskedPublish.Insecure = publish.Address, true
-	if _, err := secret.Merge(unmanaged, maskedPublish, publish); !errors.Is(err, secret.ErrManage) {
-		t.Fatal("publication credential lost TLS verification", err)
-	}
 	headers := gateway.Action{Type: "proxy", Upstream: "real", Rewrite: gateway.Rewrite{Host: "real.example", Headers: map[string][]string{"Authorization": {"Bearer hunter2"}}}}
 	maskedAction, err := secret.Redact(headers)
 	if err != nil {

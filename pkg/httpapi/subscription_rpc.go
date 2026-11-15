@@ -14,10 +14,12 @@ func addSubscriptionRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SubscriptionsPut, api.saveSubscriptions)
 	addRPCRoute(handlers, v2SubscriptionsDelete, api.deleteSubscriptions)
 	addRPCRoute(handlers, v2SubscriptionsUpdate, api.updateSubscriptions)
-	addRPCRoute(handlers, v2Publishes, api.publishes)
-	addRPCRoute(handlers, v2PublishPut, api.savePublish)
-	addRPCRoute(handlers, v2PublishDelete, api.deletePublish)
-	addRPCRoute(handlers, v2PublishResolve, api.resolvePublish)
+	addRPCRoute(handlers, v2ShareFeeds, api.shareFeeds)
+	addRPCRoute(handlers, v2ShareFeedCreate, api.createShareFeed)
+	addRPCRoute(handlers, v2ShareFeedPut, api.updateShareFeed)
+	addRPCRoute(handlers, v2ShareFeedDelete, api.deleteShareFeed)
+	addRPCRoute(handlers, v2ShareFeedRotate, api.rotateShareFeed)
+	addRPCRoute(handlers, v2ShareFeedPreview, api.previewShareFeed)
 }
 
 func (a v2API) subscriptions(ctx context.Context, _ *emptyRequest) (*contractsubscription.LinkList, error) {
@@ -57,47 +59,70 @@ func (a v2API) updateSubscriptions(ctx context.Context, request *contractsubscri
 	return &emptyResponse{}, nil
 }
 
-func (a v2API) publishes(ctx context.Context, _ *emptyRequest) (*contractsubscription.PublishList, error) {
+func (a v2API) shareFeeds(ctx context.Context, _ *emptyRequest) (*contractsubscription.ShareFeedList, error) {
 	if a.services.Subscriptions == nil {
 		return nil, unavailable("subscription store is unavailable")
 	}
-	return pointer(a.services.Subscriptions.ListPublishes(ctx))
+	return pointer(a.services.Subscriptions.ListShareFeeds(ctx))
 }
 
-func (a v2API) savePublish(ctx context.Context, request *contractsubscription.Publish) (*emptyResponse, error) {
+func (a v2API) createShareFeed(ctx context.Context, request *contractsubscription.ShareFeed) (*contractsubscription.ShareFeed, error) {
 	if a.services.Subscriptions == nil {
 		return nil, unavailable("subscription store is unavailable")
 	}
-	if err := a.services.Subscriptions.SavePublish(ctx, *request, 0); err != nil {
+	feed, err := a.services.Subscriptions.CreateShareFeed(ctx, *request)
+	if err != nil {
 		return nil, badRequest(err)
 	}
-	return &emptyResponse{}, nil
+	return &feed, nil
 }
 
-type publishNameRequest struct {
-	Name string `json:"name"`
-}
-
-func (a v2API) deletePublish(ctx context.Context, request *publishNameRequest) (*emptyResponse, error) {
+func (a v2API) updateShareFeed(ctx context.Context, request *contractsubscription.ShareFeed) (*contractsubscription.ShareFeed, error) {
 	if a.services.Subscriptions == nil {
 		return nil, unavailable("subscription store is unavailable")
 	}
-	if err := a.services.Subscriptions.DeletePublish(ctx, request.Name); err != nil {
+	feed, err := a.services.Subscriptions.UpdateShareFeed(ctx, *request)
+	return shareFeedResult(feed, err)
+}
+
+func (a v2API) deleteShareFeed(ctx context.Context, request *contractsubscription.ShareFeedID) (*emptyResponse, error) {
+	if a.services.Subscriptions == nil {
+		return nil, unavailable("subscription store is unavailable")
+	}
+	if err := a.services.Subscriptions.DeleteShareFeed(ctx, request.ID); err != nil {
 		if errors.Is(err, plainstore.ErrNotFound) {
-			return nil, &rpcError{status: 404, code: "not_found", message: err.Error()}
+			return nil, notFound(err)
 		}
 		return nil, err
 	}
 	return &emptyResponse{}, nil
 }
 
-func (a v2API) resolvePublish(ctx context.Context, request *contractsubscription.ResolvePublishRequest) (*contractsubscription.ResolvePublishResponse, error) {
-	if a.services.Subscribe == nil {
-		return nil, unavailable("subscription controller is unavailable")
+func (a v2API) rotateShareFeed(ctx context.Context, request *contractsubscription.ShareFeedID) (*contractsubscription.ShareFeed, error) {
+	if a.services.Subscriptions == nil {
+		return nil, unavailable("subscription store is unavailable")
 	}
-	value, err := a.services.Subscribe.ResolvePublish(ctx, request.Name, *request)
+	feed, err := a.services.Subscriptions.RotateShareFeedToken(ctx, request.ID)
+	return shareFeedResult(feed, err)
+}
+
+func (a v2API) previewShareFeed(ctx context.Context, request *contractsubscription.ShareFeedPreviewRequest) (*contractsubscription.ShareFeedPreview, error) {
+	if a.services.Subscriptions == nil {
+		return nil, unavailable("subscription store is unavailable")
+	}
+	preview, err := a.services.Subscriptions.PreviewShareFeed(ctx, request.Entries)
 	if err != nil {
 		return nil, badRequest(err)
 	}
-	return &value, nil
+	return &preview, nil
+}
+
+func shareFeedResult(feed contractsubscription.ShareFeed, err error) (*contractsubscription.ShareFeed, error) {
+	switch {
+	case errors.Is(err, plainstore.ErrNotFound):
+		return nil, notFound(err)
+	case err != nil:
+		return nil, badRequest(err)
+	}
+	return &feed, nil
 }

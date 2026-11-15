@@ -93,15 +93,15 @@ func TestIndependentConfigListsSkipInvalidStoredRecords(t *testing.T) {
 			},
 		},
 		{
-			name:    "publishes",
-			insert:  `INSERT INTO publishes(name,updated_at,data_json) VALUES (?, ?, ?)`,
-			valid:   `{"name":%q,"address":%q,"points":[]}`,
+			name:    "share_feeds",
+			insert:  `INSERT INTO share_feeds(id,updated_at,data_json) VALUES (?, ?, ?)`,
+			valid:   `{"name":%q,"baseUrl":%q,"entries":[]}`,
 			invalid: `{"name":42}`,
 			list: func(ctx context.Context, db *sql.DB) ([]string, error) {
-				items, err := NewSubscriptionStore(db).ListPublishes(ctx)
+				items, err := NewSubscriptionStore(db).ListShareFeeds(ctx)
 				ids := []string{}
 				for _, item := range items.Items {
-					ids = append(ids, item.Name)
+					ids = append(ids, item.ID)
 				}
 				return ids, err
 			},
@@ -120,7 +120,7 @@ func TestIndependentConfigListsSkipInvalidStoredRecords(t *testing.T) {
 					data = test.invalid
 				}
 				var second any = id
-				if test.name == "subscriptions" || test.name == "publishes" {
+				if test.name == "subscriptions" || test.name == "share_feeds" {
 					second = 1
 				}
 				if _, err := db.DB().ExecContext(ctx, test.insert, id, second, data); err != nil {

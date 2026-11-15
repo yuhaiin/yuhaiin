@@ -659,4 +659,5 @@ var migrations = []Migration{
 	}},
 	managedCertificatesMigration,
 	configurationChangesMigration,
+	shareFeedsMigration,
 }
