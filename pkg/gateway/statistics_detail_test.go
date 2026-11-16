@@ -1,8 +1,10 @@
 package gateway
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,5 +68,24 @@ func TestTopHostsStayBounded(t *testing.T) {
 	got := d.snapshot("g", nil, 0, time.Now())
 	if got.TopHosts[0].Host != "heavy.example" || got.TopHosts[0].Blocked != 50 {
 		t.Fatalf("top = %+v", got.TopHosts[0])
+	}
+}
+
+func TestDetailStatisticsCountsProxiedBytesAndImplicitStatus(t *testing.T) {
+	e, _ := testEngine(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_, _ = w.Write(append([]byte("echo:"), body...))
+	}))
+	w := httptest.NewRecorder()
+	e.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "http://site.example/", strings.NewReader("payload")))
+	if w.Body.String() != "echo:payload" {
+		t.Fatalf("body = %q", w.Body.String())
+	}
+	got := e.Counters.detail.snapshot("g", nil, 0, time.Now())
+	if got.BytesIn != 7 || got.BytesOut != 12 || got.StatusClasses[2] != 1 {
+		t.Fatalf("bytes in=%d out=%d status=%v", got.BytesIn, got.BytesOut, got.StatusClasses)
+	}
+	if last := len(got.History.Forwarded) - 1; got.History.Forwarded[last] != 1 {
+		t.Fatalf("forwarded history = %d", got.History.Forwarded[last])
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -142,8 +143,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		e.Counters.DurationNS.Add(uint64(now.Sub(start)))
 		detail.active.Add(-1)
-		record.status = stats.status
-		record.bytesOut = stats.bytes
+		record.status = stats.finalStatus()
 		detail.finish(record, now)
 	}()
 	if e.config.Debug {
@@ -261,7 +261,8 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(status)
 		if r.Method != http.MethodHead && status != 204 && status != 304 {
-			_, _ = w.Write([]byte(a.Body))
+			n, _ := w.Write([]byte(a.Body))
+			record.bytesOut.Add(uint64(n))
 		}
 		return
 	case "redirect":
@@ -372,6 +373,9 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				release()
 				return nil, err
+			}
+			if _, upgraded := resp.Body.(io.Writer); !upgraded {
+				resp.Body = statsRequestBody{ReadCloser: resp.Body, bytes: &record.bytesOut}
 			}
 			resp.Body = wrapResponseBody(resp.Body, release)
 			if timeouts != nil && isStreamingResponse(resp) {

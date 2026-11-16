@@ -104,12 +104,13 @@ func (d *detailStatistics) hitRule(id string) {
 }
 
 type requestRecord struct {
-	start    time.Time
-	host     string
-	outcome  requestOutcome
-	status   int
-	bytesIn  atomic.Uint64 // request bodies may be read by the transport goroutine
-	bytesOut uint64
+	start   time.Time
+	host    string
+	outcome requestOutcome
+	status  int
+	// Bodies may be read by the transport goroutine.
+	bytesIn  atomic.Uint64
+	bytesOut atomic.Uint64
 }
 
 func latencyBucket(d time.Duration) int {
@@ -130,9 +131,9 @@ func (d *detailStatistics) finish(r *requestRecord, now time.Time) {
 	}
 	d.statusClasses[class].Add(1)
 	d.latency[latencyBucket(elapsed)].Add(1)
-	bytesIn := r.bytesIn.Load()
+	bytesIn, bytesOut := r.bytesIn.Load(), r.bytesOut.Load()
 	d.bytesIn.Add(bytesIn)
-	d.bytesOut.Add(r.bytesOut)
+	d.bytesOut.Add(bytesOut)
 
 	slot := now.UnixNano() / int64(historyInterval)
 	d.mu.Lock()
@@ -144,7 +145,7 @@ func (d *detailStatistics) finish(r *requestRecord, now time.Time) {
 	h.requests++
 	h.duration += uint64(elapsed)
 	h.bytesIn += bytesIn
-	h.bytesOut += r.bytesOut
+	h.bytesOut += bytesOut
 	switch r.outcome {
 	case outcomeBlocked:
 		h.blocked++
@@ -282,12 +283,13 @@ func (m *Manager) Statistics() contract.StatisticsReport {
 	return result
 }
 
-// statsResponseWriter records the final status and response bytes. Unwrap
-// keeps ResponseController (flush, hijack, deadlines) working.
+// statsResponseWriter records the final status only. It deliberately does not
+// override Write: response bytes are counted where they are produced (the
+// upstream body or a local response). Unwrap keeps ResponseController
+// (flush, hijack, deadlines) working.
 type statsResponseWriter struct {
 	http.ResponseWriter
 	status int
-	bytes  uint64
 }
 
 func (w *statsResponseWriter) WriteHeader(status int) {
@@ -297,21 +299,18 @@ func (w *statsResponseWriter) WriteHeader(status int) {
 	w.ResponseWriter.WriteHeader(status)
 }
 
-func (w *statsResponseWriter) Write(p []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	n, err := w.ResponseWriter.Write(p)
-	w.bytes += uint64(n)
-	return n, err
-}
-
-func (w *statsResponseWriter) ReadFrom(r io.Reader) (int64, error) {
-	return io.Copy(struct{ io.Writer }{w}, r)
-}
-
 func (w *statsResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
+// finalStatus mirrors net/http: a handler that writes a body or returns
+// without WriteHeader sends 200.
+func (w *statsResponseWriter) finalStatus() int {
+	if w.status == 0 {
+		return http.StatusOK
+	}
+	return w.status
+}
+
+// statsRequestBody counts body bytes read, for requests and upstream responses.
 type statsRequestBody struct {
 	io.ReadCloser
 	bytes *atomic.Uint64
