@@ -58,9 +58,12 @@ type LANLinkGateway struct {
 	// same port on the gateway's loopback address; a flow to another client's
 	// address is relayed to that client, which delivers it only when its
 	// outbound allows incoming flows.
-	ClientToClient bool            `json:"clientToClient,omitempty"`
-	PrivateKey     string          `json:"privateKey,omitempty" secret:"true"`
-	Clients        []LANLinkClient `json:"clients,omitempty"`
+	ClientToClient bool `json:"clientToClient,omitempty"`
+	// TCPSettings configures the lightweight stack of every client link.
+	// Changing it restarts the client sessions.
+	TCPSettings *transport.TCPSettings `json:"tcpSettings,omitzero"`
+	PrivateKey  string                 `json:"privateKey,omitempty" secret:"true"`
+	Clients     []LANLinkClient        `json:"clients,omitempty"`
 }
 
 // LANLinkClient holds the independent credentials of one invitation.

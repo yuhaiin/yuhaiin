@@ -24,6 +24,8 @@ type LANLink struct {
 	// the same port on its loopback address. It takes effect only when the
 	// gateway enables client-to-client traffic.
 	AllowIncoming bool `json:"allowIncoming,omitempty"`
+	// TCPSettings configures the lightweight stack carrying this link.
+	TCPSettings *TCPSettings `json:"tcpSettings,omitzero"`
 }
 
 func (LANLink) ProtocolType() string { return LANLinkType }

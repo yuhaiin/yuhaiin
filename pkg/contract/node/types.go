@@ -980,5 +980,8 @@ func (x Protocol) TCPOptions() *transport.TCPSettings {
 	if x.Masque != nil {
 		return x.Masque.TCPSettings
 	}
+	if x.LANLink != nil {
+		return x.LANLink.TCPSettings
+	}
 	return nil
 }

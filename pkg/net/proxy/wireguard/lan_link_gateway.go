@@ -64,7 +64,7 @@ func NewLANLinkGateway(cfg contract.LANLinkGateway, socket net.PacketConn, handl
 		_ = socket.Close()
 		return nil, errors.New("LAN Link gateway requires an inbound handler")
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := validateGateway(cfg); err != nil {
 		_ = socket.Close()
 		return nil, err
 	}
@@ -105,14 +105,22 @@ func (g *LANLinkGateway) Close() error {
 	return err
 }
 
+func validateGateway(cfg contract.LANLinkGateway) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	return ValidateTCPSettings(cfg.TCPSettings)
+}
+
 func linkSpec(cfg contract.LANLinkGateway, c contract.LANLinkClient) string {
-	return strings.Join([]string{c.Token, c.Registration, fmt.Sprint(c.Slot), cfg.Subnet, cfg.Subnet6, cfg.PrivateKey, strings.Join(cfg.Networks, ","), fmt.Sprint(cfg.ClientToClient)}, "|")
+	tcp := tcpSettings(cfg.TCPSettings)
+	return strings.Join([]string{c.Token, c.Registration, fmt.Sprint(c.Slot), cfg.Subnet, cfg.Subnet6, cfg.PrivateKey, strings.Join(cfg.Networks, ","), fmt.Sprint(cfg.ClientToClient), tcp.CongestionControl, tcp.LossRecovery}, "|")
 }
 
 // Apply reconciles clients with cfg. Clients whose credentials, address and
 // shared networks are unchanged keep their session.
 func (g *LANLinkGateway) Apply(cfg contract.LANLinkGateway) error {
-	if err := cfg.Validate(); err != nil {
+	if err := validateGateway(cfg); err != nil {
 		return err
 	}
 	g.mu.Lock()
@@ -192,6 +200,7 @@ func (g *LANLinkGateway) newLink(cfg contract.LANLinkGateway, client contract.LA
 	if err != nil {
 		return nil, err
 	}
+	link.tcp = cfg.TCPSettings
 	if cfg.ClientToClient {
 		link.relay = g
 	}
