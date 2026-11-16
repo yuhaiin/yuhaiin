@@ -216,6 +216,9 @@ type Lists struct {
 	// geoipChanged is notified after a different GeoIP database generation
 	// becomes current, for consumers such as TUN GeoIP routes.
 	geoipChanged atomic.Pointer[func()]
+	// hostListsChanged is notified after list content may have changed: a
+	// routing activation (list edits included) or a host index refresh.
+	hostListsChanged atomic.Pointer[func()]
 
 	tickermu sync.RWMutex
 
@@ -417,6 +420,30 @@ func (s *Lists) notifyGeoIPChanged() {
 	if f := s.geoipChanged.Load(); f != nil && *f != nil {
 		go (*f)()
 	}
+}
+
+// OnHostListsChange registers f to run, in its own goroutine, after list
+// content may have changed. A later call replaces the previous callback.
+func (s *Lists) OnHostListsChange(f func()) { s.hostListsChanged.Store(&f) }
+
+func (s *Lists) notifyHostListsChanged() {
+	if f := s.hostListsChanged.Load(); f != nil && *f != nil {
+		go (*f)()
+	}
+}
+
+// HostListValues returns the current entries of a host list, read from the
+// list itself or, for a remote list, from its downloaded cache. It does not
+// download anything, so it is safe to call from the DNS path.
+func (s *Lists) HostListValues(id string) (iter.Seq[string], error) {
+	list, values, err := s.getIter(id)
+	if err != nil {
+		return nil, err
+	}
+	if list.Type == "process" {
+		return nil, fmt.Errorf("list %s is a process list", id)
+	}
+	return values, nil
 }
 
 func (s *Lists) resetRefreshInterval(minute uint64) {
@@ -766,6 +793,7 @@ func (s *Lists) refreshHostTrie() {
 	if err := old.Close(); err != nil {
 		log.Error("close host trie failed", "err", err)
 	}
+	s.notifyHostListsChanged()
 }
 
 func (s *Lists) HostTrie() *hostMatcher {

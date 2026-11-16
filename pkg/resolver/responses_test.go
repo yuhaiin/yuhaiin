@@ -97,7 +97,8 @@ func TestCustomResponseBeforeFakeIPAndHostsOverDNSStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = fake.Close() })
-	if err := fake.Apply(contract.FakeDNS{Enabled: true, SkipCheckList: []string{"*.example.com"}}); err != nil {
+	useTestLists(fake, map[string][]string{"skip": {"*.example.com"}})
+	if err := fake.Apply(contract.FakeDNS{Enabled: true, SkipCheckListIDs: []string{"skip"}}); err != nil {
 		t.Fatal(err)
 	}
 	rules := response.New(fake)

@@ -258,6 +258,7 @@ func (p *preparedLists) close() {
 }
 
 func (s *Lists) installPrepared(prepared *preparedLists) {
+	defer s.notifyHostListsChanged()
 	s.hostTrieRefreshVersion.Add(1)
 	s.hostTrieRefreshTimerMu.Lock()
 	if s.hostTrieRefreshTimer != nil {

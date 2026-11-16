@@ -3,9 +3,11 @@ package migrate
 import (
 	"net/netip"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	contractinbound "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 )
@@ -69,9 +71,15 @@ func TestFreshSQLiteHasUsableDefaults(t *testing.T) {
 	if _, err := netip.ParsePrefix(fakedns.IPv6Range); err != nil {
 		t.Fatalf("invalid default IPv6 FakeDNS range: %v", err)
 	}
+	if !slices.Equal(fakedns.WhitelistListIDs, []string{"fakedns-whitelist"}) {
+		t.Fatalf("default FakeDNS whitelist lists = %v", fakedns.WhitelistListIDs)
+	}
 
 	lists, err := plainstore.NewRouteListStore(db).ListRouteListDetails(ctx)
-	if err != nil || len(lists) != 1 || lists[0].ID != "LAN" {
+	if err != nil || len(lists) != 2 || !slices.ContainsFunc(lists, func(l contractroute.RouteListDetail) bool { return l.ID == "LAN" }) ||
+		!slices.ContainsFunc(lists, func(l contractroute.RouteListDetail) bool {
+			return l.ID == "fakedns-whitelist" && l.Source.Local != nil && slices.Contains(l.Source.Local.Lists, "mask.icloud.com")
+		}) {
 		t.Fatalf("default route lists: %+v, %v", lists, err)
 	}
 	rules, err := plainstore.NewRouteRuleStore(db).ListRules(ctx)
