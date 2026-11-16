@@ -30,6 +30,10 @@ type FakeDNS struct {
 	IPv6Range     string   `json:"ipv6Range"`
 	Whitelist     []string `json:"whitelist"`
 	SkipCheckList []string `json:"skipCheckList"`
+	// WhitelistListIDs and SkipCheckListIDs reference shared host lists. Their
+	// domain entries are matched in addition to the inline values above.
+	WhitelistListIDs []string `json:"whitelistListIds,omitzero"`
+	SkipCheckListIDs []string `json:"skipCheckListIds,omitzero"`
 }
 
 type Server struct {
