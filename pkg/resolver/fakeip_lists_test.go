@@ -32,6 +32,13 @@ func (s *testHostLists) set(id string, values ...string) {
 	s.lists[id] = values
 }
 
+// useTestLists gives f in-memory shared lists, keyed by list ID.
+func useTestLists(f *Fakedns, lists map[string][]string) *testHostLists {
+	source := &testHostLists{lists: lists}
+	f.SetHostListSource(source)
+	return source
+}
+
 func TestFakednsSharedLists(t *testing.T) {
 	f, err := NewFakeDNS(
 		netapi.NewErrProxy(errors.New("test dialer")),
@@ -43,14 +50,13 @@ func TestFakednsSharedLists(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = f.Close() })
 
-	source := &testHostLists{lists: map[string][]string{
-		"vpn":  {"*.tailscale.com", "10.0.0.0/8", "192.168.1.1"},
-		"skip": {"time.apple.com"},
-	}}
-	f.SetHostListSource(source)
+	source := useTestLists(f, map[string][]string{
+		"vpn":   {"*.tailscale.com", "10.0.0.0/8", "192.168.1.1"},
+		"other": {"inline.example"},
+		"skip":  {"time.apple.com"},
+	})
 	if err := f.Apply(contractresolver.FakeDNS{
-		Whitelist:        []string{"inline.example"},
-		WhitelistListIDs: []string{"vpn", "gone"},
+		WhitelistListIDs: []string{"vpn", "other", "gone"},
 		SkipCheckListIDs: []string{"skip"},
 	}); err != nil {
 		t.Fatal(err)

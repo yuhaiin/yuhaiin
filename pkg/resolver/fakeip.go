@@ -158,14 +158,11 @@ func (f *Fakedns) RefreshHostLists() {
 }
 
 func (f *Fakedns) buildMatchers(c contractresolver.FakeDNS) (whitelist, skipCheck *domain.Fqdn[struct{}]) {
-	return f.buildMatcher(c.Whitelist, c.WhitelistListIDs), f.buildMatcher(c.SkipCheckList, c.SkipCheckListIDs)
+	return f.buildMatcher(c.WhitelistListIDs), f.buildMatcher(c.SkipCheckListIDs)
 }
 
-func (f *Fakedns) buildMatcher(values []string, listIDs []string) *domain.Fqdn[struct{}] {
+func (f *Fakedns) buildMatcher(listIDs []string) *domain.Fqdn[struct{}] {
 	d := domain.NewTrie[struct{}]()
-	for _, v := range values {
-		d.Insert(v, struct{}{})
-	}
 	if len(listIDs) == 0 {
 		return d
 	}

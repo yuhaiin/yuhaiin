@@ -431,7 +431,9 @@ func (a v2API) authorizeFakeDNSListRefs(ctx context.Context, next contractresolv
 	if err != nil {
 		return badRequest(err)
 	}
-	if slices.Equal(current.WhitelistListIDs, next.WhitelistListIDs) && slices.Equal(current.SkipCheckListIDs, next.SkipCheckListIDs) {
+	// nil keeps the stored references, so it is never a change.
+	unchanged := func(current, next []string) bool { return next == nil || slices.Equal(current, next) }
+	if unchanged(current.WhitelistListIDs, next.WhitelistListIDs) && unchanged(current.SkipCheckListIDs, next.SkipCheckListIDs) {
 		return nil
 	}
 	return &rpcError{status: http.StatusForbidden, code: "permission_denied", message: "changing the shared lists used by FakeDNS requires " + string(managementpermission.RoutesRead)}

@@ -41,7 +41,6 @@ func TestFakeDNSSharedListReferences(t *testing.T) {
 	processID := save("apps", "process")
 
 	want := contractresolver.FakeDNS{
-		Whitelist:        []string{"inline.example"},
 		WhitelistListIDs: []string{hostID},
 		SkipCheckListIDs: []string{hostID},
 	}
@@ -71,7 +70,11 @@ func TestFakeDNSSharedListReferences(t *testing.T) {
 		t.Fatalf("rejected save changed settings: %+v, %v", got, err)
 	}
 
-	if _, err := config.SaveFakeDNS(ctx, contractresolver.FakeDNS{}); err != nil {
+	// A client that omits the reference fields keeps them.
+	if got, err := config.SaveFakeDNS(ctx, contractresolver.FakeDNS{Enabled: true}); err != nil || !reflect.DeepEqual(got.WhitelistListIDs, want.WhitelistListIDs) || !reflect.DeepEqual(got.SkipCheckListIDs, want.SkipCheckListIDs) {
+		t.Fatalf("save without reference fields = %+v, %v", got, err)
+	}
+	if _, err := config.SaveFakeDNS(ctx, contractresolver.FakeDNS{WhitelistListIDs: []string{}, SkipCheckListIDs: []string{}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := lists.DeleteRouteList(ctx, hostID); err != nil {

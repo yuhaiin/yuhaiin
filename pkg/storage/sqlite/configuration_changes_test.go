@@ -17,7 +17,7 @@ func TestConfigurationChangeMigrationsAreAtomicAndRestartable(t *testing.T) {
 		reopen func(context.Context, string) (*Store, error)
 	}{
 		{"management", management, managementConfigurationChangesMigration, OpenManagement},
-		{"configuration", migrations[:len(migrations)-1], configurationChangesMigration, Open},
+		{"configuration", migrations[:slices.IndexFunc(migrations, func(m Migration) bool { return m.Version == configurationChangesMigration.Version })], configurationChangesMigration, Open},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.db")

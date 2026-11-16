@@ -25,13 +25,13 @@ type Hosts struct {
 }
 
 type FakeDNS struct {
-	Enabled       bool     `json:"enabled"`
-	IPv4Range     string   `json:"ipv4Range"`
-	IPv6Range     string   `json:"ipv6Range"`
-	Whitelist     []string `json:"whitelist"`
-	SkipCheckList []string `json:"skipCheckList"`
-	// WhitelistListIDs and SkipCheckListIDs reference shared host lists. Their
-	// domain entries are matched in addition to the inline values above.
+	Enabled   bool   `json:"enabled"`
+	IPv4Range string `json:"ipv4Range"`
+	IPv6Range string `json:"ipv6Range"`
+	// WhitelistListIDs and SkipCheckListIDs reference shared host lists whose
+	// domain entries FakeDNS matches. On save, null (or an absent field) keeps
+	// the current references and [] clears them, so a client that predates
+	// these fields cannot drop them by accident.
 	WhitelistListIDs []string `json:"whitelistListIds,omitzero"`
 	SkipCheckListIDs []string `json:"skipCheckListIds,omitzero"`
 }

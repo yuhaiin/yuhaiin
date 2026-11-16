@@ -116,10 +116,6 @@ func (s *ResolverConfigStore) FakeDNS(ctx context.Context) (contractresolver.Fak
 			return contractresolver.FakeDNS{}, fmt.Errorf("scan fakedns list failed: %w", err)
 		}
 		switch kind {
-		case "whitelist":
-			out.Whitelist = append(out.Whitelist, value)
-		case "skip_check":
-			out.SkipCheckList = append(out.SkipCheckList, value)
 		case fakeDNSWhitelistListKind:
 			out.WhitelistListIDs = append(out.WhitelistListIDs, value)
 		case fakeDNSSkipCheckListKind:
@@ -152,25 +148,6 @@ func (s *ResolverConfigStore) SaveFakeDNS(ctx context.Context, config contractre
 	`, boolToInt(config.Enabled), config.IPv4Range, config.IPv6Range); err != nil {
 		return contractresolver.FakeDNS{}, fmt.Errorf("save fakedns settings failed: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM dns_fakedns_lists`); err != nil {
-		return contractresolver.FakeDNS{}, fmt.Errorf("clear fakedns lists failed: %w", err)
-	}
-	for _, value := range config.Whitelist {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO dns_fakedns_lists(kind, value)
-			VALUES ('whitelist', ?)
-		`, value); err != nil {
-			return contractresolver.FakeDNS{}, fmt.Errorf("insert fakedns whitelist %q failed: %w", value, err)
-		}
-	}
-	for _, value := range config.SkipCheckList {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO dns_fakedns_lists(kind, value)
-			VALUES ('skip_check', ?)
-		`, value); err != nil {
-			return contractresolver.FakeDNS{}, fmt.Errorf("insert fakedns skip_check %q failed: %w", value, err)
-		}
-	}
 	for _, refs := range []struct {
 		kind string
 		ids  []string
@@ -178,6 +155,13 @@ func (s *ResolverConfigStore) SaveFakeDNS(ctx context.Context, config contractre
 		{fakeDNSWhitelistListKind, config.WhitelistListIDs},
 		{fakeDNSSkipCheckListKind, config.SkipCheckListIDs},
 	} {
+		// nil keeps the stored references; see contractresolver.FakeDNS.
+		if refs.ids == nil {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM dns_fakedns_lists WHERE kind = ?`, refs.kind); err != nil {
+			return contractresolver.FakeDNS{}, fmt.Errorf("clear fakedns list references failed: %w", err)
+		}
 		seen := map[string]struct{}{}
 		for _, id := range refs.ids {
 			if _, ok := seen[id]; ok {
@@ -198,7 +182,7 @@ func (s *ResolverConfigStore) SaveFakeDNS(ctx context.Context, config contractre
 	if err := tx.Commit(); err != nil {
 		return contractresolver.FakeDNS{}, fmt.Errorf("commit fakedns transaction failed: %w", err)
 	}
-	return config, nil
+	return s.FakeDNS(ctx)
 }
 
 // FakeDNS list references are stored next to inline values, distinguished by

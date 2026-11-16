@@ -39,7 +39,8 @@ func benchmarkDNSPipeline(b *testing.B, kind string, count int, wrap bool) (neta
 		b.Fatal(err)
 	}
 	b.Cleanup(func() { _ = fake.Close() })
-	if err := fake.Apply(contract.FakeDNS{Enabled: kind == "fakeip", SkipCheckList: []string{"*"}}); err != nil {
+	useTestLists(fake, map[string][]string{"skip": {"*"}})
+	if err := fake.Apply(contract.FakeDNS{Enabled: kind == "fakeip", SkipCheckListIDs: []string{"skip"}}); err != nil {
 		b.Fatal(err)
 	}
 	var root netapi.Resolver = fake
