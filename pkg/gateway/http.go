@@ -41,6 +41,7 @@ type Counters struct {
 	DurationNS       atomic.Uint64
 	TLSFailures      atomic.Uint64
 	ProtocolFailures atomic.Uint64
+	detail           detailStatistics
 }
 
 // Engine handles HTTP only. Listener admission, interception and CA lifecycle
@@ -128,7 +129,23 @@ func (e *Engine) Close() error {
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	e.Counters.Requests.Add(1)
-	defer func() { e.Counters.DurationNS.Add(uint64(time.Since(start))) }()
+	detail := &e.Counters.detail
+	detail.ensureSince(start)
+	detail.active.Add(1)
+	record := &requestRecord{start: start, host: hostname(r.Host)}
+	stats := &statsResponseWriter{ResponseWriter: w}
+	w = stats
+	if r.Body != nil && r.Body != http.NoBody {
+		r.Body = statsRequestBody{ReadCloser: r.Body, bytes: &record.bytesIn}
+	}
+	defer func() {
+		now := time.Now()
+		e.Counters.DurationNS.Add(uint64(now.Sub(start)))
+		detail.active.Add(-1)
+		record.status = stats.status
+		record.bytesOut = stats.bytes
+		detail.finish(record, now)
+	}()
 	if e.config.Debug {
 		trace := newRequestTrace(e.config.ID, e.config.Name, w, r)
 		w = trace.writer
@@ -188,6 +205,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		actual, err := netapi.PinTrafficDestination(ctx, e.access, original)
 		if err != nil {
 			e.Counters.Blocked.Add(1)
+			record.outcome = outcomeBlocked
 			e.auditLocal(ctx, r, true)
 			http.Error(w, "traffic access denied", http.StatusForbidden)
 			return
@@ -195,6 +213,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		requestCtx, release, err := netapi.AuthorizeTrafficRequest(ctx, e.access, original, actual)
 		if err != nil {
 			e.Counters.Blocked.Add(1)
+			record.outcome = outcomeBlocked
 			e.auditLocal(ctx, r, true)
 			http.Error(w, "traffic access denied", http.StatusForbidden)
 			return
@@ -212,8 +231,15 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	result := e.policy.evaluate(r, ctx, false)
 	a := result.Action
+	filtered := false
 	if a.Type != "respond" && a.Type != "block" && e.filters.blocked(r) {
 		a = contract.Action{Type: "block", Status: 204}
+		filtered = true
+	}
+	if filtered {
+		detail.filterHits.Add(1)
+	} else {
+		detail.hitRule(result.RuleID)
 	}
 	if result.RuleID != "" {
 		ctx.SetMatchedRule(result.RuleID, "")
@@ -223,6 +249,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.auditLocal(ctx, r, a.Type == "block")
 		if a.Type == "block" {
 			e.Counters.Blocked.Add(1)
+			record.outcome = outcomeBlocked
 		}
 		applyHeaders(w.Header(), a.ResponseHeaders)
 		status := a.Status
@@ -270,6 +297,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var err error
 		b, err = selectedUpstream.pick()
 		if err != nil {
+			record.outcome = outcomeError
 			e.fail(w)
 			return
 		}
@@ -360,6 +388,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 			failed = true
+			record.outcome = outcomeError
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 				e.Counters.Errors.Add(1)
 				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
@@ -369,6 +398,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	e.Counters.Forwarded.Add(1)
+	record.outcome = outcomeForwarded
 	proxy.ServeHTTP(w, r)
 }
 

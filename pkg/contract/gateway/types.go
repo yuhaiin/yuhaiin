@@ -66,7 +66,7 @@ type Action struct {
 	Upstream        string              `json:"upstream,omitempty" privilege:"secrets:bound"`
 	Outbound        route.Target        `json:"outbound" privilege:"secrets:bound"`
 	Status          int                 `json:"status,omitzero"`
-	Body            string              `json:"body,omitempty" secret:"true"`
+	Body            string              `json:"body,omitempty"`
 	Location        string              `json:"location,omitempty" secret:"url"`
 	PreserveHost    bool                `json:"preserveHost"`
 	Rewrite         Rewrite             `json:"rewrite"`
@@ -229,4 +229,55 @@ type FilterReport struct {
 // Header match values can themselves be reusable authentication proofs.
 func (c Condition) SecretField(name string) bool {
 	return strings.EqualFold(c.Field, "header") && (name == "Values" || name == "Value")
+}
+
+// StatisticsReport holds runtime-only breakdowns. Unlike the persisted
+// totals in GatewayStatus they start at process start or the last reset.
+type StatisticsReport struct {
+	Gateways []GatewayStatistics `json:"gateways"`
+}
+type GatewayStatistics struct {
+	ID             string `json:"id"`
+	SinceUnixMS    int64  `json:"sinceUnixMs"`
+	ActiveRequests int64  `json:"activeRequests"`
+	BytesIn        uint64 `json:"bytesIn"`
+	BytesOut       uint64 `json:"bytesOut"`
+	// StatusClasses: index 0 = no status / other, 1..5 = 1xx..5xx.
+	StatusClasses []uint64        `json:"statusClasses"`
+	Latency       []LatencyBucket `json:"latency"`
+	Rules         []RuleHits      `json:"rules"`
+	FilterHits    uint64          `json:"filterHits"`
+	DefaultHits   uint64          `json:"defaultHits"`
+	TopHosts      []HostHits      `json:"topHosts"`
+	// HostCountError bounds the overestimate of any TopHosts count.
+	HostCountError uint64            `json:"hostCountError"`
+	History        StatisticsHistory `json:"history"`
+}
+type LatencyBucket struct {
+	// LeMS is the inclusive upper bound; 0 marks the final +Inf bucket.
+	LeMS  int64  `json:"leMs"`
+	Count uint64 `json:"count"`
+}
+type RuleHits struct {
+	ID   string `json:"id"`
+	Hits uint64 `json:"hits"`
+}
+type HostHits struct {
+	Host     string `json:"host"`
+	Requests uint64 `json:"requests"`
+	Blocked  uint64 `json:"blocked"`
+}
+
+// StatisticsHistory is columnar: element i covers the interval ending at
+// EndUnixMS - (len-1-i)*IntervalMS.
+type StatisticsHistory struct {
+	IntervalMS int64    `json:"intervalMs"`
+	EndUnixMS  int64    `json:"endUnixMs"`
+	Requests   []uint64 `json:"requests"`
+	Blocked    []uint64 `json:"blocked"`
+	Forwarded  []uint64 `json:"forwarded"`
+	Errors     []uint64 `json:"errors"`
+	DurationNS []uint64 `json:"durationNs"`
+	BytesIn    []uint64 `json:"bytesIn"`
+	BytesOut   []uint64 `json:"bytesOut"`
 }

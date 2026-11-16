@@ -12,6 +12,7 @@ type GatewayController interface {
 	Save(context.Context, contract.Config) (contract.Config, error)
 	Test(contract.TestRequest) (contract.TestResult, error)
 	Status() contract.RuntimeStatus
+	Statistics() contract.StatisticsReport
 	ResetStatistics(context.Context, string) error
 	CAStatus() contract.CAStatus
 	GenerateCA(context.Context, uint64) (contract.CAStatus, error)
@@ -88,6 +89,13 @@ func addGatewayRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 			return nil, err
 		}
 		return new(s.Status()), nil
+	})
+	addRPCRoute(handlers, v2GatewayStatistics, func(_ context.Context, _ *emptyRequest) (*contract.StatisticsReport, error) {
+		s, err := service()
+		if err != nil {
+			return nil, err
+		}
+		return new(s.Statistics()), nil
 	})
 	addRPCRoute(handlers, v2GatewayStatisticsReset, func(ctx context.Context, r *idRequest) (*emptyResponse, error) {
 		s, err := service()

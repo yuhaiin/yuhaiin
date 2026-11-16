@@ -63,6 +63,7 @@ var v2Permissions = map[v2Endpoint]managementpermission.Permission{
 	v2GatewayFilterRefresh:      managementpermission.GatewayWrite,
 	v2GatewayWorkspacePut:       managementpermission.GatewayWrite,
 	v2GatewayStatisticsReset:    managementpermission.GatewayWrite,
+	v2GatewayStatistics:         managementpermission.GatewayRead,
 	v2GatewayTest:               managementpermission.Diagnostics,
 	v2GatewayCAGenerate:         managementpermission.GatewayWrite,
 	v2GatewayCAImport:           managementpermission.GatewayWrite,

@@ -131,6 +131,7 @@ func (m *Manager) ResetStatistics(ctx context.Context, id string) error {
 	}
 	clearCounter := func(g *gatewayRuntime) {
 		g.engine.Counters.restoreStatistics(contract.StatisticsTotals{})
+		g.engine.Counters.detail.reset(time.Now())
 	}
 	if id == "" {
 		for _, g := range s.gateways {
