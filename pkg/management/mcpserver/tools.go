@@ -1,6 +1,7 @@
 package mcpserver
 
 import (
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -25,9 +26,16 @@ type Tool struct {
 	Idempotent  bool
 	OpenWorld   bool
 	Arguments   func([]byte) ([]byte, error)
+	// Run, when set, replaces the single Operation call for a tool that
+	// composes several operations. Every call it makes through invoke is
+	// authorized on its own.
+	Run func(ctx context.Context, invoke Invoker, body []byte) (any, error)
 
 	permission permission.Permission
 }
+
+// Invoker runs one HTTP API operation with the request principal.
+type Invoker func(ctx context.Context, operation string, body []byte) (any, error)
 
 func (t Tool) definition() *mcp.Tool {
 	annotations := &mcp.ToolAnnotations{Title: t.Title, ReadOnlyHint: t.ReadOnly, IdempotentHint: t.Idempotent}
@@ -114,6 +122,10 @@ func validIDs(ids []string, limit int, numeric bool) error {
 }
 
 func builtinTools() []Tool {
+	return append(statusTools(), configurationTools()...)
+}
+
+func statusTools() []Tool {
 	return []Tool{
 		{Name: "get_system_info", Title: "System information", Operation: "info", ReadOnly: true, Idempotent: true,
 			Description: "Returns the Yuhaiin version, build and platform.", Schema: object(map[string]any{}), Arguments: noArguments},

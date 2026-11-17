@@ -81,20 +81,27 @@ type mcpTest struct {
 
 func newMCPTest(t *testing.T) *mcpTest {
 	t.Helper()
+	nodes := &fakeNodes{}
+	m := newMCPTestWith(t, httpapi.V2Services{Settings: fakeSettings{}, Node: nodes})
+	m.nodes = nodes
+	return m
+}
+
+func newMCPTestWith(t *testing.T, services httpapi.V2Services) *mcpTest {
+	t.Helper()
 	runtime, err := OpenRuntime(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = runtime.Close() })
-	nodes := &fakeNodes{}
 	mux := http.NewServeMux()
-	handler, _, err := runtime.Middleware(t.Context(), mux, httpapi.MiddlewareOptions{Operations: httpapi.NewOperations(httpapi.V2Services{Settings: fakeSettings{}, Node: nodes})})
+	handler, _, err := runtime.Middleware(t.Context(), mux, httpapi.MiddlewareOptions{Operations: httpapi.NewOperations(services)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	m := &mcpTest{t: t, runtime: runtime, url: server.URL, nodes: nodes, admin: testUser(t, runtime.store, "admin", Admin)}
+	m := &mcpTest{t: t, runtime: runtime, url: server.URL, admin: testUser(t, runtime.store, "admin", Admin)}
 	runtime.Authorization.limiter = newRateLimiter(1<<20, 1<<20)
 	settings, _ := runtime.Authorization.Settings(t.Context())
 	settings.Enabled, settings.Issuer = true, server.URL

@@ -64,7 +64,7 @@ tokens. The process registers:
 | ID | Canonical URI | Paths | Scopes | Other credentials |
 | --- | --- | --- | --- | --- |
 | `api` | `ISSUER/api` | `/api/`, `/debug/`, `/metrics` | every delegable permission except `mcp:connect` | sessions and API tokens keep working |
-| `mcp` | `ISSUER/mcp` | `/mcp` | `mcp:connect` (required) plus the permissions of the MCP tools | OAuth access tokens only |
+| `mcp` | `ISSUER/mcp` | `/mcp` | `mcp:connect` (required), `secrets:manage` and the permissions of the MCP tools | OAuth access tokens only |
 
 A new resource is one more `Registry.Register` call next to these two. The
 Authorization Server, its metadata, consent page and validator need no change.

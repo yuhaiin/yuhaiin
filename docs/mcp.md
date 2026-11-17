@@ -49,37 +49,72 @@ permissions. `mcp:connect` is required for any connection.
 ## Tools
 
 The tools run the same operations as the HTTP API, with the same DTOs,
-permissions and secret redaction. Only tools permitted by both the user's current
-permissions and the granted scopes are listed, and each call is authorized again
-when it runs.
+permissions, validation, secret handling and configuration audit. Only tools
+permitted by both the user's current permissions and the granted scopes are
+listed, and each call is authorized again when it runs.
 
-| Tool | Operation | Permission | Kind |
-| --- | --- | --- | --- |
-| `get_system_info` | `info` | `settings:read` | read |
-| `get_settings` | `settings.get` | `settings:read` | read |
-| `list_nodes` | `nodes.get` | `nodes:read` | read |
-| `get_selected_node` | `nodes.selected` | `nodes:read` | read |
-| `list_inbounds` | `inbounds.get` | `inbounds:read` | read |
-| `get_connections` | `connections` | `connections:read` | read |
-| `get_traffic` | `connections.total` | `connections:read` | read |
-| `get_routes` | `route.rules.get` | `routes:read` | read |
-| `get_resolvers` | `resolvers.get` | `resolver:read` | read |
-| `get_system_network` | `systemNetwork.status` | `settings:read` | read |
-| `select_node` | `nodes.select` | `nodes:write` | changes routing |
-| `close_connections` | `connections.close` | `connections:write` | destructive |
-| `update_subscription` | `subscriptions.update` | `nodes:write` | contacts subscription servers |
+### Status
 
-Every tool has an explicit, closed JSON Schema. Unknown arguments are rejected.
+| Tool | Operation | Permission |
+| --- | --- | --- |
+| `get_system_info` | `info` | `settings:read` |
+| `get_settings` | `settings.get` | `settings:read` |
+| `get_system_network` | `systemNetwork.status` | `settings:read` |
+| `list_nodes`, `get_node`, `get_selected_node` | `nodes.get`, `node.get`, `nodes.selected` | `nodes:read` |
+| `get_connections`, `get_traffic` | `connections`, `connections.total` | `connections:read` |
+| `select_node` | `nodes.select` | `nodes:write` |
+| `close_connections` | `connections.close` | `connections:write` |
+| `update_subscription` | `subscriptions.update` | `nodes:write` |
+
+### Configuration: add, change, delete and test
+
+| Area | Tools | Permission |
+| --- | --- | --- |
+| Nodes | `preview_node_import`, `import_nodes` (share links such as `ss://`, `vmess://`, `trojan://`, or a subscription body), `save_node`, `delete_node`, `test_node_latency` | `nodes:write` |
+| Inbounds | `get_inbound`, `get_inbound_capabilities`, `get_inbound_status`, `list_inbounds` | `inbounds:read` |
+| | `save_inbound`, `delete_inbound` | `inbounds:write` |
+| HTTP Gateway | `get_gateway`, `get_gateway_status` | `gateway:read` |
+| | `save_gateway` | `gateway:write` |
+| | `test_gateway` | `diagnostics:run` |
+| Route lists | `list_route_lists`, `get_route_list` | `routes:read` |
+| | `create_route_list`, `update_route_list`, `delete_route_list` | `routes:write` |
+| Rules | `get_routes`, `get_route_rule`, `test_route`, `get_route_activation` | `routes:read` |
+| | `create_route_rule`, `update_route_rule`, `delete_route_rule`, `apply_routes` | `routes:write` |
+| DNS | `get_resolvers`, `get_resolver` | `resolver:read` |
+| | `save_resolver`, `delete_resolver`, `test_resolver` | `resolver:write` |
+| Hosts | `list_hosts` | `resolver:read` |
+| | `add_host`, `update_host`, `delete_host` | `resolver:write` |
+
+Objects that contain credentials, such as a node password or inbound users, can
+only be saved with `secrets:manage`, exactly as in the Web UI. The MCP resource
+therefore offers that scope as well.
+
+A typical session: `import_nodes` with a share link, `test_node_latency` on the
+new node, `create_route_list` and `create_route_rule` to send some hosts
+through it, `apply_routes`, and `test_route` to confirm the decision.
+
+#### Schemas and arguments
+
+The input schema of every configuration tool is generated from the HTTP API
+request type (`pkg/management/mcpserver/schema.go`), so it cannot drift from the
+API. Named types become `$defs`, which also covers recursive types such as
+protocol chains and rule expressions. Tagged unions list their allowed `type`
+values. Every object is closed, and arguments are decoded strictly into the
+request type, so unknown members are rejected before the operation runs. The
+operation then applies its usual validation.
+
+Read tools return the same shape the save tools accept. To change something,
+read it, modify it and save it back. Secrets are always redacted in results.
+A redacted value sent back unchanged keeps the stored secret, and MCP clients
+can never obtain the secret-reveal capability. Saving a node, inbound or
+resolver without an `id` creates it with a new UUID. `save_gateway` replaces the
+whole Gateway workspace and needs the revision from `get_gateway`.
+
 Tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`,
 `openWorldHint`) describe the tools for clients, but they are hints, not
-security: the server authorizes every call. Results are always redacted, and
-MCP clients can never obtain the secret-reveal capability. Tools that change
-configuration wholesale (settings, nodes, routes, inbounds) are deliberately not
-exposed yet.
-
-Operation errors are returned as tool results with `isError: true` and the same
-error code as the HTTP API, for example `permission_denied: …` or
-`unavailable: …`.
+security: the server authorizes every call. Operation errors are returned as
+tool results with `isError: true` and the same error code as the HTTP API, for
+example `permission_denied: …`, `conflict: …` or `bad_request: …`.
 
 ## Sessions, revocation and cancellation
 
@@ -97,8 +132,11 @@ every request.
 
 ## Adding a tool
 
-Add an entry to `builtinTools` in `pkg/management/mcpserver/tools.go` naming an
-existing `httpapi` operation. Define its schema and argument conversion to the
-operation's request DTO, and set its annotations. The permission comes from the
+Add an entry to `statusTools` (`tools.go`) or `configurationTools`
+(`tools_config.go`) naming an existing `httpapi` operation. For a
+configuration operation, `dtoTool[RequestType]` derives the schema and strict
+argument decoding from the request type; otherwise define the schema and the
+argument conversion explicitly. Set the tool kind so that its annotations are
+correct. The permission comes from the
 operation's entry in `pkg/httpapi/permissions.go`. The MCP resource's
 `scopes_supported` then includes it automatically.

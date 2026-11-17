@@ -65,10 +65,12 @@ func New(ops *httpapi.Operations, version string) (*Server, error) {
 }
 
 // Resource describes MCP as an OAuth protected resource. Its scopes are
-// mcp:connect plus the permissions of its tools, all taken from the shared
-// permission registry.
+// mcp:connect, secrets:manage and the permissions of its tools, all taken from
+// the shared permission registry.
 func (s *Server) Resource() oauth.Resource {
-	scopes := []permission.Permission{permission.MCPConnect}
+	// secrets:manage is offered because configuration tools can only save
+	// objects that contain credentials (node passwords, inbound users) with it.
+	scopes := []permission.Permission{permission.MCPConnect, permission.SecretsManage}
 	for _, tool := range s.tools {
 		if !slices.Contains(scopes, tool.permission) {
 			scopes = append(scopes, tool.permission)
@@ -129,7 +131,12 @@ func (s *Server) call(tool Tool) mcp.ToolHandler {
 		} else {
 			ctx = secret.WithCapabilities(ctx, secret.Capabilities{})
 		}
-		result, err := s.operations.Invoke(ctx, tool.Operation, body)
+		var result any
+		if tool.Run != nil {
+			result, err = tool.Run(ctx, s.operations.Invoke, body)
+		} else {
+			result, err = s.operations.Invoke(ctx, tool.Operation, body)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()

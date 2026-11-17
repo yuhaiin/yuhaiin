@@ -20,6 +20,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/godbus/dbus/v5 v5.2.4
+	github.com/google/jsonschema-go v0.4.3
 	github.com/google/nftables v0.3.0
 	github.com/google/pprof v0.0.0-20261111200114-fac431ef4d26
 	github.com/libp2p/go-yamux/v5 v5.1.0
@@ -102,7 +103,6 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hdevalence/ed25519consensus v0.2.0 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
