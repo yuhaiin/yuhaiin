@@ -211,6 +211,8 @@ type AuthorizationDetails struct {
 
 func scopeAccess(p Permission) string {
 	switch {
+	case strings.HasPrefix(string(p), "secrets:"):
+		return "secret"
 	case strings.HasSuffix(string(p), ":read"):
 		return "read"
 	case p == permission.MCPConnect:

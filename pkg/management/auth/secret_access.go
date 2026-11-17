@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -63,6 +64,14 @@ func (s *Server) secretCapabilities(w http.ResponseWriter, r *http.Request, patt
 	}
 	return secret.WithCapabilities(r.Context(), secret.Capabilities{Security: p.Allows(SecurityWrite), Manage: p.Allows(SecretsManage), Reveal: reveal == "reveal", Execute: p.Allows(SystemExecute), BeforeChange: func(ctx context.Context, change secret.Change) error {
 		return s.Store.authorizeSensitiveChange(ctx, p, change)
+	}, AuthorizeRetrieval: func(ctx context.Context, resource string) error {
+		// The same audited check as raw HTTP log and profile retrieval,
+		// applied by the operation itself whatever the transport.
+		err := s.Store.authorizeSecretRetrieval(ctx, p, resource)
+		if err != nil && !errors.Is(err, ErrForbidden) {
+			return errors.Join(secret.ErrAudit, err)
+		}
+		return err
 	}, Revalidate: func(ctx context.Context) (secret.Capabilities, error) {
 		proof, kind := credentials(r)
 		current, err := s.authenticate(ctx, r.URL.Path, proof, kind)

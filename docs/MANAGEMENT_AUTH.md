@@ -346,9 +346,10 @@ Bearer credentials are told apart by prefix. API tokens are never looked up as
 OAuth tokens or the other way round, and an OAuth token for MCP is rejected by
 the management API. OAuth access tokens are limited to the scopes the user
 granted. They can never hold the interactive-only permissions `users:manage`,
-`tokens:manage`, `tokens:own`, `roles:write`, `security:write`, `secrets:read`
-and `system:execute`, and they cannot use the session-only account and consent
-APIs. See [OAuth 2.1 Authorization Server](oauth.md),
+`tokens:manage`, `tokens:own`, `roles:write`, `security:write` and
+`system:execute`, and they cannot use the session-only account and consent
+APIs. `secrets:read` can be granted only to the MCP resource, where it allows
+audited log reads; an OAuth token for the management API never holds it. See [OAuth 2.1 Authorization Server](oauth.md),
 [OAuth clients](oauth-clients.md) and [MCP server](mcp.md).
 
 The external GitHub, Google and OIDC providers described below are sign-in

@@ -67,7 +67,7 @@ func badRequest(err error) error {
 	if errors.Is(err, secret.ErrAudit) {
 		return &rpcError{status: http.StatusServiceUnavailable, code: "audit_unavailable", message: err.Error()}
 	}
-	if errors.Is(err, secret.ErrManage) || errors.Is(err, secret.ErrSecurity) || errors.Is(err, secret.ErrExecute) || errors.Is(err, secret.ErrAuthorization) {
+	if errors.Is(err, secret.ErrManage) || errors.Is(err, secret.ErrSecurity) || errors.Is(err, secret.ErrExecute) || errors.Is(err, secret.ErrAuthorization) || errors.Is(err, secret.ErrRetrieval) {
 		return &rpcError{status: http.StatusForbidden, code: "permission_denied", message: err.Error()}
 	}
 	if errors.Is(err, secret.ErrPreserved) {
@@ -104,7 +104,7 @@ func ErrorStatus(err error) (status int, code, message string) {
 	switch {
 	case errors.Is(err, secret.ErrAudit):
 		return http.StatusServiceUnavailable, "audit_unavailable", err.Error()
-	case errors.Is(err, secret.ErrManage) || errors.Is(err, secret.ErrSecurity) || errors.Is(err, secret.ErrExecute) || errors.Is(err, secret.ErrAuthorization):
+	case errors.Is(err, secret.ErrManage) || errors.Is(err, secret.ErrSecurity) || errors.Is(err, secret.ErrExecute) || errors.Is(err, secret.ErrAuthorization) || errors.Is(err, secret.ErrRetrieval):
 		return http.StatusForbidden, "permission_denied", err.Error()
 	case errors.Is(err, secret.ErrPreserved):
 		return http.StatusConflict, "secret_reference_conflict", err.Error()

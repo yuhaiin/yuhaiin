@@ -63,8 +63,8 @@ tokens. The process registers:
 
 | ID | Canonical URI | Paths | Scopes | Other credentials |
 | --- | --- | --- | --- | --- |
-| `api` | `ISSUER/api` | `/api/`, `/debug/`, `/metrics` | every delegable permission except `mcp:connect` | sessions and API tokens keep working |
-| `mcp` | `ISSUER/mcp` | `/mcp` | `mcp:connect` (required), `secrets:manage` and the permissions of the MCP tools | OAuth access tokens only |
+| `api` | `ISSUER/api` | `/api/`, `/debug/`, `/metrics` | every delegable permission except `mcp:connect` and `secrets:read` | sessions and API tokens keep working |
+| `mcp` | `ISSUER/mcp` | `/mcp` | `mcp:connect` (required), `secrets:manage`, `secrets:read` (logs) and the permissions of the MCP tools | OAuth access tokens only |
 
 A new resource is one more `Registry.Register` call next to these two. The
 Authorization Server, its metadata, consent page and validator need no change.
@@ -144,8 +144,15 @@ same user and client are managed independently.
 There is one permission registry. Scope `nodes:read` *is* permission
 `nodes:read`. Permissions that mint credentials or change trust boundaries stay
 with interactive sessions and API tokens and are never delegable: `users:manage`,
-`tokens:manage`, `tokens:own`, `roles:write`, `security:write`, `secrets:read`
-and `system:execute`.
+`tokens:manage`, `tokens:own`, `roles:write`, `security:write` and
+`system:execute`.
+
+`secrets:read` is delegable, but only the MCP resource lists it, so only an MCP
+token can hold it. It is needed for raw logs, which can contain credentials
+that redaction cannot find. The consent page marks it as sensitive. Every log
+read checks it again and records `secret.retrieval_authorized` in the security
+audit. The management API resource does not offer it, so an OAuth client of the
+API never receives the secret-reveal capability.
 
 An access token's effective permissions are recomputed on every request:
 

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
 	"github.com/Asutorufa/yuhaiin/pkg/management/oauth"
@@ -72,8 +73,10 @@ func (s *Server) Resource() oauth.Resource {
 	// objects that contain credentials (node passwords, inbound users) with it.
 	scopes := []permission.Permission{permission.MCPConnect, permission.SecretsManage}
 	for _, tool := range s.tools {
-		if !slices.Contains(scopes, tool.permission) {
-			scopes = append(scopes, tool.permission)
+		for _, required := range append([]permission.Permission{tool.permission}, tool.Requires...) {
+			if !slices.Contains(scopes, required) {
+				scopes = append(scopes, required)
+			}
 		}
 	}
 	return oauth.Resource{ID: "mcp", Name: "Yuhaiin MCP server", Path: Path, Prefixes: []string{Path}, Scopes: scopes, Required: permission.MCPConnect}
@@ -97,7 +100,7 @@ func (s *Server) server(r *http.Request) *mcp.Server {
 		Instructions: "Tools for inspecting and operating a Yuhaiin proxy. Every call is limited to the permissions granted to this connection.",
 	})
 	for _, tool := range s.tools {
-		if !permission.Allowed(r.Context(), tool.permission) {
+		if !tool.allowed(r.Context()) {
 			continue
 		}
 		server.AddTool(tool.definition(), s.call(tool))
@@ -112,8 +115,8 @@ func (s *Server) call(tool Tool) mcp.ToolHandler {
 		}
 		// Annotations are hints for clients, never authorization. The
 		// permission is checked against the current request principal.
-		if !permission.Allowed(ctx, tool.permission) {
-			return errorResult(fmt.Sprintf("permission denied: %s requires %s", tool.Name, tool.permission)), nil
+		if !tool.allowed(ctx) {
+			return errorResult(fmt.Sprintf("permission denied: %s requires %s", tool.Name, tool.permissions())), nil
 		}
 		arguments := []byte(request.Params.Arguments)
 		if len(bytes.TrimSpace(arguments)) == 0 || string(bytes.TrimSpace(arguments)) == "null" {
@@ -153,6 +156,26 @@ func (s *Server) call(tool Tool) mcp.ToolHandler {
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(encoded)}}}, nil
 	}
+}
+
+func (t Tool) permissions() string {
+	names := []string{string(t.permission)}
+	for _, p := range t.Requires {
+		names = append(names, string(p))
+	}
+	return strings.Join(names, " and ")
+}
+
+func (t Tool) allowed(ctx context.Context) bool {
+	if !permission.Allowed(ctx, t.permission) {
+		return false
+	}
+	for _, p := range t.Requires {
+		if !permission.Allowed(ctx, p) {
+			return false
+		}
+	}
+	return true
 }
 
 func errorResult(message string) *mcp.CallToolResult {

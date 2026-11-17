@@ -93,6 +93,41 @@ A typical session: `import_nodes` with a share link, `test_node_latency` on the
 new node, `create_route_list` and `create_route_rule` to send some hosts
 through it, `apply_routes`, and `test_route` to confirm the decision.
 
+### Diagnostics and performance analysis
+
+| Tool | Operation | Permission |
+| --- | --- | --- |
+| `get_logs` (newest lines, filtered by minimum level and text) | `logs.recent` | `diagnostics:run` and `secrets:read` |
+| `get_runtime_stats` (goroutines, heap, GC, CPUs, uptime) | `runtime.stats` | `metrics:read` |
+| `capture_profile` (start, wait and summarize in one call), `analyze_profile`, `list_profiles`, `delete_profile` | `profiler.*` | `diagnostics:run` |
+| `run_diagnostics` (DNS, routing and connectivity to a host) | `tools.diagnostics` | `diagnostics:run` |
+| `get_traffic_telemetry`, `get_traffic_history`, `get_failed_connections`, `get_connection_history`, `trace_connection` | `connections.*` | `connections:read` |
+| `get_block_history` | `route.rules.block_history` | `routes:read` |
+| `get_node_statuses` | `nodes.status` | `nodes:read` |
+| `get_gateway_statistics` | `gateway.statistics` | `gateway:read` |
+
+`capture_profile` collects a `cpu`, `heap`, `allocs`, `goroutine`, `mutex` or
+`block` profile with the same profiler, limits and sessions as the Web UI.
+The summary has the top functions by flat and cumulative value (`mode:
+functions`, like `pprof -top`) or the top complete call stacks (`mode: stacks`).
+`sample_type` chooses the value, for example `inuse_space` or `alloc_space` for
+heap profiles, and `focus` restricts the summary to stacks through matching
+functions. Runtime profiling must be enabled in the general settings. The raw
+profile is deleted after the summary unless `keep` is set; a kept profile can
+be summarized again with `analyze_profile` and opened in the Web UI viewer.
+Profile summaries contain only function names and file paths.
+
+Logs are different: they can contain credentials, such as subscription URLs,
+that redaction cannot find. `get_logs` therefore follows the same rule as the
+Web UI log viewer: it needs `secrets:read` in addition to `diagnostics:run`.
+The operation checks the current permission on every call and records
+`secret.retrieval_authorized` in the security audit before reading. Only the
+MCP resource can grant `secrets:read`, and the consent page marks it as
+sensitive. Without it, `get_logs` is not listed.
+
+The list tools `get_failed_connections`, `get_connection_history` and
+`get_block_history` return at most `limit` entries (default 50) plus the total.
+
 #### Schemas and arguments
 
 The input schema of every configuration tool is generated from the HTTP API

@@ -124,10 +124,12 @@ func OpenRuntimeWithOptions(ctx context.Context, directory string, options Runti
 }
 
 // ManagementAPIResource is the existing HTTP management API as an OAuth
-// protected resource. Its scopes are every delegable permission; each route
-// keeps the permission it already declares in ManagementPermissions.
+// protected resource. Its scopes are every delegable permission except
+// mcp:connect and secrets:read: an OAuth client of the API never receives the
+// secret-reveal capability. Each route keeps the permission it already
+// declares in ManagementPermissions.
 func ManagementAPIResource() oauth.Resource {
-	scopes := slices.DeleteFunc(permission.DelegableValues(), func(p Permission) bool { return p == MCPConnect })
+	scopes := slices.DeleteFunc(permission.DelegableValues(), func(p Permission) bool { return p == MCPConnect || p == SecretsRead })
 	return oauth.Resource{ID: "api", Name: "Yuhaiin management API", Path: "/api", Prefixes: []string{"/api/", "/debug/", "/metrics"}, Scopes: scopes, LegacyCredentials: true}
 }
 

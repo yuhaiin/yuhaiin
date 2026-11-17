@@ -95,7 +95,12 @@ func newMCPTestWith(t *testing.T, services httpapi.V2Services) *mcpTest {
 	}
 	t.Cleanup(func() { _ = runtime.Close() })
 	mux := http.NewServeMux()
-	handler, _, err := runtime.Middleware(t.Context(), mux, httpapi.MiddlewareOptions{Operations: httpapi.NewOperations(services)})
+	operations := httpapi.NewOperations(services)
+	// The HTTP routes of the same operations, registered as the app does.
+	httpapi.RegisterOperations(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { _ = handler(w, r) })
+	}, operations)
+	handler, _, err := runtime.Middleware(t.Context(), mux, httpapi.MiddlewareOptions{Operations: operations})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -46,6 +46,12 @@ var v2RPCBodyLimits = map[v2Endpoint]int64{
 }
 
 const (
+	v2LogsRecent                v2Endpoint = "logs.recent"
+	v2RuntimeStats              v2Endpoint = "runtime.stats"
+	v2ProfilerSessions          v2Endpoint = "profiler.sessions"
+	v2ProfilerStart             v2Endpoint = "profiler.start"
+	v2ProfilerDelete            v2Endpoint = "profiler.delete"
+	v2ProfilerAnalyze           v2Endpoint = "profiler.analyze"
 	v2CertificatesList          v2Endpoint = "certificates.list"
 	v2CertificateSave           v2Endpoint = "certificate.save"
 	v2CertificateDelete         v2Endpoint = "certificate.delete"
@@ -222,6 +228,12 @@ const (
 )
 
 var v2Routes = []v2Route{
+	{v2LogsRecent, "POST /api/v2/logs/recent"},
+	{v2RuntimeStats, "GET /api/v2/runtime/stats"},
+	{v2ProfilerSessions, "GET /api/v2/profiler"},
+	{v2ProfilerStart, "POST /api/v2/profiler"},
+	{v2ProfilerDelete, "DELETE /api/v2/profiler/{id}"},
+	{v2ProfilerAnalyze, "POST /api/v2/profiler/{id}/analyze"},
 	{v2CertificatesList, "GET /api/v2/certificates"},
 	{v2CertificateSave, "PUT /api/v2/certificates"},
 	{v2CertificateDelete, "DELETE /api/v2/certificates/{id}"},
@@ -414,6 +426,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addSystemNetworkRPCRoutes(handlers, services)
 	addGatewayRPCRoutesV2(handlers, services)
 	addCertificateRPCRoutes(handlers, services)
+	addDiagnosticRPCRoutes(handlers, services)
 	return handlers
 }
 

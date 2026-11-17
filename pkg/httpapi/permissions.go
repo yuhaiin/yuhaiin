@@ -6,6 +6,13 @@ import managementpermission "github.com/Asutorufa/yuhaiin/pkg/management/permiss
 // read operation, and seemingly harmless diagnostics can initiate network IO or
 // expose process memory. New actions have no permission until reviewed here.
 var v2Permissions = map[v2Endpoint]managementpermission.Permission{
+	// Logs are also raw secret data: the operation requires secrets:read.
+	v2LogsRecent:                managementpermission.Diagnostics,
+	v2RuntimeStats:              managementpermission.MetricsRead,
+	v2ProfilerSessions:          managementpermission.Diagnostics,
+	v2ProfilerStart:             managementpermission.Diagnostics,
+	v2ProfilerDelete:            managementpermission.Diagnostics,
+	v2ProfilerAnalyze:           managementpermission.Diagnostics,
 	v2CertificatesList:          managementpermission.CertificatesRead,
 	v2CertificateSave:           managementpermission.CertificatesManage,
 	v2CertificateDelete:         managementpermission.CertificatesManage,

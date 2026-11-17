@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,9 @@ type Tool struct {
 	// composes several operations. Every call it makes through invoke is
 	// authorized on its own.
 	Run func(ctx context.Context, invoke Invoker, body []byte) (any, error)
+	// Requires lists permissions needed beyond the operation's own, such as
+	// secrets:read for raw logs. The operation enforces them too.
+	Requires []permission.Permission
 
 	permission permission.Permission
 }
@@ -39,9 +43,10 @@ type Invoker func(ctx context.Context, operation string, body []byte) (any, erro
 
 func (t Tool) definition() *mcp.Tool {
 	annotations := &mcp.ToolAnnotations{Title: t.Title, ReadOnlyHint: t.ReadOnly, IdempotentHint: t.Idempotent}
+	required := t.permissions()
 	destructive, openWorld := t.Destructive, t.OpenWorld
 	annotations.DestructiveHint, annotations.OpenWorldHint = &destructive, &openWorld
-	return &mcp.Tool{Name: t.Name, Title: t.Title, Description: t.Description + " Requires the " + string(t.permission) + " permission.", InputSchema: t.Schema, Annotations: annotations}
+	return &mcp.Tool{Name: t.Name, Title: t.Title, Description: t.Description + " Requires " + required + ".", InputSchema: t.Schema, Annotations: annotations}
 }
 
 func object(properties map[string]any, required ...string) map[string]any {
@@ -122,7 +127,7 @@ func validIDs(ids []string, limit int, numeric bool) error {
 }
 
 func builtinTools() []Tool {
-	return append(statusTools(), configurationTools()...)
+	return slices.Concat(statusTools(), configurationTools(), diagnosticTools())
 }
 
 func statusTools() []Tool {
