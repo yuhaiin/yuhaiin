@@ -131,7 +131,7 @@ func TestScopesComeFromThePermissionRegistry(t *testing.T) {
 	if err != nil || len(scopes) != 2 {
 		t.Fatal(scopes, err)
 	}
-	for _, scope := range []string{"users:manage", "tokens:own", "security:write", "secrets:read", "system:execute", "roles:write", "tokens:manage", "unknown"} {
+	for _, scope := range []string{"users:manage", "tokens:own", "security:write", "system:execute", "roles:write", "tokens:manage", "unknown"} {
 		if _, err := ParseScope(scope); err == nil {
 			t.Errorf("accepted %s", scope)
 		}

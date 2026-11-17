@@ -192,6 +192,7 @@ type V2Services struct {
 	Selectors        SelectorController
 	Subscribe        SubscriptionController
 	SystemNetwork    SystemNetworkController
+	Profiler         ProfilerController
 }
 type pageV2 struct {
 	Page     int `json:"page"`

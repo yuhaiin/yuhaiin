@@ -118,10 +118,12 @@ var catalog = [...]entry{
 	{MCPConnect, "integrations", "Connect Model Context Protocol (MCP) clients; each tool still requires its own permission."},
 }
 
-// Permissions that mint credentials, change identities or trust boundaries, run
-// executables or reveal raw secrets stay with sessions and API tokens. An OAuth
-// client, which acts for a user through a consent screen, can never receive them.
-var interactiveOnly = [...]Permission{UsersManage, TokensManage, TokensOwn, RolesWrite, SecurityWrite, SecretsRead, SystemExecute}
+// Permissions that mint credentials, change identities or trust boundaries or
+// run executables stay with sessions and API tokens. An OAuth client, which
+// acts for a user through a consent screen, can never receive them.
+// secrets:read is delegable, but only a resource that lists it (MCP, for raw
+// logs) can grant it; the management API resource does not.
+var interactiveOnly = [...]Permission{UsersManage, TokensManage, TokensOwn, RolesWrite, SecurityWrite, SystemExecute}
 
 // Catalog returns a copy of every permission definition in stable order.
 func Catalog() []Definition {

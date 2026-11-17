@@ -243,6 +243,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Selectors:        selectors,
 		Subscribe:        subscribeController,
 		SystemNetwork:    systemNetworkController(app.SystemNetwork),
+		Profiler:         profilerController(app.profiler),
 	})
 	httpapi.RegisterOperations(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		// The outer management gate covers all routes, including auxiliary
@@ -250,6 +251,14 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
 	}, app.Operations)
 	return ctx.Err()
+}
+
+// profilerController avoids a non-nil interface holding a nil service.
+func profilerController(p *profilerService) httpapi.ProfilerController {
+	if p == nil {
+		return nil
+	}
+	return p
 }
 
 func (a *AppInstance) Close() error {
