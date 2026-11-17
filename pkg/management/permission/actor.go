@@ -21,22 +21,29 @@ func ActorID(ctx context.Context) string {
 
 type grantedKey struct{}
 
-// WithGranted records the permissions an authenticated management principal
-// holds for this request. Resource servers that do not import the identity
-// runtime, such as the MCP adapter, authorize individual operations with
-// Allowed. Absence means no permission at all, never anonymous access.
-func WithGranted(ctx context.Context, permissions []Permission) context.Context {
-	return context.WithValue(ctx, grantedKey{}, slices.Clone(permissions))
+// WithGranted records the permissions of an authenticated management actor so
+// shared API components can make field-level decisions without importing the
+// authentication runtime. Endpoint access is still enforced by that runtime.
+func WithGranted(ctx context.Context, granted []Permission) context.Context {
+	return context.WithValue(ctx, grantedKey{}, slices.Clone(granted))
 }
 
-// Granted returns the permissions recorded by WithGranted.
-func Granted(ctx context.Context) ([]Permission, bool) {
-	permissions, ok := ctx.Value(grantedKey{}).([]Permission)
-	return slices.Clone(permissions), ok
+// Granted reports whether ctx carries an authenticated actor's permissions
+// and, if so, whether they include p. Calls without an actor (local recovery,
+// in-process callers) report authenticated=false.
+func Granted(ctx context.Context, p Permission) (allowed, authenticated bool) {
+	granted, ok := ctx.Value(grantedKey{}).([]Permission)
+	if !ok {
+		return false, false
+	}
+	return slices.Contains(granted, p), true
 }
 
-// Allowed reports whether the request principal holds p.
+// Allowed reports whether ctx carries an authenticated actor holding p.
+// Resource servers that do not import the identity runtime, such as the MCP
+// adapter, authorize each operation with it. Without an actor nothing is
+// allowed: absence never means anonymous access.
 func Allowed(ctx context.Context, p Permission) bool {
-	permissions, _ := ctx.Value(grantedKey{}).([]Permission)
-	return p != "" && slices.Contains(permissions, p)
+	allowed, authenticated := Granted(ctx, p)
+	return p != "" && authenticated && allowed
 }

@@ -362,5 +362,9 @@ func listReferences(ctx context.Context, q interface {
 			refs = append(refs, contractroute.Reference{Kind: "rule", ID: entry.Rule.ID, Name: entry.Rule.Name})
 		}
 	}
-	return refs, nil
+	fakeDNSRefs, err := fakeDNSListReferences(ctx, q, id)
+	if err != nil {
+		return nil, err
+	}
+	return append(refs, fakeDNSRefs...), nil
 }

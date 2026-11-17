@@ -35,11 +35,9 @@ func TestResolverConfigStoreRoundTrip(t *testing.T) {
 	}
 
 	fakedns := contractresolver.FakeDNS{
-		Enabled:       true,
-		IPv4Range:     "198.18.0.0/16",
-		IPv6Range:     "fc00::/18",
-		Whitelist:     []string{"allow.example"},
-		SkipCheckList: []string{"skip.example"},
+		Enabled:   true,
+		IPv4Range: "198.18.0.0/16",
+		IPv6Range: "fc00::/18",
 	}
 	if _, err := store.SaveFakeDNS(ctx, fakedns); err != nil {
 		t.Fatal(err)

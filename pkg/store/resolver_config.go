@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
+	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 )
 
 type ResolverConfigStore struct {
@@ -115,10 +116,10 @@ func (s *ResolverConfigStore) FakeDNS(ctx context.Context) (contractresolver.Fak
 			return contractresolver.FakeDNS{}, fmt.Errorf("scan fakedns list failed: %w", err)
 		}
 		switch kind {
-		case "whitelist":
-			out.Whitelist = append(out.Whitelist, value)
-		case "skip_check":
-			out.SkipCheckList = append(out.SkipCheckList, value)
+		case fakeDNSWhitelistListKind:
+			out.WhitelistListIDs = append(out.WhitelistListIDs, value)
+		case fakeDNSSkipCheckListKind:
+			out.SkipCheckListIDs = append(out.SkipCheckListIDs, value)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -147,29 +148,98 @@ func (s *ResolverConfigStore) SaveFakeDNS(ctx context.Context, config contractre
 	`, boolToInt(config.Enabled), config.IPv4Range, config.IPv6Range); err != nil {
 		return contractresolver.FakeDNS{}, fmt.Errorf("save fakedns settings failed: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM dns_fakedns_lists`); err != nil {
-		return contractresolver.FakeDNS{}, fmt.Errorf("clear fakedns lists failed: %w", err)
-	}
-	for _, value := range config.Whitelist {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO dns_fakedns_lists(kind, value)
-			VALUES ('whitelist', ?)
-		`, value); err != nil {
-			return contractresolver.FakeDNS{}, fmt.Errorf("insert fakedns whitelist %q failed: %w", value, err)
+	for _, refs := range []struct {
+		kind string
+		ids  []string
+	}{
+		{fakeDNSWhitelistListKind, config.WhitelistListIDs},
+		{fakeDNSSkipCheckListKind, config.SkipCheckListIDs},
+	} {
+		// nil keeps the stored references; see contractresolver.FakeDNS.
+		if refs.ids == nil {
+			continue
 		}
-	}
-	for _, value := range config.SkipCheckList {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO dns_fakedns_lists(kind, value)
-			VALUES ('skip_check', ?)
-		`, value); err != nil {
-			return contractresolver.FakeDNS{}, fmt.Errorf("insert fakedns skip_check %q failed: %w", value, err)
+		if _, err := tx.ExecContext(ctx, `DELETE FROM dns_fakedns_lists WHERE kind = ?`, refs.kind); err != nil {
+			return contractresolver.FakeDNS{}, fmt.Errorf("clear fakedns list references failed: %w", err)
+		}
+		seen := map[string]struct{}{}
+		for _, id := range refs.ids {
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			if err := validateFakeDNSListRef(ctx, tx, id); err != nil {
+				return contractresolver.FakeDNS{}, err
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO dns_fakedns_lists(kind, value)
+				VALUES (?, ?)
+			`, refs.kind, id); err != nil {
+				return contractresolver.FakeDNS{}, fmt.Errorf("insert fakedns list reference %q failed: %w", id, err)
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return contractresolver.FakeDNS{}, fmt.Errorf("commit fakedns transaction failed: %w", err)
 	}
-	return config, nil
+	return s.FakeDNS(ctx)
+}
+
+// FakeDNS list references are stored next to inline values, distinguished by
+// kind, so no schema change is needed and config backups carry them as-is.
+const (
+	fakeDNSWhitelistListKind = "whitelist_list"
+	fakeDNSSkipCheckListKind = "skip_check_list"
+)
+
+// validateFakeDNSListRef accepts only shared host lists. Rule-owned lists are
+// deleted together with their rule, and process lists contain no domains.
+func validateFakeDNSListRef(ctx context.Context, tx *sql.Tx, id string) error {
+	var owner sql.NullString
+	var listType string
+	err := tx.QueryRowContext(ctx, `SELECT owner_rule_id, list_type FROM route_lists_v2 WHERE id = ?`, id).Scan(&owner, &listType)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("%w: list %s", ErrNotFound, id)
+	}
+	if err != nil {
+		return fmt.Errorf("query fakedns list %q failed: %w", id, err)
+	}
+	if owner.Valid {
+		return fmt.Errorf("list %s belongs to a rule; FakeDNS can only use shared lists", id)
+	}
+	if listType == "process" {
+		return fmt.Errorf("list %s is a process list; FakeDNS can only use host lists", id)
+	}
+	return nil
+}
+
+// fakeDNSListReferences reports FakeDNS settings that use a shared list, so
+// the list cannot be deleted while FakeDNS still depends on it.
+func fakeDNSListReferences(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, id string) ([]contractroute.Reference, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT kind FROM dns_fakedns_lists
+		WHERE value = ? AND kind IN (?, ?)
+		ORDER BY kind DESC
+	`, id, fakeDNSWhitelistListKind, fakeDNSSkipCheckListKind)
+	if err != nil {
+		return nil, fmt.Errorf("query fakedns list references failed: %w", err)
+	}
+	defer rows.Close()
+	refs := []contractroute.Reference{}
+	for rows.Next() {
+		var kind string
+		if err := rows.Scan(&kind); err != nil {
+			return nil, err
+		}
+		name := "FakeDNS domain whitelist"
+		if kind == fakeDNSSkipCheckListKind {
+			name = "FakeDNS skip check list"
+		}
+		refs = append(refs, contractroute.Reference{Kind: "fakedns", ID: kind, Name: name})
+	}
+	return refs, rows.Err()
 }
 
 func (s *ResolverConfigStore) Server(ctx context.Context) (contractresolver.Server, error) {

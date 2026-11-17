@@ -240,6 +240,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.ProxyChain.Set(fakedns)
 	configuration.ResolverChain.Set(responses)
 	list.SetProxy(fakedns)
+	// FakeDNS whitelist and skip-check lists can reference shared host lists.
+	fakedns.SetHostListSource(list)
+	list.OnHostListsChange(fakedns.RefreshHostLists)
 
 	// inbound server
 	var gatewayManager *gateway.Manager

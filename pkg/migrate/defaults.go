@@ -91,14 +91,20 @@ func seedDefaultSQLiteRows(ctx context.Context, tx *sql.Tx) error {
 		"127.0.0.1:5353", ipv4, ipv6); err != nil {
 		return fmt.Errorf("seed default DNS settings: %w", err)
 	}
-	for _, pattern := range []string{
-		"*.msftncsi.com", "*.msftconnecttest.com", "ping.archlinux.org",
-		"mask.icloud.com", "mask-h2.icloud.com", "mask.apple-dns.net",
-	} {
-		if _, err := tx.ExecContext(ctx,
-			"INSERT INTO dns_fakedns_lists(kind, value) VALUES ('whitelist', ?)", pattern); err != nil {
-			return fmt.Errorf("seed fake-DNS whitelist: %w", err)
-		}
+	if err := plainstore.SaveRouteListContract(ctx, tx, contractroute.RouteListDetail{
+		Revision: 1, ID: "fakedns-whitelist", Name: "FakeDNS whitelist", Type: "host",
+		Source: contractroute.ListSource{Type: "local", Local: &contractroute.LocalSource{
+			Lists: []string{
+				"*.msftncsi.com", "*.msftconnecttest.com", "ping.archlinux.org",
+				"mask.icloud.com", "mask-h2.icloud.com", "mask.apple-dns.net",
+			},
+		}},
+	}, now); err != nil {
+		return fmt.Errorf("seed FakeDNS whitelist list: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO dns_fakedns_lists(kind, value) VALUES ('whitelist_list', 'fakedns-whitelist')"); err != nil {
+		return fmt.Errorf("seed FakeDNS whitelist reference: %w", err)
 	}
 
 	if err := plainstore.SaveResolverContract(ctx, tx, contractresolver.Resolver{
