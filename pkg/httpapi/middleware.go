@@ -21,6 +21,9 @@ type MiddlewareOptions struct {
 	DataDirectory        string
 	AcceptOrigin         func(string, *http.Request) bool
 	UserUsage            UserUsage
+	// Operations lets the middleware serve additional resource servers, such
+	// as MCP, from the same business logic as the HTTP API. Nil disables them.
+	Operations *Operations
 }
 
 // UserUsage is optional; identity middleware owns user-scoped authorization.

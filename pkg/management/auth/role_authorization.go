@@ -20,7 +20,13 @@ func freshRoleActor(ctx context.Context, tx *sql.Tx, actor Principal) (Principal
 	}
 	if actor.CredentialID != "" {
 		var encoded string
-		err := tx.QueryRowContext(ctx, `SELECT c.scopes FROM management_credentials c JOIN management_users u ON u.id=c.user_id WHERE c.id=? AND c.user_id=? AND c.kind=? AND c.revoked=0 AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>unixepoch())`, actor.CredentialID, actor.UserID, actor.CredentialType).Scan(&encoded)
+		kind := actor.CredentialType
+		if kind == credentialOAuth {
+			kind = kindOAuthAccess
+		}
+		err := tx.QueryRowContext(ctx, `SELECT c.scopes FROM management_credentials c JOIN management_users u ON u.id=c.user_id LEFT JOIN management_oauth_grants g ON g.id=c.grant_id
+			WHERE c.id=? AND c.user_id=? AND c.kind=? AND c.revoked=0 AND c.generation=u.generation AND (c.expires_at=0 OR c.expires_at>unixepoch())
+			AND (c.grant_id IS NULL OR (g.revoked=0 AND g.expires_at>unixepoch()))`, actor.CredentialID, actor.UserID, kind).Scan(&encoded)
 		if err != nil {
 			return Principal{}, ErrForbidden
 		}

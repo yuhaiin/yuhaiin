@@ -65,7 +65,7 @@ func (s *Server) secretCapabilities(w http.ResponseWriter, r *http.Request, patt
 		return s.Store.authorizeSensitiveChange(ctx, p, change)
 	}, Revalidate: func(ctx context.Context) (secret.Capabilities, error) {
 		proof, kind := credentials(r)
-		current, err := s.Store.Authenticate(ctx, proof, kind)
+		current, err := s.authenticate(ctx, r.URL.Path, proof, kind)
 		if err != nil || !current.Allows(s.Permissions[pattern]) {
 			return secret.Capabilities{}, ErrForbidden
 		}

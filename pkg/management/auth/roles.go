@@ -174,6 +174,9 @@ func (s *Store) SaveRole(ctx context.Context, actor Principal, role Role) (Role,
 	if _, err := tx.ExecContext(ctx, `INSERT INTO management_roles(id,name,description,permissions,revision) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,permissions=excluded.permissions,revision=excluded.revision`, role.ID, role.Name, role.Description, string(encoded), role.Revision); err != nil {
 		return Role{}, ErrConflict
 	}
+	if err := revokeExceedingGrantsForRole(ctx, tx, role.ID); err != nil {
+		return Role{}, err
+	}
 	ctx, err = roleAuditContext(ctx, before, role)
 	if err != nil {
 		return Role{}, err
@@ -247,8 +250,17 @@ func (s *Store) DeleteRole(ctx context.Context, actor Principal, id string, revi
 	if role.Revision != revision {
 		return ErrConflict
 	}
+	holders, err := roleHolders(ctx, tx, id)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM management_roles WHERE id=?`, id); err != nil {
 		return ErrConflict
+	}
+	for _, holder := range holders {
+		if err := revokeExceedingGrants(ctx, tx, holder); err != nil {
+			return err
+		}
 	}
 	ctx, err = roleAuditContext(ctx, role, nil)
 	if err != nil {
@@ -368,6 +380,9 @@ func (s *Store) AssignRoles(ctx context.Context, actor Principal, owner string, 
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO management_role_assignments(user_id,revision) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET revision=excluded.revision`, owner, revision+1); err != nil {
+		return RoleAssignment{}, err
+	}
+	if err := revokeExceedingGrants(ctx, tx, owner); err != nil {
 		return RoleAssignment{}, err
 	}
 	after, err := roleAssignment(ctx, tx, owner)

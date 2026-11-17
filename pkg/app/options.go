@@ -46,6 +46,9 @@ import (
 )
 
 type AppInstance struct {
+	// Operations are the management API actions shared by the HTTP API and
+	// other resource servers registered by the identity middleware (MCP).
+	Operations           *httpapi.Operations
 	Frontend             *frontend.Manager
 	Certificates         *certmanager.Manager
 	Gateway              httpapi.GatewayController
@@ -210,11 +213,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 	}
 
 	recoveryPoints, _ := app.Backup.(updatepkg.RecoveryPoints)
-	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
-		// The outer management gate covers all routes, including auxiliary
-		// registrations, and establishes a Principal before this handler runs.
-		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
-	}, httpapi.V2Services{
+	app.Operations = httpapi.NewOperations(httpapi.V2Services{
 		Certificates:     app.Certificates,
 		Gateway:          app.Gateway,
 		Settings:         app.Setting,
@@ -245,6 +244,11 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Subscribe:        subscribeController,
 		SystemNetwork:    systemNetworkController(app.SystemNetwork),
 	})
+	httpapi.RegisterOperations(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+		// The outer management gate covers all routes, including auxiliary
+		// registrations, and establishes a Principal before this handler runs.
+		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
+	}, app.Operations)
 	return ctx.Err()
 }
 

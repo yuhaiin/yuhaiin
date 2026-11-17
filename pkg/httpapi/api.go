@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -210,17 +209,7 @@ type inboundConfigV2 struct {
 }
 
 func RegisterV2(register RegisterFunc, services V2Services) {
-	handlers := newV2Handlers(services)
-	// Cross-origin JSON RPC clients send an OPTIONS preflight because they use
-	// Content-Type: application/json and may include Authorization. ServeMux
-	// otherwise answers 405 since the actual endpoints are POST-only.
-	register("OPTIONS /api/v2/rpc/", func(w http.ResponseWriter, _ *http.Request) error {
-		w.WriteHeader(http.StatusNoContent)
-		return nil
-	})
-	for _, route := range v2Routes {
-		register(v2RoutePattern(route), handlers.handler(route.endpoint))
-	}
+	RegisterOperations(register, NewOperations(services))
 }
 func defaultInboundConfigV2() inboundConfigV2 {
 	return inboundConfigV2{HijackDNS: true, HijackDNSFakeIP: true, Sniff: true}
