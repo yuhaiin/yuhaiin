@@ -213,13 +213,13 @@ func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *tes
 			directory, r, host, key := deployment(t, source, target)
 			host.fault = fault
 			if fault == "missing_dependency" {
-				// Exercise the real management 15 -> 16 migration after a
-				// complete encrypted point with absent inactive TLS inputs.
+				// Exercise the real management 15 -> 16 -> 17 migrations after
+				// a complete encrypted point with absent inactive TLS inputs.
 				identity, err := sqlite.OpenManagement(t.Context(), filepath.Join(directory, "management.db"))
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := identity.DB().ExecContext(t.Context(), "ALTER TABLE management_users DROP COLUMN password_kdf; DELETE FROM migrate WHERE version=16; UPDATE metadata SET value='15' WHERE key='schema_version'"); err != nil {
+				if _, err := identity.DB().ExecContext(t.Context(), "DROP TABLE management_oauth_codes; DROP TABLE management_oauth_grants; DROP TABLE management_oauth_clients; DROP TABLE management_oauth_server; ALTER TABLE management_users DROP COLUMN password_kdf; DELETE FROM migrate WHERE version>=16; UPDATE metadata SET value='15' WHERE key='schema_version'"); err != nil {
 					t.Fatal(err)
 				}
 				if err := identity.Close(); err != nil {
@@ -281,7 +281,7 @@ func TestProtectedUpdatePreservesEncryptedPointAndRequiresActualReadiness(t *tes
 			defer prepared.Close()
 			if fault == "missing_dependency" {
 				catalog, err := sqlite.InspectStoreCatalog(t.Context(), filepath.Join(directory, "management.db"), "management")
-				if err != nil || catalog[len(catalog)-1].Version != 16 {
+				if err != nil || catalog[len(catalog)-1].Version != 17 {
 					t.Fatal("target did not migrate management schema", err)
 				}
 				found := false
