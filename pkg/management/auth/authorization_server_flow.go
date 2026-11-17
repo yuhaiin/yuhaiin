@@ -359,11 +359,11 @@ type TokenResponse struct {
 // be the method registered for the client.
 func (a *AuthorizationServer) authenticateClient(ctx context.Context, r *http.Request, form url.Values) (OAuthClient, error) {
 	id, secret, method := form.Get("client_id"), "", "none"
-	if user, password, ok := basicAuth(r); ok {
+	if user, clientSecret, ok := basicAuth(r); ok {
 		if form.Has("client_secret") || id != "" && id != user {
 			return OAuthClient{}, oauth.InvalidRequest("use exactly one client authentication method")
 		}
-		id, secret, method = user, password, "client_secret_basic"
+		id, secret, method = user, clientSecret, "client_secret_basic"
 	} else if r.Header.Get("Authorization") != "" {
 		return OAuthClient{}, oauth.InvalidClient("unsupported client authentication")
 	} else if form.Has("client_secret") {
@@ -397,13 +397,13 @@ func basicAuth(r *http.Request) (string, string, bool) {
 	if err != nil {
 		return "", "", false
 	}
-	user, password, ok := strings.Cut(string(decoded), ":")
+	user, clientSecret, ok := strings.Cut(string(decoded), ":")
 	if !ok {
 		return "", "", false
 	}
 	user, err1 := url.QueryUnescape(user)
-	password, err2 := url.QueryUnescape(password)
-	return user, password, ok && err1 == nil && err2 == nil
+	clientSecret, err2 := url.QueryUnescape(clientSecret)
+	return user, clientSecret, ok && err1 == nil && err2 == nil
 }
 
 // Token implements the token endpoint for every supported grant type.
