@@ -38,3 +38,12 @@ func Granted(ctx context.Context, p Permission) (allowed, authenticated bool) {
 	}
 	return slices.Contains(granted, p), true
 }
+
+// Allowed reports whether ctx carries an authenticated actor holding p.
+// Resource servers that do not import the identity runtime, such as the MCP
+// adapter, authorize each operation with it. Without an actor nothing is
+// allowed: absence never means anonymous access.
+func Allowed(ctx context.Context, p Permission) bool {
+	allowed, authenticated := Granted(ctx, p)
+	return p != "" && authenticated && allowed
+}

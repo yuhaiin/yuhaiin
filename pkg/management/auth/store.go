@@ -254,6 +254,10 @@ func (s *Store) UpdateUser(ctx context.Context, actor, id, login, role string, d
 	if n, _ := result.RowsAffected(); n != 1 {
 		return sql.ErrNoRows
 	}
+	// A role change or disable revokes OAuth grants the user can no longer back.
+	if err := revokeExceedingGrants(ctx, tx, id); err != nil {
+		return err
+	}
 	if err := recordEvent(ctx, tx, "user.updated", actor, id); err != nil {
 		return err
 	}
@@ -315,6 +319,9 @@ func (s *Store) ResetEnrollment(ctx context.Context, actor, id string) (IssuedCr
 	if _, err := tx.ExecContext(ctx, `UPDATE management_credentials SET revoked=1 WHERE user_id=?`, id); err != nil {
 		return IssuedCredential{}, err
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE management_oauth_grants SET revoked=1,revoked_reason='credentials_reset' WHERE user_id=? AND revoked=0`, id); err != nil {
+		return IssuedCredential{}, err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM management_oauth_links WHERE user_id=?`, id); err != nil {
 		return IssuedCredential{}, err
 	}
@@ -339,11 +346,13 @@ func issueCredential(ctx context.Context, tx *sql.Tx, owner, kind string, scopes
 	}
 	// Bound persisted credentials, including revoked records. Expired/revoked
 	// records can be pruned without retaining a reusable authentication secret.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM management_credentials WHERE user_id=? AND (revoked=1 OR (expires_at>0 AND expires_at<=?))`, owner, time.Now().Unix()); err != nil {
+	// OAuth credentials have their own per-grant bounds and keep rotated
+	// refresh tokens for reuse detection, so they are not pruned or counted here.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM management_credentials WHERE user_id=? AND kind IN ('token','session','enrollment') AND (revoked=1 OR (expires_at>0 AND expires_at<=?))`, owner, time.Now().Unix()); err != nil {
 		return IssuedCredential{}, err
 	}
 	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM management_credentials WHERE user_id=?`, owner).Scan(&count); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM management_credentials WHERE user_id=? AND kind IN ('token','session','enrollment')`, owner).Scan(&count); err != nil {
 		return IssuedCredential{}, err
 	}
 	if count >= 64 {

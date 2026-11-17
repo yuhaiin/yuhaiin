@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 )
@@ -396,11 +397,12 @@ var v2Routes = []v2Route{
 }
 
 type v2Handlers struct {
-	values map[v2Endpoint]func(http.ResponseWriter, *http.Request) error
+	values     map[v2Endpoint]func(http.ResponseWriter, *http.Request) error
+	operations map[v2Endpoint]func(context.Context, []byte) (any, error)
 }
 
 func newV2Handlers(services V2Services) *v2Handlers {
-	handlers := &v2Handlers{values: make(map[v2Endpoint]func(http.ResponseWriter, *http.Request) error)}
+	handlers := &v2Handlers{values: make(map[v2Endpoint]func(http.ResponseWriter, *http.Request) error), operations: make(map[v2Endpoint]func(context.Context, []byte) (any, error))}
 	addFacadeRPCRoutesV2(handlers, services)
 	addRouteRPCRoutesV2(handlers, services)
 	addSelectorRPCRoutesV2(handlers, services)
@@ -420,6 +422,10 @@ func (h *v2Handlers) add(endpoint v2Endpoint, handler func(http.ResponseWriter, 
 		panic(fmt.Sprintf("duplicate v2 handler %q", endpoint))
 	}
 	h.values[endpoint] = handler
+}
+
+func (h *v2Handlers) addOperation(endpoint v2Endpoint, operation func(context.Context, []byte) (any, error)) {
+	h.operations[endpoint] = operation
 }
 
 func (h *v2Handlers) handler(endpoint v2Endpoint) func(http.ResponseWriter, *http.Request) error {

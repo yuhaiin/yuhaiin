@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/management/oauth"
 	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 )
@@ -31,7 +32,10 @@ type Server struct {
 	Permissions  map[string]Permission
 	AcceptOrigin func(string, *http.Request) bool
 	Passwords    *PasswordService
-	public       map[string]bool
+	// Authorization is the optional OAuth 2.1 Authorization Server. Its
+	// resource registry decides which resource a request path belongs to.
+	Authorization *AuthorizationServer
+	public        map[string]bool
 }
 
 func secureManagementChannel(r *http.Request) bool {
@@ -59,6 +63,11 @@ func credentials(r *http.Request) (string, string) {
 		return "", ""
 	}
 	switch {
+	case strings.EqualFold(scheme, "Bearer") && (strings.HasPrefix(secret, oauth.AccessTokenPrefix) || strings.HasPrefix(secret, oauth.RefreshTokenPrefix)):
+		// OAuth tokens share the Bearer scheme with API tokens but are a
+		// distinct credential type, recognized by prefix and never looked up
+		// as an API token (and vice versa).
+		return secret, credentialOAuth
 	case strings.EqualFold(scheme, "Bearer"):
 		return secret, "token"
 	case strings.EqualFold(scheme, "Session"):
@@ -68,13 +77,51 @@ func credentials(r *http.Request) (string, string) {
 	}
 }
 
+func (s *Server) resourceFor(path string) (oauth.Resource, bool) {
+	if s.Authorization == nil {
+		return oauth.Resource{}, false
+	}
+	return s.Authorization.resources.ForPath(path)
+}
+
+// authenticate resolves a request credential for the resource serving path.
+// OAuth access tokens are accepted only by the resource they were issued for;
+// sessions and API tokens only by resources that opted into them.
+func (s *Server) authenticate(ctx context.Context, path, secret, kind string) (Principal, error) {
+	resource, protected := s.resourceFor(path)
+	if kind == credentialOAuth {
+		if !protected {
+			return Principal{}, ErrUnauthorized
+		}
+		return s.Authorization.Authenticate(ctx, secret, resource)
+	}
+	if protected && !resource.LegacyCredentials {
+		return Principal{}, ErrUnauthorized
+	}
+	return s.Store.Authenticate(ctx, secret, kind)
+}
+
+// oauthChallenge returns the RFC 9728 challenge for path when the
+// Authorization Server serves its resource, or "".
+func (s *Server) oauthChallenge(ctx context.Context, path, code, scope string) string {
+	resource, protected := s.resourceFor(path)
+	if !protected {
+		return ""
+	}
+	settings, err := s.Authorization.Settings(ctx)
+	if err != nil || !settings.resourceEnabled(resource.ID) {
+		return ""
+	}
+	return oauth.Challenge(resource.MetadataURL(settings.Issuer), code, scope)
+}
+
 func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		// Only static assets are public; reserved management namespaces cannot
 		// become static fallbacks when a route is missing or uses a wrong verb.
 		if pattern == "GET /" && !strings.HasPrefix(r.URL.Path, "/api/") &&
-			!strings.HasPrefix(r.URL.Path, "/debug/") && r.URL.Path != "/metrics" {
+			!strings.HasPrefix(r.URL.Path, "/debug/") && r.URL.Path != "/metrics" && !s.reservedOAuthPath(r.URL.Path) {
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -85,16 +132,26 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			return
 		}
 		origin := r.Header.Get("Origin")
-		if origin != "" && (s.AcceptOrigin == nil || !s.AcceptOrigin(origin, r)) {
+		// OAuth discovery, token, revocation and registration endpoints serve
+		// clients on any web origin. They never read cookies, so they answer
+		// without credentials and cannot be used for cross-site requests that
+		// ride on a management session.
+		openCORS := s.Authorization != nil && openCORSPath(r.URL.Path)
+		if origin != "" && !openCORS && (s.AcceptOrigin == nil || !s.AcceptOrigin(origin, r)) {
 			authError(w, http.StatusForbidden)
 			return
 		}
-		if origin != "" {
+		if origin != "" && openCORS {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, MCP-Protocol-Version")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		} else if origin != "" {
 			w.Header().Add("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Yuhaiin-Secret-Access")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Yuhaiin-Secret-Access, MCP-Protocol-Version, Mcp-Session-Id")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Expose-Headers", "WWW-Authenticate, Mcp-Session-Id")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -106,9 +163,24 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
+		// A resource that accepts only OAuth tokens does not exist while the
+		// Authorization Server or the resource is disabled.
+		if resource, protected := s.resourceFor(r.URL.Path); protected && !resource.LegacyCredentials {
+			if settings, err := s.Authorization.Settings(r.Context()); err != nil || !settings.resourceEnabled(resource.ID) {
+				authError(w, http.StatusNotFound)
+				return
+			}
+		}
 		secret, kind := credentials(r)
-		p, err := s.Store.Authenticate(r.Context(), secret, kind)
+		p, err := s.authenticate(r.Context(), r.URL.Path, secret, kind)
 		if err != nil {
+			code := ""
+			if secret != "" {
+				code = "invalid_token"
+			}
+			if challenge := s.oauthChallenge(r.Context(), r.URL.Path, code, ""); challenge != "" {
+				w.Header().Set("WWW-Authenticate", challenge)
+			}
 			authError(w, http.StatusUnauthorized)
 			return
 		}
@@ -123,7 +195,14 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		if !p.Allows(permission) {
 			info, _ := r.Context().Value(auditKey{}).(auditInfo)
 			info.reason = "missing_permission"
-			s.Store.audit(context.WithValue(r.Context(), auditKey{}, info), "permission.denied", p.UserID, string(permission))
+			event := "permission.denied"
+			if p.CredentialType == credentialOAuth {
+				event = "oauth.permission.denied"
+				if challenge := s.oauthChallenge(r.Context(), r.URL.Path, "insufficient_scope", string(permission)); challenge != "" && permission != "" {
+					w.Header().Set("WWW-Authenticate", challenge)
+				}
+			}
+			s.Store.audit(context.WithValue(r.Context(), auditKey{}, info), event, p.UserID, string(permission))
 			authError(w, http.StatusForbidden)
 			return
 		}
@@ -150,7 +229,7 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					current, err := s.Store.Authenticate(ctx, secret, kind)
+					current, err := s.authenticate(ctx, r.URL.Path, secret, kind)
 					if err != nil || !current.Allows(permission) || (r.Header.Get(secretAccessHeader) == "reveal" || rawSecretAccess(r, pattern)) && !current.Allows(SecretsRead) {
 						cancel()
 						return
@@ -160,6 +239,18 @@ func (s *Server) Wrap(mux *http.ServeMux) http.Handler {
 		}()
 		mux.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// reservedOAuthPath keeps OAuth and resource paths out of the static UI
+// fallback, so a wrong method or a disabled server never serves index.html.
+func (s *Server) reservedOAuthPath(path string) bool {
+	if s.Authorization == nil {
+		return false
+	}
+	if _, ok := s.resourceFor(path); ok {
+		return true
+	}
+	return strings.HasPrefix(path, "/oauth/") || strings.HasPrefix(path, "/.well-known/oauth-")
 }
 
 func authError(w http.ResponseWriter, status int) {
@@ -225,6 +316,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}
 	s.registerConfigurationChanges(register)
 	s.registerPasskeys(mux, register)
+	s.registerAuthorizationServer(mux, register)
 	register("GET /api/v2/auth/me", IdentityRead, func(w http.ResponseWriter, r *http.Request) {
 		p, _ := FromContext(r.Context())
 		respond(w, p, nil)
