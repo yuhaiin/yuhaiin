@@ -30,6 +30,7 @@ Yuhaiin is an open-source, cross-platform networking toolkit bringing enterprise
 - **Keep networking flexible.** Use a single lightweight userspace TCP/IP stack for TUN and VPN/overlay packet processing, without alternative gVisor or tun2socket TUN backends.
 - **Control congestion and resource use.** Apply optional upload/download rate profiles, bound connection and NAT resources, and choose FIFO or fair output scheduling for the lightweight TUN stack.
 - **Manage identities and trace proxy usage.** Use local accounts, custom roles, scoped tokens, Passkeys and optional OIDC; authenticate supported proxy inbounds with revocable per-device credentials, and inspect user traffic and security audits.
+- **Delegate management to applications and AI assistants.** A built-in OAuth 2.1 authorization server lets users grant third-party applications consented, revocable, permission-limited access to the management API. An MCP server lets assistants such as Claude inspect and change configuration, run tests and analyze logs and profiles.
 - **Enforce optional access and resource policy.** Manage user groups, explicit traffic allow/deny rules, identity-based bandwidth and byte quotas, and admission limits without conflating routing with authorization.
 - **Operate resiliently.** Select healthy outbounds using latency/throughput/failover policies, back up deployment state in encrypted archives, and manage TLS certificates with ACME.
 
@@ -40,6 +41,7 @@ Yuhaiin is an open-source, cross-platform networking toolkit bringing enterprise
 | **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process, and inbound-based rules; DNS and FakeIP integration |
 | **System Network Routing & Forwarding** | Ownership-aware OS route management; global, non-private and custom CIDR/GeoIP route policies; cross-platform side-router forwarding with platform-specific NAT and TProxy support |
 | **Management Identity & API Security** | Local and custom RBAC roles, scoped API tokens, revocable sessions, WebAuthn Passkeys, GitHub/Google OAuth, generic OIDC, management security audit |
+| **OAuth 2.1 Authorization Server & MCP** | Consent-based, resource-bound access for third-party applications (PKCE, rotating refresh tokens, immediate revocation); Model Context Protocol server for configuration, tests, logs, profiling and traffic analysis |
 | **Proxy User Authentication & Credentials** | Independently revocable device credentials for HTTP, SOCKS5, Mixed, Hysteria 2, Yuubinsya and SSTP inbounds; explicit legacy/users/mixed modes; shared outbound credential references |
 | **Per-user Usage & Session Audits** | Lifetime and UTC-period traffic reports, credential/inbound/node/protocol breakdowns, rates and concurrency, filterable connection metadata audits, configurable retention |
 | **Traffic Identity & Access Policy** | Stable user groups, identity-aware routing, separately enforced ordered allow/deny access policies, protected inbound scopes, deny-by-default options |
@@ -142,6 +144,13 @@ Yuhaiin separates **management identities** (who can administer the service) fro
 - **Optional federated sign-in.** Sign in with GitHub/Google OAuth or configured generic HTTPS OpenID Connect providers (Authorization Code with PKCE). Providers are explicitly linked to existing local identities; email addresses or IdP role claims do not automatically grant permissions. SAML and SCIM/directory provisioning are not supported.
 - **Passkeys.** Register and revoke WebAuthn Passkeys for management sign-in on trusted HTTPS DNS origins or local `http://localhost`, using the appropriate separate relying-party identity. Password and OAuth sign-in remain available.
 - **Password handling.** The browser derives a client credential with PBKDF2; the server applies Argon2id before storing its verifier. The derived credential is still reusable if captured, so remote management **requires trusted HTTPS**.
+- **OAuth 2.1 authorization server.** Yuhaiin can act as an OAuth provider for its own interfaces. Third-party applications use the authorization code flow with mandatory PKCE, and the user approves which of their permissions to grant on a consent page. Access tokens are short-lived and bound to one resource (the management API or MCP). Refresh tokens rotate, with reuse detection. Every request re-checks the user's current permissions, so revocation, disabling a user or changing roles takes effect immediately. Dynamic client registration and RFC 8414/9728 discovery are supported. This is separate from signing in with GitHub, Google or OIDC.
+- **MCP server.** A Model Context Protocol endpoint (`/mcp`, Streamable HTTP) lets AI assistants connect through the authorization server:
+  - read status and import, create, change, delete and test nodes, inbounds, HTTP Gateway settings, route lists and rules, DNS resolvers and hosts
+  - analyze performance with CPU/heap/goroutine profile summaries, runtime statistics, traffic telemetry and failed connections
+  - read logs, with an explicit, audited `secrets:read` grant
+
+  Every tool runs the same operations as the HTTP API, with the same permission checks, and results never reveal secrets.
 
 ### Authenticated proxy users and shared secrets
 
@@ -272,7 +281,7 @@ Open **http://127.0.0.1:50051** to configure your inbounds, nodes, routing polic
 
 For automation, supply a code through `YUHAIIN_INITIALIZATION_CODE` or `yuhaiin run -initialization-code` (CLI takes precedence). Supplied codes are hidden from startup output and only apply until initialization completes. See [the initialization-code format and restart behavior](docs/MANAGEMENT_AUTH.md#first-time-setup-and-migration).
 
-After signing in, open **Account & Security** to manage users, traffic groups, custom roles, API tokens, OAuth/OIDC account links, Passkeys, browser sessions, proxy credentials, and security/audit reports. Configure identity resource policies under **Traffic Control**. To attribute proxy traffic to a user, create a device credential and explicitly authorize that user on a supported inbound. A management account alone does not enable proxy authentication on an inbound.
+After signing in, open **Account & Security** to manage users, traffic groups, custom roles, API tokens, OAuth/OIDC account links, Passkeys, browser sessions, authorized applications, proxy credentials, and security/audit reports. Administrators enable the OAuth authorization server and MCP under **Administration → OAuth & MCP** by setting the public issuer URL; MCP clients then connect to `https://YOUR_HOST/mcp`. Configure identity resource policies under **Traffic Control**. To attribute proxy traffic to a user, create a device credential and explicitly authorize that user on a supported inbound. A management account alone does not enable proxy authentication on an inbound.
 
 The management endpoint above is local by default. **Use HTTPS with a trusted certificate for remote management**; local loopback HTTP remains supported for development and local use.
 
@@ -291,6 +300,7 @@ The current web UI:
 - [HTTP Gateway architecture](docs/gateway/architecture.md) · [Configuration](docs/gateway/configuration.md) · [HTTPS interception](docs/gateway/interception.md)
 - [Gateway reverse proxy](docs/gateway/reverse-proxy.md) · [Benchmarks](docs/gateway/benchmarks.md)
 - [Management authentication](docs/MANAGEMENT_AUTH.md) · [Proxy and shared upstream credentials](docs/proxy-credentials.md) · [OIDC](docs/oidc.md)
+- [OAuth 2.1 authorization server](docs/oauth.md) · [OAuth clients and the HTTP API](docs/oauth-clients.md) · [MCP server](docs/mcp.md)
 - [User usage reports](docs/user-usage.md) · [Traffic groups](docs/enterprise-identity.md) · [Traffic access policies](docs/traffic-access.md) · [Resource governance](docs/resource-governance.md)
 - [Traffic control](docs/traffic-control/README.md) · [Traffic-control benchmarks](docs/traffic-control/benchmarks.md) · [Intelligent selectors](docs/intelligent-selectors.md)
 - [WireGuard inbound](docs/wireguard-inbound.md) · [Hysteria 2](docs/hysteria2.md) · [MASQUE](docs/masque.md) · [Linux SSH inbound](docs/ssh-session-inbound.md) · [Krunlet inbound](docs/krunlet-inbound.md)
@@ -303,7 +313,7 @@ The current web UI:
 
 Yuhaiin enforces rules for traffic entering its configured inbounds; it does not automatically replace an operating system firewall, endpoint posture enforcement or physical-link shaping. Traffic Access Policy must be explicitly enabled and scoped, and excluded inbounds can continue through ordinary L4 routing. Protected scopes require valid authenticated user/device identities. Management RBAC and network traffic-group authorization are separate. Legacy and mixed shared passwords remain capable of unauthenticated-to-user proxy traffic outside protected scopes.
 
-Application-payload quotas and usage reports are not billing-grade WAN byte accounting. Connection audits can lose records under overload, while remote management-event delivery has documented retry/deduplication limits. Remote management requires trusted HTTPS (local loopback HTTP is supported). Privileged operators must protect private storage: certain upstream/provider credentials are not encrypted at rest, despite redaction from routine settings responses. Passkeys and OIDC are supported, but SAML, SCIM provisioning, endpoint posture assessment, centralized Controller/Agent distribution, high availability, and compliance certification are not provided.
+Application-payload quotas and usage reports are not billing-grade WAN byte accounting. Connection audits can lose records under overload, while remote management-event delivery has documented retry/deduplication limits. Remote management requires trusted HTTPS (local loopback HTTP is supported). Privileged operators must protect private storage: certain upstream/provider credentials are not encrypted at rest, despite redaction from routine settings responses. Passkeys, OIDC sign-in and an OAuth 2.1 authorization server for Yuhaiin's own interfaces are supported, but SAML, SCIM provisioning, endpoint posture assessment, centralized Controller/Agent distribution, high availability, and compliance certification are not provided.
 
 Gateway TLS interception is disabled by default and requires explicit CA trust and allowlisting; ECH and certificate pinning still limit inspection. The experimental Linux SSH inbound shares the host filesystem and process namespace and **must not be offered to untrusted shell users** without stronger isolation. SSTP relies on legacy MS-CHAPv2 and sensitive NT-hash verifier material. Review each protocol's security and platform restrictions.
 
