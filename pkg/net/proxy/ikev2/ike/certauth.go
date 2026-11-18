@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/ikev2/payload"
 )
@@ -465,5 +466,59 @@ func certMatchesID(cert *x509.Certificate, id payload.IDPayload) error {
 	default:
 		// No identity constraint we can check; trust rests on the chain alone.
 		return nil
+	}
+}
+
+// expectedServerIdentity returns the identity the responder's certificate must
+// be bound to: the configured RemoteID if there is one, otherwise the host the
+// client was told to connect to. Without this binding, any certificate that
+// chains to a trusted root (with the system pool, any publicly issued one)
+// would authenticate the responder, because certMatchesID only compares the
+// certificate with the identity the responder claims for itself.
+func expectedServerIdentity(remoteID *Identity, serverHost string) (Identity, error) {
+	if remoteID != nil {
+		if len(remoteID.Data) == 0 {
+			return Identity{}, fmt.Errorf("ike: configured server identity is empty")
+		}
+		return *remoteID, nil
+	}
+	host := strings.TrimSuffix(strings.TrimSpace(serverHost), ".")
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	if i := strings.IndexByte(host, '%'); i >= 0 {
+		host = host[:i] // IPv6 zone
+	}
+	if host == "" {
+		return Identity{}, fmt.Errorf("ike: no server identity to verify the certificate against; set the server ID")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return IPIdentity(ip), nil
+	}
+	return FQDNIdentity(host), nil
+}
+
+// certMatchesExpectedID reports whether a verified responder certificate is
+// bound to the identity the client intended to reach. Unlike certMatchesID it
+// fails closed for identity types that cannot be checked against a certificate.
+func certMatchesExpectedID(cert *x509.Certificate, id Identity) error {
+	switch id.Type {
+	case payload.IDFQDN:
+		// VerifyHostname matches DNS SANs case-insensitively (with the usual
+		// leftmost-label wildcard rules), the same binding TLS relies on.
+		if err := cert.VerifyHostname(string(id.Data)); err != nil {
+			return fmt.Errorf("ike: server certificate is not valid for %q: %w", id.Data, err)
+		}
+		return nil
+	case payload.IDIPv4Addr, payload.IDIPv6Addr:
+		want := net.IP(id.Data)
+		for _, ip := range cert.IPAddresses {
+			if ip.Equal(want) {
+				return nil
+			}
+		}
+		return fmt.Errorf("ike: server certificate has no IP SAN matching %s", want)
+	case payload.IDRFC822, payload.IDDERASN1DN:
+		return certMatchesID(cert, payload.IDPayload{Type: id.Type, Data: id.Data})
+	default:
+		return fmt.Errorf("ike: cannot bind the server certificate to identity type %d", id.Type)
 	}
 }

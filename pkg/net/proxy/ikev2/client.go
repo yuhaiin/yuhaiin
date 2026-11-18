@@ -54,6 +54,8 @@ type Config struct {
 	// or an IP literal (required).
 	LocalID string
 	// ServerID, if set, is verified against the server's presented identity.
+	// With certificate authentication the server certificate must be valid for
+	// ServerID, or for Server when ServerID is empty.
 	ServerID string
 
 	// EAPUser/EAPPassword, if set, switch client authentication to
@@ -143,7 +145,7 @@ const (
 	OptPort      = "port"       // server IKE port (default 500)
 	OptPSK       = "psk"        // pre-shared key (required)
 	OptLocalID   = "local-id"   // identity presented to the server (required)
-	OptServerID  = "server-id"  // expected server identity (optional)
+	OptServerID  = "server-id"  // expected server identity (optional; defaults to gateway for cert auth)
 	OptUser      = "user"       // EAP-MSCHAPv2 username (optional)
 	OptPassword  = "password"   // EAP-MSCHAPv2 password (optional)
 	OptTUNName   = "tun"        // desired TUN interface name (optional)

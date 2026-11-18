@@ -53,7 +53,9 @@ type ClientConfig struct {
 	PSK []byte
 	// LocalID is the identity this client presents (IDi).
 	LocalID Identity
-	// RemoteID, if set, is checked against the server's IDr.
+	// RemoteID, if set, is checked against the server's IDr. With certificate
+	// authentication the server certificate must also be valid for it (or for
+	// ServerHost when RemoteID is nil).
 	RemoteID *Identity
 
 	// EAPUsername/EAPPassword, if set, switch client authentication to
@@ -67,7 +69,8 @@ type ClientConfig struct {
 	// but not over EAP.
 	ClientCert *tls.Certificate
 	// CARoots verifies the server's certificate when ClientCert is set. A nil
-	// pool falls back to the host's system roots.
+	// pool falls back to the host's system roots. The certificate must also be
+	// valid for RemoteID, or for ServerHost when RemoteID is not set.
 	CARoots *x509.CertPool
 
 	// PostQuantum offers ML-KEM-768 as an additional key exchange (RFC 9370),
@@ -821,6 +824,15 @@ func (c *Client) verifyServerCertAuth(inners []payload.RawPayload) error {
 		return fmt.Errorf("%w: %v", ErrAuthFailed, err)
 	}
 	if err := certMatchesID(leaf, idr); err != nil {
+		return fmt.Errorf("%w: %v", ErrAuthFailed, err)
+	}
+	// Bind the certificate to the server the client meant to reach, not only to
+	// the identity the responder chose to claim.
+	expected, err := expectedServerIdentity(c.cfg.RemoteID, c.cfg.ServerHost)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrAuthFailed, err)
+	}
+	if err := certMatchesExpectedID(leaf, expected); err != nil {
 		return fmt.Errorf("%w: %v", ErrAuthFailed, err)
 	}
 
