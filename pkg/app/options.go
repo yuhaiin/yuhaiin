@@ -40,6 +40,7 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
@@ -69,6 +70,7 @@ type AppInstance struct {
 	Setting              httpapi.SettingsController
 	Inbound              *inbound.Inbound
 	SystemNetwork        *sysnet.Manager
+	NetworkProtection    *protection.Controller
 	Mux                  *http.ServeMux
 	ConfigurationChanges configchange.Backend
 	*StartOptions
@@ -214,36 +216,37 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 
 	recoveryPoints, _ := app.Backup.(updatepkg.RecoveryPoints)
 	app.Operations = httpapi.NewOperations(httpapi.V2Services{
-		Certificates:     app.Certificates,
-		Gateway:          app.Gateway,
-		Settings:         app.Setting,
-		Inbounds:         inboundStore,
-		Nodes:            nodeStore,
-		Node:             app.Node,
-		Subscriptions:    subscriptionStore,
-		Resolvers:        resolverStore,
-		Resolver:         app.Resolver,
-		FakeIP:           app.FakeIP,
-		ResolverCache:    app.ResolverCache,
-		ResolverConfig:   resolverConfig,
-		Connections:      app.Connections,
-		Tools:            app.Tools,
-		Diagnostics:      app.Diagnostics,
-		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
-		Frontend:         app.Frontend,
-		Backup:           app.Backup,
-		Lists:            app.Lists,
-		RouteSettings:    routeSettingsStore,
-		RouteLists:       routeListStore,
-		RouteRegistries:  routeRegistryStore,
-		RegistryCatalogs: registryCatalogs,
-		Rules:            app.Rules,
-		RouteRules:       routeRuleStore,
-		RouteEditor:      routeEditor,
-		Selectors:        selectors,
-		Subscribe:        subscribeController,
-		SystemNetwork:    systemNetworkController(app.SystemNetwork),
-		Profiler:         profilerController(app.profiler),
+		Certificates:      app.Certificates,
+		Gateway:           app.Gateway,
+		Settings:          app.Setting,
+		Inbounds:          inboundStore,
+		Nodes:             nodeStore,
+		Node:              app.Node,
+		Subscriptions:     subscriptionStore,
+		Resolvers:         resolverStore,
+		Resolver:          app.Resolver,
+		FakeIP:            app.FakeIP,
+		ResolverCache:     app.ResolverCache,
+		ResolverConfig:    resolverConfig,
+		Connections:       app.Connections,
+		Tools:             app.Tools,
+		Diagnostics:       app.Diagnostics,
+		Update:            updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
+		Frontend:          app.Frontend,
+		Backup:            app.Backup,
+		Lists:             app.Lists,
+		RouteSettings:     routeSettingsStore,
+		RouteLists:        routeListStore,
+		RouteRegistries:   routeRegistryStore,
+		RegistryCatalogs:  registryCatalogs,
+		Rules:             app.Rules,
+		RouteRules:        routeRuleStore,
+		RouteEditor:       routeEditor,
+		Selectors:         selectors,
+		Subscribe:         subscribeController,
+		SystemNetwork:     systemNetworkController(app.SystemNetwork),
+		NetworkProtection: networkProtectionController(app.NetworkProtection),
+		Profiler:          profilerController(app.profiler),
 	})
 	httpapi.RegisterOperations(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		// The outer management gate covers all routes, including auxiliary

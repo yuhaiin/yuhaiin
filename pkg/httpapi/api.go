@@ -192,7 +192,9 @@ type V2Services struct {
 	Selectors        SelectorController
 	Subscribe        SubscriptionController
 	SystemNetwork    SystemNetworkController
-	Profiler         ProfilerController
+	// NetworkProtection is the kill switch; nil where it is unavailable.
+	NetworkProtection NetworkProtectionController
+	Profiler          ProfilerController
 }
 type pageV2 struct {
 	Page     int `json:"page"`

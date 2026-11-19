@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
+	protectionhelper "github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/helper"
 	"io"
 	"net"
 	"net/http"
 	"net/netip"
 	"strings"
+	"time"
 
 	dnswire "codeberg.org/miekg/dns"
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
@@ -92,6 +95,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		return nil, err
 	}
 	configuration.DataDir.Store(so.ConfigPath)
+	// Join the kill switch's socket group before any socket is opened, so
+	// Yuhaiin's own connections pass while protection is on (macOS).
+	prepareCtx, cancelPrepare := context.WithTimeout(context.Background(), time.Second)
+	protectionhelper.PrepareStartup(prepareCtx)
+	cancelPrepare()
 
 	ctx := so.Context
 	if ctx == nil {
@@ -329,6 +337,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// The System Network Manager owns every system route and is closed after
 	// the inbounds, which detach their TUNs first.
 	systemNetwork := AddCloser(closers, "system_network", newSystemNetwork(list))
+	// Network Protection follows the System Network state. Closing it only
+	// disconnects from the protection service: the kill switch stays on.
+	networkProtection := AddCloser(closers, "network_protection", protection.NewController(protectionhelper.NewBackend()))
+	systemNetwork.SetProtection(networkProtection.SetInputs)
 	interceptionOptions = append(interceptionOptions, inbound.WithSystemNetwork(systemNetwork))
 	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	router.SetLANLinkFallback(func(ctx context.Context, ip netip.Addr) (contractroute.Target, bool) {
@@ -364,25 +376,26 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		})))
 
 	app := &AppInstance{
-		Gateway:       gatewayManager,
-		StartOptions:  so,
-		Mux:           mux,
-		Tools:         tools,
-		Diagnostics:   newDiagnostics(inboundConfigStore, inbounds, nodeRuntime, hosts, rules),
-		Node:          nodeRuntime,
-		NodeRuntime:   nodeRuntime,
-		Connections:   statistics.NewConnectionMonitor(stcs),
-		UserUsage:     userUsage,
-		Lists:         route.NewContractListController(list),
-		Rules:         route.NewContractRuleController(rules),
-		Resolver:      resolver.NewContractController(resolverCtr),
-		FakeIP:        fakedns,
-		ResolverCache: resolver.NewContractController(resolverCtr),
-		ResolverCfg:   resolver.NewContractConfigController(resolverCtr),
-		Setting:       settingsController,
-		Inbound:       inbounds,
-		SystemNetwork: systemNetwork,
-		closers:       closers,
+		Gateway:           gatewayManager,
+		StartOptions:      so,
+		Mux:               mux,
+		Tools:             tools,
+		Diagnostics:       newDiagnostics(inboundConfigStore, inbounds, nodeRuntime, hosts, rules),
+		Node:              nodeRuntime,
+		NodeRuntime:       nodeRuntime,
+		Connections:       statistics.NewConnectionMonitor(stcs),
+		UserUsage:         userUsage,
+		Lists:             route.NewContractListController(list),
+		Rules:             route.NewContractRuleController(rules),
+		Resolver:          resolver.NewContractController(resolverCtr),
+		FakeIP:            fakedns,
+		ResolverCache:     resolver.NewContractController(resolverCtr),
+		ResolverCfg:       resolver.NewContractConfigController(resolverCtr),
+		Setting:           settingsController,
+		Inbound:           inbounds,
+		SystemNetwork:     systemNetwork,
+		NetworkProtection: networkProtection,
+		closers:           closers,
 	}
 
 	backup := backupapp.New(backupStore, so.ConfigPath, so.RecoveryMaintenance, fakedns)
