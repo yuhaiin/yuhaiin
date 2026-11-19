@@ -402,6 +402,11 @@ whether it really took effect. On unsupported platforms GET returns
   interface is blocked too; forwarding to a Yuhaiin TUN works.
 - If another program already had PF enabled, its existing connections may
   continue until they close.
+- If another program runs `pfctl -d`, the packet filter is off until the
+  service's next check (at most 5 seconds) re-enables it.
+- Connections Yuhaiin opened before it joined the socket group (only when
+  the protection service was installed after Yuhaiin started) are blocked
+  once protection is on and reconnect.
 - Interface groups are not available for `utun` on macOS, so Yuhaiin's TUNs
   are listed by name and updated whenever they change.
 

@@ -152,7 +152,11 @@ func printProtection(w io.Writer, s sysnet.ProtectionStatus, service string) {
 		fmt.Fprintf(w, "Protected Interfaces: %s\n", list(s.PhysicalInterfaces))
 		fmt.Fprintf(w, "Private Networks: %d\n", len(s.PrivateNetworks))
 		fmt.Fprintf(w, "Bypass Networks: %d\n", s.BypassCount)
-		fmt.Fprintf(w, "Yuhaiin Traffic: %s\n", onOff(s.OwnTraffic.Allowed, "Allowed (socket group "+s.OwnTraffic.Group+")", "Blocked ("+s.OwnTraffic.Reason+")"))
+		reason := s.OwnTraffic.Reason
+		if reason == "" {
+			reason = "Yuhaiin is not connected"
+		}
+		fmt.Fprintf(w, "Yuhaiin Traffic: %s\n", onOff(s.OwnTraffic.Allowed, "Allowed (socket group "+s.OwnTraffic.Group+")", "Blocked ("+reason+")"))
 		if s.Blocked != nil {
 			fmt.Fprintf(w, "Blocked Packets: %d (%d bytes)\n", s.Blocked.Packets, s.Blocked.Bytes)
 		}

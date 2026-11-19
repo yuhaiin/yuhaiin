@@ -688,10 +688,12 @@ func TestPFCommandLine(t *testing.T) {
 	// Without root: status is readable, disable is refused.
 	if user := os.Getenv("SUDO_USER"); user != "" {
 		out, _ := exec.Command("/usr/bin/sudo", "-u", user, Binary, "protection", "status").CombinedOutput()
+		t.Logf("$ sudo -u %s yuhaiin protection status\n%s", user, out)
 		if !strings.Contains(string(out), "Status: Protected") {
 			t.Errorf("non-root status:\n%s", out)
 		}
 		out, err := exec.Command("/usr/bin/sudo", "-u", user, Binary, "protection", "disable", "--yes").CombinedOutput()
+		t.Logf("$ sudo -u %s yuhaiin protection disable --yes (%v)\n%s", user, err, out)
 		if err == nil || !strings.Contains(string(out), "administrator") {
 			t.Errorf("non-root disable:\n%s %v", out, err)
 		}
