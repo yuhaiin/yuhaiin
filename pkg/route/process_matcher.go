@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 	"strings"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
@@ -31,12 +32,7 @@ func (h *processMatcher) Search(ctx context.Context, _ netapi.Address) []string 
 func (h *processMatcher) Empty() bool { return h.index.Empty() }
 
 func (h *processMatcher) Include(list string) bool {
-	for _, name := range h.index.Lists() {
-		if name == list {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(h.index.Lists(), list)
 }
 
 // processMatcherBuilder compiles process lists for the host platform.

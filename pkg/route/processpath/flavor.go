@@ -87,12 +87,6 @@ type normalized struct {
 }
 
 func (n normalized) rootString() string { return n.s[:n.root] }
-func (n normalized) rest() string {
-	if n.root+1 >= len(n.s) {
-		return ""
-	}
-	return n.s[n.root+1:]
-}
 
 func (f Flavor) isSep(c byte) bool { return c == '/' || f.windows && c == '\\' }
 
@@ -183,8 +177,8 @@ func (f Flavor) appendClean(out []byte, root int, rest string, fold bool) normal
 }
 
 func lastSlash(b []byte) int {
-	for i := len(b) - 1; i >= 0; i-- {
-		if b[i] == '/' {
+	for i, v := range slices.Backward(b) {
+		if v == '/' {
 			return i
 		}
 	}

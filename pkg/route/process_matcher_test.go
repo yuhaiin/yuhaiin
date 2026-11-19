@@ -261,7 +261,7 @@ func TestRemoteProcessListUsesGlobs(t *testing.T) {
 		t.Fatal(err)
 	}
 	remote := contractroute.RouteListDetail{ID: "remote", Name: "remote", Type: "process",
-		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{"file://" + file}}}}
+		Source: contractroute.ListSource{Type: "remote", Remote: &contractroute.RemoteSource{URLs: []string{fileURL(file)}}}}
 	m.list.lists = newProcessListBook(remote)
 	if err := m.Update(processRule("remote-rule", "remote", "direct"), alwaysRule("fallback", "proxy", contractroute.Target{})); err != nil {
 		t.Fatal(err)
@@ -445,4 +445,10 @@ func TestWindowsProcessRules(t *testing.T) {
 	if len(m.listIssues) != 0 {
 		t.Fatalf("issues = %+v", m.listIssues)
 	}
+}
+
+// fileURL is a file URL the downloader accepts on every platform:
+// file:///tmp/x on Unix, file:///D:/x on Windows.
+func fileURL(path string) string {
+	return "file:///" + strings.TrimPrefix(filepath.ToSlash(path), "/")
 }
