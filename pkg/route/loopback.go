@@ -6,15 +6,19 @@ import (
 	"os"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/route/processpath"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 var myPath string
+
+// loopbackPaths compares executable paths with the same rules as process
+// lists: case-insensitive on Windows, " (deleted)" ignored on Linux.
+var loopbackPaths = processpath.HostSyntax()
 var myPid uint
 
 func init() {
 	myPath, _ = os.Executable()
-	myPath = convertVolumeName(myPath)
 	myPid = uint(os.Getpid())
 }
 
@@ -39,7 +43,7 @@ func (l *LoopbackDetector) IsLoopback(ctx *netapi.Context, path string, pid uint
 		return false
 	}
 
-	if path != myPath {
+	if !loopbackPaths.Equal(path, myPath) {
 		return false
 	}
 

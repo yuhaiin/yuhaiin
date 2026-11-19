@@ -1,0 +1,45 @@
+name: Process path matching
+
+# Process list paths are normalized per platform; run the matcher and its
+# route integration natively on each OS rather than trusting cross builds.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pkg/route/**'
+      - 'pkg/store/route_list*.go'
+      - 'go.*'
+      - '.github/workflows/process-path.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/route/**'
+      - 'pkg/store/route_list*.go'
+      - 'go.*'
+      - '.github/workflows/process-path.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: process-path-${{ matrix.runner }}
+      - name: Matcher and normalization
+        run: go test -race -count=1 ./pkg/route/processpath
+      - name: Route integration
+        run: go test -count=1 -run 'Process|Windows' ./pkg/route
+      - name: Matcher benchmarks (smoke)
+        run: go test -run '^$' -bench 'BenchmarkProcessMatcherBasic' -benchmem -benchtime=100x ./pkg/route

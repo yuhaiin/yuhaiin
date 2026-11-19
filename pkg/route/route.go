@@ -5,8 +5,6 @@ import (
 	"errors"
 	"net"
 	"net/netip"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"codeberg.org/miekg/dns"
@@ -285,11 +283,7 @@ func (s *Route) addMatchers() {
 				return Direct
 			}
 
-			matchProcess := filepath.Clean(strings.TrimSuffix(processPath, " (deleted)"))
-
-			matchProcess = convertVolumeName(matchProcess)
-
-			if s.loopback.IsLoopback(store, matchProcess, pid) {
+			if s.loopback.IsLoopback(store, processPath, pid) {
 				return Block
 			}
 		}
@@ -544,16 +538,4 @@ func (c *Route) shouldDumpProcess() bool {
 	default:
 		return true
 	}
-}
-
-func convertVolumeName(path string) string {
-	vn := filepath.VolumeName(path)
-	if vn == "" {
-		if len(path) > 0 && path[0] == filepath.Separator {
-			path = path[1:]
-		}
-		return path
-	}
-
-	return filepath.Join(vn, path[len(vn):])
 }

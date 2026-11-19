@@ -38,7 +38,7 @@ Yuhaiin is an open-source, cross-platform networking toolkit bringing enterprise
 
 | Capability | Highlights |
 | --- | --- |
-| **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process, and inbound-based rules; DNS and FakeIP integration |
+| **Traffic Security & Policy Routing** | L4 allow/route/block decisions; domain, IP, port, process (exact paths and `**` globs), and inbound-based rules; DNS and FakeIP integration |
 | **System Network Routing & Forwarding** | Ownership-aware OS route management; global, non-private and custom CIDR/GeoIP route policies; cross-platform side-router forwarding with platform-specific NAT and TProxy support |
 | **Management Identity & API Security** | Local and custom RBAC roles, scoped API tokens, revocable sessions, WebAuthn Passkeys, GitHub/Google OAuth, generic OIDC, management security audit |
 | **OAuth 2.1 Authorization Server & MCP** | Consent-based, resource-bound access for third-party applications (PKCE, rotating refresh tokens, immediate revocation); Model Context Protocol server for configuration, tests, logs, profiling and traffic analysis |
@@ -307,7 +307,7 @@ The current web UI:
 - [OpenVPN](pkg/net/proxy/openvpn/README.md) · [GlobalProtect](pkg/net/proxy/globalprotect/README.md) · [Nebula](pkg/net/proxy/nebula/README.md) · [ZeroTier](pkg/net/proxy/zerotier/README.md)
 - [Custom roles](docs/management-roles.md) · [Management audits](docs/security-audit.md) · [Secret isolation](docs/secret-isolation.md) · [Configuration changes](docs/configuration-changes.md)
 - [Backup and recovery](docs/backup-recovery.md) · [Updates](docs/update-rollback.md) · [Managed certificates](docs/managed-certificates.md)
-- [SSH outbound](pkg/net/proxy/ssh/README.md) · [Rules](https://github.com/yuhaiin/kitte) · [Android client](https://github.com/yuhaiin/yuhaiin-android)
+- [Process lists and path patterns](docs/process-lists.md) · [SSH outbound](pkg/net/proxy/ssh/README.md) · [Rules](https://github.com/yuhaiin/kitte) · [Android client](https://github.com/yuhaiin/yuhaiin-android)
 
 ## Security Boundaries
 
