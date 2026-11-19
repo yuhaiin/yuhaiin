@@ -37,7 +37,6 @@ func processScopeRoute(t *testing.T, mode string) (*Route, *scopedTestDumper) {
 	}
 	router := NewRoute(new(gatewayTestDialer), staticResolverBook{resolver: staticResolver{}}, matchers.list, nil)
 	router.ms = matchers
-	router.ms.list.ProcessTrie().Add("/usr/bin/curl", "ssh-tools")
 	// The host dumper reports the same path, so a fallback would be visible.
 	host := &scopedTestDumper{process: netapi.Process{Path: "/usr/bin/curl", Pid: 1, Uid: 0}}
 	router.ProcessDumper = host

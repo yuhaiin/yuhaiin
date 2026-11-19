@@ -11,6 +11,7 @@ import (
 	"time"
 
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
+	"github.com/Asutorufa/yuhaiin/pkg/route/processpath"
 )
 
 type RouteListStore struct {
@@ -301,7 +302,30 @@ func validateRouteListDetail(detail contractroute.RouteListDetail) error {
 	if strings.TrimSpace(detail.Name) == "" {
 		return errors.New("route list name is empty")
 	}
+	if detail.Type == "process" && detail.Source.Type == "local" && detail.Source.Local != nil {
+		return validateProcessEntries(detail)
+	}
 	return nil
+}
+
+// validateProcessEntries rejects process entries that cannot be compiled on
+// this platform, naming the list and every offending line.
+func validateProcessEntries(detail contractroute.RouteListDetail) error {
+	flavor := processpath.HostSyntax()
+	var problems []string
+	for i, line := range detail.Source.Local.Lists {
+		entry := contractroute.TrimListEntry(line)
+		if entry == "" {
+			continue
+		}
+		if _, err := flavor.Compile(entry); err != nil {
+			problems = append(problems, fmt.Sprintf("line %d: %v", i+1, err))
+		}
+	}
+	if len(problems) == 0 {
+		return nil
+	}
+	return fmt.Errorf("process list %q (%s): %s", detail.Name, detail.ID, strings.Join(problems, "; "))
 }
 
 func routeListItemFromDetail(detail contractroute.RouteListDetail) contractroute.ListItem {

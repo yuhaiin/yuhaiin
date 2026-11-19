@@ -16,18 +16,21 @@ import (
 )
 
 type preparedLists struct {
-	names        map[string]string
-	listIssues   []contractroute.ListActivationIssue
-	unavailable  map[string]bool
-	incomplete   map[string]bool
-	host         *hostMatcher
-	process      *processMatcher
-	fingerprint  [32]byte
-	disk         bool
-	geo          *maxminddb.MaxMindDB
-	geoChanged   bool
-	geoURL       string
-	geoRefreshed uint64
+	names       map[string]string
+	listIssues  []contractroute.ListActivationIssue
+	unavailable map[string]bool
+	incomplete  map[string]bool
+	host        *hostMatcher
+	process     *processMatcher
+	// processIssues are the invalid process entries of process, already
+	// included in listIssues.
+	processIssues []contractroute.ListActivationIssue
+	fingerprint   [32]byte
+	disk          bool
+	geo           *maxminddb.MaxMindDB
+	geoChanged    bool
+	geoURL        string
+	geoRefreshed  uint64
 }
 
 // prepareRules builds indexes before changing the running configuration. Rule
@@ -211,9 +214,15 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 	}
 	fingerprint := sha256.Sum256(encoded)
 	if fingerprint == s.indexFingerprint {
+		// The installed indexes hold exactly this data; so do their issues.
+		for _, issue := range s.processIssues {
+			issues = append(issues, issue)
+			incomplete[issue.ID] = true
+		}
 		return &preparedLists{names: names, listIssues: issues, unavailable: unavailable, incomplete: incomplete}, nil
 	}
-	prepared := &preparedLists{names: names, listIssues: issues, unavailable: unavailable, incomplete: incomplete, host: newHostTrie(configuration.DataDir.Load(), disk), process: newProcessTrie(), fingerprint: fingerprint, disk: disk}
+	prepared := &preparedLists{names: names, listIssues: issues, unavailable: unavailable, incomplete: incomplete, host: newHostTrie(configuration.DataDir.Load(), disk), fingerprint: fingerprint, disk: disk}
+	processes := newProcessMatcherBuilder()
 	success := false
 	defer func() {
 		if !success {
@@ -229,15 +238,21 @@ func (s *Lists) prepareRuleData(ctx context.Context, rules []contractroute.Route
 			return nil, err
 		}
 		if item.Type == "process" {
-			for value := range values {
-				if value = strings.TrimSpace(value); value != "" {
-					prepared.process.Add(value, item.ID)
-				}
+			// An invalid entry must not silently become a non-match: the
+			// list is reported and treated as incomplete. Saving a local list
+			// already rejects invalid entries, so this covers remote lists
+			// and data stored before patterns were validated.
+			if issue := processes.addList(contractroute.RouteListDetail{ID: item.ID, Name: names[item.ID], Type: item.Type, Source: item.Source}, values); issue != nil {
+				log.Warn("process list has unusable entries", "list", item.ID, "error", issue.Error)
+				prepared.listIssues = append(prepared.listIssues, *issue)
+				prepared.processIssues = append(prepared.processIssues, *issue)
+				prepared.incomplete[item.ID] = true
 			}
 		} else if err := prepared.host.Add(values, item.ID); err != nil {
 			return nil, err
 		}
 	}
+	prepared.process = processes.build()
 	if err := prepared.host.Optimize(); err != nil {
 		return nil, err
 	}
@@ -289,9 +304,8 @@ func (s *Lists) installPrepared(prepared *preparedLists) {
 	old := s.hostTrie
 	s.hostTrie = prepared.host
 	s.hostTrieMu.Unlock()
-	s.processTrieMu.Lock()
-	s.processTrie = prepared.process
-	s.processTrieMu.Unlock()
+	s.processTrie.Store(prepared.process)
+	s.processIssues = prepared.processIssues
 	s.indexFingerprint = prepared.fingerprint
 	s.hostTrieDisk.Store(prepared.disk)
 	if old != nil {
