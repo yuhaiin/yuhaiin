@@ -412,15 +412,21 @@ func TestPFKillSwitch(t *testing.T) {
 
 	t.Run("verdicts", func(t *testing.T) { checkVerdicts(t, "protected", e.baseVerdicts(true)) })
 	t.Run("direct traffic blocked on the physical interface", func(t *testing.T) {
-		var sendErr error
-		n := capture(t, e.physical, "1.1.1.1", func() { sendErr = send("1.1.1.1") })
-		if sendErr == nil || n > 0 {
-			t.Fatalf("direct IPv4 leaked: send error %v, %d packets on %s", sendErr, n, e.physical)
+		// UDP sends succeed locally with "block return" (PF answers with
+		// ICMP); what matters is that nothing leaves the interface.
+		if n := capture(t, e.physical, "1.1.1.1", func() { _ = send("1.1.1.1") }); n != 0 {
+			t.Fatalf("direct IPv4 leaked: %d packets on %s", n, e.physical)
 		}
-		t.Logf("direct send failed as expected: %v (%d packets captured)", sendErr, n)
-		if err := send("2606:4700:4700::1111"); err == nil {
-			t.Fatal("direct IPv6 not blocked")
+		if n := capture(t, e.physical, "2606:4700:4700::1111", func() { _ = send("2606:4700:4700::1111") }); n != 0 {
+			t.Fatalf("direct IPv6 leaked: %d packets on %s", n, e.physical)
 		}
+		// TCP gets a reset from PF at once instead of a connection.
+		conn, err := net.DialTimeout("tcp", "1.1.1.1:443", 3*time.Second)
+		if err == nil {
+			conn.Close()
+			t.Fatal("direct TCP connected")
+		}
+		t.Logf("direct TCP refused as expected: %v", err)
 	})
 	t.Run("Yuhaiin's own sockets pass", func(t *testing.T) {
 		var sendErr error
@@ -434,7 +440,9 @@ func TestPFKillSwitch(t *testing.T) {
 		if err != nil || st.Blocked == nil || st.Blocked.Packets == 0 {
 			t.Fatalf("blocked counters: %+v %v", st.Blocked, err)
 		}
-		t.Logf("blocked %d packets, own connections %v", st.Blocked.Packets, st.OwnTraffic.Connections)
+		if st.OwnTraffic.Connections != nil {
+			t.Logf("blocked %d packets, own connections %d", st.Blocked.Packets, *st.OwnTraffic.Connections)
+		}
 	})
 	t.Run("pf.conf reload keeps the rules", func(t *testing.T) {
 		before := pf.LoadedID(pf.ParseRules(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-v", "-s", "rules")))
@@ -473,8 +481,8 @@ func TestPFKillSwitch(t *testing.T) {
 			return !strings.Contains(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules"), e.yuhaiin.name)
 		})
 		checkVerdicts(t, "core killed", e.baseVerdicts(false))
-		if err := ownSend(t, e.gid, "1.1.1.1"); err == nil {
-			t.Fatal("own traffic still allowed after the core died")
+		if n := capture(t, e.physical, "1.1.1.1", func() { _ = ownSend(t, e.gid, "1.1.1.1") }); n != 0 {
+			t.Fatalf("own traffic still allowed after the core died: %d packets", n)
 		}
 	})
 	t.Run("TUN removed", func(t *testing.T) {
@@ -489,15 +497,14 @@ func TestPFKillSwitch(t *testing.T) {
 		waitFor(t, func() bool {
 			return !strings.Contains(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules"), e.yuhaiin.name)
 		})
-		if err := send("192.0.2.10"); err == nil {
-			t.Fatal("traffic of a removed TUN leaked to the physical interface")
+		if n := capture(t, e.physical, "192.0.2.10", func() { _ = send("192.0.2.10") }); n != 0 {
+			t.Fatalf("traffic of a removed TUN leaked to the physical interface: %d packets", n)
 		}
 	})
 	t.Run("service restart", func(t *testing.T) {
 		e.stop()
-		if err := send("198.51.100.20"); err == nil {
-			t.Fatal("protection lost while the service is stopped")
-		}
+		stopped := []verdict{{e.other, "198.51.100.20", false}, {e.other, "10.255.0.20", true}}
+		checkVerdicts(t, "service stopped", stopped)
 		e.start()
 		st, err := newClientAt(e.cfg.Socket, "cli").Call(ctx, OpStatus, nil)
 		if err != nil || st.State != sysnet.ProtectionProtected {
@@ -508,9 +515,7 @@ func TestPFKillSwitch(t *testing.T) {
 		// Not something Yuhaiin ever does: simulates another tool.
 		sh(t, "/sbin/pfctl", "-d")
 		waitFor(t, func() bool { on, _ := pf.ParseEnabled(shQuiet("/sbin/pfctl", "-s", "info")); return on })
-		if err := send("198.51.100.21"); err == nil {
-			t.Fatal("not blocking after PF was re-enabled")
-		}
+		checkVerdicts(t, "after PF was re-enabled", []verdict{{e.other, "198.51.100.21", false}})
 		// The foreign reference was dropped by -d; take it again.
 		e.foreign = pf.ParseToken(sh(t, "/sbin/pfctl", "-E"))
 	})
@@ -669,7 +674,7 @@ func TestPFCommandLine(t *testing.T) {
 	if err := StopDaemon(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if send("198.51.100.40") == nil && !strings.Contains(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules"), "block") {
+	if !strings.Contains(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules"), "block") {
 		t.Fatal("protection lost when the service stopped")
 	}
 	if out, code := cli("protection", "disable", "--yes"); code == 0 || !strings.Contains(out, "--recovery") {
