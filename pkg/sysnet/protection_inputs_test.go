@@ -18,7 +18,7 @@ type inputSink struct {
 }
 
 func (s *inputSink) set(in protection.Inputs) { s.mu.Lock(); s.last, s.n = in, s.n+1; s.mu.Unlock() }
-func (s *inputSink) get() protection.Inputs  { s.mu.Lock(); defer s.mu.Unlock(); return s.last }
+func (s *inputSink) get() protection.Inputs   { s.mu.Lock(); defer s.mu.Unlock(); return s.last }
 
 func contains(list []netip.Prefix, addr string) bool {
 	a := netip.MustParseAddr(addr)

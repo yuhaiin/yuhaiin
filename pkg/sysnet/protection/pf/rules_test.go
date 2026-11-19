@@ -124,16 +124,18 @@ func TestCompileEmptyBypassAndOrderIndependence(t *testing.T) {
 
 func TestCompileRejectsUnsafeInput(t *testing.T) {
 	for name, mutate := range map[string]func(*protection.Policy){
-		"injection":    func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun0 all"}} },
-		"quote":        func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: `utun0"`}} },
-		"newline":      func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun0\npass"}} },
-		"no unit":      func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun"}} },
-		"loopback":     func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "lo0"}} },
-		"duplicate":    func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun1"}, {Name: "utun1"}} },
-		"default":      func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")} },
-		"default v6":   func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("::/0")} },
-		"host bits":    func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("192.0.2.1/24")} },
-		"mapped":       func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("::ffff:192.0.2.0/120")} },
+		"injection":  func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun0 all"}} },
+		"quote":      func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: `utun0"`}} },
+		"newline":    func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun0\npass"}} },
+		"no unit":    func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun"}} },
+		"loopback":   func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "lo0"}} },
+		"duplicate":  func(p *protection.Policy) { p.Tunnels = []protection.Tunnel{{Name: "utun1"}, {Name: "utun1"}} },
+		"default":    func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")} },
+		"default v6": func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("::/0")} },
+		"host bits":  func(p *protection.Policy) { p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("192.0.2.1/24")} },
+		"mapped": func(p *protection.Policy) {
+			p.BypassNetworks = []netip.Prefix{netip.MustParsePrefix("::ffff:192.0.2.0/120")}
+		},
 		"invalid":      func(p *protection.Policy) { p.PrivateNetworks = []netip.Prefix{{}} },
 		"mode":         func(p *protection.Policy) { p.Mode = "strict" },
 		"no mode":      func(p *protection.Policy) { p.Mode = "" },

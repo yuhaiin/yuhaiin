@@ -70,7 +70,7 @@ type Server struct {
 	gid      int
 	gidErr   error
 	modified string
-	open map[net.Conn]bool
+	open     map[net.Conn]bool
 	// damaged is set after a damaged state file was replaced.
 	damaged string
 }

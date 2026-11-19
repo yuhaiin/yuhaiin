@@ -76,7 +76,11 @@ func (f *fakeBackend) Disable(context.Context) error {
 func (f *fakeBackend) Close() error    { f.mu.Lock(); f.closed = true; f.mu.Unlock(); return nil }
 func (f *fakeBackend) Session() uint64 { f.mu.Lock(); defer f.mu.Unlock(); return f.session }
 func (f *fakeBackend) count() int      { f.mu.Lock(); defer f.mu.Unlock(); return len(f.updates) }
-func (f *fakeBackend) last() Policy    { f.mu.Lock(); defer f.mu.Unlock(); return f.updates[len(f.updates)-1] }
+func (f *fakeBackend) last() Policy {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.updates[len(f.updates)-1]
+}
 
 func TestControllerSyncsOnlyChanges(t *testing.T) {
 	b := &fakeBackend{}

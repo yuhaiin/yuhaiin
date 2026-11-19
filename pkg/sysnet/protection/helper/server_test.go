@@ -151,7 +151,10 @@ func TestEnableProtectsAndCoreLeaseEnds(t *testing.T) {
 	// The core disappears: its TUN and sockets lose their allowance, the
 	// block stays.
 	c.Close()
-	waitFor(t, func() bool { r := h.loaded(); return r != "" && !strings.Contains(r, "utun4") && !strings.Contains(r, "group") })
+	waitFor(t, func() bool {
+		r := h.loaded()
+		return r != "" && !strings.Contains(r, "utun4") && !strings.Contains(r, "group")
+	})
 	st2, err := h.client().Call(ctx, OpStatus, nil)
 	if err != nil || st2.State != sysnet.ProtectionProtected || len(st2.TunnelInterfaces) != 0 || st2.OwnTraffic.Allowed {
 		t.Fatalf("after disconnect: %+v %v", st2, err)
