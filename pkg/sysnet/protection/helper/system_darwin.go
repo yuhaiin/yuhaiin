@@ -22,7 +22,7 @@ const Supported = true
 
 // NewConfig returns the production configuration of the service.
 func NewConfig() Config {
-	return Config{StateFile: StateFile, Socket: Socket, Engine: pf.NewEngine(StateDir), BootID: BootID, Group: EnsureGroup, PeerUID: PeerUID}
+	return Config{StateFile: StateFile, Socket: Socket, Engine: pf.NewEngine(StateDir), BootID: BootID, Group: EnsureGroup, PeerUID: PeerUID, StopSelf: selfStop}
 }
 
 // RunDaemon runs the service until ctx ends.
@@ -150,8 +150,34 @@ func DaemonLoaded(ctx context.Context) bool {
 	return err == nil
 }
 
-// InstallDaemon installs the service as a LaunchDaemon running binary and
-// starts it. It starts at every boot, before any user logs in.
+// DaemonDisabled reports whether launchd keeps the service from loading at
+// boot (a "launchctl disable" override).
+func DaemonDisabled(ctx context.Context) bool {
+	out, err := run(ctx, "/bin/launchctl", "print-disabled", "system")
+	if err != nil {
+		return false
+	}
+	for line := range strings.SplitSeq(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, `"`+Label+`"`) {
+			return strings.HasSuffix(line, "disabled") || strings.HasSuffix(line, "true")
+		}
+	}
+	return false
+}
+
+// savedEnabled reports whether the saved state requests protection.
+func savedEnabled() bool {
+	s, _, err := LoadState(StateFile)
+	return err == nil && s.Enabled
+}
+
+// InstallDaemon installs the service's LaunchDaemon, running binary. The
+// service only runs while the kill switch is on: with protection off the job
+// is installed but disabled, so no root process stays resident and nothing
+// starts at boot. With protection on it is enabled, started (or, after an
+// update, restarted onto binary) and starts at every boot before any user
+// logs in.
 func InstallDaemon(ctx context.Context, binary string) error {
 	if os.Geteuid() != 0 {
 		return errors.New("installing the Network Protection service requires root")
@@ -165,70 +191,124 @@ func InstallDaemon(ctx context.Context, binary string) error {
 	if err := os.MkdirAll(StateDir, 0o700); err != nil {
 		return err
 	}
+	// The group exists from installation on, so Yuhaiin joins it at
+	// startup and its connections already pass when protection is enabled.
 	if _, err := EnsureGroup(ctx); err != nil {
 		return err
 	}
 	want := plist(binary)
 	current, _ := os.ReadFile(PlistPath)
-	loaded := DaemonLoaded(ctx)
-	if bytes.Equal(current, want) && loaded {
-		// Reinstalling or updating: the plist is unchanged, but the
-		// running service may still be the previous build.
+	changed := !bytes.Equal(current, want)
+	if changed {
+		if DaemonLoaded(ctx) {
+			if out, err := run(ctx, "/bin/launchctl", "bootout", "system/"+Label); err != nil {
+				return fmt.Errorf("stop the protection service: %w: %s", err, out)
+			}
+		}
+		if err := pf.WriteFileAtomic(PlistPath, want, 0o644); err != nil {
+			return err
+		}
+	}
+	if !savedEnabled() {
+		return DisableDaemon(ctx)
+	}
+	if !changed && DaemonLoaded(ctx) {
+		// Reinstalling or updating: the running service may still be
+		// the previous build.
 		_, err := restartIfOutdated(ctx)
 		return err
 	}
-	if loaded {
-		if out, err := run(ctx, "/bin/launchctl", "bootout", "system/"+Label); err != nil {
-			return fmt.Errorf("stop the protection service: %w: %s", err, out)
-		}
-	}
-	if err := pf.WriteFileAtomic(PlistPath, want, 0o644); err != nil {
-		return err
-	}
-	if out, err := run(ctx, "/bin/launchctl", "bootstrap", "system", PlistPath); err != nil {
-		return fmt.Errorf("start the protection service: %w: %s", err, out)
-	}
-	return WaitService(ctx, 10*time.Second)
+	return StartDaemon(ctx)
 }
 
-// EnsureDaemon starts an installed service that is not loaded (for
-// example after recovery stopped it).
-func EnsureDaemon(ctx context.Context) error {
-	if DaemonLoaded(ctx) {
-		return nil
+// StartDaemon enables the service and starts it; it then also starts at
+// every boot. A missing LaunchDaemon is installed from Binary.
+func StartDaemon(ctx context.Context) error {
+	if os.Geteuid() != 0 {
+		return errors.New("starting the Network Protection service requires root")
 	}
 	if _, err := os.Stat(PlistPath); err != nil {
-		if _, binErr := os.Stat(Binary); binErr == nil && os.Geteuid() == 0 {
-			return InstallDaemon(ctx, Binary)
+		if _, binErr := os.Stat(Binary); binErr != nil {
+			return fmt.Errorf("the protection service is not installed and %s is missing; run: sudo yuhaiin install", Binary)
 		}
-		return err
+		if _, err := EnsureGroup(ctx); err != nil {
+			return err
+		}
+		if err := pf.WriteFileAtomic(PlistPath, plist(Binary), 0o644); err != nil {
+			return err
+		}
 	}
-	if out, err := run(ctx, "/bin/launchctl", "bootstrap", "system", PlistPath); err != nil {
-		return fmt.Errorf("start the protection service: %w: %s", err, out)
+	if out, err := run(ctx, "/bin/launchctl", "enable", "system/"+Label); err != nil {
+		return fmt.Errorf("enable the protection service: %w: %s", err, out)
 	}
-	return WaitService(ctx, 10*time.Second)
+	if !DaemonLoaded(ctx) {
+		if out, err := run(ctx, "/bin/launchctl", "bootstrap", "system", PlistPath); err != nil {
+			return fmt.Errorf("start the protection service: %w: %s", err, out)
+		}
+	}
+	return WaitService(ctx, 15*time.Second)
 }
 
-// StopDaemon unloads the service until the next boot or bootstrap. Its
-// rules stay; only the process stops.
-func StopDaemon(ctx context.Context) error {
-	if !DaemonLoaded(ctx) {
+// EnsureDaemon starts the service if it is not running.
+func EnsureDaemon(ctx context.Context) error {
+	if DaemonLoaded(ctx) && !DaemonDisabled(ctx) {
 		return nil
 	}
-	out, err := run(ctx, "/bin/launchctl", "bootout", "system/"+Label)
-	if err != nil {
-		return fmt.Errorf("%w: %s", err, out)
-	}
-	return nil
+	return StartDaemon(ctx)
 }
 
-// UninstallDaemon stops the service and removes its LaunchDaemon.
+// DisableDaemon stops the service and keeps launchd from starting it again,
+// also at boot, until StartDaemon. Rules in the kernel are not touched.
+func DisableDaemon(ctx context.Context) error {
+	var result error
+	if out, err := run(ctx, "/bin/launchctl", "disable", "system/"+Label); err != nil {
+		result = fmt.Errorf("disable the protection service: %w: %s", err, out)
+	}
+	if DaemonLoaded(ctx) {
+		if out, err := run(ctx, "/bin/launchctl", "bootout", "system/"+Label); err != nil && DaemonLoaded(ctx) {
+			result = errors.Join(result, fmt.Errorf("stop the protection service: %w: %s", err, out))
+		}
+	}
+	return result
+}
+
+// StopDaemon is DisableDaemon (kept for callers that only want it stopped).
+func StopDaemon(ctx context.Context) error { return DisableDaemon(ctx) }
+
+// selfStop is how the running service ends itself once protection is off:
+// launchd is told not to start it again, then unloads it, which stops this
+// process. It runs in the background so the reply to the client goes out
+// first.
+func selfStop(cancelled func() bool) {
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		if cancelled() {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		log.Info("network protection is off; stopping the protection service until it is enabled again")
+		if err := DisableDaemon(ctx); err != nil {
+			log.Error("network protection: stopping the service failed", "err", err)
+		}
+	}()
+}
+
+// UninstallDaemon stops the service and removes its LaunchDaemon and
+// launchd's override for it.
 func UninstallDaemon(ctx context.Context) error {
-	err := StopDaemon(ctx)
+	err := DisableDaemon(ctx)
 	if rmErr := os.Remove(PlistPath); rmErr != nil && !os.IsNotExist(rmErr) {
 		err = errors.Join(err, rmErr)
 	}
+	_, _ = run(ctx, "/bin/launchctl", "enable", "system/"+Label)
 	return err
+}
+
+// LookupGroupID returns the socket group's gid without the service.
+func LookupGroupID(ctx context.Context) int {
+	gid, _ := lookupGroup(ctx)
+	return gid
 }
 
 // RestartDaemon restarts the running service so it runs the binary now on
@@ -239,7 +319,10 @@ func RestartDaemon(ctx context.Context) error {
 		return errors.New("restarting the Network Protection service requires root")
 	}
 	if !DaemonLoaded(ctx) {
-		return EnsureDaemon(ctx)
+		if !savedEnabled() {
+			return errors.New("the protection service is not running because the kill switch is off; it starts when the kill switch is enabled")
+		}
+		return StartDaemon(ctx)
 	}
 	if out, err := run(ctx, "/bin/launchctl", "kickstart", "-k", "system/"+Label); err != nil {
 		return fmt.Errorf("restart the protection service: %w: %s", err, out)

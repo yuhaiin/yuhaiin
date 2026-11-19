@@ -534,3 +534,67 @@ func TestRecoveryFailures(t *testing.T) {
 		t.Fatalf("corrupt state: %+v", r)
 	}
 }
+
+func TestServiceStopsItselfWhileOff(t *testing.T) {
+	h := newHarness(t)
+	var stops atomic.Int32
+	var pending atomic.Value
+	// Like the real one, the stop runs later, outside the service's lock.
+	h.cfg.StopSelf = func(c func() bool) { stops.Add(1); pending.Store(c) }
+	h.cfg.IdleStop = time.Hour
+	s := h.start()
+	ctx := context.Background()
+	c := h.client()
+	p := testPolicy()
+	if _, err := c.Call(ctx, OpEnable, &p); err != nil {
+		t.Fatal(err)
+	}
+	// Protection on: never stops.
+	s.mu.Lock()
+	s.maybeStopLocked(false)
+	s.mu.Unlock()
+	if stops.Load() != 0 {
+		t.Fatal("stopped while protection is on")
+	}
+	// A disable stops it at once, after the rules are gone.
+	if _, err := c.Call(ctx, OpDisable, nil); err != nil {
+		t.Fatal(err)
+	}
+	cancelled := pending.Load().(func() bool)
+	if stops.Load() != 1 || cancelled() || h.loaded() != "" {
+		t.Fatalf("stops %d cancelled %v", stops.Load(), cancelled())
+	}
+	// Enabling again cancels a stop that has not happened yet.
+	if _, err := c.Call(ctx, OpEnable, &p); err != nil {
+		t.Fatal(err)
+	}
+	if !cancelled() {
+		t.Fatal("enable did not cancel the pending stop")
+	}
+}
+
+func TestServiceStopsAfterIdle(t *testing.T) {
+	h := newHarness(t)
+	var stops atomic.Int32
+	now := time.Unix(1000, 0)
+	var mu sync.Mutex
+	h.cfg.Now = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	h.cfg.StopSelf = func(func() bool) { stops.Add(1) }
+	s := h.start()
+	s.mu.Lock()
+	s.maybeStopLocked(false)
+	s.mu.Unlock()
+	if stops.Load() != 0 {
+		t.Fatal("stopped before the idle time (a client may be about to enable)")
+	}
+	mu.Lock()
+	now = now.Add(2 * time.Minute)
+	mu.Unlock()
+	s.mu.Lock()
+	s.maybeStopLocked(false)
+	s.maybeStopLocked(false)
+	s.mu.Unlock()
+	if stops.Load() != 1 {
+		t.Fatalf("stops = %d", stops.Load())
+	}
+}

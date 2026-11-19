@@ -17,8 +17,8 @@ import (
 type Recovery struct {
 	StateFile string
 	Engine    *pf.Engine
-	// StopService unloads the protection service so it cannot apply the
-	// rules again while recovery runs.
+	// StopService stops the protection service and keeps launchd from
+	// starting it again, so it cannot apply the rules again.
 	StopService func(context.Context) error
 	BootID      func() string
 	Euid        func() int
@@ -100,7 +100,7 @@ func (rc Recovery) Run(ctx context.Context) RecoveryReport {
 	}
 
 	if rc.StopService != nil {
-		if !report.add("stop protection service", rc.StopService(ctx), "it starts again at the next boot and keeps protection off") {
+		if !report.add("stop protection service", rc.StopService(ctx), "it stays stopped, also after a restart, until the kill switch is enabled again") {
 			ok = false
 		}
 	}

@@ -22,3 +22,8 @@ func StopDaemon(context.Context) error            { return nil }
 func UninstallDaemon(context.Context) error       { return nil }
 func RestartDaemon(context.Context) error         { return protection.ErrUnsupported }
 func EnsureCurrent(context.Context)               {}
+func StartDaemon(context.Context) error           { return protection.ErrUnsupported }
+func DisableDaemon(context.Context) error         { return nil }
+func DaemonDisabled(context.Context) bool         { return false }
+func LookupGroupID(context.Context) int           { return 0 }
+func savedEnabled() bool                          { return false }

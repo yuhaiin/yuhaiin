@@ -131,10 +131,23 @@ backend knows about anchors, `pfctl` or `utun`.
 `yuhaiin install` installs `/usr/local/bin/yuhaiin` (left alone when it is a
 Homebrew symlink) and two LaunchDaemons: the Yuhaiin service and
 `io.github.yuhaiin.protection` (`/usr/local/bin/yuhaiin protection daemon`,
-`RunAtLoad`, `KeepAlive`, root, log `/var/log/yuhaiin-protection.log`). If
-the protection service is missing when the kill switch is enabled (for
-example after an update from an older version), the core installs and starts
-it.
+`RunAtLoad`, `KeepAlive`, root, log `/var/log/yuhaiin-protection.log`).
+
+**The protection service runs only while the kill switch is on.** With it
+off, the LaunchDaemon is installed but disabled (`launchctl disable`): no root
+process stays resident, nothing starts at boot and PF is not polled. Turning
+the kill switch on makes the core (root) enable and start it
+(`launchctl enable` + `bootstrap`; a missing LaunchDaemon is installed from
+`/usr/local/bin/yuhaiin`); from then on it starts at every boot. Turning it
+off — from Yuhaiin, `yuhaiin protection disable` or `--recovery` — removes the
+rules, saves the state, and the service disables and unloads itself. A
+service started without protection being enabled stops itself after a
+minute. Turning protection off and on quickly is safe: an enable cancels a
+pending self-stop, and if the service was already stopping the core starts
+it again and repeats the request. While the service is stopped the core and
+`yuhaiin protection status` report *Disabled* from the saved state, and
+the core joins the socket group directly (`dscl`), so its connections already
+pass the moment protection is enabled.
 
 **Same binary, own process.** The service is not a separate or embedded
 executable: it is the `protection daemon` subcommand of
@@ -364,8 +377,9 @@ reference and succeeds only after the service confirms the rules are gone.
    managed lines; otherwise it reports nothing to do and succeeds);
 3. saves the state as disabled and syncs it to disk — **before** any rule is
    removed, so neither the service nor a restart can bring protection back;
-4. stops the protection service (`launchctl bootout`; it starts again at the
-   next boot and keeps protection off);
+4. stops the protection service and disables it (`launchctl disable` and
+   `bootout`), so launchd does not start it again, also not at boot, until
+   the kill switch is enabled again;
 5. flushes only the `io.github.yuhaiin/protection` anchor;
 6. releases only Yuhaiin's own PF reference of this boot;
 7. verifies that no protection rules are loaded and that the saved state is

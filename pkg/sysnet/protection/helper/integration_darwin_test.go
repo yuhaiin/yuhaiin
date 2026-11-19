@@ -649,10 +649,10 @@ func TestPFCommandLine(t *testing.T) {
 		return string(out), code
 	}
 	enable := func() {
-		c := NewClient("api")
-		defer c.Close()
+		b := NewBackend()
+		defer b.Close()
 		p := protection.Policy{Mode: sysnet.ProtectionModeStandard, StartAtBoot: true, PrivateNetworks: policy.PrivateNetworks(), BypassNetworks: machinePeers()}
-		if _, err := c.Call(ctx, OpEnable, &p); err != nil {
+		if err := b.Enable(ctx, p); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -676,11 +676,13 @@ func TestPFCommandLine(t *testing.T) {
 	if out, code := cli("protection", "disable", "--yes"); code != 0 || !strings.Contains(out, "disabled") {
 		t.Fatal("disable")
 	}
-	if out, _ := cli("protection", "status"); !strings.Contains(out, "Status: Disabled") {
+	// The service stops itself once protection is off.
+	waitFor(t, func() bool { return !DaemonLoaded(ctx) })
+	if out, _ := cli("protection", "status"); !strings.Contains(out, "Status: Disabled") || !strings.Contains(out, "Not running") {
 		t.Fatal("not disabled")
 	}
-	// Idempotent on an empty anchor.
-	if _, code := cli("protection", "disable", "--yes"); code != 0 {
+	// Idempotent, also with the service stopped.
+	if out, code := cli("protection", "disable", "--yes"); code != 0 || !strings.Contains(out, "already disabled") {
 		t.Fatal("second disable")
 	}
 	enable()
@@ -702,11 +704,12 @@ func TestPFCommandLine(t *testing.T) {
 	if n := anchorRules(); n != 0 {
 		t.Fatalf("%d rules left after recovery", n)
 	}
-	// "Reboot": launchd starts the service again; protection stays off.
-	if err := EnsureDaemon(ctx); err != nil {
-		t.Fatal(err)
+	// After recovery launchd does not start the service again, also not at
+	// boot, so protection cannot come back.
+	if DaemonLoaded(ctx) || !DaemonDisabled(ctx) {
+		t.Fatal("the service can start again after recovery")
 	}
-	if out, _ := cli("protection", "status"); !strings.Contains(out, "Status: Disabled") || !strings.Contains(out, "Privileged Helper: Running") {
+	if out, _ := cli("protection", "status"); !strings.Contains(out, "Status: Disabled") || !strings.Contains(out, "Not running") {
 		t.Fatal("protection came back after recovery")
 	}
 }
@@ -775,9 +778,16 @@ func TestPFServiceUpgrade(t *testing.T) {
 	if err := InstallDaemon(ctx, Binary); err != nil {
 		t.Fatal(err)
 	}
-	c := NewClient("api")
-	p := protection.Policy{Mode: sysnet.ProtectionModeStandard, StartAtBoot: true, PrivateNetworks: policy.PrivateNetworks(), BypassNetworks: machinePeers()}
-	st, err := c.Call(ctx, OpEnable, &p)
+	// Installed with protection off: the service does not run.
+	if DaemonLoaded(ctx) || !DaemonDisabled(ctx) {
+		t.Fatal("protection service runs although protection is off")
+	}
+	p := protection.Policy{Mode: sysnet.ProtectionModeStandard, StartAtBoot: true, PrivateNetworks: policy.PrivateNetworks(), BypassNetworks: machinePeers(), OwnTraffic: true}
+	if err := NewBackend().Enable(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	c := NewClient("cli")
+	st, err := c.Call(ctx, OpStatus, nil)
 	c.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -853,5 +863,75 @@ func TestPFServiceUpgrade(t *testing.T) {
 	t.Logf("$ yuhaiin protection restart (%v)\n%s", err, out)
 	if err != nil || !strings.Contains(string(out), "Status: Protected") {
 		t.Fatal("manual restart")
+	}
+}
+
+// TestPFServiceOnDemand checks that the service runs only while protection
+// is on, under real launchd.
+func TestPFServiceOnDemand(t *testing.T) {
+	requireLivePF(t)
+	binary := os.Getenv("YUHAIIN_TEST_BINARY")
+	if binary == "" {
+		t.Skip("set YUHAIIN_TEST_BINARY to a built yuhaiin binary")
+	}
+	ctx := context.Background()
+	installTestBinary(t, binary)
+	if err := InstallDaemon(ctx, Binary); err != nil {
+		t.Fatal(err)
+	}
+	if DaemonLoaded(ctx) || !DaemonDisabled(ctx) {
+		t.Fatalf("installed with protection off but loaded=%v disabled=%v", DaemonLoaded(ctx), DaemonDisabled(ctx))
+	}
+	b := NewBackend()
+	defer b.Close()
+	st, err := b.Status(ctx)
+	if err != nil || st.State != sysnet.ProtectionDisabled || st.Service != "stopped" || st.OwnTraffic.GroupID == 0 {
+		t.Fatalf("status with the service stopped: %+v %v", st, err)
+	}
+	p := protection.Policy{Mode: sysnet.ProtectionModeStandard, StartAtBoot: true, PrivateNetworks: policy.PrivateNetworks(), BypassNetworks: machinePeers()}
+	if err := b.Enable(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if !DaemonLoaded(ctx) || DaemonDisabled(ctx) {
+		t.Fatal("enabling protection did not start the service for boot")
+	}
+	if st, err := b.Status(ctx); err != nil || !st.Effective {
+		t.Fatalf("after enable: %+v %v", st, err)
+	}
+	// Turning protection off stops the service and keeps it off at boot.
+	if err := b.Disable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return !DaemonLoaded(ctx) })
+	if !DaemonDisabled(ctx) {
+		t.Fatal("service would start at boot with protection off")
+	}
+	if n := anchorRules(); n != 0 {
+		t.Fatalf("%d rules left", n)
+	}
+	if st, err := b.Status(ctx); err != nil || st.State != sysnet.ProtectionDisabled {
+		t.Fatalf("after disable: %+v %v", st, err)
+	}
+	// Off and on again right away: the pending self-stop must not win.
+	if err := b.Enable(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Disable(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Enable(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Second)
+	if !DaemonLoaded(ctx) || DaemonDisabled(ctx) {
+		t.Fatalf("service stopped although protection is on: loaded=%v disabled=%v", DaemonLoaded(ctx), DaemonDisabled(ctx))
+	}
+	if st, err := b.Status(ctx); err != nil || !st.Effective {
+		t.Fatalf("after quick re-enable: %+v %v", st, err)
+	}
+	out, _ := exec.Command(Binary, "protection", "disable", "--recovery", "--yes").CombinedOutput()
+	t.Logf("%s", out)
+	if DaemonLoaded(ctx) || !DaemonDisabled(ctx) {
+		t.Fatal("recovery left the service able to start")
 	}
 }

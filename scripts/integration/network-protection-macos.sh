@@ -25,7 +25,7 @@ go test -c -ldflags "-X $v.Version=pf-test-new -X $v.GitCommit=new" -o "$tmp/hel
 go test -c -o "$tmp/forward.test" ./pkg/sysnet/forward
 
 echo "pf.conf before: $(shasum -a 256 /etc/pf.conf)"
-sudo YUHAIIN_TEST_PF=1 YUHAIIN_TEST_BINARY="$tmp/yuhaiin" YUHAIIN_TEST_BINARY_OLD="$tmp/yuhaiin-old" "$tmp/helper.test" -test.run '^TestPF(KillSwitch|CommandLine|ServiceUpgrade)$' -test.v -test.timeout 10m
+sudo YUHAIIN_TEST_PF=1 YUHAIIN_TEST_BINARY="$tmp/yuhaiin" YUHAIIN_TEST_BINARY_OLD="$tmp/yuhaiin-old" "$tmp/helper.test" -test.run '^TestPF(KillSwitch|CommandLine|ServiceUpgrade|ServiceOnDemand)$' -test.v -test.timeout 10m
 sudo YUHAIIN_TEST_DARWIN_LIVE=1 "$tmp/forward.test" -test.run '^TestDarwinLivePF$' -test.v
 echo "pf.conf after:  $(shasum -a 256 /etc/pf.conf)"
 /sbin/pfctl -s info 2>/dev/null | head -1 || sudo /sbin/pfctl -s info | head -1

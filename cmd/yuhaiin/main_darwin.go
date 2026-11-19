@@ -65,7 +65,8 @@ func install(args []string) error {
 	}
 	// The Network Protection service runs as its own LaunchDaemon from the
 	// same stable binary, so the kill switch and its recovery work while
-	// the Yuhaiin service is stopped or broken.
+	// the Yuhaiin service is stopped or broken. It is installed now but
+	// only runs while the kill switch is on.
 	if err := helper.InstallDaemon(context.Background(), targetBin); err != nil {
 		log.Warn("install the Network Protection service failed; the kill switch is unavailable until it is installed", "err", err)
 	}

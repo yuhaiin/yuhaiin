@@ -37,7 +37,14 @@ type Config struct {
 	PeerUID func(net.Conn) (int, error)
 	// Verify is how often the OS state is checked and repaired.
 	Verify time.Duration
-	Now    func() time.Time
+	// StopSelf ends the service while protection is off (launchd: disable
+	// and unload). Nil keeps it running (tests, manual runs).
+	StopSelf func(cancelled func() bool)
+	// IdleStop is how long the service keeps running with protection off
+	// before it stops itself (time for a client that started it to enable
+	// protection). A disable request stops it at once.
+	IdleStop time.Duration
+	Now      func() time.Time
 }
 
 // runtimePolicy is the part of a policy bound to one client connection.
@@ -71,6 +78,10 @@ type Server struct {
 	gidErr   error
 	modified string
 	open     map[net.Conn]bool
+	// disabledSince is when protection was last seen off; stopping is set
+	// once the service asked launchd to stop it.
+	disabledSince time.Time
+	stopping      bool
 	// damaged is set after a damaged state file was replaced.
 	damaged string
 }
@@ -85,7 +96,10 @@ func NewServer(cfg Config) *Server {
 	if cfg.Interfaces == nil {
 		cfg.Interfaces = iface.List
 	}
-	return &Server{cfg: cfg}
+	if cfg.IdleStop == 0 {
+		cfg.IdleStop = time.Minute
+	}
+	return &Server{cfg: cfg, disabledSince: cfg.Now()}
 }
 
 // Run serves until ctx ends. Leaving never removes protection rules.
@@ -117,6 +131,7 @@ func (s *Server) Run(ctx context.Context) error {
 			case <-ticker.C:
 				s.mu.Lock()
 				s.reconcileLocked(ctx, "verify")
+				s.maybeStopLocked(false)
 				s.mu.Unlock()
 			}
 		}
@@ -234,6 +249,11 @@ func (s *Server) handle(ctx context.Context, conn uint64, uid int, req Request) 
 	var err error
 	switch req.Op {
 	case OpEnable, OpUpdate:
+		if req.Op == OpEnable {
+			// Protection is wanted again: cancel a pending self-stop.
+			s.stopping = false
+			s.disabledSince = s.cfg.Now()
+		}
 		if req.Policy == nil {
 			return problemResponse(req.ID, sysnet.ProblemPolicySync, "the request has no policy", "")
 		}
@@ -323,6 +343,9 @@ func (s *Server) disableLocked(ctx context.Context, by string) error {
 	s.state, s.stateExists, s.stateErr = next, true, nil
 	s.damaged = ""
 	s.reconcileLocked(ctx, "disabled by "+by)
+	if s.applyErr == nil {
+		s.maybeStopLocked(true)
+	}
 	return s.applyErr
 }
 
@@ -452,6 +475,28 @@ func (s *Server) reconcileLocked(ctx context.Context, reason string) {
 		}
 	} else if s.applyErr == nil {
 		s.applyErr = protection.Problem(sysnet.ProblemPolicySync, "The packet filter does not enforce the protection rules after applying them", "")
+	}
+}
+
+// maybeStopLocked stops the service while protection is off: at once after
+// a disable request (now), or after IdleStop without protection. The rules
+// are already gone; launchd starts the service again when protection is
+// enabled. s.mu is held.
+func (s *Server) maybeStopLocked(now bool) {
+	if s.state.Enabled || s.stateErr != nil {
+		s.disabledSince = s.cfg.Now()
+		return
+	}
+	if s.cfg.StopSelf == nil || s.stopping {
+		return
+	}
+	if now || s.cfg.Now().Sub(s.disabledSince) >= s.cfg.IdleStop {
+		s.stopping = true
+		s.cfg.StopSelf(func() bool {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return !s.stopping
+		})
 	}
 }
 

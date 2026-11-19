@@ -95,10 +95,18 @@ func protectionStatus(args []string, stdout, stderr io.Writer) int {
 	service := "Running"
 	if err != nil {
 		service = "Not reachable (" + err.Error() + ")"
+		stopped := "Not running (it runs only while the kill switch is on)"
 		if os.Geteuid() == 0 {
 			// Read the packet filter and saved state directly.
 			state, _, stateErr := helper.LoadState(helper.StateFile)
 			status = helper.Describe(pf.NewEngine(helper.StateDir).Inspect(ctx), state, stateErr)
+			if stateErr == nil && !state.Enabled {
+				service = stopped
+			}
+		} else if helper.DaemonDisabled(ctx) && !helper.DaemonLoaded(ctx) {
+			status = sysnet.ProtectionStatus{State: sysnet.ProtectionDisabled, Supported: true}
+			service = stopped
+			status.Problems = append(status.Problems, sysnet.ProtectionProblem{Message: "The packet filter was not read", Hint: "To verify it, run: sudo yuhaiin protection status"})
 		} else {
 			status = sysnet.ProtectionStatus{State: sysnet.ProtectionError, Supported: true}
 			status.Problems = append(status.Problems, sysnet.ProtectionProblem{Message: "The packet filter state cannot be read without the service", Hint: "Run: sudo yuhaiin protection status"})
@@ -299,6 +307,12 @@ func protectionDisable(args []string, in io.Reader, stdout, stderr io.Writer) in
 	if err != nil {
 		var problem *protection.ProblemError
 		if errors.As(err, &problem) && (problem.Problem.Code == sysnet.ProblemServiceDown || problem.Problem.Code == sysnet.ProblemServiceMissing) {
+			// The service only runs while protection is on.
+			if state, _, stateErr := helper.LoadState(helper.StateFile); stateErr == nil && !state.Enabled &&
+				len(pf.ParseRules(ruleText(ctx))) == 0 {
+				fmt.Fprintln(stdout, "Network Protection is already disabled.")
+				return 0
+			}
 			fmt.Fprintf(stderr, "Unable to connect to Yuhaiin Privileged Helper.\n\nYuhaiin Core may be unavailable.\n\nYou can try emergency recovery:\n\n  sudo yuhaiin protection disable --recovery\n")
 			return 1
 		}
@@ -312,4 +326,11 @@ func protectionDisable(args []string, in io.Reader, stdout, stderr io.Writer) in
 	}
 	fmt.Fprintln(stdout, "Network Protection is disabled and will stay disabled after a restart.")
 	return 0
+}
+
+// ruleText reads the protection anchor's rules directly.
+func ruleText(ctx context.Context) string {
+	e := pf.NewEngine(helper.StateDir)
+	out, _ := e.Run(ctx, "", e.Pfctl, "-a", e.Anchor, "-s", "rules")
+	return out
 }
