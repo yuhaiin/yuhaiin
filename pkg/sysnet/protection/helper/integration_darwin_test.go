@@ -666,8 +666,7 @@ func TestPFCommandLine(t *testing.T) {
 		cmd := exec.Command(Binary, args...)
 		out, err := cmd.CombinedOutput()
 		code := 0
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
+		if ee, ok := errors.AsType[*exec.ExitError](err); ok {
 			code = ee.ExitCode()
 		}
 		t.Logf("$ yuhaiin %s (exit %d)\n%s", strings.Join(args, " "), code, out)

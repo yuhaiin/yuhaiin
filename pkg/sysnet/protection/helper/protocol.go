@@ -136,7 +136,7 @@ func (c *Client) Call(ctx context.Context, op string, policy *protection.Policy)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var lastErr error
-	for attempt := 0; attempt < 2; attempt++ {
+	for range 2 {
 		if err := c.dialLocked(ctx); err != nil {
 			return sysnet.ProtectionStatus{}, err
 		}

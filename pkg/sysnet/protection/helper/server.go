@@ -263,8 +263,7 @@ func (s *Server) check(p protection.Policy) error {
 }
 
 func problemOf(err error, code string) sysnet.ProtectionProblem {
-	var problem *protection.ProblemError
-	if errors.As(err, &problem) {
+	if problem, ok := errors.AsType[*protection.ProblemError](err); ok {
 		return problem.Problem
 	}
 	return sysnet.ProtectionProblem{Code: code, Message: err.Error()}
@@ -533,8 +532,6 @@ func (s *Server) Status(ctx context.Context) sysnet.ProtectionStatus {
 	return s.statusLocked(ctx)
 }
 
-func boolPtr(v bool) *bool { return &v }
-
 // statusLocked reports the real OS state. s.mu is held.
 func (s *Server) statusLocked(ctx context.Context) sysnet.ProtectionStatus {
 	in := s.cfg.Engine.Inspect(ctx)
@@ -631,23 +628,23 @@ func Describe(in pf.Inspection, state State, stateErr error) sysnet.ProtectionSt
 	st.Desired = sysnet.ProtectionSettings{Enabled: state.Enabled, StartAtBoot: state.StartAtBoot}
 	st.Filter.Name = pf.ProtectionAnchor
 	if in.EnabledKnown {
-		st.Filter.Enabled = boolPtr(in.Enabled)
+		st.Filter.Enabled = new(in.Enabled)
 	}
 	if in.RefKnown {
-		st.Filter.Registered = boolPtr(in.FilterRef)
+		st.Filter.Registered = new(in.FilterRef)
 	}
 	if in.ConfKnown {
-		st.Filter.Persistent = boolPtr(in.Conf.Filter)
+		st.Filter.Persistent = new(in.Conf.Filter)
 	}
 	loaded := ""
 	if in.RulesKnown {
 		loaded = pf.LoadedID(in.Rules)
-		st.Filter.Loaded = boolPtr(loaded != "")
+		st.Filter.Loaded = new(loaded != "")
 	}
 	if state.Token != "" && len(in.Tokens) > 0 {
-		st.Filter.Reference = boolPtr(slices.Contains(in.Tokens, state.Token))
+		st.Filter.Reference = new(slices.Contains(in.Tokens, state.Token))
 	} else if state.Token == "" && in.EnabledKnown {
-		st.Filter.Reference = boolPtr(false)
+		st.Filter.Reference = new(false)
 	}
 	if loaded != "" {
 		st.PrivateNetworks = protection.PrefixStrings(state.Policy.PrivateNetworks, 1000)

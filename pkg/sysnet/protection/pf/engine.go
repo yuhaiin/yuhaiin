@@ -136,8 +136,7 @@ func (e *Engine) Inspect(ctx context.Context) Inspection {
 // one transaction. A rejected ruleset leaves the loaded one in force.
 func (e *Engine) Load(ctx context.Context, rs Ruleset) error {
 	if _, err := e.pfctl(ctx, rs.Text, "-n", "-a", e.Anchor, "-f", "-"); err != nil {
-		var problem *protection.ProblemError
-		if errors.As(err, &problem) {
+		if _, ok := errors.AsType[*protection.ProblemError](err); ok {
 			return err
 		}
 		return protection.Problem(sysnet.ProblemRulesRejected, "The packet filter rejected the protection rules: "+err.Error(), "The previous rules stay in force; report this as a bug")

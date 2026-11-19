@@ -71,9 +71,7 @@ func newController(backend Backend, poll time.Duration) *Controller {
 }
 
 func (c *Controller) start() {
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
+	c.wg.Go(func() {
 		ticker := time.NewTicker(c.poll)
 		defer ticker.Stop()
 		c.sync("start")
@@ -87,7 +85,7 @@ func (c *Controller) start() {
 				c.sync("poll")
 			}
 		}
-	}()
+	})
 }
 
 // SetInputs records the latest routing state and schedules a sync.
@@ -185,8 +183,7 @@ func (c *Controller) record(status sysnet.ProtectionStatus, err error) {
 func errorStatus(err error) sysnet.ProtectionStatus {
 	s := UnsupportedStatus()
 	s.State, s.Supported, s.Error = sysnet.ProtectionError, true, err.Error()
-	var problem *ProblemError
-	if errors.As(err, &problem) {
+	if problem, ok := errors.AsType[*ProblemError](err); ok {
 		s.Problems = []sysnet.ProtectionProblem{problem.Problem}
 		if problem.Problem.Code == sysnet.ProblemServiceMissing {
 			s.Service = "not_installed"
@@ -251,8 +248,7 @@ func (c *Controller) decorateLocked() sysnet.ProtectionStatus {
 }
 
 func problemOf(err error, code, hint string) sysnet.ProtectionProblem {
-	var problem *ProblemError
-	if errors.As(err, &problem) {
+	if problem, ok := errors.AsType[*ProblemError](err); ok {
 		return problem.Problem
 	}
 	return sysnet.ProtectionProblem{Code: code, Message: err.Error(), Hint: hint}

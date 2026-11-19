@@ -291,8 +291,8 @@ func ParseToken(out string) string {
 func ParseReferences(out string) []string {
 	var tokens []string
 	for line := range strings.SplitSeq(out, "\n") {
-		fields := strings.Fields(line)
-		for _, f := range fields {
+		fields := strings.FieldsSeq(line)
+		for f := range fields {
 			// Tokens are large numbers; PIDs and timestamps are short.
 			if numberOnly.MatchString(f) && len(f) >= 8 {
 				tokens = append(tokens, f)
