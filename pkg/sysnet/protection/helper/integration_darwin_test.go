@@ -634,31 +634,7 @@ func TestPFCommandLine(t *testing.T) {
 		t.Skip("set YUHAIIN_TEST_BINARY to a built yuhaiin binary")
 	}
 	ctx := context.Background()
-	orig, _ := os.ReadFile("/etc/pf.conf")
-	if _, err := os.Stat(Binary); err == nil {
-		t.Fatalf("%s exists; refusing to replace an installed Yuhaiin", Binary)
-	}
-	data, err := os.ReadFile(binary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = os.MkdirAll(filepath.Dir(Binary), 0o755)
-	if err := os.WriteFile(Binary, data, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		out, err := exec.Command(Binary, "protection", "disable", "--recovery", "--yes").CombinedOutput()
-		t.Logf("cleanup recovery: %v\n%s", err, out)
-		_ = UninstallDaemon(ctx)
-		_, _ = pf.NewEngine(StateDir).Unregister(ctx)
-		_ = os.RemoveAll(StateDir)
-		_ = os.Remove(Binary)
-		if now, _ := os.ReadFile("/etc/pf.conf"); !bytes.Equal(now, orig) {
-			t.Errorf("/etc/pf.conf not restored")
-			_ = pf.WriteFileAtomic("/etc/pf.conf", orig, 0o644)
-			_ = exec.Command("/sbin/pfctl", "-f", "/etc/pf.conf").Run()
-		}
-	})
+	installTestBinary(t, binary)
 	if err := InstallDaemon(ctx, Binary); err != nil {
 		t.Fatal(err)
 	}
@@ -732,5 +708,150 @@ func TestPFCommandLine(t *testing.T) {
 	}
 	if out, _ := cli("protection", "status"); !strings.Contains(out, "Status: Disabled") || !strings.Contains(out, "Privileged Helper: Running") {
 		t.Fatal("protection came back after recovery")
+	}
+}
+
+// installTestBinary puts binary at Binary for a launchd test and removes
+// everything the test installs afterwards.
+func installTestBinary(t *testing.T, binary string) {
+	t.Helper()
+	ctx := context.Background()
+	orig, _ := os.ReadFile("/etc/pf.conf")
+	if _, err := os.Stat(Binary); err == nil {
+		t.Fatalf("%s exists; refusing to replace an installed Yuhaiin", Binary)
+	}
+	copyBinary(t, binary)
+	t.Cleanup(func() {
+		out, err := exec.Command(Binary, "protection", "disable", "--recovery", "--yes").CombinedOutput()
+		t.Logf("cleanup recovery: %v\n%s", err, out)
+		_ = UninstallDaemon(ctx)
+		_, _ = pf.NewEngine(StateDir).Unregister(ctx)
+		_ = os.RemoveAll(StateDir)
+		_ = os.Remove(Binary)
+		if now, _ := os.ReadFile("/etc/pf.conf"); !bytes.Equal(now, orig) {
+			t.Errorf("/etc/pf.conf not restored")
+			_ = pf.WriteFileAtomic("/etc/pf.conf", orig, 0o644)
+			_ = exec.Command("/sbin/pfctl", "-f", "/etc/pf.conf").Run()
+		}
+	})
+}
+
+// copyBinary replaces Binary atomically, as the updater does.
+func copyBinary(t *testing.T, src string) {
+	t.Helper()
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = os.MkdirAll(filepath.Dir(Binary), 0o755)
+	if err := pf.WriteFileAtomic(Binary, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func servicePID(t *testing.T) string {
+	t.Helper()
+	for line := range strings.SplitSeq(shQuiet("/bin/launchctl", "print", "system/"+Label), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "pid = "); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// TestPFServiceUpgrade replaces the installed binary with a newer build and
+// checks that the running protection service is restarted onto it, without
+// the protection rules ever leaving the kernel. YUHAIIN_TEST_BINARY_OLD is a
+// build of another version; this test binary and YUHAIIN_TEST_BINARY must be
+// the same build.
+func TestPFServiceUpgrade(t *testing.T) {
+	requireLivePF(t)
+	oldBinary, newBinary := os.Getenv("YUHAIIN_TEST_BINARY_OLD"), os.Getenv("YUHAIIN_TEST_BINARY")
+	if oldBinary == "" || newBinary == "" {
+		t.Skip("set YUHAIIN_TEST_BINARY_OLD and YUHAIIN_TEST_BINARY")
+	}
+	ctx := context.Background()
+	installTestBinary(t, oldBinary)
+	if err := InstallDaemon(ctx, Binary); err != nil {
+		t.Fatal(err)
+	}
+	c := NewClient("api")
+	p := protection.Policy{Mode: sysnet.ProtectionModeStandard, StartAtBoot: true, PrivateNetworks: policy.PrivateNetworks(), BypassNetworks: machinePeers()}
+	st, err := c.Call(ctx, OpEnable, &p)
+	c.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldBuild := st.ServiceVersion
+	if oldBuild == BuildID() || st.State != sysnet.ProtectionProtected {
+		t.Fatalf("old service: build %q (this test %q), state %s", oldBuild, BuildID(), st.State)
+	}
+	oldPID := servicePID(t)
+	t.Logf("old service build %s pid %s", oldBuild, oldPID)
+
+	// Sample the kernel state while the service restarts.
+	stop := make(chan struct{})
+	gaps := make(chan string, 100)
+	samples := 0
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			samples++
+			on, _ := pf.ParseEnabled(shQuiet("/sbin/pfctl", "-s", "info"))
+			if n := anchorRules(); n == 0 || !on {
+				select {
+				case gaps <- fmt.Sprintf("rules %d, enabled %v at %s", n, on, time.Now().Format(time.StampMilli)):
+				default:
+				}
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}()
+
+	copyBinary(t, newBinary) // the update
+	restarted, err := restartIfOutdated(ctx)
+	if err != nil || !restarted {
+		t.Fatalf("restart: %v %v", restarted, err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	close(stop)
+	<-done
+	close(gaps)
+	for g := range gaps {
+		t.Errorf("protection gap during the restart: %s", g)
+	}
+	t.Logf("%d kernel samples during the upgrade", samples)
+
+	c = NewClient("cli")
+	st, err = c.Call(ctx, OpStatus, nil)
+	c.Close()
+	newPID := servicePID(t)
+	if err != nil || st.ServiceVersion != BuildID() || st.State != sysnet.ProtectionProtected || newPID == oldPID {
+		t.Fatalf("after upgrade: build %q state %s pid %s -> %s, %v", st.ServiceVersion, st.State, oldPID, newPID, err)
+	}
+	// Same build again (reinstall, next core start): no restart.
+	if err := InstallDaemon(ctx, Binary); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := restartIfOutdated(ctx); err != nil || again {
+		t.Fatalf("restarted an up-to-date service: %v %v", again, err)
+	}
+	if pid := servicePID(t); pid != newPID {
+		t.Fatalf("service restarted without an update: pid %s -> %s", newPID, pid)
+	}
+	out, _ := exec.Command(Binary, "protection", "status").CombinedOutput()
+	if strings.Contains(string(out), "Restart it") || !strings.Contains(string(out), BuildID()) {
+		t.Fatalf("status after upgrade:\n%s", out)
+	}
+	out, err = exec.Command(Binary, "protection", "restart").CombinedOutput()
+	t.Logf("$ yuhaiin protection restart (%v)\n%s", err, out)
+	if err != nil || !strings.Contains(string(out), "Status: Protected") {
+		t.Fatal("manual restart")
 	}
 }

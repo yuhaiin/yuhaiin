@@ -136,6 +136,23 @@ the protection service is missing when the kill switch is enabled (for
 example after an update from an older version), the core installs and starts
 it.
 
+**Same binary, own process.** The service is not a separate or embedded
+executable: it is the `protection daemon` subcommand of
+`/usr/local/bin/yuhaiin`, run by its own LaunchDaemon. Core, service and CLI
+therefore always come from one build, and nothing has to be extracted or
+signed separately.
+
+**Updates.** An update replaces `/usr/local/bin/yuhaiin` and restarts the
+core. The service reports its build (`serviceVersion` in the status); when
+the core starts and the running service is a different build, the core
+restarts it (`launchctl kickstart -k`) so it runs the new binary.
+`yuhaiin install` does the same, and `sudo yuhaiin protection restart` does
+it by hand; `yuhaiin protection status` warns while the builds differ. A
+restart never opens the network: the rules stay in the kernel, and the new
+process verifies and keeps them. The macOS test samples the kernel every
+20 ms during an upgrade and requires the rules and PF to be present
+throughout.
+
 It is the only component that changes PF for the kill switch. Its socket
 (`/var/run/io.github.yuhaiin/protection.sock`) accepts four operations —
 `status`, `enable`, `update`, `disable` — as typed JSON: no command strings,
@@ -303,6 +320,7 @@ yuhaiin protection status            # any user; add -json for JSON
 sudo yuhaiin protection disable      # through the protection service
 sudo yuhaiin protection disable --yes
 sudo yuhaiin protection disable --recovery   # emergency, without the service
+sudo yuhaiin protection restart              # run the installed binary (after an update)
 ```
 
 ```text

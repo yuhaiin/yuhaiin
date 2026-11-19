@@ -3,7 +3,6 @@ package helper
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/sysnet"
@@ -70,6 +69,9 @@ func PrepareStartup(ctx context.Context) {
 	if !Supported {
 		return
 	}
+	// After an update the core starts from the new binary: bring the
+	// protection service to the same build first.
+	EnsureCurrent(ctx)
 	c := NewClient("api")
 	defer c.Close()
 	for {
@@ -78,9 +80,10 @@ func PrepareStartup(ctx context.Context) {
 			joinSocketGroup(status.OwnTraffic.GroupID)
 			return
 		}
-		// At boot both LaunchDaemons start together: wait briefly for an
-		// installed service, never for a missing one.
-		if _, statErr := os.Stat(PlistPath); statErr != nil {
+		// At boot both LaunchDaemons start together: wait for a service
+		// launchd has loaded, never for a missing or stopped one (after
+		// emergency recovery).
+		if !DaemonLoaded(ctx) {
 			return
 		}
 		select {

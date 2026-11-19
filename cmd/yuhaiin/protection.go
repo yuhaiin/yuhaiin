@@ -31,6 +31,11 @@ const protectionHelp = `Usage:
       Turn the kill switch off through the protection service. The setting
       is saved first, so it stays off after a restart.
 
+  sudo yuhaiin protection restart
+      Restart the protection service so it runs the installed binary (done
+      automatically when Yuhaiin starts after an update). Protection stays
+      in force while it restarts.
+
   sudo yuhaiin protection disable -recovery [-yes]
       Emergency recovery when Yuhaiin or the protection service does not
       start: saves the kill switch as disabled, stops the protection
@@ -52,6 +57,8 @@ func protectionCommand(args []string, stdout, stderr io.Writer) int {
 		return protectionStatus(args[1:], stdout, stderr)
 	case "disable":
 		return protectionDisable(args[1:], os.Stdin, stdout, stderr)
+	case "restart":
+		return protectionRestart(stdout, stderr)
 	case "daemon":
 		// Run by launchd (io.github.yuhaiin.protection).
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -102,7 +109,45 @@ func protectionStatus(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, string(data))
 		return 0
 	}
+	if err == nil {
+		service += " (version " + status.ServiceVersion + ")"
+	}
 	printProtection(stdout, status, service)
+	if err == nil && status.ServiceVersion != helper.BuildID() {
+		fmt.Fprintf(stdout, "\nThe protection service runs build %s; this command is %s.\nRestart it to use the installed binary: sudo yuhaiin protection restart\n", status.ServiceVersion, helper.BuildID())
+	}
+	return 0
+}
+
+func protectionRestart(stdout, stderr io.Writer) int {
+	if !helper.Supported {
+		fmt.Fprintf(stdout, "Network Protection is not available on %s.\n", runtime.GOOS)
+		return 0
+	}
+	if os.Geteuid() != 0 {
+		fmt.Fprintf(stderr, "Restarting the protection service needs administrator rights.\n\nRun:\n\n  sudo yuhaiin protection restart\n")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	before := ""
+	c := helper.NewClient("cli")
+	if st, err := c.Call(ctx, helper.OpStatus, nil); err == nil {
+		before = st.ServiceVersion
+	}
+	c.Close()
+	if err := helper.RestartDaemon(ctx); err != nil {
+		fmt.Fprintf(stderr, "Restarting the protection service failed: %v\n\nProtection rules stay in force. To remove them without the service:\n\n  sudo yuhaiin protection disable --recovery\n", err)
+		return 1
+	}
+	c = helper.NewClient("cli")
+	defer c.Close()
+	st, err := c.Call(ctx, helper.OpStatus, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "The protection service did not answer after restarting: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Protection service restarted: %s -> %s\nStatus: %s\n", onOff(before != "", before, "-"), st.ServiceVersion, stateNames[st.State])
 	return 0
 }
 

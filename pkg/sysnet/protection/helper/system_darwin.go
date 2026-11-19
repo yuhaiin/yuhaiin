@@ -9,8 +9,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/pf"
 	"golang.org/x/sys/unix"
 )
@@ -170,7 +172,10 @@ func InstallDaemon(ctx context.Context, binary string) error {
 	current, _ := os.ReadFile(PlistPath)
 	loaded := DaemonLoaded(ctx)
 	if bytes.Equal(current, want) && loaded {
-		return nil
+		// Reinstalling or updating: the plist is unchanged, but the
+		// running service may still be the previous build.
+		_, err := restartIfOutdated(ctx)
+		return err
 	}
 	if loaded {
 		if out, err := run(ctx, "/bin/launchctl", "bootout", "system/"+Label); err != nil {
@@ -224,4 +229,60 @@ func UninstallDaemon(ctx context.Context) error {
 		err = errors.Join(err, rmErr)
 	}
 	return err
+}
+
+// RestartDaemon restarts the running service so it runs the binary now on
+// disk. Protection holds meanwhile: the rules stay in the kernel, and the new
+// process verifies and keeps them when it starts.
+func RestartDaemon(ctx context.Context) error {
+	if os.Geteuid() != 0 {
+		return errors.New("restarting the Network Protection service requires root")
+	}
+	if !DaemonLoaded(ctx) {
+		return EnsureDaemon(ctx)
+	}
+	if out, err := run(ctx, "/bin/launchctl", "kickstart", "-k", "system/"+Label); err != nil {
+		return fmt.Errorf("restart the protection service: %w: %s", err, out)
+	}
+	return WaitService(ctx, 15*time.Second)
+}
+
+// restartIfOutdated restarts the service when it reports another build than
+// this executable. It reports whether it restarted.
+func restartIfOutdated(ctx context.Context) (bool, error) {
+	if os.Geteuid() != 0 || !DaemonLoaded(ctx) {
+		return false, nil
+	}
+	c := NewClient("api")
+	status, err := c.Call(ctx, OpStatus, nil)
+	c.Close()
+	ours := BuildID()
+	if err != nil || !outdated(status.ServiceVersion, ours) {
+		return false, nil
+	}
+	log.Info("network protection: restarting the protection service to run the updated binary", "running", status.ServiceVersion, "installed", ours)
+	if err := RestartDaemon(ctx); err != nil {
+		return false, err
+	}
+	c = NewClient("api")
+	defer c.Close()
+	if after, err := c.Call(ctx, OpStatus, nil); err == nil && after.ServiceVersion != ours {
+		// The service runs Binary; this process runs another build
+		// (for example a development build elsewhere). Not an error.
+		log.Warn("network protection: the protection service runs a different build than this process", "service", after.ServiceVersion, "this", ours, "binary", Binary)
+	}
+	return true, nil
+}
+
+var ensureCurrentOnce sync.Once
+
+// EnsureCurrent restarts an outdated protection service once per process.
+// The Yuhaiin core calls it at startup, which is what happens after an
+// update replaced the binary and restarted the core.
+func EnsureCurrent(ctx context.Context) {
+	ensureCurrentOnce.Do(func() {
+		if _, err := restartIfOutdated(ctx); err != nil {
+			log.Error("network protection: restarting the updated protection service failed; the previous service keeps protecting", "err", err)
+		}
+	})
 }

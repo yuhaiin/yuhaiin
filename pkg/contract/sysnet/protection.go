@@ -74,6 +74,10 @@ type ProtectionStatus struct {
 	// Service is the privileged protection service: running, unreachable,
 	// not_installed or "" where none is used.
 	Service string `json:"service,omitzero"`
+	// ServiceVersion is the build of the running protection service. It
+	// differs from Yuhaiin's own build until the service is restarted after
+	// an update.
+	ServiceVersion string `json:"serviceVersion,omitzero"`
 	// Filter is the operating system packet filter.
 	Filter ProtectionFilter `json:"filter"`
 	// CheckedAt is when the OS state was last read, UpdatedAt the last

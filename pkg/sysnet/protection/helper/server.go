@@ -537,6 +537,7 @@ func (s *Server) statusLocked(ctx context.Context) sysnet.ProtectionStatus {
 	in := s.cfg.Engine.Inspect(ctx)
 	st := Describe(in, s.state, s.stateErr)
 	st.Service = "running"
+	st.ServiceVersion = BuildID()
 	st.CheckedAt = s.cfg.Now().Unix()
 	st.UpdatedAt = s.updatedAt
 	loaded := pf.LoadedID(in.Rules)

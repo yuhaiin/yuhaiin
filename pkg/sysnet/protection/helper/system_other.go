@@ -20,3 +20,5 @@ func InstallDaemon(context.Context, string) error { return protection.ErrUnsuppo
 func EnsureDaemon(context.Context) error          { return protection.ErrUnsupported }
 func StopDaemon(context.Context) error            { return nil }
 func UninstallDaemon(context.Context) error       { return nil }
+func RestartDaemon(context.Context) error         { return protection.ErrUnsupported }
+func EnsureCurrent(context.Context)               {}
