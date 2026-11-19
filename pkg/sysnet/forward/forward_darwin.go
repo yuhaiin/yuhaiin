@@ -87,6 +87,10 @@ func nextHop(link int, v6 bool) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("interface %s has no %s address; set a gateway for this egress", ifc.Name, pfFamily(v6))
 }
 
+// legacyPFAnchor is where earlier versions loaded the forwarding rules. It
+// is flushed once when forwarding starts, so old rules cannot linger.
+const legacyPFAnchor = "com.apple/yuhaiin"
+
 var pfToken = regexp.MustCompile(`Token : (\d+)`)
 
 // checkAnchors makes the main ruleset evaluate Yuhaiin's anchors (adding the

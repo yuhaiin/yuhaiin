@@ -59,6 +59,21 @@ func sh(t *testing.T, name string, args ...string) string {
 	return string(out)
 }
 
+func firstLine(s string) string {
+	for l := range strings.SplitSeq(s, "\n") {
+		if strings.HasPrefix(l, "Status:") {
+			return l
+		}
+	}
+	return s
+}
+
+// anchorRules counts the rules in the protection anchor (pfctl prints
+// ALTQ warnings before them).
+func anchorRules() int {
+	return len(pf.ParseRules(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules")))
+}
+
 func shQuiet(name string, args ...string) string {
 	out, _ := exec.Command(name, args...).CombinedOutput()
 	return string(out)
@@ -330,7 +345,9 @@ func (e *liveEnv) start() {
 func (e *liveEnv) stop() {
 	if e.cancel != nil {
 		e.cancel()
-		<-e.done
+		if err := <-e.done; err != nil {
+			e.t.Logf("service: %v", err)
+		}
 		e.cancel = nil
 	}
 }
@@ -359,7 +376,7 @@ func ownSend(t *testing.T, gid int, dst string) error {
 	if err := syscall.Setgid(gid); err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Setgid(0)
+	defer func() { _ = syscall.Setgid(0) }()
 	return send(dst)
 }
 
@@ -513,9 +530,28 @@ func TestPFKillSwitch(t *testing.T) {
 	})
 	t.Run("other program disables PF", func(t *testing.T) {
 		// Not something Yuhaiin ever does: simulates another tool.
-		sh(t, "/sbin/pfctl", "-d")
-		waitFor(t, func() bool { on, _ := pf.ParseEnabled(shQuiet("/sbin/pfctl", "-s", "info")); return on })
-		checkVerdicts(t, "after PF was re-enabled", []verdict{{e.other, "198.51.100.21", false}})
+		t.Logf("pfctl -d: %s", shQuiet("/sbin/pfctl", "-d"))
+		t.Logf("after -d: %s\n%s", firstLine(shQuiet("/sbin/pfctl", "-s", "info")), shQuiet("/sbin/pfctl", "-s", "References"))
+		deadline := time.Now().Add(10 * time.Second)
+		for {
+			on, _ := pf.ParseEnabled(shQuiet("/sbin/pfctl", "-s", "info"))
+			blocked := false
+			if on {
+				e.other.drain()
+				_ = send("198.51.100.21")
+				blocked = !e.other.received(netip.MustParseAddr("198.51.100.21"), time.Second)
+			}
+			if blocked {
+				break
+			}
+			if time.Now().After(deadline) {
+				s, _, _ := LoadState(e.cfg.StateFile)
+				t.Fatalf("not blocking again after PF was disabled by another program: enabled=%v token=%s\n%s\n%s\n%s", on, s.Token,
+					firstLine(shQuiet("/sbin/pfctl", "-s", "info")), shQuiet("/sbin/pfctl", "-s", "References"), shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules"))
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+		t.Logf("blocking again: %s\n%s", firstLine(shQuiet("/sbin/pfctl", "-s", "info")), shQuiet("/sbin/pfctl", "-s", "References"))
 		// The foreign reference was dropped by -d; take it again.
 		e.foreign = pf.ParseToken(sh(t, "/sbin/pfctl", "-E"))
 	})
@@ -526,8 +562,8 @@ func TestPFKillSwitch(t *testing.T) {
 		if err != nil || st.State != sysnet.ProtectionDisabled || st.Effective {
 			t.Fatalf("disable: %+v %v", st, err)
 		}
-		if strings.TrimSpace(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules")) != "" {
-			t.Fatal("rules left after disable")
+		if n := anchorRules(); n != 0 {
+			t.Fatalf("%d rules left after disable", n)
 		}
 		refs := shQuiet("/sbin/pfctl", "-s", "References")
 		if !strings.Contains(refs, e.foreign) {
@@ -686,8 +722,8 @@ func TestPFCommandLine(t *testing.T) {
 	if out, code := cli("protection", "disable", "--recovery", "--yes"); code != 0 || !strings.Contains(out, "stay disabled") {
 		t.Fatal("recovery")
 	}
-	if strings.TrimSpace(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-s", "rules")) != "" {
-		t.Fatal("rules left after recovery")
+	if n := anchorRules(); n != 0 {
+		t.Fatalf("%d rules left after recovery", n)
 	}
 	// "Reboot": launchd starts the service again; protection stays off.
 	if err := EnsureDaemon(ctx); err != nil {

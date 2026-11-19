@@ -14,9 +14,6 @@ import (
 // Anchors macOS manages (com.apple/*) are not used.
 const PFAnchor = pf.ForwardAnchor
 
-// legacyPFAnchor is where earlier versions loaded the forwarding rules. It
-// is flushed once when forwarding starts, so old rules cannot linger.
-const legacyPFAnchor = "com.apple/yuhaiin"
 
 // NextHop returns the route-to next hop of a point-to-point egress without a
 // gateway: like macOS routes through a utun, its own address of the family.

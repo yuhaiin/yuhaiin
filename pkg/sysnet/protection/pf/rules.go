@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net/netip"
 	"regexp"
+	"strconv"
 	"slices"
 	"strings"
 
@@ -201,8 +202,7 @@ func ParseRules(out string) []RuleCounters {
 			}
 			r := &rules[len(rules)-1]
 			for _, m := range counterRE.FindAllStringSubmatch(trimmed, -1) {
-				var v uint64
-				fmt.Sscan(m[2], &v)
+				v, _ := strconv.ParseUint(m[2], 10, 64)
 				switch m[1] {
 				case "Evaluations":
 					r.Evaluations = v

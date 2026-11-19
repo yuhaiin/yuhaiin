@@ -331,11 +331,13 @@ this host's LAN address, enable IPv4 forwarding, and add a rule
 
 - **sysctl**: `net.inet.ip.forwarding` and `net.inet6.ip6.forwarding`
   through `sysctl(8)`, with the same ownership rules as on Linux.
-- **PF**: all rules live in the anchor `com.apple/yuhaiin`. The default
-  `/etc/pf.conf` already evaluates every `com.apple/*` anchor (`anchor` and
-  `nat-anchor`), so `pf.conf` and other anchors are never edited. Before
-  loading, the manager checks that the main ruleset evaluates those anchors
-  and refuses with an explanation if a customized `pf.conf` does not. Rules
+- **PF**: all rules live in the anchor `io.github.yuhaiin/forward`, a child of
+  Yuhaiin's own anchor. The main ruleset evaluates it through two managed
+  `/etc/pf.conf` lines (`nat-anchor` and `anchor "io.github.yuhaiin/*"`),
+  shared with [Network Protection](network-protection.md); they are added
+  once, after both the current and the edited file pass `pfctl -n`, and
+  removed by `yuhaiin uninstall`. `com.apple/*` anchors are not used; rules
+  earlier versions loaded into `com.apple/yuhaiin` are flushed once. Rules
   are parsed first (`pfctl -n`) and then loaded into the anchor in one step,
   so a rejected ruleset leaves the previous one in place.
 - **Enabling PF** uses the reference-counted `pfctl -E` token, released with
@@ -364,6 +366,14 @@ this host's LAN address, enable IPv4 forwarding, and add a rule
 - **Not available**: limiting forwarding to source CIDRs (the API rejects
   them), a per-rule egress, NAT (WinNAT only serves one internal prefix and is
   meant for Hyper-V; ICS conflicts with other settings), and TProxy.
+
+## Network Protection
+
+The kill switch (System Network → Protection) blocks Internet traffic that
+does not go through Yuhaiin, also while Yuhaiin is not running. Its bypass
+networks are derived from the route rules above (bypass CIDRs, GeoIP-direct
+countries, custom routes to other interfaces) on every reconciliation. See
+[Network Protection](network-protection.md).
 
 ## Platform support
 
@@ -497,6 +507,7 @@ sudo scripts/integration/system-network-macos.sh --live
 ```
 
 `--live` additionally adds and removes routes for documentation prefixes via
-`lo0`, loads rules into the `com.apple/yuhaiin` PF anchor, enables
+`lo0`, loads rules into the `io.github.yuhaiin/forward` PF anchor (registering
+and afterwards restoring Yuhaiin's `/etc/pf.conf` lines), enables
 forwarding, and checks that closing flushes the anchor, releases the PF token
-and restores the sysctl. It never edits `/etc/pf.conf` or other anchors.
+and restores the sysctl. It never touches other anchors.

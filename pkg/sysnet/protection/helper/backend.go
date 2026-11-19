@@ -3,6 +3,8 @@ package helper
 import (
 	"context"
 	"errors"
+	"os"
+	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/sysnet"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
@@ -70,8 +72,21 @@ func PrepareStartup(ctx context.Context) {
 	}
 	c := NewClient("api")
 	defer c.Close()
-	status, err := c.Call(ctx, OpStatus, nil)
-	if err == nil {
-		joinSocketGroup(status.OwnTraffic.GroupID)
+	for {
+		status, err := c.Call(ctx, OpStatus, nil)
+		if err == nil {
+			joinSocketGroup(status.OwnTraffic.GroupID)
+			return
+		}
+		// At boot both LaunchDaemons start together: wait briefly for an
+		// installed service, never for a missing one.
+		if _, statErr := os.Stat(PlistPath); statErr != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 }

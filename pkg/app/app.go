@@ -97,7 +97,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.DataDir.Store(so.ConfigPath)
 	// Join the kill switch's socket group before any socket is opened, so
 	// Yuhaiin's own connections pass while protection is on (macOS).
-	prepareCtx, cancelPrepare := context.WithTimeout(context.Background(), time.Second)
+	prepareCtx, cancelPrepare := context.WithTimeout(context.Background(), 3*time.Second)
 	protectionhelper.PrepareStartup(prepareCtx)
 	cancelPrepare()
 

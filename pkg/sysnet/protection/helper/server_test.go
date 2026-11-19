@@ -89,7 +89,9 @@ func (h *harness) start() *Server {
 func (h *harness) stop() {
 	if h.cancel != nil {
 		h.cancel()
-		<-h.done
+		if err := <-h.done; err != nil {
+			h.t.Logf("service: %v", err)
+		}
 		h.cancel = nil
 	}
 }
@@ -519,7 +521,7 @@ func TestRecoveryFailures(t *testing.T) {
 		// The saved state cannot be written: recovery must not report success.
 		dir := filepath.Dir(h.cfg.StateFile)
 		_ = os.Chmod(dir, 0o500)
-		defer os.Chmod(dir, 0o700)
+		defer func() { _ = os.Chmod(dir, 0o700) }()
 		r := newRecovery(h).Run(ctx)
 		if r.Success {
 			t.Fatalf("success reported although the state was not saved: %+v", r)
