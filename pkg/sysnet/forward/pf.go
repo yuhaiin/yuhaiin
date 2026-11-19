@@ -14,7 +14,6 @@ import (
 // Anchors macOS manages (com.apple/*) are not used.
 const PFAnchor = pf.ForwardAnchor
 
-
 // NextHop returns the route-to next hop of a point-to-point egress without a
 // gateway: like macOS routes through a utun, its own address of the family.
 type NextHop func(link int, v6 bool) (netip.Addr, error)
