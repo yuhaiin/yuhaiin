@@ -22,6 +22,9 @@ var (
 	SublayerID = wf.SublayerID(windows.GUID{Data1: 0x7975_6861, Data2: 0x6969, Data3: 0x6e02, Data4: [8]byte{'k', 'i', 'l', 'l', 's', 'w', 0, 2}})
 )
 
+// errClosed is returned by an engine after Close.
+var errClosed = errors.New("the Windows Filtering Platform session is closed")
+
 // Engine holds two WFP sessions: a normal one for the baseline filters,
 // which outlive the process, and a dynamic one for the runtime filters,
 // which Windows deletes when the process exits.
@@ -159,6 +162,9 @@ func (e *Engine) Ours() ([]*wf.Rule, error) {
 }
 
 func (e *Engine) oursLocked() ([]*wf.Rule, error) {
+	if e.base == nil {
+		return nil, errClosed
+	}
 	rules, err := e.base.Rules()
 	if err != nil {
 		return nil, err
@@ -178,6 +184,9 @@ func (e *Engine) oursLocked() ([]*wf.Rule, error) {
 func (e *Engine) Apply(plan Plan) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.base == nil {
+		return errClosed
+	}
 	if err := e.ensureObjects(); err != nil {
 		return err
 	}
@@ -233,6 +242,9 @@ func (e *Engine) deleteLocked(id wf.RuleID) error {
 func (e *Engine) Remove() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.base == nil {
+		return errClosed
+	}
 	if e.runtime != nil {
 		_ = e.runtime.Close()
 		e.runtime = nil
@@ -266,5 +278,8 @@ func (e *Engine) Remove() error {
 func (e *Engine) Sublayers() ([]*wf.Sublayer, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.base == nil {
+		return nil, errClosed
+	}
 	return e.base.Sublayers()
 }

@@ -106,6 +106,7 @@ func (c *checker) expect(step, who, addr string, blocked bool) {
 	} else {
 		got = c.other(addr)
 	}
+	c.t.Logf("%s: %s -> %s: %s", step, who, addr, got)
 	if (got == "blocked") != blocked {
 		c.t.Errorf("%s: %s -> %s: %s, want blocked=%v", step, who, addr, got, blocked)
 	}
@@ -160,12 +161,12 @@ func TestWFPKillSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer probe.Close()
 	_ = probe.Remove()
 	foreign := othersRules(t, probe)
 	_ = os.RemoveAll(StateDir())
 	t.Cleanup(func() {
 		_ = probe.Remove()
+		_ = probe.Close()
 		_ = os.RemoveAll(StateDir())
 	})
 
@@ -320,7 +321,7 @@ func TestWFPRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer e.Close()
+	t.Cleanup(func() { _ = e.Remove(); _ = e.Close() })
 	if left, _ := e.Ours(); len(left) != 0 {
 		t.Fatalf("%d filters left after recovery", len(left))
 	}
