@@ -27,6 +27,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/forward"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/iface"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/policy"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
 	"go4.org/netipx"
 )
 
@@ -127,6 +128,10 @@ type Manager struct {
 	platformRoutes map[string][]netip.Prefix
 	platformRule   map[netip.Prefix]string
 	forwardTables  map[int]string
+
+	// protect receives Network Protection inputs after each reconcile.
+	protect       func(protection.Inputs)
+	protectInputs *protection.Inputs
 
 	pending  atomic.Bool
 	running  atomic.Bool
@@ -651,6 +656,7 @@ func (m *Manager) reconcileLocked(reason string) {
 			current = append(current, *rs)
 		}
 	}
+	m.publishProtection(m.protectionInputs(assignments, infos, statusByID))
 	status.Forwarding = m.applyForwarding(ifaces, current)
 	if status.State == sysnet.StateActive && status.Forwarding.State == sysnet.StateFailed {
 		status.State, status.Error = sysnet.StateDegraded, status.Forwarding.Error

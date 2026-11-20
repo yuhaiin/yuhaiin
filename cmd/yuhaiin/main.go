@@ -19,6 +19,9 @@ var help = `Usage:
 Actions:
   auth        local management administrator bootstrap/recovery
   recovery    encrypted backup, verification, restore preview and offline recovery
+  protection  Network Protection (kill switch) status and emergency disable (macOS):
+                yuhaiin protection status
+                sudo yuhaiin protection disable [--yes] [--recovery]
   wrap        run a local command in an isolated Linux network namespace
   install     install yuhaiin
   uninstall   uninstall yuhaiin
@@ -76,6 +79,8 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	case "protection":
+		os.Exit(protectionCommand(args, os.Stdout, os.Stderr))
 	case "recovery":
 		do(recoverycmd.Run)
 		return
