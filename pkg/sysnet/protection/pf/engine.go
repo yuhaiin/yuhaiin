@@ -375,12 +375,5 @@ func WriteFileAtomic(path string, data []byte, perm fs.FileMode) error {
 		return err
 	}
 	name = ""
-	if d, err := os.Open(dir); err == nil {
-		err = d.Sync()
-		d.Close()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return syncDir(dir)
 }

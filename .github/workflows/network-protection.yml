@@ -73,7 +73,9 @@ jobs:
           cache-scope: windows-network-protection
       - name: Unit tests
         shell: bash
-        run: go test ./pkg/sysnet/protection/...
+        # The macOS protection service's tests (Unix socket semantics) do
+        # not apply on Windows; its state store is covered by the WFP tests.
+        run: go test ./pkg/sysnet/protection/ ./pkg/sysnet/protection/pf/ ./pkg/sysnet/protection/wfp/ ./pkg/sysnet/protection/platform/
       - name: Real WFP tests
         shell: pwsh
         run: |
