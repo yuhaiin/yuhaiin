@@ -128,9 +128,13 @@ func Compile(p protection.Policy, env Env) (Ruleset, error) {
 		tables = append(tables, fmt.Sprintf("table <%s> const { %s }", tableBypass, prefixList(p.BypassNetworks)))
 	}
 
-	pass("on lo0 all", "loopback")
+	// TCP rules use "flags any": without it pfctl applies "flags S/SA",
+	// which only passes the first packet of a connection, so connections
+	// opened before protection was enabled (the web interface's own HTTP
+	// connection, SSH to the LAN) would be reset when the rules load.
+	pass("on lo0 all flags any keep state", "loopback")
 	if len(p.PrivateNetworks) > 0 {
-		pass(fmt.Sprintf("to <%s>", tablePrivate), "private")
+		pass(fmt.Sprintf("to <%s> flags any keep state", tablePrivate), "private")
 	}
 	// Link-scoped services the network itself needs. Multicast beyond the
 	// link (224.0.0.0/4, ff00::/8) and other special ranges stay blocked.
@@ -140,12 +144,12 @@ func Compile(p protection.Policy, env Env) (Ruleset, error) {
 	pass("inet6 proto udp from any port 546 to any port 547", "dhcp6")
 	pass("inet6 proto icmp6 all icmp6-type { routersol, neighbrsol, neighbradv }", "nd")
 	if len(p.BypassNetworks) > 0 {
-		pass(fmt.Sprintf("to <%s>", tableBypass), "bypass")
+		pass(fmt.Sprintf("to <%s> flags any keep state", tableBypass), "bypass")
 	}
 	for _, t := range p.Tunnels {
 		// if-bound: a state created on the TUN never matches packets that
 		// leave through another interface after the TUN is gone.
-		pass(fmt.Sprintf("on %s all keep state (if-bound)", t.Name), "tunnel")
+		pass(fmt.Sprintf("on %s all flags any keep state (if-bound)", t.Name), "tunnel")
 	}
 	if p.OwnTraffic && env.OwnGroup > 0 {
 		// "flags any" keeps connections Yuhaiin opened before the rules

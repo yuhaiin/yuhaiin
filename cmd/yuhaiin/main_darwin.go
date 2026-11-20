@@ -60,6 +60,13 @@ const targetBin = "/usr/local/bin/yuhaiin"
 const service = "com.asutorufa.yuhaiin"
 
 func install(args []string) error {
+	// Create the kill switch's socket group before the Yuhaiin service
+	// starts: Yuhaiin joins it at startup, so every socket it opens,
+	// including the web interface's listener, already passes when
+	// protection is enabled later.
+	if _, err := helper.EnsureGroup(context.Background()); err != nil {
+		log.Warn("create the Network Protection socket group failed", "err", err)
+	}
 	if err := installSystemDaemonDarwin(args); err != nil {
 		return err
 	}

@@ -35,14 +35,14 @@ func TestCompileBaseline(t *testing.T) {
 	want := []string{
 		"table <yuhaiin_private> const { 10.0.0.0/8, 100.64.0.0/10, 172.16.0.0/12, 192.168.0.0/16, fc00::/7, 127.0.0.0/8, 169.254.0.0/16, ::1, fe80::/10 }",
 		"table <yuhaiin_bypass> const { 198.51.100.7, 203.0.113.0/24, 2001:db8:1::/48 }",
-		`pass out on lo0 all tag io.github.yuhaiin.pass label "yuhaiin-loopback"`,
-		`pass out to <yuhaiin_private> tag io.github.yuhaiin.pass label "yuhaiin-private"`,
+		`pass out on lo0 all flags any keep state tag io.github.yuhaiin.pass label "yuhaiin-loopback"`,
+		`pass out to <yuhaiin_private> flags any keep state tag io.github.yuhaiin.pass label "yuhaiin-private"`,
 		`pass out inet to { 224.0.0.0/24, 255.255.255.255 } tag io.github.yuhaiin.pass label "yuhaiin-link-multicast"`,
 		`pass out inet6 to ff02::/16 tag io.github.yuhaiin.pass label "yuhaiin-link-multicast6"`,
 		`pass out inet proto udp from any port 68 to any port 67 tag io.github.yuhaiin.pass label "yuhaiin-dhcp"`,
 		`pass out inet6 proto udp from any port 546 to any port 547 tag io.github.yuhaiin.pass label "yuhaiin-dhcp6"`,
 		`pass out inet6 proto icmp6 all icmp6-type { routersol, neighbrsol, neighbradv } tag io.github.yuhaiin.pass label "yuhaiin-nd"`,
-		`pass out to <yuhaiin_bypass> tag io.github.yuhaiin.pass label "yuhaiin-bypass"`,
+		`pass out to <yuhaiin_bypass> flags any keep state tag io.github.yuhaiin.pass label "yuhaiin-bypass"`,
 		`block return out quick all ! tagged io.github.yuhaiin.pass label "yuhaiin-block-` + rs.ID + `"`,
 	}
 	// The private table keeps policy order after normalization (sorted by address).
@@ -79,8 +79,8 @@ func TestCompileRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`pass out on utun3 all keep state (if-bound) tag io.github.yuhaiin.pass label "yuhaiin-tunnel"`,
-		`pass out on utun7 all keep state (if-bound) tag io.github.yuhaiin.pass label "yuhaiin-tunnel"`,
+		`pass out on utun3 all flags any keep state (if-bound) tag io.github.yuhaiin.pass label "yuhaiin-tunnel"`,
+		`pass out on utun7 all flags any keep state (if-bound) tag io.github.yuhaiin.pass label "yuhaiin-tunnel"`,
 		`pass out proto tcp all group 345 flags any keep state tag io.github.yuhaiin.pass label "yuhaiin-own-tcp"`,
 		`pass out proto udp all group 345 keep state tag io.github.yuhaiin.pass label "yuhaiin-own-udp"`,
 	} {
