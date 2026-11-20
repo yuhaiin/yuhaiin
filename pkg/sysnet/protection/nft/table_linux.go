@@ -4,7 +4,6 @@ package nft
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -338,5 +337,3 @@ func hookName(h nftables.ChainHook) string {
 func hookOrder(h string) string {
 	return map[string]string{"output": "0", "postrouting": "1", "prerouting": "2", "input": "3", "forward": "4"}[h] + h
 }
-
-var errNoTable = errors.New("the protection table does not exist")

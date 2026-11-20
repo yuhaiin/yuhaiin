@@ -155,11 +155,12 @@ func Compile(p protection.Policy, env Env) (Plan, error) {
 			return Plan{}, fmt.Errorf("tunnel: loopback is not a tunnel")
 		}
 	}
-	key := p.Fingerprint() + fmt.Sprintf("/%d/%v", env.OwnMark, p.OwnTraffic)
+	var key strings.Builder
+	fmt.Fprintf(&key, "%s/%d/%v", p.Fingerprint(), env.OwnMark, p.OwnTraffic)
 	for _, t := range env.Tunnels {
-		key += fmt.Sprintf("/%s=%d", t.Name, t.Index)
+		fmt.Fprintf(&key, "/%s=%d", t.Name, t.Index)
 	}
-	sum := sha256.Sum256([]byte(key))
+	sum := sha256.Sum256([]byte(key.String()))
 	plan := Plan{ID: hex.EncodeToString(sum[:])[:16]}
 
 	addSets := func(base string, list []netip.Prefix) (v4, v6 bool) {

@@ -11,14 +11,27 @@ It is part of System Network management: **System Network → Protection** in
 the web interface, `GET/PUT /api/v2/system-network/protection` in the API,
 and `yuhaiin protection` on the command line.
 
-Implemented for **macOS** (PF). Other platforms report `unsupported`; the API
-and the page work everywhere.
+Implemented for **macOS** (PF), **Linux** (nftables) and **Windows**
+(Windows Filtering Platform). Android and other platforms report
+`unsupported`; the API and the page work everywhere.
+
+| | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| Mechanism | PF anchor `io.github.yuhaiin/protection` | nftables table `inet yuhaiin_protection` | WFP provider and sublayer (weight 65535) |
+| Applied by | protection service (LaunchDaemon) | the Yuhaiin process (root) | the Yuhaiin process (Windows service) |
+| Survives Yuhaiin exiting | rules stay in the kernel | rules stay in the kernel | persistent filters |
+| Allowances that end with Yuhaiin | TUN + socket group, bound to its connection to the service | TUN matched by interface index (gone with the device) | TUN + application permits in a dynamic WFP session (Windows deletes them when the process ends) |
+| Yuhaiin's own traffic | socket group `_yuhaiin` | Socket Protection mark `0x500` (`SO_MARK`, needs `CAP_NET_ADMIN`) | application ID of the Yuhaiin executable |
+| At startup | LaunchDaemon (early, not guaranteed before the network) | `yuhaiin-protection.service`, ordered before `network-pre.target` | persistent filters, applied by the Base Filtering Engine at boot |
+| Blocked counters | yes | yes | no (WFP keeps none) |
 
 > If Yuhaiin cannot start while the kill switch is on, restore the network
-> from a terminal. You never need to edit `/etc/pf.conf` or run `pfctl -d`:
+> from a terminal. You never need to edit `/etc/pf.conf`, run `pfctl -d`,
+> flush nftables or delete WFP filters by hand:
 >
 > ```sh
-> sudo yuhaiin protection disable --recovery
+> sudo yuhaiin protection disable --recovery          # macOS, Linux
+> yuhaiin protection disable --recovery               # Windows, elevated terminal
 > ```
 
 ## What is allowed
@@ -99,6 +112,92 @@ private resolver, or is blocked.
 The allowance (like the TUN interfaces) is bound to the core's connection to
 the protection service: when the core exits or is killed, the kernel closes
 the socket and the service reloads the rules without them at once.
+
+## Linux (nftables)
+
+The Yuhaiin process (root, with `CAP_NET_ADMIN`) loads one table:
+
+```text
+table inet yuhaiin_protection {
+	set private4 { type ipv4_addr; flags constant,interval; elements = { 10.0.0.0/8, ... } }
+	set private6 / bypass4 / bypass6 ...
+	chain output {
+		type filter hook output priority filter; policy accept;
+		oifname "lo" counter accept comment "yuhaiin-loopback"
+		ip daddr @private4 counter accept / ip6 daddr @private6 counter accept
+		link-local multicast, broadcast, DHCP / DHCPv6, router and neighbor solicitation/advertisement
+		ip daddr @bypass4 counter accept / ip6 daddr @bypass6 counter accept
+		oif <TUN index> counter accept comment "yuhaiin-tunnel"
+		meta mark 0x500 counter accept comment "yuhaiin-own"
+		meta l4proto tcp counter reject with tcp reset
+		meta l4proto != tcp counter reject with icmpx admin-prohibited
+	}
+}
+```
+
+- nftables evaluates every base chain of a hook: Yuhaiin's accept only ends
+  its own chain, while its reject — and any other table's drop — is final.
+  So the kill switch cannot be passed by another table, and other firewalls
+  still apply to what Yuhaiin allows.
+- The table is replaced in one netlink batch (delete and add in one kernel
+  transaction): a rejected update leaves the previous table, and there is
+  no moment without rules. Only this table is ever created or deleted.
+- TUNs are matched by interface **index**. When Yuhaiin exits, its TUN is
+  destroyed and the rule matches nothing; a TUN another program creates
+  later with the same name gets a new index and does not pass.
+- Yuhaiin's sockets carry the Socket Protection mark `0x500`; setting a
+  mark needs `CAP_NET_ADMIN`, so unprivileged programs cannot use it.
+  Without the mark (Yuhaiin not root), its own connections are blocked and
+  the status is *degraded*.
+- Rules are checked per packet, so connections opened before protection
+  keep working when they are allowed.
+- State: `/var/lib/yuhaiin/protection/state.json` (root, `0600`).
+- Startup: with *Protect from system startup*, Yuhaiin installs and enables
+  `/etc/systemd/system/yuhaiin-protection.service` (`DefaultDependencies=no`,
+  `Before=network-pre.target`), which runs `yuhaiin protection restore` and
+  loads the saved baseline before the network comes up. Without systemd,
+  protection returns when Yuhaiin starts (reported).
+- Yuhaiin checks the table on every status poll; if another program deleted
+  or replaced it, it is loaded again.
+- Rules view: every base chain of the system in evaluation order per hook
+  (Yuhaiin's marked), Yuhaiin's rules with counters, its sets, the boot
+  unit, and `nft list ruleset` when `nft` is installed.
+
+## Windows (Windows Filtering Platform)
+
+The Yuhaiin service (LocalSystem) adds a provider and a sublayer with the
+highest weight (65535), and in it filters at the ALE connect layers (IPv4 and
+IPv6):
+
+| Weight | Filter | Session |
+| --- | --- | --- |
+| 12 | permit Yuhaiin's executable (application ID) | dynamic |
+| 12 | permit the Yuhaiin TUN (interface LUID) | dynamic |
+| 10 | permit loopback, private networks, link-local multicast and broadcast, DHCP / DHCPv6, neighbor discovery, bypass networks | baseline |
+| 0 | block | baseline |
+
+- WFP arbitration makes a block in any sublayer final; Yuhaiin's permits
+  are soft, so another firewall can still block what Yuhaiin allows.
+- Baseline filters are **persistent** when protection starts at boot: the
+  Base Filtering Engine applies them at boot, before services start (the
+  strongest startup guarantee of the three platforms). Without it they last
+  until the next restart.
+- The TUN and application permits are created in a **dynamic session**
+  owned by the Yuhaiin process: Windows deletes them when the process exits
+  or is killed, so a crashed Yuhaiin leaves only the baseline.
+- Filters have stable IDs derived from their content. An update adds new
+  filters before deleting obsolete ones, and the block filters never go
+  away.
+- ALE filters decide when a connection is created, so connections opened
+  before protection keep working.
+- State: `%ProgramData%\yuhaiin\protection\state.json`, in a directory only
+  SYSTEM and Administrators can access.
+- WFP keeps no per-filter packet counters, so *Blocked traffic* is shown as
+  unavailable.
+- Rules view: every sublayer by weight (Yuhaiin's marked) and Yuhaiin's
+  filters with their conditions.
+- Commands that change protection need an elevated terminal
+  (`yuhaiin protection disable --recovery` from *Run as administrator*).
 
 ## macOS architecture
 
@@ -447,6 +546,26 @@ whether it really took effect. On unsupported platforms GET returns
 | A site that should go direct is blocked | Add it as a bypass CIDR of the TUN rule (or use a GeoIP-inverted rule). Destinations a custom rule leaves out are not bypasses. |
 | `ping` from Yuhaiin fails | ICMP has no socket owner PF can match; Yuhaiin's own ICMP is blocked while protection is on. |
 
+## Limitations (Linux)
+
+- Without systemd, protection is not restored at boot (only when Yuhaiin
+  starts).
+- Yuhaiin's own traffic needs the socket mark, so Yuhaiin must run with
+  `CAP_NET_ADMIN` (root); ICMP from Yuhaiin itself is allowed only with the
+  mark.
+- Only locally generated traffic (the output hook) is filtered; forwarded
+  traffic follows the forwarding rules.
+- While Yuhaiin is not running, nothing repairs a table another program
+  deleted (the next start or boot loads it again).
+
+## Limitations (Windows)
+
+- No blocked-traffic counters.
+- Yuhaiin's own traffic is identified by executable path; another program
+  would have to replace that executable (administrator rights) to use it.
+- Only outgoing connections are filtered (ALE connect); inbound services
+  keep accepting connections.
+
 ## Limitations (macOS)
 
 - Protection at boot depends on launchd starting the service; traffic before
@@ -477,7 +596,24 @@ whether it really took effect. On unsupported platforms GET returns
   core disconnect, non-root rejection, disable ordering, external changes and
   self-repair, restart and reboot, start-at-boot off, damaged state, rejected
   policies, missing pfctl, vanished TUNs, recovery ordering and failures.
-- Real PF on macOS (`.github/workflows/network-protection-macos.yml`, or
+- Linux, real nftables: `scripts/integration/network-protection-podman.sh`
+  (a privileged Podman container, so the host is not touched) or the
+  `nftables` job (a fresh network namespace). Dummy interfaces and TUNs
+  carry the test destinations; verdicts come from transmit counters and
+  from reading the TUN: direct IPv4/IPv6 blocked, bypass, private and
+  marked sockets allowed, the Yuhaiin TUN allowed and another TUN blocked,
+  another table's drop still applying, an existing connection surviving, a
+  reused TUN name not passing, a rejected update keeping the table, only
+  Yuhaiin's table removed, the backend restoring a deleted table, boot
+  restore, and recovery (idempotent, no restore after it).
+- Windows, real WFP (`wfp` job): verdicts from a copy of the test binary
+  (another application ID) — public blocked, bypass, loopback and private
+  allowed — Yuhaiin's executable allowed, an existing connection surviving,
+  persistent baseline and non-persistent runtime filters, the runtime
+  permits disappearing with the process, restore by a new process,
+  detection of deleted filters, other providers' filters unchanged, the
+  rules view, and recovery with the real `yuhaiin.exe` (idempotent).
+- Real PF on macOS (`.github/workflows/network-protection.yml`, or
   `scripts/integration/network-protection-macos.sh --live` on a disposable
   machine): creates a "Yuhaiin" utun and an unrelated utun, routes
   documentation prefixes through them and checks each verdict by whether the

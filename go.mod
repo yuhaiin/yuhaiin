@@ -32,6 +32,7 @@ require (
 	github.com/prometheus/client_model v0.6.3
 	github.com/refraction-networking/utls v1.8.2
 	github.com/slackhq/nebula v1.12.0
+	github.com/tailscale/wf v0.0.0-20240214030419-6fbb0a674ee6
 	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
@@ -65,6 +66,7 @@ require (
 	filippo.io/bigmod v0.1.0 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	filippo.io/hpke v0.4.0 // indirect
+	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DefinedNet/dnsconfig v0.0.0-20261028201825-617c971e7a6a // indirect
 	github.com/DefinedNet/netlink v1.3.2-dn.1 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
@@ -141,8 +143,10 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f // indirect
 	golang.org/x/tools v0.52.1-0.20261106145633-d407941a339a // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
+	honnef.co/go/tools v0.8.1 // indirect
 )

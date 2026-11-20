@@ -133,13 +133,14 @@ The implementation uses platform-native mechanisms: Linux socket marks and polic
 
 ### Network Protection (kill switch)
 
-On macOS, the kill switch blocks every application's Internet traffic that does not go through Yuhaiin, using the system packet filter (PF anchor `io.github.yuhaiin`). Private networks, explicit bypass routes, the Yuhaiin TUN and Yuhaiin's own connections to proxy servers stay allowed. The rules belong to a separate root service, so **protection keeps working while Yuhaiin is stopped, crashed or killed, and is restored at boot**. Enable it under **System Network → Protection**; check it with `yuhaiin protection status`. If Yuhaiin cannot start, restore the network from a terminal — no manual `pf.conf` edits or `pfctl -d`:
+The kill switch blocks every application's Internet traffic that does not go through Yuhaiin, using each system's own firewall: PF on macOS (anchor `io.github.yuhaiin`), nftables on Linux (table `inet yuhaiin_protection`) and the Windows Filtering Platform. Private networks, explicit bypass routes, the Yuhaiin TUN and Yuhaiin's own connections to proxy servers stay allowed. The rules stay in the operating system, so **protection keeps working while Yuhaiin is stopped, crashed or killed, and is restored at boot**. Enable it under **System Network → Protection**; check it with `yuhaiin protection status`. If Yuhaiin cannot start, restore the network from a terminal — no manual firewall edits:
 
 ```sh
-sudo yuhaiin protection disable --recovery
+sudo yuhaiin protection disable --recovery    # macOS, Linux
+yuhaiin protection disable --recovery         # Windows, in an elevated terminal
 ```
 
-See [Network Protection](docs/network-protection.md) for how it works, what PF changes it makes, troubleshooting and limitations.
+See [Network Protection](docs/network-protection.md) for how it works on each platform, what firewall changes it makes, troubleshooting and limitations.
 
 See the [System Network Manager guide](docs/system-network.md) for configuration, API details, platform limitations, route ownership, forwarding examples, and integration tests.
 
