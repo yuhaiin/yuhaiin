@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -406,6 +407,47 @@ func TestPFKillSwitch(t *testing.T) {
 	// Before protection everything passes.
 	checkVerdicts(t, "off", []verdict{{e.other, "198.51.100.11", true}, {e.yuhaiin, "192.0.2.11", true}})
 
+	// A connection opened before protection, served by a process outside
+	// the socket group (like the web interface whose PUT enables the kill
+	// switch), must survive the rules being loaded.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	served := make(chan net.Conn, 1)
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			served <- c
+		}
+	}()
+	early, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer early.Close()
+	server := <-served
+	defer server.Close()
+	exchange := func(step string) {
+		t.Helper()
+		_ = early.SetDeadline(time.Now().Add(3 * time.Second))
+		_ = server.SetDeadline(time.Now().Add(3 * time.Second))
+		if _, err := early.Write([]byte("request\n")); err != nil {
+			t.Fatalf("%s: request: %v", step, err)
+		}
+		buf := make([]byte, 8)
+		if _, err := io.ReadFull(server, buf); err != nil {
+			t.Fatalf("%s: server read: %v", step, err)
+		}
+		if _, err := server.Write([]byte("response")); err != nil {
+			t.Fatalf("%s: response: %v", step, err)
+		}
+		if _, err := io.ReadFull(early, buf); err != nil {
+			t.Fatalf("%s: existing connection was cut: %v", step, err)
+		}
+	}
+	exchange("before protection")
+
 	e.start()
 	client := newClientAt(e.cfg.Socket, "api")
 	defer client.Close()
@@ -427,6 +469,7 @@ func TestPFKillSwitch(t *testing.T) {
 		t.Fatal("pf.conf not registered")
 	}
 
+	t.Run("existing connection survives enabling", func(t *testing.T) { exchange("after enabling") })
 	t.Run("verdicts", func(t *testing.T) { checkVerdicts(t, "protected", e.baseVerdicts(true)) })
 	t.Run("direct traffic blocked on the physical interface", func(t *testing.T) {
 		// UDP sends succeed locally with "block return" (PF answers with
