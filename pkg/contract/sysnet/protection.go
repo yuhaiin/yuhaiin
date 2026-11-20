@@ -144,3 +144,89 @@ type ProtectionCounters struct {
 	// null when no increase was observed.
 	LastAt *int64 `json:"lastAt"`
 }
+
+// ProtectionRules is a read-only view of the packet filter rules, for
+// diagnostics: Yuhaiin's own rule sets with their counters and tables, and
+// the system's main ruleset with Yuhaiin's lines marked. Nothing here can be
+// changed through the API.
+type ProtectionRules struct {
+	Backend   string `json:"backend,omitzero"`
+	Available bool   `json:"available"`
+	// Reason explains why rules are not available.
+	Reason string `json:"reason,omitzero"`
+	ReadAt int64  `json:"readAt"`
+	// Rulesets are Yuhaiin's rule sets (kill switch, forwarding).
+	Rulesets []ProtectionRuleset `json:"rulesets"`
+	// Main is the system's main ruleset in evaluation order.
+	Main []ProtectionMainRule `json:"main"`
+	// Config is the system configuration file and Yuhaiin's lines in it.
+	Config ProtectionConfigFile `json:"config"`
+	// Raw is the complete pfctl output, for copying into bug reports.
+	Raw    string   `json:"raw"`
+	Errors []string `json:"errors,omitzero"`
+}
+
+// Rule categories of Yuhaiin's protection rules.
+const (
+	RuleLoopback = "loopback"
+	RulePrivate  = "private"
+	RuleLocal    = "local" // DHCP, neighbor discovery, link-local multicast
+	RuleBypass   = "bypass"
+	RuleTunnel   = "tunnel"
+	RuleOwn      = "own"
+	RuleBlock    = "block"
+	RuleForward  = "forward"
+	RuleOther    = "other"
+)
+
+type ProtectionRuleset struct {
+	Name string `json:"name"`
+	// Purpose is "protection" or "forward".
+	Purpose string                `json:"purpose"`
+	Rules   []ProtectionRule      `json:"rules"`
+	Tables  []ProtectionRuleTable `json:"tables,omitzero"`
+	Error   string                `json:"error,omitzero"`
+}
+
+type ProtectionRule struct {
+	Text     string `json:"text"`
+	Label    string `json:"label,omitzero"`
+	Category string `json:"category"`
+	// Counters is false when pfctl printed no counters for the rule.
+	Counters    bool   `json:"counters"`
+	Evaluations uint64 `json:"evaluations"`
+	Packets     uint64 `json:"packets"`
+	Bytes       uint64 `json:"bytes"`
+	States      uint64 `json:"states"`
+}
+
+type ProtectionRuleTable struct {
+	Name    string   `json:"name"`
+	Count   int      `json:"count"`
+	Entries []string `json:"entries"`
+	// Truncated is set when Entries holds fewer than Count addresses.
+	Truncated bool `json:"truncated,omitzero"`
+}
+
+type ProtectionMainRule struct {
+	// Kind is "translation", "normalization" (scrub) or "filter".
+	Kind    string `json:"kind"`
+	Text    string `json:"text"`
+	Yuhaiin bool   `json:"yuhaiin"`
+}
+
+type ProtectionConfigFile struct {
+	Path string `json:"path,omitzero"`
+	// Registered: the file evaluates Yuhaiin's anchor (survives a restart).
+	Registered bool `json:"registered"`
+	// Lines are Yuhaiin's lines in the file, with their line numbers.
+	Lines []ProtectionConfigLine `json:"lines"`
+	Error string                 `json:"error,omitzero"`
+}
+
+type ProtectionConfigLine struct {
+	Number int    `json:"number"`
+	Text   string `json:"text"`
+	// Managed is set for lines Yuhaiin added (and removes on uninstall).
+	Managed bool `json:"managed"`
+}

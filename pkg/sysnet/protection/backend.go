@@ -38,6 +38,12 @@ type ProcessPreparer interface {
 	PrepareProcess(status sysnet.ProtectionStatus) (ok bool, reason string)
 }
 
+// RuleReader is implemented by backends that can show the rules they load,
+// read-only, for diagnostics.
+type RuleReader interface {
+	Rules(ctx context.Context) sysnet.ProtectionRules
+}
+
 // ErrUnsupported is returned by the backend of platforms without Network
 // Protection.
 var ErrUnsupported = errors.New("network protection is not supported on this platform")

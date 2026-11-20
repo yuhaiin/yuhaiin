@@ -504,6 +504,42 @@ func TestPFKillSwitch(t *testing.T) {
 			t.Logf("blocked %d packets, own connections %d", st.Blocked.Packets, *st.OwnTraffic.Connections)
 		}
 	})
+	t.Run("rules view", func(t *testing.T) {
+		snap := e.cfg.Engine.Snapshot(ctx)
+		if !snap.Available || len(snap.Errors) != 0 {
+			t.Fatalf("snapshot: %+v", snap)
+		}
+		marked := 0
+		for _, m := range snap.Main {
+			if m.Yuhaiin {
+				marked++
+			}
+		}
+		if marked == 0 || marked == len(snap.Main) {
+			t.Fatalf("main ruleset not shown in full with Yuhaiin marked: %+v", snap.Main)
+		}
+		for _, m := range snap.Main {
+			if m.Kind == "filter" {
+				if !m.Yuhaiin {
+					t.Fatalf("the first filter rule is not Yuhaiin's anchor: %+v", snap.Main)
+				}
+				break
+			}
+		}
+		prot := snap.Rulesets[0]
+		last := prot.Rules[len(prot.Rules)-1]
+		if last.Category != sysnet.RuleBlock || !last.Counters || last.Packets == 0 {
+			t.Fatalf("block rule: %+v", last)
+		}
+		found := false
+		for _, tb := range prot.Tables {
+			found = found || (tb.Name == "yuhaiin_private" && tb.Count == len(policy.PrivateNetworks()))
+		}
+		if !found || !snap.Config.Registered {
+			t.Fatalf("tables %+v config %+v", prot.Tables, snap.Config)
+		}
+		t.Logf("raw view:\n%s", snap.Raw)
+	})
 	t.Run("pf.conf reload keeps the rules", func(t *testing.T) {
 		before := pf.LoadedID(pf.ParseRules(shQuiet("/sbin/pfctl", "-a", pf.ProtectionAnchor, "-v", "-s", "rules")))
 		sh(t, "/sbin/pfctl", "-f", "/etc/pf.conf")

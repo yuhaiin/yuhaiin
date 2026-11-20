@@ -201,6 +201,9 @@ func TestDisableAndUnsupported(t *testing.T) {
 	if _, err := u.Save(ctx, sysnet.ProtectionSettings{Enabled: true}); !errors.Is(err, ErrUnsupported) {
 		t.Fatal(err)
 	}
+	if r := u.Rules(ctx); r.Available || r.Reason == "" || r.Rulesets == nil || r.Main == nil {
+		t.Fatalf("rules on an unsupported platform = %+v", r)
+	}
 }
 
 func has(st sysnet.ProtectionStatus, code string) bool {

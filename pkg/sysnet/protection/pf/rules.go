@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Asutorufa/yuhaiin/pkg/contract/sysnet"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
 )
 
@@ -174,6 +175,8 @@ func Compile(p protection.Policy, env Env) (Ruleset, error) {
 
 // RuleCounters are the counters pfctl -v prints under a rule.
 type RuleCounters struct {
+	// Text is the rule as pfctl prints it.
+	Text                   string
 	Label                  string
 	Evaluations            uint64
 	Packets, Bytes, States uint64
@@ -189,7 +192,29 @@ var (
 )
 
 var ruleKeywords = map[string]bool{"pass": true, "block": true, "match": true, "anchor": true, "scrub": true, "antispoof": true,
-	"nat": true, "rdr": true, "binat": true, "no": true, "dummynet": true}
+	"nat": true, "rdr": true, "binat": true, "no": true, "dummynet": true,
+	"scrub-anchor": true, "nat-anchor": true, "rdr-anchor": true, "binat-anchor": true, "dummynet-anchor": true}
+
+// Category classifies one of Yuhaiin's rules by its label.
+func Category(label string) string {
+	switch {
+	case label == labelPrefix+"loopback":
+		return sysnet.RuleLoopback
+	case label == labelPrefix+"private":
+		return sysnet.RulePrivate
+	case label == labelPrefix+"bypass":
+		return sysnet.RuleBypass
+	case label == tunLabel:
+		return sysnet.RuleTunnel
+	case strings.HasPrefix(label, ownLabel):
+		return sysnet.RuleOwn
+	case strings.HasPrefix(label, blockLabel):
+		return sysnet.RuleBlock
+	case strings.HasPrefix(label, labelPrefix+"link-multicast"), strings.HasPrefix(label, labelPrefix+"dhcp"), label == labelPrefix+"nd":
+		return sysnet.RuleLocal
+	}
+	return sysnet.RuleOther
+}
 
 // ParseRules parses "pfctl -v -s rules": each rule line is followed by
 // indented "[ Evaluations: ... ]" lines.
@@ -225,7 +250,7 @@ func ParseRules(out string) []RuleCounters {
 			// its output; they are not rules.
 			continue
 		}
-		rc := RuleCounters{}
+		rc := RuleCounters{Text: trimmed}
 		if m := labelRE.FindStringSubmatch(trimmed); m != nil {
 			rc.Label = m[1]
 		}

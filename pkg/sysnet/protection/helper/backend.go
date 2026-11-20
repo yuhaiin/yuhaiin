@@ -169,3 +169,10 @@ func PrepareStartup(ctx context.Context) {
 		}
 	}
 }
+
+// Rules reads the packet filter rules directly (the core runs as root). It
+// only reads, so it works whether or not the protection service runs, and
+// also shows the forwarding rules the core itself loads.
+func (b *Backend) Rules(ctx context.Context) sysnet.ProtectionRules {
+	return pf.NewEngine(StateDir).Snapshot(ctx)
+}

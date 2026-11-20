@@ -32,6 +32,7 @@ func addSystemNetworkRPCRoutes(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2SystemNetworkOutbound, api.systemNetworkOutbound)
 	addRPCRoute(handlers, v2SystemNetworkProtection, api.networkProtection)
 	addRPCRoute(handlers, v2SystemNetworkProtectionPut, api.saveNetworkProtection)
+	addRPCRoute(handlers, v2SystemNetworkProtectionRules, api.networkProtectionRules)
 }
 
 // NetworkProtectionController is the kill switch. Its status is read from
@@ -40,6 +41,16 @@ func addSystemNetworkRPCRoutes(handlers *v2Handlers, services V2Services) {
 type NetworkProtectionController interface {
 	Status(context.Context) contractsysnet.ProtectionStatus
 	Save(context.Context, contractsysnet.ProtectionSettings) (contractsysnet.ProtectionStatus, error)
+	// Rules is a read-only view of the packet filter rules.
+	Rules(context.Context) contractsysnet.ProtectionRules
+}
+
+func (a v2API) networkProtectionRules(ctx context.Context, _ *emptyRequest) (*contractsysnet.ProtectionRules, error) {
+	if a.services.NetworkProtection == nil {
+		return nil, unavailable("Network Protection is unavailable")
+	}
+	rules := a.services.NetworkProtection.Rules(ctx)
+	return &rules, nil
 }
 
 func (a v2API) networkProtection(ctx context.Context, _ *emptyRequest) (*contractsysnet.ProtectionStatus, error) {
