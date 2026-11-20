@@ -308,3 +308,12 @@ func (c *Controller) Close() error {
 	c.wg.Wait()
 	return c.backend.Close()
 }
+
+// Rules returns the packet filter rules for diagnostics. It only reads.
+func (c *Controller) Rules(ctx context.Context) sysnet.ProtectionRules {
+	if r, ok := c.backend.(RuleReader); ok {
+		return r.Rules(ctx)
+	}
+	return sysnet.ProtectionRules{Available: false, Reason: ErrUnsupported.Error(), ReadAt: c.now().Unix(),
+		Rulesets: []sysnet.ProtectionRuleset{}, Main: []sysnet.ProtectionMainRule{}}
+}

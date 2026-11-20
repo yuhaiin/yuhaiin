@@ -323,6 +323,31 @@ rejected (from `pfctl -v -s rules`). "Last blocked" is when the counter was
 last seen increasing; PF logs are not parsed. Problems carry a code, a
 message and a suggested fix.
 
+### Rules view
+
+**System Network → Protection → Packet filter rules** shows, read-only:
+
+- the system's **main ruleset in full**, translation then filter rules in
+  evaluation order, with Yuhaiin's lines marked — so you can check that
+  Yuhaiin's anchor comes before other filter rules;
+- Yuhaiin's rule sets (`io.github.yuhaiin/protection`,
+  `io.github.yuhaiin/forward`): every rule with its category (loopback,
+  private, local network services, bypass, TUN, Yuhaiin's own traffic,
+  block, forwarding) and its counters (evaluations, packets, bytes, states);
+- the contents of `<yuhaiin_private>` and `<yuhaiin_bypass>` (up to 2000
+  addresses each, with the full count);
+- Yuhaiin's lines in `/etc/pf.conf` with their line numbers;
+- the raw pfctl output, to copy into bug reports.
+
+It is read by the core with fixed read-only pfctl calls (`-s`, `-T show`),
+so it also works while the kill switch is off and the protection service is
+stopped. The main ruleset may include other programs' rules; the view needs
+`settings:read`. Nothing can be changed from it.
+
+| Method | Path | Permission |
+| --- | --- | --- |
+| GET | `/api/v2/system-network/protection/rules` | `settings:read` |
+
 ## Command line
 
 The command line works without the Yuhaiin core, its web interface, its HTTP

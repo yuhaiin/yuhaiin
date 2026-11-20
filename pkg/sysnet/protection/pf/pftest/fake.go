@@ -121,6 +121,22 @@ func (f *Fake) Run(_ context.Context, stdin, name string, args ...string) (strin
 		return strings.Join(f.MainRules, "\n") + "\n", nil
 	case anchor == "" && len(rest) == 2 && rest[0] == "-s" && rest[1] == "nat":
 		return strings.Join(f.MainNAT, "\n") + "\n", nil
+	case anchor != "" && len(rest) == 2 && rest[0] == "-s" && rest[1] == "Tables":
+		var b strings.Builder
+		for name := range f.tables(anchor) {
+			b.WriteString("--a-r-- " + name + "\n")
+		}
+		return b.String(), nil
+	case anchor != "" && len(rest) == 4 && rest[0] == "-t" && rest[2] == "-T" && rest[3] == "show":
+		entries, ok := f.tables(anchor)[rest[1]]
+		if !ok {
+			return "pfctl: Table does not exist.", errors.New("exit status 1")
+		}
+		var b strings.Builder
+		for _, e := range entries {
+			b.WriteString("   " + e + "\n")
+		}
+		return b.String(), nil
 	case anchor != "" && len(rest) >= 2 && rest[len(rest)-2] == "-s":
 		verbose := len(rest) == 3 && rest[0] == "-v"
 		return f.show(anchor, rest[len(rest)-1], verbose), nil
@@ -218,4 +234,27 @@ func (f *Fake) show(anchor, what string, verbose bool) string {
 		}
 	}
 	return b.String()
+}
+
+// tables returns the tables defined in an anchor's rules ("table <name>
+// const { a, b }").
+func (f *Fake) tables(anchor string) map[string][]string {
+	out := map[string][]string{}
+	for line := range strings.SplitSeq(f.Anchors[anchor], "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "table <")
+		if !ok {
+			continue
+		}
+		name, rest, _ := strings.Cut(rest, ">")
+		_, body, _ := strings.Cut(rest, "{")
+		body, _, _ = strings.Cut(body, "}")
+		var entries []string
+		for e := range strings.SplitSeq(body, ",") {
+			if e = strings.TrimSpace(e); e != "" {
+				entries = append(entries, e)
+			}
+		}
+		out[name] = entries
+	}
+	return out
 }
