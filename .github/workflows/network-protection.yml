@@ -83,5 +83,6 @@ jobs:
           go test -c -o "$env:RUNNER_TEMP\wfp.test.exe" ./pkg/sysnet/protection/wfp
           $env:YUHAIIN_TEST_WFP = "1"
           $env:YUHAIIN_TEST_BINARY = "$env:RUNNER_TEMP\yuhaiin.exe"
-          & "$env:RUNNER_TEMP\wfp.test.exe" -test.v -test.run "^TestWFP(KillSwitch|Recovery)$"
+          # Quoted: PowerShell splits an unquoted "-test.v" at the dot.
+          & "$env:RUNNER_TEMP\wfp.test.exe" '-test.v' '-test.run=^TestWFP(KillSwitch|Recovery)$'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
