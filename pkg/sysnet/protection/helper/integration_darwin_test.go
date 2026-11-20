@@ -518,6 +518,14 @@ func TestPFKillSwitch(t *testing.T) {
 		if marked == 0 || marked == len(snap.Main) {
 			t.Fatalf("main ruleset not shown in full with Yuhaiin marked: %+v", snap.Main)
 		}
+		for _, m := range snap.Main {
+			if m.Kind == "filter" {
+				if !m.Yuhaiin {
+					t.Fatalf("the first filter rule is not Yuhaiin's anchor: %+v", snap.Main)
+				}
+				break
+			}
+		}
 		prot := snap.Rulesets[0]
 		last := prot.Rules[len(prot.Rules)-1]
 		if last.Category != sysnet.RuleBlock || !last.Counters || last.Packets == 0 {

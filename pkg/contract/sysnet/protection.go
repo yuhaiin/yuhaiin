@@ -209,7 +209,7 @@ type ProtectionRuleTable struct {
 }
 
 type ProtectionMainRule struct {
-	// Kind is "filter" or "translation".
+	// Kind is "translation", "normalization" (scrub) or "filter".
 	Kind    string `json:"kind"`
 	Text    string `json:"text"`
 	Yuhaiin bool   `json:"yuhaiin"`

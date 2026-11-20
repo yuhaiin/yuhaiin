@@ -58,6 +58,20 @@ func TestSnapshotMarksYuhaiinAndKeepsCounters(t *testing.T) {
 	if snap.Main[0].Kind != "translation" {
 		t.Fatalf("translation rules are not first: %+v", snap.Main[0])
 	}
+	// scrub is normalization, not a filter rule that could pass traffic
+	// before Yuhaiin's anchor.
+	var firstFilter sysnet.ProtectionMainRule
+	for _, m := range snap.Main {
+		if m.Kind == "normalization" && !strings.HasPrefix(m.Text, "scrub") {
+			t.Errorf("normalization: %q", m.Text)
+		}
+		if m.Kind == "filter" && firstFilter.Text == "" {
+			firstFilter = m
+		}
+	}
+	if !firstFilter.Yuhaiin {
+		t.Fatalf("first filter rule = %+v", firstFilter)
+	}
 	prot, fwd := snap.Rulesets[0], snap.Rulesets[1]
 	if prot.Name != pf.ProtectionAnchor || fwd.Name != pf.ForwardAnchor || len(prot.Rules) != rs.Rules || len(fwd.Rules) != 2 {
 		t.Fatalf("rulesets = %+v", snap.Rulesets)

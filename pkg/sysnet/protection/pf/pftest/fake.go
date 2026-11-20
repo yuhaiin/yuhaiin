@@ -202,6 +202,8 @@ func (f *Fake) loadMain(text string) {
 			continue
 		}
 		switch fields[0] {
+		case "scrub-anchor":
+			f.MainRules = append(f.MainRules, "scrub-anchor "+fields[1]+" all fragment reassemble")
 		case "anchor":
 			f.MainRules = append(f.MainRules, "anchor "+fields[1]+" all")
 		case "nat-anchor":

@@ -42,7 +42,12 @@ func (e *Engine) Snapshot(ctx context.Context) sysnet.ProtectionRules {
 		ok = true
 		section("pfctl -s "+main.what, text)
 		for _, r := range ParseRules(text) {
-			out.Main = append(out.Main, sysnet.ProtectionMainRule{Kind: main.kind, Text: r.Text, Yuhaiin: strings.Contains(r.Text, `"`+Anchor+`/`) || strings.Contains(r.Text, `"`+Anchor+`"`)})
+			kind := main.kind
+			if keyword, _, _ := strings.Cut(r.Text, " "); keyword == "scrub" || keyword == "scrub-anchor" {
+				// Normalization runs before filtering and passes nothing.
+				kind = "normalization"
+			}
+			out.Main = append(out.Main, sysnet.ProtectionMainRule{Kind: kind, Text: r.Text, Yuhaiin: strings.Contains(r.Text, `"`+Anchor+`/`) || strings.Contains(r.Text, `"`+Anchor+`"`)})
 		}
 	}
 
