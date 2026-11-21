@@ -15,6 +15,9 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
+// dnsHistoryMaxPage bounds OFFSET scans; retention keeps tables far smaller.
+const dnsHistoryMaxPage = 10_000
+
 // ErrDNSHistoryBadRequest wraps invalid filter or cursor input.
 var ErrDNSHistoryBadRequest = errors.New("invalid dns history request")
 
@@ -188,6 +191,10 @@ func (h *DNSHistory) List(ctx context.Context, r contract.ListRequest) (contract
 	if err := h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM dns_query_history`+w.sql(), w.args...).Scan(&total); err != nil {
 		return contract.ListResponse{}, err
 	}
+	if r.Page < 0 || r.Page > dnsHistoryMaxPage || r.Page > 1 && r.Cursor != "" {
+		return contract.ListResponse{}, badDNSHistoryRequest("invalid page")
+	}
+	page := max(1, r.Page)
 	if r.Cursor != "" {
 		createdAt, id, err := decodeDNSHistoryCursor(r.Cursor)
 		if err != nil {
@@ -195,13 +202,13 @@ func (h *DNSHistory) List(ctx context.Context, r contract.ListRequest) (contract
 		}
 		w.add(`(created_at < ? OR (created_at = ? AND id < ?))`, createdAt, createdAt, id)
 	}
-	args := append(w.args, limit+1)
-	rows, err := h.db.QueryContext(ctx, `SELECT `+dnsHistoryListColumns+` FROM dns_query_history`+w.sql()+` ORDER BY created_at DESC, id DESC LIMIT ?`, args...)
+	args := append(w.args, limit+1, (page-1)*limit)
+	rows, err := h.db.QueryContext(ctx, `SELECT `+dnsHistoryListColumns+` FROM dns_query_history`+w.sql()+` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return contract.ListResponse{}, err
 	}
 	defer rows.Close()
-	out := contract.ListResponse{Items: make([]contract.Record, 0, limit), Total: total, Limit: limit}
+	out := contract.ListResponse{Items: make([]contract.Record, 0, limit), Total: total, Limit: limit, Page: page}
 	var lastCreated []int64
 	for rows.Next() {
 		record, createdAt, err := scanDNSHistory(rows, false)

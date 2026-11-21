@@ -131,6 +131,28 @@ func TestDNSHistoryPaginationWithEqualTimestamps(t *testing.T) {
 	if len(seen) != 25 || pages != 3 {
 		t.Fatalf("seen %d records in %d pages", len(seen), pages)
 	}
+	// Numbered pages over the same equal timestamps match the cursor walk.
+	numbered := map[int64]bool{}
+	for page := 1; page <= 3; page++ {
+		result, err := h.List(t.Context(), contract.ListRequest{Limit: 10, Page: page})
+		if err != nil || result.Page != page || result.Total != 25 {
+			t.Fatalf("page %d = %+v %v", page, result, err)
+		}
+		for _, item := range result.Items {
+			if numbered[item.ID] {
+				t.Fatalf("page %d repeats %d", page, item.ID)
+			}
+			numbered[item.ID] = true
+		}
+	}
+	if len(numbered) != 25 {
+		t.Fatalf("numbered pages saw %d records", len(numbered))
+	}
+	for _, bad := range []contract.ListRequest{{Page: -1}, {Page: dnsHistoryMaxPage + 1}, {Page: 2, Cursor: "a.1"}} {
+		if _, err := h.List(t.Context(), bad); !errors.Is(err, ErrDNSHistoryBadRequest) {
+			t.Fatalf("%+v: err = %v", bad, err)
+		}
+	}
 	if _, err := h.List(t.Context(), contract.ListRequest{Cursor: "bogus"}); !errors.Is(err, ErrDNSHistoryBadRequest) {
 		t.Fatalf("bad cursor err = %v", err)
 	}

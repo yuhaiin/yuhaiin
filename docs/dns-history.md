@@ -88,5 +88,7 @@ All operations are RPC endpoints (`POST /api/v2/rpc/<operation>`):
 | `dns.history.clear` | `dns-history:write` |
 | `dns.history.settings.put` | `dns-history:write` |
 
-The list is ordered by `(created_at DESC, id DESC)`; the cursor is the last
-row's key, so rows with equal timestamps are neither repeated nor skipped.
+The list is ordered by `(created_at DESC, id DESC)`, a total order, so rows with
+equal timestamps are neither repeated nor skipped. A list can be read by page
+number (the Web UI keeps `to` fixed while paging, so new requests do not shift
+pages) or by cursor, the last row's key, which needs no OFFSET scan.
