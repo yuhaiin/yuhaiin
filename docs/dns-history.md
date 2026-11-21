@@ -91,4 +91,7 @@ All operations are RPC endpoints (`POST /api/v2/rpc/<operation>`):
 The list is ordered by `(created_at DESC, id DESC)`, a total order, so rows with
 equal timestamps are neither repeated nor skipped. A list can be read by page
 number (the Web UI keeps `to` fixed while paging, so new requests do not shift
-pages) or by cursor, the last row's key, which needs no OFFSET scan.
+pages) or by cursor, the last row's key, which needs no OFFSET scan. `sortBy`
+(`time`, `domain`, `type`, `result`, `latency`) and `sortOrder` choose another
+order for numbered pages; ties fall back to newest first and then the id, so
+every order stays total. Cursors continue only the default newest-first order.
