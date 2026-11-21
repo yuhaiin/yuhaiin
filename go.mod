@@ -8,13 +8,13 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.133
+	codeberg.org/miekg/dns v0.6.139
 	filippo.io/age v1.3.2
-	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
+	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20261116
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
 	github.com/aws/aws-sdk-go-v2 v1.48.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10
+	github.com/aws/aws-sdk-go-v2/credentials v1.21.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.116.0
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-jose/go-jose/v4 v4.1.9
@@ -22,10 +22,10 @@ require (
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/nftables v0.3.0
-	github.com/google/pprof v0.0.0-20261111200114-fac431ef4d26
+	github.com/google/pprof v0.0.0-20261118010117-084b33a85f63
 	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/oschwald/maxminddb-golang/v2 v2.9.0
+	github.com/oschwald/maxminddb-golang/v2 v2.9.1
 	github.com/pires/go-proxyproto v0.16.0
 	github.com/pkg/sftp v1.13.12
 	github.com/prometheus/client_golang v1.25.0
@@ -39,16 +39,16 @@ require (
 	github.com/yuhaiin/purego-sqlite v0.0.0-20261105112659-37f07d7891db
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104135523-4121a04c61b8
 	github.com/yuhaiin/sessionnet v0.0.0-20261102143538-7a5d0f96bfdb
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261114144434-c4bcf7256005
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261121143250-5ed6ad210215
 	github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v4 v4.0.0
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
 	golang.org/x/crypto v0.59.0
-	golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4
-	golang.org/x/mobile v0.0.0-20261011034528-197770444867
+	golang.org/x/exp v0.0.0-20261121134650-e1094eeca1b5
+	golang.org/x/mobile v0.0.0-20261117202452-47699113848a
 	golang.org/x/mod v0.43.0
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
@@ -141,7 +141,7 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
-	golang.org/x/tools v0.52.1-0.20261106145633-d407941a339a // indirect
+	golang.org/x/tools v0.53.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
