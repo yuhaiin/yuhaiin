@@ -140,6 +140,10 @@ type Attempt struct {
 
 // ListRequest filters are combined with AND. Times are Unix milliseconds.
 type ListRequest struct {
+	// Page (1-based) selects a numbered page; Cursor continues after a
+	// previous page instead. A caller keeps To fixed while paging so new
+	// requests do not shift the pages.
+	Page   int    `json:"page,omitempty"`
 	Cursor string `json:"cursor,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
 	// Domain matches the name and its subdomains; Query is a substring of the
@@ -165,6 +169,7 @@ type ListResponse struct {
 	// NextCursor continues after the last item; empty on the last page.
 	NextCursor string `json:"nextCursor,omitempty"`
 	Total      int    `json:"total"`
+	Page       int    `json:"page"`
 	Limit      int    `json:"limit"`
 }
 
