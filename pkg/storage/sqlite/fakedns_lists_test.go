@@ -23,7 +23,10 @@ func TestFakeDNSInlineListsMigrateToSharedLists(t *testing.T) {
 	if err := bootstrapBase(t.Context(), db); err != nil {
 		t.Fatal(err)
 	}
-	for _, migration := range migrations[:len(migrations)-1] {
+	for _, migration := range migrations {
+		if migration.Version >= fakeDNSSharedListsMigration.Version {
+			break
+		}
 		if err := applyMigration(t.Context(), db, migration); err != nil {
 			t.Fatal(err)
 		}

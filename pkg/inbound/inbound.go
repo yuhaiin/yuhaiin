@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"reflect"
 	"sync"
@@ -23,6 +24,8 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
+
+var errIdentityInvalid = errors.New("traffic identity is no longer valid")
 
 type entry struct {
 	contractConfig *contract.Inbound
@@ -52,7 +55,8 @@ type Inbound struct {
 	pendingRouteCleanup []netapi.Accepter
 	ctx                 context.Context
 
-	dnsHandler netapi.DNSAgent
+	dnsHandler  netapi.DNSAgent
+	dnsObserver netapi.DNSObserver
 
 	handler *handler
 
@@ -231,6 +235,41 @@ func WithDNSAgent(dnsHandler netapi.DNSAgent) Option {
 	}
 }
 
+// WithDNSObserver records the history of hijacked DNS requests, including
+// those rejected before they reach the DNS agent.
+func WithDNSObserver(observer netapi.DNSObserver) Option {
+	return func(l *Inbound) { l.dnsObserver = observer }
+}
+
+// beginDNSTrace returns nil while DNS history is disabled.
+func (l *Inbound) beginDNSTrace(transport string, source net.Addr, identity *proxyauth.Identity, inboundID, inboundName string) *netapi.DNSTrace {
+	if l.dnsObserver == nil {
+		return nil
+	}
+	trace := l.dnsObserver.BeginDNS(transport, netapi.DNSSourceHijack)
+	if trace == nil {
+		return nil
+	}
+	trace.SetClient(source)
+	trace.SetInbound(inboundID, inboundName)
+	if identity != nil {
+		trace.SetIdentity(identity.UserID, identity.CredentialID, identity.GroupIDs)
+	}
+	return trace
+}
+
+// rejectDNSTrace finishes a request refused before the DNS agent saw it.
+func rejectDNSTrace(trace *netapi.DNSTrace, payload []byte, stage, reason string, err error) {
+	if trace == nil {
+		return
+	}
+	if payload != nil {
+		trace.SetRequestWire(payload)
+	}
+	trace.Fail(netapi.DNSOutcomeRejected, stage, reason, err)
+	trace.Finish(err)
+}
+
 func NewInbound(dialer netapi.Proxy, opts ...Option) *Inbound {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -268,6 +307,9 @@ func (l *Inbound) shouldHijackDNS(port uint16) bool {
 
 func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	if !meta.Identity.Valid() {
+		if l.dnsHandler != nil && (meta.DnsRequest || l.shouldHijackDNS(meta.Address.Port())) {
+			rejectDNSTrace(l.beginDNSTrace("tcp", meta.Source, meta.Identity, meta.InboundID, meta.InboundName), nil, netapi.DNSStageAuthorization, "identity_invalid", errIdentityInvalid)
+		}
 		_ = meta.Src.Close()
 		return
 	}
@@ -287,8 +329,10 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 		return
 	}
 
+	trace := l.beginDNSTrace("tcp", meta.Source, meta.Identity, meta.InboundID, meta.InboundName)
 	lease, ok := l.handler.admitStream(store, meta.InboundID)
 	if !ok {
+		rejectDNSTrace(trace, nil, netapi.DNSStageTrafficControl, "stream_admission_limit", ErrStreamAdmissionLimit)
 		_ = meta.Src.Close()
 		return
 	}
@@ -296,12 +340,14 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	meta.Src = trafficcontrol.WrapConn(store, meta.Src, func() trafficcontrol.Policy { return l.handler.resolvePolicy(store, meta.InboundID, "") })
 	actual, err := netapi.PinTrafficDestination(store, l.access, meta.Address)
 	if err != nil {
+		rejectDNSTrace(trace, nil, netapi.DNSStageAuthorization, "traffic_access_denied", err)
 		l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp").Finish(err)
 		_ = meta.Src.Close()
 		return
 	}
 	authorized, err := netapi.BindTrafficConn(store, l.access, meta.Address, actual, meta.Src)
 	if err != nil {
+		rejectDNSTrace(trace, nil, netapi.DNSStageAuthorization, "traffic_access_denied", err)
 		l.localDNSUsage(store, meta.Identity, stringerAddress(meta.Source), meta.Address, meta.InboundID, meta.InboundName, "tcp").Finish(err)
 		_ = meta.Src.Close()
 		return
@@ -312,6 +358,7 @@ func (l *Inbound) HandleStream(meta *netapi.StreamMeta) {
 	defer observed.Close()
 	err = l.dnsHandler.DoStream(store, &netapi.DNSStreamRequest{
 		Conn:        observed,
+		Trace:       trace,
 		ForceFakeIP: l.fakeip.Load(),
 	})
 	observation.Finish(err)
@@ -359,16 +406,21 @@ func (l *Inbound) loopudp() {
 
 func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	defer packet.DecRef()
+	dnsRequest := l.dnsHandler != nil && (packet.IsDNSRequest() || l.shouldHijackDNS(packet.Dst().Port()))
 	if !packet.Identity.Valid() {
+		if dnsRequest {
+			rejectDNSTrace(l.beginDNSTrace("udp", packet.Src(), packet.Identity, packet.InboundID(), packet.InboundName()), packet.GetPayload(), netapi.DNSStageAuthorization, "identity_invalid", errIdentityInvalid)
+		}
 		return
 	}
 
-	if (!packet.IsDNSRequest() && !l.shouldHijackDNS(packet.Dst().Port())) || l.dnsHandler == nil {
+	if !dnsRequest {
 		// we only use [netapi.Context] at new PacketConn instead of every packet
 		// so here just pass [l.ctx]
 		l.handler.Packet(l.ctx, packet)
 		return
 	}
+	trace := l.beginDNSTrace("udp", packet.Src(), packet.Identity, packet.InboundID(), packet.InboundName())
 
 	store := netapi.WithContext(netapi.WithTrafficIdentity(l.ctx, packet.Identity))
 	store.Source = packet.Src()
@@ -378,18 +430,21 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 		var ok bool
 		resourceLease, ok = l.handler.control.AcquireResourceSession(identity.UserID, identity.CredentialID, true)
 		if !ok {
+			rejectDNSTrace(trace, packet.GetPayload(), netapi.DNSStageTrafficControl, "resource_session_limit", ErrStreamAdmissionLimit)
 			l.localDNSUsage(store, identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(ErrStreamAdmissionLimit)
 			return
 		}
 	}
 	actual, err := netapi.PinTrafficDestination(store, l.access, packet.Dst())
 	if err != nil {
+		rejectDNSTrace(trace, packet.GetPayload(), netapi.DNSStageAuthorization, "traffic_access_denied", err)
 		resourceLease.Release()
 		l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(err)
 		return
 	}
 	ctx, release, err := netapi.AuthorizeTrafficRequest(store, l.access, packet.Dst(), actual)
 	if err != nil {
+		rejectDNSTrace(trace, packet.GetPayload(), netapi.DNSStageAuthorization, "traffic_access_denied", err)
 		resourceLease.Release()
 		l.localDNSUsage(store, packet.Identity, stringerAddress(packet.Src()), packet.Dst(), packet.InboundID(), packet.InboundName(), "udp").Finish(err)
 		return
@@ -399,6 +454,7 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 	var uploadTicket quota.Reservation
 	uploadMetered, err := resolvePolicy().ReserveDatagram(trafficcontrol.Upload, len(packet.GetPayload()), &uploadTicket)
 	if err != nil {
+		rejectDNSTrace(trace, packet.GetPayload(), netapi.DNSStageTrafficControl, "upload_quota", err)
 		observation.Finish(err)
 		resourceLease.Release()
 		release()
@@ -413,12 +469,14 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 			}
 			if session := netapi.TrafficAccessSessionFromContext(ctx); session != nil {
 				if err := session.Authorize(packet.Dst(), actual); err != nil {
+					trace.Fail(netapi.DNSOutcomeRejected, netapi.DNSStageAuthorization, "traffic_access_revoked", err)
 					return err
 				}
 			}
 			var ticket quota.Reservation
 			metered, err := resolvePolicy().ReserveDatagram(trafficcontrol.Download, len(b), &ticket)
 			if err != nil {
+				trace.Fail(netapi.DNSOutcomeRejected, netapi.DNSStageTrafficControl, "download_quota", err)
 				return err
 			}
 			n, err := packet.WriteBackContext(ctx, b, packet.Dst())
@@ -426,12 +484,14 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 				n = 0
 				err = errors.New("invalid DNS reply write count")
 			}
+			trace.AddSent(n)
 			if metered {
 				ticket.Commit(n)
 			}
 			observation.AddDownload(n)
 			return err
 		},
+		Trace:       trace,
 		ForceFakeIP: l.fakeip.Load(),
 	}
 	dnsReq.Done = func(err error) { observation.Finish(err); resourceLease.Release(); release() }

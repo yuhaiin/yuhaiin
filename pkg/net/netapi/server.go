@@ -308,15 +308,21 @@ type DNSRawRequest struct {
 	// Done is called once after an accepted request ends. A cache/local hit may
 	// complete synchronously before DoDatagram returns.
 	// The caller retains ownership on a synchronous DoDatagram error.
-	Done        func(error)
-	WriteBack   func([]byte) error
-	Question    *Packet
+	Done      func(error)
+	WriteBack func([]byte) error
+	Question  *Packet
+	// Trace is an optional history observation started by the caller. Once
+	// DoDatagram is called the DNS agent finishes it, including on a
+	// synchronous error; the caller must not finish it afterwards.
+	Trace       *DNSTrace
 	Stream      bool
 	ForceFakeIP bool
 }
 
 type DNSStreamRequest struct {
-	Conn        net.Conn
+	Conn net.Conn
+	// Trace follows the DNSRawRequest.Trace ownership rule.
+	Trace       *DNSTrace
 	ForceFakeIP bool
 }
 

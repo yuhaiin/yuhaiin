@@ -88,9 +88,13 @@ type Transport interface {
 }
 
 type Config struct {
-	Dialer     netapi.Proxy
-	Subnet     netip.Prefix
-	Name       string
+	Dialer netapi.Proxy
+	Subnet netip.Prefix
+	Name   string
+	// Label and PublicHost identify the resolver in DNS history. PublicHost
+	// must not carry credentials; callers pass a redacted form.
+	Label      string
+	PublicHost string
 	Host       string
 	Servername string
 	Type       string
@@ -251,6 +255,10 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
+func (c *client) traceInfo() netapi.DNSServerInfo {
+	return netapi.DNSServerInfo{Resolver: c.config.Name, Label: c.config.Label, Server: c.config.PublicHost, Type: c.config.Type}
+}
+
 func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	metrics.Counter.AddDnsQuery(c.config.Name)
 	now := system.CheapNowNano()
@@ -300,10 +308,19 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 		err error
 	)
 
+	trace := netapi.DNSTraceFromContext(ctx)
 	for _, v := range []bool{false, true} {
 		request.Truncated = v
 
+		started := time.Now()
 		msg, err = dialer.Do(ctx, request)
+		if trace != nil {
+			transport := c.config.Type
+			if v {
+				transport += "+tc-retry"
+			}
+			trace.RecordAttempt(req, c.traceInfo(), transport, started, err, msg)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("dns client do failed: %w", err)
 		}
@@ -467,18 +484,25 @@ func (c *client) rawWithCache(ctx context.Context, req netapi.DNSQuestion, cache
 
 	cacheKey := CacheKeyFromQuestion(req)
 
+	trace := netapi.DNSTraceFromContext(ctx)
 	rawmsg, expired, ok := c.rawStore.LoadOptimistically(cacheKey)
-	if !ok {
+	if ok {
+		trace.RecordCache(req, c.traceInfo(), true, expired)
+	} else {
 		if cachedOnly {
 			return nil, netapi.ErrDNSCacheMiss
 		}
 		var err error
+		owner := false
 		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (*dns.Msg, error) {
+			owner = true
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
+			trace.RecordCache(req, c.traceInfo(), false, false)
 			queryCtx, limiter, err := netapi.AcquireDNSQuery(ctx)
 			if err != nil {
+				trace.Fail(netapi.ClassifyDNSError(err), netapi.DNSStageAdmission, "upstream_permit_wait", err)
 				return nil, err
 			}
 			if limiter != nil {
@@ -490,6 +514,9 @@ func (c *client) rawWithCache(ctx context.Context, req netapi.DNSQuestion, cache
 			}
 			return msg, nil
 		})
+		if !owner && trace != nil {
+			trace.RecordShared(req, c.traceInfo())
+		}
 		if err != nil {
 			return nil, err
 		}

@@ -34,6 +34,8 @@ const (
 	ResolverWrite             = permission.ResolverWrite
 	ConnectionsRead           = permission.ConnectionsRead
 	ConnectionsWrite          = permission.ConnectionsWrite
+	DNSHistoryRead            = permission.DNSHistoryRead
+	DNSHistoryWrite           = permission.DNSHistoryWrite
 	GatewayRead               = permission.GatewayRead
 	CertificatesRead          = permission.CertificatesRead
 	CertificatesManage        = permission.CertificatesManage
@@ -78,7 +80,7 @@ func RolePermissions(role string) []Permission {
 	}
 	if role == ReadOnly {
 		return []Permission{NodesRead, InboundsRead, RoutesRead, ResolverRead,
-			ConnectionsRead, GatewayRead, CertificatesRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead, MCPConnect}
+			ConnectionsRead, DNSHistoryRead, GatewayRead, CertificatesRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead, MCPConnect}
 	}
 	return nil
 }

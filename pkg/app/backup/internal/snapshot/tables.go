@@ -19,4 +19,8 @@ var backupRuntimeTables = []string{
 	"telemetry_dimension_values",
 	"backup_recovery_history",
 	"backup_recovery_imports",
+	// DNS history reveals visited domains and is runtime data. Its settings
+	// row is runtime too: a restore must not silently re-enable recording.
+	"dns_query_history",
+	"dns_query_history_settings",
 }
