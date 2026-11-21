@@ -197,14 +197,14 @@ type Stats struct {
 // RecorderStatus separates lost history from lost DNS requests: a full
 // history queue drops the record, never the request.
 type RecorderStatus struct {
-	Enabled             bool   `json:"enabled"`
-	QueueLength         int    `json:"queueLength"`
-	QueueCapacity       int    `json:"queueCapacity"`
-	Persisted           uint64 `json:"persisted"`
-	RecordsDropped      uint64 `json:"recordsDropped"`
-	PersistenceErrors   uint64 `json:"persistenceErrors"`
+	Enabled              bool   `json:"enabled"`
+	QueueLength          int    `json:"queueLength"`
+	QueueCapacity        int    `json:"queueCapacity"`
+	Persisted            uint64 `json:"persisted"`
+	RecordsDropped       uint64 `json:"recordsDropped"`
+	PersistenceErrors    uint64 `json:"persistenceErrors"`
 	LastPersistenceError string `json:"lastPersistenceError,omitempty"`
-	StartedAt           string `json:"startedAt"`
+	StartedAt            string `json:"startedAt"`
 }
 
 // Settings controls recording. Values outside the documented bounds are

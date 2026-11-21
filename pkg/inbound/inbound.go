@@ -465,6 +465,9 @@ func (l *Inbound) handlePacket(packet *netapi.Packet) {
 		Question: packet,
 		WriteBack: func(b []byte) error {
 			if err := ctx.Err(); err != nil {
+				// ctx is the traffic authorization: it ends on revocation,
+				// identity expiry or shutdown, never on a resolver timeout.
+				trace.Fail(netapi.DNSOutcomeRejected, netapi.DNSStageAuthorization, "authorization_ended", err)
 				return err
 			}
 			if session := netapi.TrafficAccessSessionFromContext(ctx); session != nil {

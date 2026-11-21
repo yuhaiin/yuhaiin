@@ -3,9 +3,12 @@ package sqlite
 // dnsQueryHistoryMigration stores one row per client DNS request. Filter and
 // sort columns are plain columns; display-only details stay in JSON. The
 // reversed domain lets a domain filter match subdomains with an index range.
+// The JSON is produced only by the history writer, so the hot insert skips
+// per-row json_valid checks, and ids need no AUTOINCREMENT: pagination keys on
+// (created_at, id).
 var dnsQueryHistoryMigration = Migration{Version: 27, Name: "dns_query_history", Statements: []string{
 	`CREATE TABLE dns_query_history (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id INTEGER PRIMARY KEY,
 		created_at INTEGER NOT NULL,
 		duration_ns INTEGER NOT NULL DEFAULT 0,
 		transport TEXT NOT NULL DEFAULT '',
@@ -50,11 +53,11 @@ var dnsQueryHistoryMigration = Migration{Version: 27, Name: "dns_query_history",
 		authority_count INTEGER NOT NULL DEFAULT 0,
 		additional_count INTEGER NOT NULL DEFAULT 0,
 		answer_summary TEXT NOT NULL DEFAULT '',
-		answer_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(answer_json)),
-		authority_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(authority_json)),
-		additional_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(additional_json)),
-		response_flags_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(response_flags_json)),
-		details_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(details_json))
+		answer_json TEXT NOT NULL DEFAULT '[]',
+		authority_json TEXT NOT NULL DEFAULT '[]',
+		additional_json TEXT NOT NULL DEFAULT '[]',
+		response_flags_json TEXT NOT NULL DEFAULT '{}',
+		details_json TEXT NOT NULL DEFAULT '{}'
 	)`,
 	// Every list is ordered by (created_at DESC, id DESC); equality filters
 	// lead their index so a filtered page is still an index range.

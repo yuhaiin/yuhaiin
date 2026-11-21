@@ -223,7 +223,7 @@ func (d *dnsServer) handleTCP(ctx context.Context, c net.Conn, forceFakeIP bool,
 	}
 	var length uint16
 	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
-		trace.Fail(netapi.DNSOutcomeMalformed, netapi.DNSStageIngress, "read_failed", err)
+		traceFail(trace, failReadTCP, err)
 		return fmt.Errorf("read dns length failed: %w", err)
 	}
 
@@ -232,7 +232,7 @@ func (d *dnsServer) handleTCP(ctx context.Context, c net.Conn, forceFakeIP bool,
 
 	_, err = io.ReadFull(c, data)
 	if err != nil {
-		trace.Fail(netapi.DNSOutcomeMalformed, netapi.DNSStageIngress, "read_failed", err)
+		traceFail(trace, failReadTCP, err)
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
@@ -286,9 +286,8 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 }
 
 func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly bool) error {
-	trace := req.trace
 	if err := ctx.Err(); err != nil {
-		trace.Fail(netapi.ClassifyDNSError(err), netapi.DNSStageAdmission, "context_done", err)
+		traceFail(req.trace, failContextDone, err)
 		return err
 	}
 	var parsed dns.Msg
@@ -297,17 +296,17 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 		// A retained packet/stream buffer stays alive until do returns.
 		parsed.Data = req.Question
 		if err := parsed.Unpack(); err != nil {
-			trace.SetQuery(nil, len(req.Question))
-			trace.Fail(netapi.DNSOutcomeMalformed, netapi.DNSStageIngress, "parse_failed", err)
+			req.trace.SetQuery(nil, len(req.Question))
+			traceFail(req.trace, failParse, err)
 			return fmt.Errorf("dns server parse failed: %w", err)
 		}
 		qmsg = &parsed
-		trace.SetQuery(qmsg, len(req.Question))
+		req.trace.SetQuery(qmsg, len(req.Question))
 	}
 
 	if len(qmsg.Question) == 0 {
 		err := fmt.Errorf("question is empty")
-		trace.Fail(netapi.DNSOutcomeMalformed, netapi.DNSStageIngress, "empty_question", err)
+		traceFail(req.trace, failEmptyQuestion, err)
 		return err
 	}
 
@@ -320,12 +319,12 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 	}
 	if local {
 		metrics.Counter.AddDNSProcess(question.Name)
-		trace.SetSource(netapi.DNSResolutionCustom)
+		req.trace.SetSource(netapi.DNSResolutionCustom)
 	}
 	if !local {
 		ctx, store := netapi.GetOrNewContext(ctx)
 		store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
-		trace.BindContext(store)
+		req.trace.BindContext(store)
 		if !req.prepared {
 			ctx = netapi.WithDNSQueryLimiter(ctx, d.udpSemaphore)
 		}
@@ -353,24 +352,30 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 	}
 
 	if err := ctx.Err(); err != nil {
-		trace.Fail(netapi.ClassifyDNSError(err), netapi.DNSStageDelivery, "context_done_before_write", err)
+		traceFail(req.trace, failBeforeWrite, err)
 		return err
 	}
-	msg.ID = qmsg.ID
-	trace.SetResponse(msg)
+	return d.respond(req, qmsg.ID, qmsg.UDPSize, msg)
+}
+
+// respond packs and delivers msg. It is separate from doWithCache so the
+// packing state is not part of the frame below the (deep) resolver call.
+func (d *dnsServer) respond(req *doData, id, udpSize uint16, msg *dns.Msg) error {
+	msg.ID = id
+	req.trace.SetResponse(msg)
 	// Pack into a buffer owned by this request. Cached messages may share their
 	// previous wire bytes, and callback consumers finish before this returns.
 	wire := pool.GetBytes(msg.Len())
 	defer pool.PutBytes(wire)
 	msg.Data = wire
 	if err := msg.Pack(); err != nil {
-		trace.Fail(netapi.DNSOutcomeInternal, netapi.DNSStagePack, "pack_failed", err)
+		traceFail(req.trace, failPack, err)
 		return err
 	}
 	bytes := msg.Data
 
 	if req.Stream || msg.Truncated {
-		trace.SetDelivery(len(bytes), false)
+		req.trace.SetDelivery(len(bytes), false)
 		return d.writeBack(req, bytes)
 	}
 
@@ -382,8 +387,8 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 	// the header.
 	//
 	clientBufferSize := 512
-	if qmsg.UDPSize > uint16(clientBufferSize) {
-		clientBufferSize = int(qmsg.UDPSize)
+	if udpSize > uint16(clientBufferSize) {
+		clientBufferSize = int(udpSize)
 	}
 
 	if len(bytes) > clientBufferSize {
@@ -392,13 +397,13 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 		msg.Ns = nil
 		msg.Extra = nil
 		if err := msg.Pack(); err != nil {
-			trace.Fail(netapi.DNSOutcomeInternal, netapi.DNSStagePack, "pack_failed", err)
+			traceFail(req.trace, failPack, err)
 			return err
 		}
 		bytes = msg.Data
-		trace.SetDelivery(len(bytes), true)
+		req.trace.SetDelivery(len(bytes), true)
 	} else {
-		trace.SetDelivery(len(bytes), false)
+		req.trace.SetDelivery(len(bytes), false)
 	}
 
 	return d.writeBack(req, bytes)
@@ -466,21 +471,17 @@ func (d *dnsServer) handle() {
 		trace := req.request.Trace
 		trace.SetQueueWait(wait)
 		if err := req.ctx.Err(); err != nil {
-			outcome := netapi.ClassifyDNSError(err)
-			if outcome == netapi.DNSOutcomeTimeout {
-				outcome = netapi.DNSOutcomeDropped
-			}
-			trace.Fail(outcome, netapi.DNSStageAdmission, "canceled_in_queue", err)
+			traceFail(trace, failCanceledInQueue, err)
 			d.complete(req, err)
 			continue
 		}
 		if !time.Now().Before(req.deadline) {
-			trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "expired", context.DeadlineExceeded)
+			traceFail(trace, failExpired, context.DeadlineExceeded)
 			d.complete(req, context.DeadlineExceeded)
 			continue
 		}
 		if err := d.ctx.Err(); err != nil {
-			trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "shutdown", err)
+			traceFail(trace, failShutdown, err)
 			d.complete(req, err)
 			continue
 		}
@@ -503,12 +504,12 @@ func (d *dnsServer) handle() {
 func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) error {
 	trace := req.Trace
 	if err := ctx.Err(); err != nil {
-		trace.Fail(netapi.ClassifyDNSError(err), netapi.DNSStageAdmission, "context_done", err)
+		traceFail(trace, failContextDone, err)
 		trace.Finish(err)
 		return err
 	}
 	if err := d.ctx.Err(); err != nil {
-		trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "shutdown", err)
+		traceFail(trace, failShutdown, err)
 		trace.Finish(err)
 		return err
 	}
@@ -518,7 +519,7 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 	query := &dns.Msg{Data: req.Question.GetPayload()}
 	if err := query.Unpack(); err != nil {
 		trace.SetQuery(nil, len(req.Question.GetPayload()))
-		trace.Fail(netapi.DNSOutcomeMalformed, netapi.DNSStageIngress, "parse_failed", err)
+		traceFail(trace, failParse, err)
 		trace.Finish(err)
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
@@ -549,7 +550,7 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 		metrics.Counter.AddDNSAdmissionResult("budget_full")
 		err := errors.New("dns request budget is full")
 		trace.SetAdmission("budget_full")
-		trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "budget_full", err)
+		traceFail(trace, failBudgetFull, err)
 		trace.Finish(err)
 		return err
 	}
@@ -564,7 +565,7 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 		metrics.Counter.AddDNSAdmissionResult("queue_full")
 		err := errors.New("dns request buffer is full")
 		trace.SetAdmission("queue_full")
-		trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "queue_full", err)
+		traceFail(trace, failQueueFull, err)
 		trace.Finish(err)
 		return err
 	}

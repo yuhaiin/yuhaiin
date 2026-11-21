@@ -180,7 +180,12 @@ type DNSTrace struct {
 	sink     func(*DNSTraceData)
 }
 
+// activeDNSTraces lets every resolver layer skip the context lookup while no
+// trace exists (history disabled), so the disabled path does no extra work.
+var activeDNSTraces atomic.Int64
+
 func NewDNSTrace(transport, sourceType string, sink func(*DNSTraceData)) *DNSTrace {
+	activeDNSTraces.Add(1)
 	now := time.Now()
 	return &DNSTrace{started: now, sink: sink, data: DNSTraceData{CreatedAt: now, Transport: transport, SourceType: sourceType}}
 }
@@ -190,7 +195,7 @@ type dnsTraceKey struct{}
 // WithDNSTrace attaches t; a nil t detaches any trace inherited from ctx.
 func WithDNSTrace(ctx context.Context, t *DNSTrace) context.Context {
 	if t == nil && DNSTraceFromContext(ctx) == nil {
-		return ctx
+		return ctx // nothing to detach
 	}
 	return context.WithValue(ctx, dnsTraceKey{}, t)
 }
@@ -200,26 +205,36 @@ func WithDNSTrace(ctx context.Context, t *DNSTrace) context.Context {
 func WithoutDNSTrace(ctx context.Context) context.Context { return WithDNSTrace(ctx, nil) }
 
 func DNSTraceFromContext(ctx context.Context) *DNSTrace {
-	if ctx == nil {
+	if ctx == nil || activeDNSTraces.Load() == 0 {
 		return nil
 	}
 	t, _ := ctx.Value(dnsTraceKey{}).(*DNSTrace)
 	return t
 }
 
-func (t *DNSTrace) update(f func(*DNSTraceData)) {
+// Recording methods are not inlined: callers on the DNS path run on fresh
+// goroutines, and inlined bodies would enlarge their frames (and cause stack
+// growth) even when history is disabled.
+//
+// lock returns the data to update with t.mu held, or false when the update
+// must be ignored (nil, finished or nested trace). Setters avoid closures so
+// recording allocates nothing beyond the values it stores.
+func (t *DNSTrace) lock() (*DNSTraceData, bool) {
 	if t == nil || t.finished.Load() {
-		return
+		return nil, false
 	}
 	t.mu.Lock()
-	if !t.finished.Load() && t.nested == 0 {
-		f(&t.data)
+	if t.finished.Load() || t.nested > 0 {
+		t.mu.Unlock()
+		return nil, false
 	}
-	t.mu.Unlock()
+	return &t.data, true
 }
 
 // Nest suspends recording while a route decision performs ancillary lookups
 // (GeoIP, IP-CIDR rules) with the same context. The returned func resumes it.
+//
+//go:noinline
 func (t *DNSTrace) Nest() func() {
 	if t == nil {
 		return func() {}
@@ -236,22 +251,33 @@ func (t *DNSTrace) Nest() func() {
 
 // BindContext lets Finish read process details already discovered for this
 // request (for example by process route rules). DNS never forces a lookup.
+//
+//go:noinline
 func (t *DNSTrace) BindContext(store *Context) {
-	t.update(func(*DNSTraceData) { t.store = store })
+	_, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	t.store = store
 }
 
+//go:noinline
 func (t *DNSTrace) SetClient(addr net.Addr) {
 	if t == nil || addr == nil {
 		return
 	}
 	ap := addrPortOf(addr)
-	t.update(func(d *DNSTraceData) {
-		if ap.IsValid() {
-			d.ClientIP, d.ClientPort = ap.Addr().Unmap().String(), ap.Port()
-		} else {
-			d.ClientIP = addr.String()
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	if ap.IsValid() {
+		d.ClientIP, d.ClientPort = ap.Addr().Unmap().String(), ap.Port()
+	} else {
+		d.ClientIP = addr.String()
+	}
 }
 
 func addrPortOf(addr net.Addr) netip.AddrPort {
@@ -267,74 +293,137 @@ func addrPortOf(addr net.Addr) netip.AddrPort {
 	return ap
 }
 
+//go:noinline
 func (t *DNSTrace) SetInbound(id, name string) {
-	t.update(func(d *DNSTraceData) { d.InboundID, d.InboundName = id, name })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.InboundID, d.InboundName = id, name
 }
 
+//go:noinline
 func (t *DNSTrace) SetIdentity(userID, credentialID string, groups []string) {
-	t.update(func(d *DNSTraceData) {
-		d.UserID, d.CredentialID = userID, credentialID
-		d.GroupIDs = append([]string(nil), groups...)
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.UserID, d.CredentialID = userID, credentialID
+	d.GroupIDs = append([]string(nil), groups...)
 }
 
+//go:noinline
 func (t *DNSTrace) SetForceFakeIP(force bool) {
-	t.update(func(d *DNSTraceData) { d.ForceFakeIP = force })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.ForceFakeIP = force
 }
 
 // SetQuery records the client's request header and question.
+// A nil msg (unparsable request) records only the size.
+//
+//go:noinline
 func (t *DNSTrace) SetQuery(msg *dns.Msg, size int) {
-	if t == nil || msg == nil {
+	if t == nil {
 		return
 	}
-	t.update(func(d *DNSTraceData) {
-		d.TransactionID, d.RequestSize = msg.ID, size
-		d.RequestRD, d.RequestCD, d.RequestAD = msg.RecursionDesired, msg.CheckingDisabled, msg.AuthenticatedData
-		d.RequestDO, d.RequestUDPSize = msg.Security, msg.UDPSize
-		if len(msg.Question) > 0 {
-			q := DNSQuestionFromRR(msg.Question[0])
-			d.Domain, d.QType, d.QClass = q.Name, q.Qtype, q.Qclass
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.RequestSize = size
+	if msg == nil {
+		return
+	}
+	d.TransactionID = msg.ID
+	d.RequestRD, d.RequestCD, d.RequestAD = msg.RecursionDesired, msg.CheckingDisabled, msg.AuthenticatedData
+	d.RequestDO, d.RequestUDPSize = msg.Security, msg.UDPSize
+	if len(msg.Question) > 0 {
+		q := DNSQuestionFromRR(msg.Question[0])
+		d.Domain, d.QType, d.QClass = q.Name, q.Qtype, q.Qclass
+	}
 }
 
 // SetRequestWire parses the request only for a request rejected before the
 // DNS server parsed it. A malformed packet keeps its size and no question.
+//
+//go:noinline
 func (t *DNSTrace) SetRequestWire(b []byte) {
 	if t == nil {
 		return
 	}
 	msg := &dns.Msg{Data: b}
 	if err := msg.Unpack(); err != nil {
-		t.update(func(d *DNSTraceData) { d.RequestSize = len(b) })
+		d, ok := t.lock()
+		if !ok {
+			return
+		}
+		defer t.mu.Unlock()
+		d.RequestSize = len(b)
 		return
 	}
 	t.SetQuery(msg, len(b))
 }
 
+//go:noinline
 func (t *DNSTrace) SetAdmission(result string) {
-	t.update(func(d *DNSTraceData) { d.Admission = result })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.Admission = result
 }
 
+//go:noinline
 func (t *DNSTrace) SetQueueWait(wait time.Duration) {
-	t.update(func(d *DNSTraceData) { d.QueueWait = wait })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.QueueWait = wait
 }
 
 // SetSource records which layer produced the answer. Later layers override
 // earlier ones: FakeIP rewrites an upstream answer after querying it.
+//
+//go:noinline
 func (t *DNSTrace) SetSource(source string) {
-	t.update(func(d *DNSTraceData) { d.Source = source })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.Source = source
 }
 
+//go:noinline
 func (t *DNSTrace) SetHostsRewrite(name string) {
-	t.update(func(d *DNSTraceData) { d.HostsRewrite = name })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.HostsRewrite = name
 }
 
 // SetRoute records the route decision that selected the resolver.
+//
+//go:noinline
 func (t *DNSTrace) SetRoute(mode, resolver, ruleID, ruleName, reason string) {
-	t.update(func(d *DNSTraceData) {
-		d.RouteMode, d.Resolver, d.RouteRuleID, d.RouteRuleName, d.SelectionReason = mode, resolver, ruleID, ruleName, reason
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.RouteMode, d.Resolver, d.RouteRuleID, d.RouteRuleName, d.SelectionReason = mode, resolver, ruleID, ruleName, reason
 }
 
 // DNSServerInfo describes the upstream resolver that served the question.
@@ -358,91 +447,117 @@ func (d *DNSTraceData) setServer(info DNSServerInfo) {
 }
 
 // RecordCache records a resolver cache lookup for the request's question.
+//
+//go:noinline
 func (t *DNSTrace) RecordCache(q DNSQuestion, info DNSServerInfo, hit, stale bool) {
-	t.update(func(d *DNSTraceData) {
-		if !t.matches(d, q) {
-			return
-		}
-		d.setServer(info)
-		if hit {
-			d.CacheStatus, d.CacheStale, d.Source = DNSCacheHit, stale, DNSResolutionCache
-		} else {
-			d.CacheStatus = DNSCacheMiss
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	if !t.matches(d, q) {
+		return
+	}
+	d.setServer(info)
+	if hit {
+		d.CacheStatus, d.CacheStale, d.Source = DNSCacheHit, stale, DNSResolutionCache
+	} else {
+		d.CacheStatus = DNSCacheMiss
+	}
 }
 
 // RecordShared marks that the answer came from an upstream exchange that
 // another request started (singleflight); its attempts belong to that request.
+//
+//go:noinline
 func (t *DNSTrace) RecordShared(q DNSQuestion, info DNSServerInfo) {
-	t.update(func(d *DNSTraceData) {
-		if t.matches(d, q) {
-			d.setServer(info)
-			d.SharedQuery, d.CacheStatus, d.Source = true, DNSCacheMiss, DNSResolutionUpstream
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	// The exchange owner also sees shared=true; its own attempts stand.
+	if t.matches(d, q) && len(d.Attempts) == 0 {
+		d.setServer(info)
+		d.SharedQuery, d.CacheStatus, d.Source = true, DNSCacheMiss, DNSResolutionUpstream
+	}
 }
 
 // RecordAttempt appends an upstream exchange performed by this request.
+//
+//go:noinline
 func (t *DNSTrace) RecordAttempt(q DNSQuestion, info DNSServerInfo, transport string, started time.Time, err error, msg *dns.Msg) {
 	if t == nil {
 		return
 	}
 	elapsed := time.Since(started)
-	t.update(func(d *DNSTraceData) {
-		if !t.matches(d, q) {
-			return
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	if !t.matches(d, q) {
+		return
+	}
+	d.setServer(info)
+	d.ServerTransport, d.CacheStatus, d.Source = transport, DNSCacheMiss, DNSResolutionUpstream
+	if len(d.Attempts) >= maxDNSAttempts {
+		return
+	}
+	a := DNSAttempt{Resolver: info.Label, Server: info.Server, Transport: transport, Offset: started.Sub(t.started), Duration: elapsed, Result: "success"}
+	if a.Resolver == "" {
+		a.Resolver = info.Resolver
+	}
+	switch {
+	case err != nil:
+		a.Result, a.Error = ClassifyDNSError(err), truncateString(err.Error(), 256)
+	case msg != nil:
+		a.Rcode, a.Truncated = dns.RcodeToString[msg.Rcode], msg.Truncated
+		if msg.Truncated {
+			a.Result = "truncated"
 		}
-		d.setServer(info)
-		d.ServerTransport, d.CacheStatus, d.Source = transport, DNSCacheMiss, DNSResolutionUpstream
-		if len(d.Attempts) >= maxDNSAttempts {
-			return
-		}
-		a := DNSAttempt{Resolver: info.Label, Server: info.Server, Transport: transport, Offset: started.Sub(t.started), Duration: elapsed, Result: "success"}
-		if a.Resolver == "" {
-			a.Resolver = info.Resolver
-		}
-		switch {
-		case err != nil:
-			a.Result, a.Error = ClassifyDNSError(err), truncateString(err.Error(), 256)
-		case msg != nil:
-			a.Rcode, a.Truncated = dns.RcodeToString[msg.Rcode], msg.Truncated
-			if msg.Truncated {
-				a.Result = "truncated"
-			}
-		}
-		d.Attempts = append(d.Attempts, a)
-	})
+	}
+	d.Attempts = append(d.Attempts, a)
 }
 
 // FakeIPDecision records why the FakeIP layer did or did not try to answer.
+//
+//go:noinline
 func (t *DNSTrace) FakeIPDecision(requested, global, force, skipCheck bool, reason string) {
-	t.update(func(d *DNSTraceData) {
-		d.FakeIPRequested, d.FakeIPGlobal, d.FakeIPSkipCheck, d.FakeIPReason = requested, global, skipCheck, reason
-		d.ForceFakeIP = d.ForceFakeIP || force
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.FakeIPRequested, d.FakeIPGlobal, d.FakeIPSkipCheck, d.FakeIPReason = requested, global, skipCheck, reason
+	d.ForceFakeIP = d.ForceFakeIP || force
 }
 
 // FakeIPResult records the FakeIP pool's actual result. ip is invalid when no
 // synthetic address was returned.
+//
+//go:noinline
 func (t *DNSTrace) FakeIPResult(status string, ipv4, ipv6 netip.Addr, pool4, pool6 netip.Prefix, err error) {
-	t.update(func(d *DNSTraceData) {
-		d.FakeIPAllocation = status
-		d.FakeIPPoolIPv4, d.FakeIPPoolIPv6 = prefixString(pool4), prefixString(pool6)
-		if ipv4.IsValid() {
-			d.FakeIPv4 = ipv4.String()
-		}
-		if ipv6.IsValid() {
-			d.FakeIPv6 = ipv6.String()
-		}
-		d.FakeIPReturned = ipv4.IsValid() || ipv6.IsValid()
-		if d.FakeIPReturned {
-			d.Source = DNSResolutionFakeIP
-		}
-		if err != nil {
-			d.FakeIPError = truncateString(err.Error(), 256)
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.FakeIPAllocation = status
+	d.FakeIPPoolIPv4, d.FakeIPPoolIPv6 = prefixString(pool4), prefixString(pool6)
+	if ipv4.IsValid() {
+		d.FakeIPv4 = ipv4.String()
+	}
+	if ipv6.IsValid() {
+		d.FakeIPv6 = ipv6.String()
+	}
+	d.FakeIPReturned = ipv4.IsValid() || ipv6.IsValid()
+	if d.FakeIPReturned {
+		d.Source = DNSResolutionFakeIP
+	}
+	if err != nil {
+		d.FakeIPError = truncateString(err.Error(), 256)
+	}
 }
 
 func prefixString(p netip.Prefix) string {
@@ -454,19 +569,26 @@ func prefixString(p netip.Prefix) string {
 
 // Fail classifies a failure at the stage where it happened. The first
 // classification wins: a later generic error cannot hide the real cause.
+//
+//go:noinline
 func (t *DNSTrace) Fail(outcome, stage, reason string, err error) {
-	t.update(func(d *DNSTraceData) {
-		if d.Outcome != "" {
-			return
-		}
-		d.Outcome, d.FailureStage, d.FailureReason = outcome, stage, reason
-		if err != nil {
-			d.Error = truncateString(err.Error(), 512)
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	if d.Outcome != "" {
+		return
+	}
+	d.Outcome, d.FailureStage, d.FailureReason = outcome, stage, reason
+	if err != nil {
+		d.Error = truncateString(err.Error(), 512)
+	}
 }
 
 // SetResponse records the response produced for the client before delivery.
+//
+//go:noinline
 func (t *DNSTrace) SetResponse(msg *dns.Msg) {
 	if t == nil || msg == nil {
 		return
@@ -476,33 +598,52 @@ func (t *DNSTrace) SetResponse(msg *dns.Msg) {
 		Authoritative: msg.Authoritative, Truncated: msg.Truncated, RecursionDesired: msg.RecursionDesired,
 		RecursionAvailable: msg.RecursionAvailable, AuthenticatedData: msg.AuthenticatedData, CheckingDisabled: msg.CheckingDisabled,
 	}
-	t.update(func(d *DNSTraceData) { d.Response = snapshot })
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.Response = snapshot
 }
 
 // SetDelivery records the packed response size, whether the server truncated
 // it to the client's UDP limit, and the bytes the transport reported sent.
+//
+//go:noinline
 func (t *DNSTrace) SetDelivery(size int, serverTruncated bool) {
-	t.update(func(d *DNSTraceData) {
-		d.ResponseSize, d.ServerTruncate = size, serverTruncated
-		if d.Response != nil && serverTruncated {
-			d.Response.Truncated = true
-		}
-	})
+	d, ok := t.lock()
+	if !ok {
+		return
+	}
+	defer t.mu.Unlock()
+	d.ResponseSize, d.ServerTruncate = size, serverTruncated
+	if d.Response != nil && serverTruncated {
+		d.Response.Truncated = true
+	}
 }
 
+//go:noinline
 func (t *DNSTrace) AddSent(n int) {
 	if n > 0 {
-		t.update(func(d *DNSTraceData) { d.SentBytes += n })
+		d, ok := t.lock()
+		if !ok {
+			return
+		}
+		defer t.mu.Unlock()
+		d.SentBytes += n
 	}
 }
 
 // Finish completes the request exactly once. err is the request's final
 // error, nil when a response was delivered. The trace must not be used
 // afterwards; the sink owns the data.
+//
+//go:noinline
 func (t *DNSTrace) Finish(err error) {
 	if t == nil || !t.finished.CompareAndSwap(false, true) {
 		return
 	}
+	activeDNSTraces.Add(-1)
 	t.mu.Lock()
 	d := t.data
 	store := t.store

@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -47,6 +48,8 @@ type DNSHistoryOptions struct {
 	BatchSize     int
 	FlushInterval time.Duration
 	PruneInterval time.Duration
+	// writeGate, when set by tests, blocks each batch write until it yields.
+	writeGate <-chan struct{}
 }
 
 func DefaultDNSHistoryOptions() DNSHistoryOptions {
@@ -246,6 +249,9 @@ func (h *DNSHistory) flush(batch []*netapi.DNSTraceData) {
 }
 
 func (h *DNSHistory) write(batch []*netapi.DNSTraceData) error {
+	if h.options.writeGate != nil {
+		<-h.options.writeGate
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	tx, err := h.db.BeginTx(ctx, nil)
@@ -396,8 +402,8 @@ func reverseDomain(domain string) string {
 	labels := strings.Split(domain, ".")
 	var b strings.Builder
 	b.Grow(len(domain) + 1)
-	for i := len(labels) - 1; i >= 0; i-- {
-		b.WriteString(labels[i])
+	for _, label := range slices.Backward(labels) {
+		b.WriteString(label)
 		b.WriteByte('.')
 	}
 	return b.String()
