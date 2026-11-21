@@ -88,9 +88,13 @@ type Transport interface {
 }
 
 type Config struct {
-	Dialer     netapi.Proxy
-	Subnet     netip.Prefix
-	Name       string
+	Dialer netapi.Proxy
+	Subnet netip.Prefix
+	Name   string
+	// Label and PublicHost identify the resolver in DNS history. PublicHost
+	// must not carry credentials; callers pass a redacted form.
+	Label      string
+	PublicHost string
 	Host       string
 	Servername string
 	Type       string
@@ -251,6 +255,47 @@ func mergerError(i4err, i6err error) error {
 	return fmt.Errorf("ipv6: %w, ipv4: %w", i6err, i4err)
 }
 
+func (c *client) traceInfo() netapi.DNSServerInfo {
+	return netapi.DNSServerInfo{Resolver: c.config.Name, Label: c.config.Label, Server: c.config.PublicHost, Type: c.config.Type}
+}
+
+// The trace helpers stay out of line: the query path runs on fresh
+// goroutines, and keeping their temporaries out of its frames avoids stack
+// growth when history is disabled.
+//
+//go:noinline
+func (c *client) traceCache(ctx context.Context, req netapi.DNSQuestion, hit, stale bool) {
+	if trace := netapi.DNSTraceFromContext(ctx); trace != nil {
+		trace.RecordCache(req, c.traceInfo(), hit, stale)
+	}
+}
+
+// traceShared marks a waiter that received another request's upstream answer.
+// The owner of a shared exchange recorded its own attempts, which win.
+//
+//go:noinline
+func (c *client) traceShared(ctx context.Context, req netapi.DNSQuestion) {
+	if trace := netapi.DNSTraceFromContext(ctx); trace != nil {
+		trace.RecordShared(req, c.traceInfo())
+	}
+}
+
+//go:noinline
+func (c *client) traceAttempt(ctx context.Context, request *Request, startedNano int64, err error, msg *dns.Msg) {
+	if trace := netapi.DNSTraceFromContext(ctx); trace != nil {
+		transport := c.config.Type
+		if request.Truncated {
+			transport += "+tc-retry"
+		}
+		trace.RecordAttempt(request.Question, c.traceInfo(), transport, time.Unix(0, startedNano), err, msg)
+	}
+}
+
+//go:noinline
+func traceFailure(ctx context.Context, stage, reason string, err error) {
+	netapi.DNSTraceFromContext(ctx).Fail(netapi.ClassifyDNSError(err), stage, reason, err)
+}
+
 func (c *client) queryWithMetrics(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
 	metrics.Counter.AddDnsQuery(c.config.Name)
 	now := system.CheapNowNano()
@@ -300,10 +345,17 @@ func (c *client) query(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, e
 		err error
 	)
 
+	var started int64 // zero while untraced: no clock read
 	for _, v := range []bool{false, true} {
 		request.Truncated = v
 
+		if netapi.DNSTraceFromContext(ctx) != nil {
+			started = time.Now().UnixNano()
+		}
 		msg, err = dialer.Do(ctx, request)
+		if started != 0 {
+			c.traceAttempt(ctx, request, started, err, msg)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("dns client do failed: %w", err)
 		}
@@ -468,17 +520,22 @@ func (c *client) rawWithCache(ctx context.Context, req netapi.DNSQuestion, cache
 	cacheKey := CacheKeyFromQuestion(req)
 
 	rawmsg, expired, ok := c.rawStore.LoadOptimistically(cacheKey)
-	if !ok {
+	if ok {
+		c.traceCache(ctx, req, true, expired)
+	} else {
 		if cachedOnly {
 			return nil, netapi.ErrDNSCacheMiss
 		}
 		var err error
-		rawmsg, err, _ = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (*dns.Msg, error) {
+		var shared bool
+		rawmsg, err, shared = c.rawSingleflight.Do(ctx, cacheKey, func(ctx context.Context) (*dns.Msg, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
+			c.traceCache(ctx, req, false, false)
 			queryCtx, limiter, err := netapi.AcquireDNSQuery(ctx)
 			if err != nil {
+				traceFailure(ctx, netapi.DNSStageAdmission, "upstream_permit_wait", err)
 				return nil, err
 			}
 			if limiter != nil {
@@ -490,6 +547,9 @@ func (c *client) rawWithCache(ctx context.Context, req netapi.DNSQuestion, cache
 			}
 			return msg, nil
 		})
+		if shared {
+			c.traceShared(ctx, req)
+		}
 		if err != nil {
 			return nil, err
 		}

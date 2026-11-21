@@ -411,7 +411,11 @@ func (s *Route) matchResolver(ctx context.Context, domain string) (ModeEnum, net
 	if s.ms.hasGateway.Load() {
 		ctx = WithoutGateway(ctx)
 	}
+	// GeoIP and IP rules may resolve the name with this context; those lookups
+	// are not the client's DNS answer.
+	resume := netapi.DNSTraceFromContext(ctx).Nest()
 	mode := s.ms.Match(ctx, host)
+	resume()
 
 	if mode.Mode() == ModeBlock {
 		s.dumpProcess(ctx, "udp", "tcp")
@@ -438,11 +442,47 @@ func (f *Route) Raw(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, erro
 	if store := netapi.GetContextOrNil(ctx); store != nil {
 		if decision, ok := store.ConnOptions().TakeDNSRouteDecision(domain); ok {
 			if mode, ok := decision.(ModeEnum); ok {
+				f.traceRoute(ctx, mode, "cached_decision")
 				return netapi.RawDNS(ctx, f.resolverFor(mode), req)
 			}
 		}
 	}
-	return netapi.RawDNS(ctx, f.Resolver(ctx, domain), req)
+	mode, failed := f.matchResolver(ctx, domain)
+	if failed != nil {
+		return netapi.RawDNS(ctx, failed, req)
+	}
+	f.traceRoute(ctx, mode, "")
+	return netapi.RawDNS(ctx, f.resolverFor(mode), req)
+}
+
+// traceRoute records the route decision behind the resolver choice. The
+// resolver actually queried is recorded later by that resolver itself.
+func (f *Route) traceRoute(ctx context.Context, mode ModeEnum, reason string) {
+	trace := netapi.DNSTraceFromContext(ctx)
+	if trace == nil {
+		return
+	}
+	resolver := mode.Resolver()
+	if reason == "" {
+		reason = "route_rule"
+		if resolver == "" {
+			reason = "mode_default_resolver"
+		}
+	}
+	if resolver == "" {
+		resolver = f.getResolverFallback(mode)
+	}
+	var ruleID, ruleName string
+	if store := netapi.GetContextOrNil(ctx); store != nil {
+		ruleID, ruleName = store.MatchedRule()
+	}
+	if ruleID == "" && ruleName == "" && reason == "mode_default_resolver" {
+		reason = "default_route"
+	}
+	trace.SetRoute(mode.Mode().String(), resolver, ruleID, ruleName, reason)
+	if mode.Mode() == ModeBlock {
+		trace.SetSource(netapi.DNSResolutionBlocked)
+	}
 }
 
 func (f *Route) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg, error) {
@@ -458,6 +498,7 @@ func (f *Route) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.Msg
 	if errors.Is(store.ConnOptions().RouteIPError(), netapi.ErrDNSCacheMiss) {
 		return nil, netapi.ErrDNSCacheMiss
 	}
+	f.traceRoute(ctx, mode, "")
 	msg, err := netapi.CachedDNS(ctx, f.resolverFor(mode), req)
 	if errors.Is(err, netapi.ErrDNSCacheMiss) {
 		store.ConnOptions().SetDNSRouteDecision(domain, mode)

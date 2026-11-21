@@ -173,6 +173,7 @@ type V2Services struct {
 	Resolvers        *plainstore.ResolverStore
 	Resolver         ResolverController
 	FakeIP           contractresolver.FakeIPEntries
+	DNSHistory       DNSHistoryController
 	ResolverCache    ResolverCacheController
 	ResolverConfig   ResolverConfigController
 	Connections      ConnectionMonitor

@@ -26,6 +26,7 @@ import (
 type dnsServer struct {
 	resolver netapi.Resolver
 	local    netapi.LocalDNSResponder
+	observer netapi.DNSObserver
 	udp      net.PacketConn
 	tcp      net.Listener
 
@@ -48,7 +49,10 @@ func (s *querySemaphore) Acquire(ctx context.Context, n int64) error {
 	return err
 }
 
-func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
+// NewServer starts the DNS agent. An optional observer records the history of
+// requests the agent receives on its own listeners; intercepted requests carry
+// the trace their inbound started.
+func NewServer(server string, process netapi.Resolver, observer ...netapi.DNSObserver) netapi.DNSAgent {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &dnsServer{
 		ctx:          ctx,
@@ -59,6 +63,9 @@ func NewServer(server string, process netapi.Resolver) netapi.DNSAgent {
 		reqBuffer:    ringbuffer.NewRingBuffer[*queuedRequest](8, configuration.MaxUDPUnprocessedPackets.Load),
 	}
 	d.local, _ = process.(netapi.LocalDNSResponder)
+	if len(observer) > 0 {
+		d.observer = observer[0]
+	}
 
 	for range min(4, system.Procs) {
 		go d.startHandleReqData()
@@ -115,8 +122,16 @@ func (d *dnsServer) cancelQueued() {
 		if !ok {
 			return
 		}
+		req.request.Trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "shutdown", d.ctx.Err())
 		d.complete(req, d.ctx.Err())
 	}
+}
+
+func (d *dnsServer) begin(transport string) *netapi.DNSTrace {
+	if d.observer == nil {
+		return nil
+	}
+	return d.observer.BeginDNS(transport, netapi.DNSSourceLocal)
 }
 
 func (d *dnsServer) startUDP(listener net.PacketConn) {
@@ -145,9 +160,16 @@ func (d *dnsServer) startUDP(listener net.PacketConn) {
 				}
 
 				packet := netapi.NewPacket(addr, netapi.EmptyAddr, pool.Clone(buf[:n]), nil)
+				trace := d.begin("udp")
+				trace.SetClient(addr)
 				err = d.DoDatagram(d.ctx, &netapi.DNSRawRequest{
-					Question:  packet,
-					WriteBack: func(b []byte) error { _, err := listener.WriteTo(b, addr); return err },
+					Question: packet,
+					Trace:    trace,
+					WriteBack: func(b []byte) error {
+						n, err := listener.WriteTo(b, addr)
+						trace.AddSent(n)
+						return err
+					},
 				})
 				packet.DecRef()
 				if err != nil {
@@ -177,7 +199,9 @@ func (d *dnsServer) startTCP(listener net.Listener) {
 			go func() {
 				defer conn.Close()
 
-				if err := d.handleTCP(context.TODO(), conn, false); err != nil {
+				trace := d.begin("tcp")
+				trace.SetClient(conn.RemoteAddr())
+				if err := d.handleTCP(context.TODO(), conn, false, trace); err != nil {
 					log.Error("handle dns tcp failed", "err", err)
 				}
 			}()
@@ -187,34 +211,44 @@ func (d *dnsServer) startTCP(listener net.Listener) {
 
 func (d *dnsServer) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) error {
 	defer req.Conn.Close()
-	return d.handleTCP(ctx, req.Conn, req.ForceFakeIP)
+	return d.handleTCP(ctx, req.Conn, req.ForceFakeIP, req.Trace)
 }
 
-func (d *dnsServer) handleTCP(ctx context.Context, c net.Conn, forceFakeIP bool) error {
+// handleTCP serves one length-prefixed query and finishes its trace.
+func (d *dnsServer) handleTCP(ctx context.Context, c net.Conn, forceFakeIP bool, trace *netapi.DNSTrace) (err error) {
+	defer func() { trace.Finish(err) }()
+	if trace != nil {
+		trace.SetForceFakeIP(forceFakeIP)
+		ctx = netapi.WithDNSTrace(ctx, trace)
+	}
 	var length uint16
 	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
+		traceFail(trace, failReadTCP, err)
 		return fmt.Errorf("read dns length failed: %w", err)
 	}
 
 	data := pool.GetBytes(int(length))
 	defer pool.PutBytes(data)
 
-	_, err := io.ReadFull(c, data)
+	_, err = io.ReadFull(c, data)
 	if err != nil {
+		traceFail(trace, failReadTCP, err)
 		return fmt.Errorf("dns server read data failed: %w", err)
 	}
 
 	return d.do(ctx, &doData{
 		Question: data,
 		WriteBack: func(b []byte) error {
-			if err = pool.BinaryWriteUint16(c, binary.BigEndian, uint16(len(b))); err != nil {
+			if err := pool.BinaryWriteUint16(c, binary.BigEndian, uint16(len(b))); err != nil {
 				return fmt.Errorf("dns server write length failed: %w", err)
 			}
-			_, err = c.Write(b)
+			n, err := c.Write(b)
+			trace.AddSent(n)
 			return err
 		},
 		Stream:      true,
 		ForceFakeIP: forceFakeIP,
+		trace:       trace,
 	})
 }
 
@@ -244,6 +278,7 @@ type doData struct {
 	Question    []byte
 	Stream      bool
 	ForceFakeIP bool
+	trace       *netapi.DNSTrace
 }
 
 func (d *dnsServer) do(ctx context.Context, req *doData) error {
@@ -252,6 +287,7 @@ func (d *dnsServer) do(ctx context.Context, req *doData) error {
 
 func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly bool) error {
 	if err := ctx.Err(); err != nil {
+		traceFail(req.trace, failContextDone, err)
 		return err
 	}
 	var parsed dns.Msg
@@ -260,13 +296,18 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 		// A retained packet/stream buffer stays alive until do returns.
 		parsed.Data = req.Question
 		if err := parsed.Unpack(); err != nil {
+			req.trace.SetQuery(nil, len(req.Question))
+			traceFail(req.trace, failParse, err)
 			return fmt.Errorf("dns server parse failed: %w", err)
 		}
 		qmsg = &parsed
+		req.trace.SetQuery(qmsg, len(req.Question))
 	}
 
 	if len(qmsg.Question) == 0 {
-		return fmt.Errorf("question is empty")
+		err := fmt.Errorf("question is empty")
+		traceFail(req.trace, failEmptyQuestion, err)
+		return err
 	}
 
 	question := netapi.DNSQuestionFromRR(qmsg.Question[0])
@@ -278,10 +319,12 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 	}
 	if local {
 		metrics.Counter.AddDNSProcess(question.Name)
+		req.trace.SetSource(netapi.DNSResolutionCustom)
 	}
 	if !local {
 		ctx, store := netapi.GetOrNewContext(ctx)
 		store.ConnOptions().Resolver().SetUseFakeIP(req.ForceFakeIP)
+		req.trace.BindContext(store)
 		if !req.prepared {
 			ctx = netapi.WithDNSQueryLimiter(ctx, d.udpSemaphore)
 		}
@@ -309,21 +352,31 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 	}
 
 	if err := ctx.Err(); err != nil {
+		traceFail(req.trace, failBeforeWrite, err)
 		return err
 	}
-	msg.ID = qmsg.ID
+	return d.respond(req, qmsg.ID, qmsg.UDPSize, msg)
+}
+
+// respond packs and delivers msg. It is separate from doWithCache so the
+// packing state is not part of the frame below the (deep) resolver call.
+func (d *dnsServer) respond(req *doData, id, udpSize uint16, msg *dns.Msg) error {
+	msg.ID = id
+	req.trace.SetResponse(msg)
 	// Pack into a buffer owned by this request. Cached messages may share their
 	// previous wire bytes, and callback consumers finish before this returns.
 	wire := pool.GetBytes(msg.Len())
 	defer pool.PutBytes(wire)
 	msg.Data = wire
 	if err := msg.Pack(); err != nil {
+		traceFail(req.trace, failPack, err)
 		return err
 	}
 	bytes := msg.Data
 
 	if req.Stream || msg.Truncated {
-		return req.WriteBack(bytes)
+		req.trace.SetDelivery(len(bytes), false)
+		return d.writeBack(req, bytes)
 	}
 
 	// https://www.rfc-editor.org/rfc/rfc1035
@@ -334,8 +387,8 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 	// the header.
 	//
 	clientBufferSize := 512
-	if qmsg.UDPSize > uint16(clientBufferSize) {
-		clientBufferSize = int(qmsg.UDPSize)
+	if udpSize > uint16(clientBufferSize) {
+		clientBufferSize = int(udpSize)
 	}
 
 	if len(bytes) > clientBufferSize {
@@ -344,12 +397,32 @@ func (d *dnsServer) doWithCache(ctx context.Context, req *doData, cachedOnly boo
 		msg.Ns = nil
 		msg.Extra = nil
 		if err := msg.Pack(); err != nil {
+			traceFail(req.trace, failPack, err)
 			return err
 		}
 		bytes = msg.Data
+		req.trace.SetDelivery(len(bytes), true)
+	} else {
+		req.trace.SetDelivery(len(bytes), false)
 	}
 
-	return req.WriteBack(bytes)
+	return d.writeBack(req, bytes)
+}
+
+// writeBack separates producing a response from delivering it: a resolved
+// answer that never reaches the client is a delivery failure.
+func (d *dnsServer) writeBack(req *doData, b []byte) error {
+	err := req.WriteBack(b)
+	if err != nil {
+		metrics.Counter.AddDNSResponseWriteError()
+		reason := "write_failed"
+		outcome := netapi.DNSOutcomeWriteError
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			reason, outcome = "context_done_before_write", netapi.ClassifyDNSError(err)
+		}
+		req.trace.Fail(outcome, netapi.DNSStageDelivery, reason, err)
+	}
+	return err
 }
 
 func (d *dnsServer) startHandleReqData() {
@@ -378,11 +451,13 @@ func (d *dnsServer) complete(req *queuedRequest, err error) {
 	} else if errors.Is(err, context.Canceled) {
 		metrics.Counter.AddDNSAdmissionResult("canceled")
 	}
+	trace := req.request.Trace
 	req.request.Question.DecRef()
 	d.outstanding.Add(-1)
 	if req.request.Done != nil {
 		req.request.Done(err)
 	}
+	trace.Finish(err)
 }
 
 func (d *dnsServer) handle() {
@@ -391,16 +466,22 @@ func (d *dnsServer) handle() {
 		if !ok {
 			return
 		}
-		metrics.Counter.ObserveDNSAdmissionWait("queue", time.Since(req.deadline.Add(-configuration.ResolverTimeout)))
+		wait := time.Since(req.deadline.Add(-configuration.ResolverTimeout))
+		metrics.Counter.ObserveDNSAdmissionWait("queue", wait)
+		trace := req.request.Trace
+		trace.SetQueueWait(wait)
 		if err := req.ctx.Err(); err != nil {
+			traceFail(trace, failCanceledInQueue, err)
 			d.complete(req, err)
 			continue
 		}
 		if !time.Now().Before(req.deadline) {
+			traceFail(trace, failExpired, context.DeadlineExceeded)
 			d.complete(req, context.DeadlineExceeded)
 			continue
 		}
 		if err := d.ctx.Err(); err != nil {
+			traceFail(trace, failShutdown, err)
 			d.complete(req, err)
 			continue
 		}
@@ -414,17 +495,22 @@ func (d *dnsServer) handle() {
 			if d.ctx.Err() != nil {
 				cancel()
 			}
-			err := d.do(ctx, &doData{prepared: true, query: req.query, Question: req.request.Question.GetPayload(), WriteBack: req.request.WriteBack, Stream: req.request.Stream, ForceFakeIP: req.request.ForceFakeIP})
+			err := d.do(ctx, &doData{prepared: true, query: req.query, Question: req.request.Question.GetPayload(), WriteBack: req.request.WriteBack, Stream: req.request.Stream, ForceFakeIP: req.request.ForceFakeIP, trace: trace})
 			d.complete(req, err)
 		}()
 	}
 }
 
 func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) error {
+	trace := req.Trace
 	if err := ctx.Err(); err != nil {
+		traceFail(trace, failContextDone, err)
+		trace.Finish(err)
 		return err
 	}
 	if err := d.ctx.Err(); err != nil {
+		traceFail(trace, failShutdown, err)
+		trace.Finish(err)
 		return err
 	}
 	deadline := time.Now().Add(configuration.ResolverTimeout)
@@ -432,17 +518,27 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 	// which the queued request retains (IncRef) until complete; no copy needed.
 	query := &dns.Msg{Data: req.Question.GetPayload()}
 	if err := query.Unpack(); err != nil {
+		trace.SetQuery(nil, len(req.Question.GetPayload()))
+		traceFail(trace, failParse, err)
+		trace.Finish(err)
 		return fmt.Errorf("dns server parse failed: %w", err)
 	}
-	data := &doData{query: query, Question: req.Question.GetPayload(), WriteBack: req.WriteBack, Stream: req.Stream, ForceFakeIP: req.ForceFakeIP}
+	if trace != nil {
+		trace.SetQuery(query, len(req.Question.GetPayload()))
+		trace.SetForceFakeIP(req.ForceFakeIP)
+		ctx = netapi.WithDNSTrace(ctx, trace)
+	}
+	data := &doData{query: query, Question: req.Question.GetPayload(), WriteBack: req.WriteBack, Stream: req.Stream, ForceFakeIP: req.ForceFakeIP, trace: trace}
 	err := d.doWithCache(ctx, data, true)
 	if !errors.Is(err, netapi.ErrDNSCacheMiss) {
 		if err == nil {
 			metrics.Counter.AddDNSAdmissionResult("cache_hit")
+			trace.SetAdmission("cache_hit")
 			if req.Done != nil {
 				req.Done(nil)
 			}
 		}
+		trace.Finish(err)
 		return err
 	}
 	// Active queries plus the configured waiting budget is a hard bound on all
@@ -452,16 +548,26 @@ func (d *dnsServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 		d.outstanding.Add(-1)
 		metrics.Counter.AddReceiveUDPDroppedPacket()
 		metrics.Counter.AddDNSAdmissionResult("budget_full")
-		return errors.New("dns request budget is full")
+		err := errors.New("dns request budget is full")
+		trace.SetAdmission("budget_full")
+		traceFail(trace, failBudgetFull, err)
+		trace.Finish(err)
+		return err
 	}
 	queued := &queuedRequest{request: req, ctx: data.context, deadline: deadline, query: query}
+	// Record before Push: a worker may complete the request immediately after.
+	trace.SetAdmission("queued")
 	req.Question.IncRef()
 	if !d.reqBuffer.Push(queued) {
 		req.Question.DecRef()
 		d.outstanding.Add(-1)
 		metrics.Counter.AddReceiveUDPDroppedPacket()
 		metrics.Counter.AddDNSAdmissionResult("queue_full")
-		return errors.New("dns request buffer is full")
+		err := errors.New("dns request buffer is full")
+		trace.SetAdmission("queue_full")
+		traceFail(trace, failQueueFull, err)
+		trace.Finish(err)
+		return err
 	}
 	metrics.Counter.AddDNSAdmissionResult("queued")
 	// Close may have drained before Push. Exactly one pop owns completion.

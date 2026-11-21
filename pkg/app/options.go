@@ -62,6 +62,7 @@ type AppInstance struct {
 	UserUsage            httpapi.UserUsage
 	Resolver             httpapi.ResolverController
 	FakeIP               contractresolver.FakeIPEntries
+	DNSHistory           httpapi.DNSHistoryController
 	ResolverCache        httpapi.ResolverCacheController
 	ResolverCfg          httpapi.ResolverConfigController
 	Lists                httpapi.ListRuntimeController
@@ -226,6 +227,7 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		Resolvers:         resolverStore,
 		Resolver:          app.Resolver,
 		FakeIP:            app.FakeIP,
+		DNSHistory:        app.DNSHistory,
 		ResolverCache:     app.ResolverCache,
 		ResolverConfig:    resolverConfig,
 		Connections:       app.Connections,

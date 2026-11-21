@@ -165,6 +165,12 @@ const (
 	v2ResolverFakeDNSPut    v2Endpoint = "resolver.fakedns.put"
 	v2ResolverServerGet     v2Endpoint = "resolver.server.get"
 	v2ResolverServerPut     v2Endpoint = "resolver.server.put"
+	v2DNSHistoryList        v2Endpoint = "dns.history.list"
+	v2DNSHistoryGet         v2Endpoint = "dns.history.get"
+	v2DNSHistoryStats       v2Endpoint = "dns.history.stats"
+	v2DNSHistoryClear       v2Endpoint = "dns.history.clear"
+	v2DNSHistorySettingsGet v2Endpoint = "dns.history.settings.get"
+	v2DNSHistorySettingsPut v2Endpoint = "dns.history.settings.put"
 	v2FakeIPEntries         v2Endpoint = "resolver.fakeip.entries"
 	v2FakeIPEntryDelete     v2Endpoint = "resolver.fakeip.entry.delete"
 	v2ResolverCacheGet      v2Endpoint = "resolver.cache.get"
@@ -307,6 +313,13 @@ var v2Routes = []v2Route{
 	{v2ResolverFakeDNSPut, "PUT /api/v2/resolver/fakedns"},
 	{v2ResolverServerGet, "GET /api/v2/resolver/server"},
 	{v2ResolverServerPut, "PUT /api/v2/resolver/server"},
+	{v2DNSHistoryList, "GET /api/v2/dns/history"},
+	{v2DNSHistoryStats, "GET /api/v2/dns/history/stats"},
+	{v2DNSHistorySettingsGet, "GET /api/v2/dns/history/settings"},
+	{v2DNSHistorySettingsPut, "PUT /api/v2/dns/history/settings"},
+	// After the fixed paths: {id} would otherwise match "stats" and "settings".
+	{v2DNSHistoryGet, "GET /api/v2/dns/history/{id}"},
+	{v2DNSHistoryClear, "DELETE /api/v2/dns/history"},
 	{v2FakeIPEntries, "GET /api/v2/resolver/fakeip/entries"},
 	{v2FakeIPEntryDelete, "DELETE /api/v2/resolver/fakeip/entries/{ip}/{domain}"},
 	{v2ResolverCacheGet, "GET /api/v2/resolver/cache"},

@@ -209,6 +209,16 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		router,
 	))
 	metrics.SetFlowCounter(stcs.Cache)
+	// DNS history observes both local DNS listeners and DNS hijacking. It
+	// is optional: DNS works unchanged when the history store is unavailable.
+	var dnsObservers []netapi.DNSObserver
+	var dnsHistoryController httpapi.DNSHistoryController
+	if dnsHistory, err := stcs.EnableDNSHistory(statistics.DefaultDNSHistoryOptions()); err != nil {
+		log.Warn("dns history is unavailable", "err", err)
+	} else {
+		dnsObservers = append(dnsObservers, dnsHistory)
+		dnsHistoryController = dnsHistory
+	}
 	var userUsage httpapi.UserUsage
 	var usageRecorder *statistics.UserUsage
 	var localGatewayAudit func(*netapi.Context, string, bool)
@@ -239,7 +249,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 	AddCloser(closers, "fakedns", fakedns)
 	responses := response.New(fakedns)
-	dnsServer := AddCloser(closers, "dns server", resolver.NewDNSServer(responses))
+	dnsServer := AddCloser(closers, "dns server", resolver.NewDNSServer(responses, dnsObservers...))
 	log.Info("init resolver controller")
 	resolverCtr := resolver.NewResolverCtr(resolverStore, resolverConfigStore, hosts, fakedns, dns, responses, dnsServer)
 	log.Info("init resolver controller finished")
@@ -328,6 +338,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
 	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithTrafficAccess(so.TrafficAccess), inbound.WithTrafficControl(so.TrafficControl), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
+	if len(dnsObservers) > 0 {
+		interceptionOptions = append(interceptionOptions, inbound.WithDNSObserver(dnsObservers[0]))
+	}
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
 	}
@@ -389,6 +402,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		Rules:             route.NewContractRuleController(rules),
 		Resolver:          resolver.NewContractController(resolverCtr),
 		FakeIP:            fakedns,
+		DNSHistory:        dnsHistoryController,
 		ResolverCache:     resolver.NewContractController(resolverCtr),
 		ResolverCfg:       resolver.NewContractConfigController(resolverCtr),
 		Setting:           settingsController,

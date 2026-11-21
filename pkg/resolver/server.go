@@ -16,12 +16,15 @@ type DNSServer struct {
 	mu       sync.RWMutex
 	resolver netapi.Resolver
 	agent    netapi.DNSAgent
+	observer []netapi.DNSObserver
 	host     string
 	closed   bool
 }
 
-func NewDNSServer(resolver netapi.Resolver) *DNSServer {
-	return &DNSServer{resolver: resolver, agent: server.NewServer("", resolver)}
+// NewDNSServer optionally records DNS history of the local listeners with
+// observer; intercepted requests bring their own trace.
+func NewDNSServer(resolver netapi.Resolver, observer ...netapi.DNSObserver) *DNSServer {
+	return &DNSServer{resolver: resolver, observer: observer, agent: server.NewServer("", resolver, observer...)}
 }
 
 func (s *DNSServer) SetServer(host string) {
@@ -33,7 +36,7 @@ func (s *DNSServer) SetServer(host string) {
 	if err := s.agent.Close(); err != nil {
 		log.Error("close DNS server failed", "err", err)
 	}
-	s.agent = server.NewServer(host, s.resolver)
+	s.agent = server.NewServer(host, s.resolver, s.observer...)
 	s.host = host
 }
 
@@ -51,7 +54,11 @@ func (s *DNSServer) DoStream(ctx context.Context, req *netapi.DNSStreamRequest) 
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return errors.New("DNS server is closed")
+		_ = req.Conn.Close()
+		err := errors.New("DNS server is closed")
+		req.Trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "shutdown", err)
+		req.Trace.Finish(err)
+		return err
 	}
 	agent := s.agent
 	s.mu.RUnlock()
@@ -62,7 +69,10 @@ func (s *DNSServer) DoDatagram(ctx context.Context, req *netapi.DNSRawRequest) e
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
-		return errors.New("DNS server is closed")
+		err := errors.New("DNS server is closed")
+		req.Trace.Fail(netapi.DNSOutcomeDropped, netapi.DNSStageAdmission, "shutdown", err)
+		req.Trace.Finish(err)
+		return err
 	}
 	return s.agent.DoDatagram(ctx, req)
 }
