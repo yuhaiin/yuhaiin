@@ -146,6 +146,10 @@ type ListRequest struct {
 	Page   int    `json:"page,omitempty"`
 	Cursor string `json:"cursor,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
+	// SortBy is time (default), domain, type, result or latency; SortOrder is
+	// desc (default) or asc. A cursor only continues the newest-first order.
+	SortBy    string `json:"sortBy,omitempty"`
+	SortOrder string `json:"sortOrder,omitempty"`
 	// Domain matches the name and its subdomains; Query is a substring of the
 	// domain, process or client address.
 	Domain     string `json:"domain,omitempty"`

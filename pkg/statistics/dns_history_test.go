@@ -222,6 +222,66 @@ func TestDNSHistoryFilters(t *testing.T) {
 	}
 }
 
+func TestDNSHistorySorting(t *testing.T) {
+	h, _ := openDNSHistory(t, DNSHistoryOptions{})
+	at := time.Now()
+	var batch []*netapi.DNSTraceData
+	for i, name := range []string{"b.example.", "a.example.", "c.example.", "a.example."} {
+		d := sampleTrace(i, at.Add(time.Duration(i)*time.Second))
+		d.Domain, d.Duration = name, time.Duration(10-i)*time.Millisecond
+		batch = append(batch, d)
+	}
+	if err := h.write(batch); err != nil {
+		t.Fatal(err)
+	}
+	domains := func(r contract.ListRequest) string {
+		t.Helper()
+		page, err := h.List(t.Context(), r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, item := range page.Items {
+			out = append(out, strings.TrimSuffix(item.Domain, ".example"))
+		}
+		return strings.Join(out, ",")
+	}
+	for _, c := range []struct {
+		req  contract.ListRequest
+		want string
+	}{
+		{contract.ListRequest{}, "a,c,a,b"},
+		{contract.ListRequest{SortBy: "time", SortOrder: "asc"}, "b,a,c,a"},
+		// Equal domains fall back to newest first.
+		{contract.ListRequest{SortBy: "domain", SortOrder: "asc"}, "a,a,b,c"},
+		{contract.ListRequest{SortBy: "domain"}, "c,b,a,a"},
+		{contract.ListRequest{SortBy: "latency", SortOrder: "asc"}, "a,c,a,b"},
+	} {
+		if got := domains(c.req); got != c.want {
+			t.Errorf("%+v = %s, want %s", c.req, got, c.want)
+		}
+	}
+	// Sorted numbered pages are disjoint and complete.
+	seen := map[int64]bool{}
+	for page := 1; page <= 2; page++ {
+		result, err := h.List(t.Context(), contract.ListRequest{SortBy: "domain", SortOrder: "asc", Limit: 2, Page: page})
+		if err != nil || result.NextCursor != "" { // a cursor only continues newest-first
+			t.Fatalf("sorted page %d: %+v %v", page, result, err)
+		}
+		for _, item := range result.Items {
+			seen[item.ID] = true
+		}
+	}
+	if len(seen) != 4 {
+		t.Fatalf("sorted pages saw %d records", len(seen))
+	}
+	for _, bad := range []contract.ListRequest{{SortBy: "id; DROP TABLE dns_query_history"}, {SortOrder: "sideways"}, {SortBy: "domain", Cursor: "a.1"}} {
+		if _, err := h.List(t.Context(), bad); !errors.Is(err, ErrDNSHistoryBadRequest) {
+			t.Errorf("%+v: err = %v", bad, err)
+		}
+	}
+}
+
 func TestDNSHistoryQueriesUseIndexes(t *testing.T) {
 	_, store := openDNSHistory(t, DNSHistoryOptions{})
 	for _, c := range []struct {

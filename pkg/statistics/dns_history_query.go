@@ -148,6 +148,38 @@ func buildDNSHistoryFilter(r contract.ListRequest) (*dnsHistoryWhere, error) {
 	return w, nil
 }
 
+// dnsHistorySortColumns maps API sort keys to columns; nothing else reaches
+// ORDER BY. The id breaks ties, so every order is total and pages are stable.
+var dnsHistorySortColumns = map[string]string{
+	"time":    "created_at",
+	"domain":  "domain",
+	"type":    "qtype",
+	"result":  "outcome",
+	"latency": "duration_ns",
+}
+
+func dnsHistoryOrder(sortBy, sortOrder string) (order string, defaultOrder bool, err error) {
+	if sortBy == "" {
+		sortBy = "time"
+	}
+	column, ok := dnsHistorySortColumns[sortBy]
+	if !ok {
+		return "", false, badDNSHistoryRequest("unknown sort %q", sortBy)
+	}
+	direction := "DESC"
+	switch sortOrder {
+	case "", "desc":
+	case "asc":
+		direction = "ASC"
+	default:
+		return "", false, badDNSHistoryRequest("unknown sort order %q", sortOrder)
+	}
+	if column == "created_at" {
+		return "created_at " + direction + ", id " + direction, direction == "DESC", nil
+	}
+	return column + " " + direction + ", created_at DESC, id DESC", false, nil
+}
+
 func encodeDNSHistoryCursor(createdAt, id int64) string {
 	return strconv.FormatInt(createdAt, 36) + "." + strconv.FormatInt(id, 36)
 }
@@ -195,6 +227,13 @@ func (h *DNSHistory) List(ctx context.Context, r contract.ListRequest) (contract
 		return contract.ListResponse{}, badDNSHistoryRequest("invalid page")
 	}
 	page := max(1, r.Page)
+	order, defaultOrder, err := dnsHistoryOrder(r.SortBy, r.SortOrder)
+	if err != nil {
+		return contract.ListResponse{}, err
+	}
+	if r.Cursor != "" && !defaultOrder {
+		return contract.ListResponse{}, badDNSHistoryRequest("a cursor continues only the newest-first order")
+	}
 	if r.Cursor != "" {
 		createdAt, id, err := decodeDNSHistoryCursor(r.Cursor)
 		if err != nil {
@@ -203,7 +242,7 @@ func (h *DNSHistory) List(ctx context.Context, r contract.ListRequest) (contract
 		w.add(`(created_at < ? OR (created_at = ? AND id < ?))`, createdAt, createdAt, id)
 	}
 	args := append(w.args, limit+1, (page-1)*limit)
-	rows, err := h.db.QueryContext(ctx, `SELECT `+dnsHistoryListColumns+` FROM dns_query_history`+w.sql()+` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, args...)
+	rows, err := h.db.QueryContext(ctx, `SELECT `+dnsHistoryListColumns+` FROM dns_query_history`+w.sql()+` ORDER BY `+order+` LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return contract.ListResponse{}, err
 	}
@@ -223,8 +262,10 @@ func (h *DNSHistory) List(ctx context.Context, r contract.ListRequest) (contract
 	}
 	if len(out.Items) > limit {
 		out.Items = out.Items[:limit]
-		last := out.Items[limit-1]
-		out.NextCursor = encodeDNSHistoryCursor(lastCreated[limit-1], last.ID)
+		if defaultOrder {
+			last := out.Items[limit-1]
+			out.NextCursor = encodeDNSHistoryCursor(lastCreated[limit-1], last.ID)
+		}
 	}
 	return out, nil
 }
