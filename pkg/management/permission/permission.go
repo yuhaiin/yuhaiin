@@ -30,6 +30,8 @@ const (
 	ResolverWrite             Permission = "resolver:write"
 	ConnectionsRead           Permission = "connections:read"
 	ConnectionsWrite          Permission = "connections:write"
+	DNSHistoryRead            Permission = "dns-history:read"
+	DNSHistoryWrite           Permission = "dns-history:write"
 	GatewayRead               Permission = "gateway:read"
 	CertificatesRead          Permission = "certificates:read"
 	CertificatesManage        Permission = "certificates:manage"
@@ -102,6 +104,8 @@ var catalog = [...]entry{
 	{ResolverWrite, "resolver", "Change resolver settings, hosts, and cache."},
 	{ConnectionsRead, "connections", "View connections, traffic, events, and history."},
 	{ConnectionsWrite, "connections", "Close active connections."},
+	{DNSHistoryRead, "connections", "View DNS query history, including queried domains, clients and processes."},
+	{DNSHistoryWrite, "connections", "Clear DNS query history and change its recording and retention settings."},
 	{GatewayRead, "gateway", "View gateway configuration, status, CA, and statistics."},
 	{GatewayWrite, "gateway", "Change gateway settings, CA, filters, and statistics."},
 	{SettingsRead, "settings", "View general settings, traffic controls, and interface details."},

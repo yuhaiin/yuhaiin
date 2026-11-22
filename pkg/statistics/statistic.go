@@ -33,6 +33,8 @@ type Connections struct {
 	Cache     *TotalCache
 	telemetry *telemetryRecorder
 	userUsage *UserUsage
+	// dnsHistory shares sqliteDB and is closed before it.
+	dnsHistory *DNSHistory
 
 	notify      *notify
 	persistence *connectionPersistence
@@ -226,6 +228,9 @@ func (c *Connections) Close() error {
 		err = errors.Join(err, er)
 	}
 	c.telemetry.Close()
+	if er := c.dnsHistory.Close(); er != nil {
+		err = errors.Join(err, er)
+	}
 	if er := c.userUsage.Close(); er != nil {
 		err = errors.Join(err, er)
 	}

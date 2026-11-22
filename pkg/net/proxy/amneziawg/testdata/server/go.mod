@@ -2,7 +2,7 @@ module yuhaiin-amneziawg-test-server
 
 go 1.27
 
-require github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
+require github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20261116
 
 require (
 	golang.org/x/crypto v0.42.0 // indirect

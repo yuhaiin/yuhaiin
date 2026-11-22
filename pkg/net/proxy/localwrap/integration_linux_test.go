@@ -104,8 +104,7 @@ func integrationDNS(wire []byte) ([]byte, error) {
 	if err := req.Unpack(); err != nil {
 		return nil, err
 	}
-	response := new(dns.Msg)
-	dnsutil.SetReply(response, req)
+	response := dnsutil.SetReply(req)
 	response.RecursionAvailable = true
 	for _, q := range req.Question {
 		if q.Header().Name != "wrap.test." {

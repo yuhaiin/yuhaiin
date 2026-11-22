@@ -156,6 +156,7 @@ func (h *Hosts) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.D
 		}
 
 		msg := h.newDnsMsg(req)
+		netapi.DNSTraceFromContext(ctx).SetSource(netapi.DNSResolutionHosts)
 
 		for _, v := range domains {
 			if v == "" {
@@ -190,13 +191,18 @@ func (h *Hosts) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.D
 	addr = h.dispatchAddr(ctx, addr)
 
 	if addr.IsFqdn() {
-		req.Name = system.AbsDomain(addr.Hostname())
+		if rewritten := system.AbsDomain(addr.Hostname()); rewritten != req.Name {
+			netapi.DNSTraceFromContext(ctx).SetHostsRewrite(rewritten)
+			req.Name = rewritten
+		}
 		return lookup(ctx, h.resolver, req)
 	}
 
 	ip := addr.(netapi.IPAddress).AddrPort().Addr()
+	trace := netapi.DNSTraceFromContext(ctx)
 
 	if req.Qtype == dns.TypeAAAA {
+		trace.SetSource(netapi.DNSResolutionHosts)
 		msg := h.newDnsMsg(req)
 		msg.Answer = []dns.RR{
 			&dns.AAAA{
@@ -215,6 +221,7 @@ func (h *Hosts) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.D
 		return lookup(ctx, h.resolver, req)
 	}
 
+	trace.SetSource(netapi.DNSResolutionHosts)
 	msg := h.newDnsMsg(req)
 	msg.Answer = []dns.RR{
 		&dns.A{

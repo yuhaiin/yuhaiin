@@ -220,19 +220,29 @@ func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
+	r, _ := f.selectResolver(ctx, domain)
+	return r
+}
+
+// selectResolver also reports why, for DNS history: "disabled", "whitelist",
+// "global_fakeip_enabled" or "force_fakeip".
+func (f *Fakedns) selectResolver(ctx context.Context, domain string) (netapi.Resolver, string) {
 	if !netapi.DNSCacheOnly(ctx) {
 		metrics.Counter.AddDNSProcess(domain)
 	}
 
-	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
+	global := f.enabled.Load()
+	if global || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
-			return f.upstream
+			return f.upstream, "whitelist"
 		}
-
-		return f.fake
+		if global {
+			return f.fake, "global_fakeip_enabled"
+		}
+		return f.fake, "force_fakeip"
 	}
 
-	return f.upstream
+	return f.upstream, "disabled"
 }
 
 func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
@@ -257,12 +267,19 @@ func (f *Fakedns) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi
 	f.fakeMu.RLock()
 	defer f.fakeMu.RUnlock()
 
+	skipCheck := false
 	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
 		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
 			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
+			skipCheck = true
 		}
 	}
-	return lookup(ctx, f.resolver(ctx, req.Name), req)
+	r, reason := f.selectResolver(ctx, req.Name)
+	if trace := netapi.DNSTraceFromContext(ctx); trace != nil {
+		force := netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP()
+		trace.FakeIPDecision(r == f.fake, f.enabled.Load(), force, skipCheck, reason)
+	}
+	return lookup(ctx, r, req)
 }
 
 func (f *Fakedns) Close() error {

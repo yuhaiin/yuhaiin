@@ -147,8 +147,7 @@ func sshTestDNSResponse(wire []byte) ([]byte, error) {
 	if err := request.Unpack(); err != nil {
 		return nil, fmt.Errorf("unpack DNS query: %w", err)
 	}
-	response := new(dns.Msg)
-	dnsutil.SetReply(response, request)
+	response := dnsutil.SetReply(request)
 	response.RecursionAvailable = true
 	for _, question := range request.Question {
 		if question.Header().Name != sshDNSName || question.Header().Class != dns.ClassINET {

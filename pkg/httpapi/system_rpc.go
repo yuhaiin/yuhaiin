@@ -74,6 +74,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ResolverHostsGet, api.hosts)
 	addRPCRoute(handlers, v2ResolverHostsPut, api.saveHosts)
 	addRPCRoute(handlers, v2ResolverFakeDNSGet, api.fakeDNS)
+	registerDNSHistoryRoutes(handlers, api)
 	addRPCRoute(handlers, v2FakeIPEntries, api.fakeIPEntries)
 	addRPCRoute(handlers, v2FakeIPEntryDelete, api.deleteFakeIPEntry)
 	addRPCRoute(handlers, v2ResolverFakeDNSPut, api.saveFakeDNS)

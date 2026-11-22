@@ -30,7 +30,8 @@ func (c *client) refresh(ctx context.Context, req netapi.DNSQuestion, key string
 	go func() {
 		defer c.refreshBackground.Delete(key)
 		defer func() { <-c.refreshSlots }()
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), configuration.ResolverTimeout)
+		// The refresh outlives the request: it must not write the request's trace.
+		ctx, cancel := context.WithTimeout(netapi.WithoutDNSTrace(context.WithoutCancel(ctx)), configuration.ResolverTimeout)
 		defer cancel()
 		stop := context.AfterFunc(c.refreshContext, cancel)
 		defer stop()
