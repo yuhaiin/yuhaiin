@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
-	protectionhelper "github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/helper"
+	protectionplatform "github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/platform"
 	"io"
 	"net"
 	"net/http"
@@ -98,7 +98,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// Join the kill switch's socket group before any socket is opened, so
 	// Yuhaiin's own connections pass while protection is on (macOS).
 	prepareCtx, cancelPrepare := context.WithTimeout(context.Background(), 20*time.Second)
-	protectionhelper.PrepareStartup(prepareCtx)
+	protectionplatform.PrepareStartup(prepareCtx)
 	cancelPrepare()
 
 	ctx := so.Context
@@ -352,7 +352,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	systemNetwork := AddCloser(closers, "system_network", newSystemNetwork(list))
 	// Network Protection follows the System Network state. Closing it only
 	// disconnects from the protection service: the kill switch stays on.
-	networkProtection := AddCloser(closers, "network_protection", protection.NewController(protectionhelper.NewBackend()))
+	networkProtection := AddCloser(closers, "network_protection", protection.NewController(protectionplatform.NewBackend()))
 	systemNetwork.SetProtection(networkProtection.SetInputs)
 	interceptionOptions = append(interceptionOptions, inbound.WithSystemNetwork(systemNetwork))
 	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))

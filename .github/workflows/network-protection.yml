@@ -1,0 +1,88 @@
+name: Network Protection (PF, nftables, WFP)
+
+# Runs the kill switch against each platform's real firewall on disposable
+# runners: macOS PF (rules, pf.conf registration, utun verdicts, tcpdump,
+# core crash, service restart, recovery, the CLI under launchd), Linux
+# nftables (in a fresh network namespace) and Windows WFP (verdicts from
+# another application, the process-bound permits, recovery with the CLI).
+# The tests remove what they create.
+
+on:
+  push:
+    branches: [main, 'feat/network-protection*', 'feat/protection-*']
+    paths:
+      - 'pkg/sysnet/**'
+      - 'cmd/yuhaiin/**'
+      - 'scripts/integration/network-protection-macos.sh'
+      - '.github/workflows/network-protection.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/sysnet/**'
+      - 'cmd/yuhaiin/**'
+      - 'scripts/integration/network-protection-macos.sh'
+      - '.github/workflows/network-protection.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pf:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: macos-network-protection
+      - name: Unit tests on macOS
+        run: go test ./pkg/sysnet/...
+      - name: Real PF integration tests
+        run: scripts/integration/network-protection-macos.sh --live
+
+  nftables:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: linux-network-protection
+      - name: Unit tests
+        run: go test ./pkg/sysnet/protection/...
+      - name: Real nftables tests in a fresh network namespace
+        run: |
+          sudo apt-get install -y nftables >/dev/null
+          CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/nft.test" ./pkg/sysnet/protection/nft
+          sudo ip netns add yuhaiin-protection
+          sudo ip netns exec yuhaiin-protection sh -c 'ip link set lo up && YUHAIIN_TEST_NFT=1 "$0" -test.v -test.run "^TestKernel"' "$RUNNER_TEMP/nft.test"
+          sudo ip netns del yuhaiin-protection
+
+  wfp:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: windows-network-protection
+      - name: Unit tests
+        shell: bash
+        # The macOS protection service's tests (Unix socket semantics) do
+        # not apply on Windows; its state store is covered by the WFP tests.
+        run: go test ./pkg/sysnet/protection/ ./pkg/sysnet/protection/pf/ ./pkg/sysnet/protection/wfp/ ./pkg/sysnet/protection/platform/
+      - name: Real WFP tests
+        shell: pwsh
+        run: |
+          go build -o "$env:RUNNER_TEMP\yuhaiin.exe" ./cmd/yuhaiin
+          go test -c -o "$env:RUNNER_TEMP\wfp.test.exe" ./pkg/sysnet/protection/wfp
+          $env:YUHAIIN_TEST_WFP = "1"
+          $env:YUHAIIN_TEST_BINARY = "$env:RUNNER_TEMP\yuhaiin.exe"
+          # Quoted: PowerShell splits an unquoted "-test.v" at the dot.
+          & "$env:RUNNER_TEMP\wfp.test.exe" '-test.v' '-test.run=^TestWFP(KillSwitch|Recovery)$'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
