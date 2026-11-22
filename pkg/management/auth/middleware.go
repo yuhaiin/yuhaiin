@@ -9,9 +9,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/internal/version"
 	"github.com/Asutorufa/yuhaiin/pkg/httpapi"
+	"github.com/Asutorufa/yuhaiin/pkg/management/mcpserver"
+	"github.com/Asutorufa/yuhaiin/pkg/management/oauth"
+	permission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/security/configchange"
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 )
@@ -27,7 +32,9 @@ type Runtime struct {
 	passwords *PasswordService
 	Proxy     *ProxyCredentials
 	Upstream  *UpstreamCredentials
-	db        io.Closer
+	// Authorization is the OAuth 2.1 Authorization Server, set by Middleware.
+	Authorization *AuthorizationServer
+	db            io.Closer
 }
 
 type RuntimeOptions struct {
@@ -116,6 +123,43 @@ func OpenRuntimeWithOptions(ctx context.Context, directory string, options Runti
 	return &Runtime{Audit: audit, Resources: resources, Access: access, store: store, passwords: passwords, Proxy: proxy, Upstream: upstream, db: db}, nil
 }
 
+// ManagementAPIResource is the existing HTTP management API as an OAuth
+// protected resource. Its scopes are every delegable permission except
+// mcp:connect and secrets:read: an OAuth client of the API never receives the
+// secret-reveal capability. Each route keeps the permission it already
+// declares in ManagementPermissions.
+func ManagementAPIResource() oauth.Resource {
+	scopes := slices.DeleteFunc(permission.DelegableValues(), func(p Permission) bool { return p == MCPConnect || p == SecretsRead })
+	return oauth.Resource{ID: "api", Name: "Yuhaiin management API", Path: "/api", Prefixes: []string{"/api/", "/debug/", "/metrics"}, Scopes: scopes, LegacyCredentials: true}
+}
+
+// protectedResources registers the OAuth protected resources served by this
+// process. Only server executables reach this code: native Android does not
+// install the identity middleware and therefore has no Authorization Server,
+// MCP endpoint or OAuth tables.
+func (r *Runtime) protectedResources(mux *http.ServeMux, permissions map[string]Permission, options httpapi.MiddlewareOptions) (*oauth.Registry, error) {
+	registry := &oauth.Registry{}
+	if err := registry.Register(ManagementAPIResource()); err != nil {
+		return nil, err
+	}
+	if options.Operations == nil {
+		return registry, nil
+	}
+	mcp, err := mcpserver.New(options.Operations, version.Version)
+	if err != nil {
+		return nil, err
+	}
+	if err := registry.Register(mcp.Resource()); err != nil {
+		return nil, err
+	}
+	for _, method := range []string{http.MethodPost, http.MethodGet, http.MethodDelete} {
+		pattern := method + " " + mcpserver.Path
+		permissions[pattern] = MCPConnect
+		mux.Handle(pattern, mcp)
+	}
+	return registry, nil
+}
+
 func writeInitializationNotice(output io.Writer, code InitializationCode, configured bool) error {
 	message := "Initialization code: " + code.Secret + "\n"
 	restart := "Restarting before setup completes replaces this code."
@@ -154,7 +198,13 @@ func (r *Runtime) Middleware(ctx context.Context, mux *http.ServeMux, options ht
 		"POST /api/v2/profiler/sessions":        Diagnostics,
 		"DELETE /api/v2/profiler/sessions/{id}": Diagnostics,
 	})
-	server := &Server{Resources: r.Resources, Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin}
+	resources, err := r.protectedResources(mux, permissions, options)
+	if err != nil {
+		return nil, nil, err
+	}
+	r.Authorization = newAuthorizationServer(r.store, resources)
+	server := &Server{Resources: r.Resources, Access: r.Access, Store: r.store, Passwords: r.passwords, Proxy: r.Proxy, Upstream: r.Upstream, Usage: options.UserUsage, Permissions: permissions, AcceptOrigin: options.AcceptOrigin,
+		Authorization: r.Authorization}
 	server.Changes = &ConfigurationChanges{server: server, identity: configchange.New(r.store.db), configuration: options.ConfigurationChanges}
 	if options.ConfigurationChanges != nil {
 		if err := options.ConfigurationChanges.Enable(ctx); err != nil {

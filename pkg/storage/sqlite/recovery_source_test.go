@@ -89,7 +89,7 @@ func TestRecoveryReadOnlySnapshotIncludesWALAndDoesNotMigrate(t *testing.T) {
 	}
 	destination := filepath.Join(directory, "snapshot.db")
 	version, err := SnapshotRecoveryDatabase(t.Context(), source, destination, "configuration", 100<<30)
-	if err != nil || version != shareFeedsMigration.Version {
+	if err != nil || version != migrations[len(migrations)-1].Version {
 		t.Fatalf("read-only WAL snapshot: %d %v", version, err)
 	}
 	reader, err := OpenSnapshotReader(t.Context(), destination)

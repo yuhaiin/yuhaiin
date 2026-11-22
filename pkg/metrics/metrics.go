@@ -90,6 +90,17 @@ type Metrics interface {
 	AddFakeIPCacheMiss()
 
 	AddTrieMatchDuration(time.Duration)
+
+	// AddDNSResponseWriteError counts responses that were produced but could
+	// not be delivered to the DNS client.
+	AddDNSResponseWriteError()
+	// DNS history observes requests only while history recording is enabled.
+	AddDNSQueryOutcome(outcome string)
+	AddDNSHistoryRecords(n int)
+	AddDNSHistoryRecordDropped()
+	AddDNSHistoryPersistenceErrors(n int)
+	SetDNSHistoryQueueSize(n int)
+	ObserveDNSHistoryFlush(time.Duration)
 }
 
 type EmptyMetrics struct{}
@@ -125,6 +136,13 @@ func (m *EmptyMetrics) AddFakeIPCacheHit()                        {}
 func (m *EmptyMetrics) AddFakeIPCacheMiss()                       {}
 func (m *EmptyMetrics) AddTrieMatchDuration(time.Duration)        {}
 func (m *EmptyMetrics) AddGeoCountry(string)                      {}
+func (m *EmptyMetrics) AddDNSResponseWriteError()                 {}
+func (m *EmptyMetrics) AddDNSQueryOutcome(string)                 {}
+func (m *EmptyMetrics) AddDNSHistoryRecords(int)                  {}
+func (m *EmptyMetrics) AddDNSHistoryRecordDropped()               {}
+func (m *EmptyMetrics) AddDNSHistoryPersistenceErrors(int)        {}
+func (m *EmptyMetrics) SetDNSHistoryQueueSize(int)                {}
+func (m *EmptyMetrics) ObserveDNSHistoryFlush(time.Duration)      {}
 
 type Prometheus struct {
 	DNSAdmissionResults     *prometheus.CounterVec
@@ -170,6 +188,14 @@ type Prometheus struct {
 	FakeIPCacheMissTotal prometheus.Counter
 
 	TrieMatchDurationSeconds prometheus.Histogram
+
+	DNSResponseWriteErrorsTotal      prometheus.Counter
+	DNSQueriesByOutcomeTotal         *prometheus.CounterVec
+	DNSHistoryRecordsTotal           prometheus.Counter
+	DNSHistoryRecordDroppedTotal     prometheus.Counter
+	DNSHistoryPersistenceErrorsTotal prometheus.Counter
+	DNSHistoryQueueSize              prometheus.Gauge
+	DNSHistoryFlushDurationSeconds   prometheus.Histogram
 }
 
 func NewPrometheus() *Prometheus {
@@ -324,6 +350,15 @@ func newPrometheus(registerer prometheus.Registerer) *Prometheus {
 			Help:        "The total number of tcp dial failed",
 			ConstLabels: labels,
 		}),
+
+		DNSResponseWriteErrorsTotal: factory.NewCounter(prometheus.CounterOpts{Name: "yuhaiin_dns_response_write_errors_total", Help: "DNS responses that were produced but not delivered to the client", ConstLabels: labels}),
+		// The outcome label is a fixed set; domains, clients and processes stay in DNS history.
+		DNSQueriesByOutcomeTotal:         factory.NewCounterVec(prometheus.CounterOpts{Name: "yuhaiin_dns_queries_by_outcome_total", Help: "Completed client DNS requests by outcome, counted while DNS history is enabled", ConstLabels: labels}, []string{"outcome"}),
+		DNSHistoryRecordsTotal:           factory.NewCounter(prometheus.CounterOpts{Name: "yuhaiin_dns_history_records_total", Help: "DNS history records persisted to SQLite", ConstLabels: labels}),
+		DNSHistoryRecordDroppedTotal:     factory.NewCounter(prometheus.CounterOpts{Name: "yuhaiin_dns_history_record_dropped_total", Help: "DNS history records discarded because the history queue was full; the DNS requests themselves were served", ConstLabels: labels}),
+		DNSHistoryPersistenceErrorsTotal: factory.NewCounter(prometheus.CounterOpts{Name: "yuhaiin_dns_history_persistence_errors_total", Help: "DNS history records lost to SQLite write failures", ConstLabels: labels}),
+		DNSHistoryQueueSize:              factory.NewGauge(prometheus.GaugeOpts{Name: "yuhaiin_dns_history_queue_size", Help: "DNS history records waiting to be written", ConstLabels: labels}),
+		DNSHistoryFlushDurationSeconds:   factory.NewHistogram(prometheus.HistogramOpts{Name: "yuhaiin_dns_history_flush_duration_seconds", Help: "Duration of one DNS history batch write", ConstLabels: labels, Buckets: []float64{.0005, .001, .005, .01, .05, .1, .5, 1, 5}}),
 
 		FakeIPCacheHitTotal: factory.NewCounter(prometheus.CounterOpts{
 			Name:        "yuhaiin_fake_ip_cache_hit_total",
@@ -484,6 +519,20 @@ func (p *Prometheus) AddTrieMatchDuration(t time.Duration) {
 
 func (p *Prometheus) AddGeoCountry(country string) {
 	p.TotalGeoCountry.WithLabelValues(country).Inc()
+}
+
+func (p *Prometheus) AddDNSResponseWriteError() { p.DNSResponseWriteErrorsTotal.Inc() }
+func (p *Prometheus) AddDNSQueryOutcome(outcome string) {
+	p.DNSQueriesByOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+func (p *Prometheus) AddDNSHistoryRecords(n int)  { p.DNSHistoryRecordsTotal.Add(float64(n)) }
+func (p *Prometheus) AddDNSHistoryRecordDropped() { p.DNSHistoryRecordDroppedTotal.Inc() }
+func (p *Prometheus) AddDNSHistoryPersistenceErrors(n int) {
+	p.DNSHistoryPersistenceErrorsTotal.Add(float64(n))
+}
+func (p *Prometheus) SetDNSHistoryQueueSize(n int) { p.DNSHistoryQueueSize.Set(float64(n)) }
+func (p *Prometheus) ObserveDNSHistoryFlush(d time.Duration) {
+	p.DNSHistoryFlushDurationSeconds.Observe(d.Seconds())
 }
 
 func (p *Prometheus) AddDNSAdmissionResult(result string) {

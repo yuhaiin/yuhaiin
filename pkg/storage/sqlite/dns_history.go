@@ -1,0 +1,74 @@
+package sqlite
+
+// dnsQueryHistoryMigration stores one row per client DNS request. Filter and
+// sort columns are plain columns; display-only details stay in JSON. The
+// reversed domain lets a domain filter match subdomains with an index range.
+// The JSON is produced only by the history writer, so the hot insert skips
+// per-row json_valid checks, and ids need no AUTOINCREMENT: pagination keys on
+// (created_at, id).
+var dnsQueryHistoryMigration = Migration{Version: 27, Name: "dns_query_history", Statements: []string{
+	`CREATE TABLE dns_query_history (
+		id INTEGER PRIMARY KEY,
+		created_at INTEGER NOT NULL,
+		duration_ns INTEGER NOT NULL DEFAULT 0,
+		transport TEXT NOT NULL DEFAULT '',
+		source_type TEXT NOT NULL DEFAULT '',
+		source_addr TEXT NOT NULL DEFAULT '',
+		source_port INTEGER NOT NULL DEFAULT 0,
+		inbound_id TEXT NOT NULL DEFAULT '',
+		inbound_name TEXT NOT NULL DEFAULT '',
+		process_name TEXT NOT NULL DEFAULT '',
+		pid INTEGER NOT NULL DEFAULT 0,
+		uid INTEGER NOT NULL DEFAULT 0,
+		user_id TEXT NOT NULL DEFAULT '',
+		credential_id TEXT NOT NULL DEFAULT '',
+		domain TEXT NOT NULL DEFAULT '',
+		domain_rev TEXT NOT NULL DEFAULT '',
+		qtype INTEGER NOT NULL DEFAULT 0,
+		qclass INTEGER NOT NULL DEFAULT 0,
+		transaction_id INTEGER NOT NULL DEFAULT 0,
+		resolver TEXT NOT NULL DEFAULT '',
+		resolver_label TEXT NOT NULL DEFAULT '',
+		server TEXT NOT NULL DEFAULT '',
+		server_type TEXT NOT NULL DEFAULT '',
+		route_mode TEXT NOT NULL DEFAULT '',
+		route_rule_id TEXT NOT NULL DEFAULT '',
+		route_rule_name TEXT NOT NULL DEFAULT '',
+		cache_status TEXT NOT NULL DEFAULT '',
+		resolution_source TEXT NOT NULL DEFAULT '',
+		fakeip_requested INTEGER NOT NULL DEFAULT 0,
+		fakeip_returned INTEGER NOT NULL DEFAULT 0,
+		fakeip_ipv4 TEXT NOT NULL DEFAULT '',
+		fakeip_ipv6 TEXT NOT NULL DEFAULT '',
+		fakeip_reason TEXT NOT NULL DEFAULT '',
+		outcome TEXT NOT NULL DEFAULT '',
+		rcode INTEGER NOT NULL DEFAULT -1,
+		failure_stage TEXT NOT NULL DEFAULT '',
+		failure_reason TEXT NOT NULL DEFAULT '',
+		error TEXT NOT NULL DEFAULT '',
+		request_size INTEGER NOT NULL DEFAULT 0,
+		response_size INTEGER NOT NULL DEFAULT 0,
+		sent_bytes INTEGER NOT NULL DEFAULT 0,
+		answer_count INTEGER NOT NULL DEFAULT 0,
+		authority_count INTEGER NOT NULL DEFAULT 0,
+		additional_count INTEGER NOT NULL DEFAULT 0,
+		answer_summary TEXT NOT NULL DEFAULT '',
+		answer_json TEXT NOT NULL DEFAULT '[]',
+		authority_json TEXT NOT NULL DEFAULT '[]',
+		additional_json TEXT NOT NULL DEFAULT '[]',
+		response_flags_json TEXT NOT NULL DEFAULT '{}',
+		details_json TEXT NOT NULL DEFAULT '{}'
+	)`,
+	// Every list is ordered by (created_at DESC, id DESC); equality filters
+	// lead their index so a filtered page is still an index range.
+	`CREATE INDEX dns_query_history_created ON dns_query_history(created_at DESC, id DESC)`,
+	`CREATE INDEX dns_query_history_domain ON dns_query_history(domain_rev, created_at DESC)`,
+	`CREATE INDEX dns_query_history_qtype ON dns_query_history(qtype, created_at DESC, id DESC)`,
+	`CREATE INDEX dns_query_history_outcome ON dns_query_history(outcome, created_at DESC, id DESC)`,
+	`CREATE INDEX dns_query_history_inbound ON dns_query_history(inbound_id, created_at DESC, id DESC)`,
+	`CREATE INDEX dns_query_history_source ON dns_query_history(source_type, created_at DESC, id DESC)`,
+	`CREATE TABLE dns_query_history_settings (
+		id INTEGER PRIMARY KEY CHECK(id = 1),
+		data_json TEXT NOT NULL CHECK(json_valid(data_json))
+	)`,
+}}

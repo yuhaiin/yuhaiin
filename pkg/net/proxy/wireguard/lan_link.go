@@ -37,10 +37,14 @@ func init() {
 				return nil, err
 			}
 		}
+		if err := ValidateTCPSettings(c.TCPSettings); err != nil {
+			return nil, err
+		}
 		link, err := newManagedLink(invite, c.PrivateKey, nil, peerrendezvous.LinkOffer{}, nil)
 		if err != nil {
 			return nil, err
 		}
+		link.tcp = c.TCPSettings
 		if link.allowIncoming = c.AllowIncoming; link.allowIncoming {
 			// Incoming flows cannot wait for outgoing traffic to start the link.
 			link.start()
@@ -65,6 +69,8 @@ type managedLink struct {
 	relay lanLinkRelay
 	// allowIncoming delivers flows to this client's tunnel address locally.
 	allowIncoming bool
+	// tcp configures the lightweight stack of each session.
+	tcp *transport.TCPSettings
 
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -440,7 +446,7 @@ func (m *managedLink) connect() (*lanLinkSession, error) {
 	}
 	incoming := role == peerrendezvous.Publisher || (len(subnets) != 0 && m.allowIncoming)
 	w, err := newClient(Config{
-		SecretKey: cfg.PrivateKey, Endpoint: addrStrings(local), MTU: 1280,
+		TCPSettings: m.tcp, SecretKey: cfg.PrivateKey, Endpoint: addrStrings(local), MTU: 1280,
 		Peers: []PeerConfig{{PublicKey: cfg.PeerPublicKey, Endpoint: bind.openAddr.Load().String(), AllowedIPs: allowed}},
 	}, bind, incoming)
 	if err != nil {

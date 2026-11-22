@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"net"
 	"net/netip"
-	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -38,8 +38,10 @@ type Fakedns struct {
 	whitelist *domain.Fqdn[struct{}]
 	skipCheck *domain.Fqdn[struct{}]
 
-	whitelistSlice []string
-	skipCheckSlice []string
+	// config is the last applied configuration; list references in it are
+	// re-read when the shared lists change.
+	config contractresolver.FakeDNS
+	lists  atomic.Pointer[HostListSource]
 
 	fakeMu  sync.RWMutex
 	enabled atomic.Bool
@@ -120,8 +122,79 @@ func (f *Fakedns) SubscribeFakeIPRanges(handler func([2]netip.Prefix) error) (fu
 	}), nil
 }
 
+// HostListSource reads the entries of a shared host list.
+type HostListSource interface {
+	HostListValues(id string) (iter.Seq[string], error)
+}
+
+// SetHostListSource sets where list references are read from and rebuilds the
+// matchers that use them.
+func (f *Fakedns) SetHostListSource(source HostListSource) {
+	f.lists.Store(&source)
+	f.RefreshHostLists()
+}
+
+// RefreshHostLists re-reads referenced shared lists. It is a no-op when the
+// configuration references none.
+func (f *Fakedns) RefreshHostLists() {
+	f.applyMu.Lock()
+	defer f.applyMu.Unlock()
+	f.fakeMu.RLock()
+	c := f.config
+	f.fakeMu.RUnlock()
+	if len(c.WhitelistListIDs) == 0 && len(c.SkipCheckListIDs) == 0 {
+		return
+	}
+	whitelist, skipCheck := f.buildMatchers(c)
+	f.fakeMu.Lock()
+	if f.fake == nil {
+		f.fakeMu.Unlock()
+		return
+	}
+	f.whitelist, f.skipCheck = whitelist, skipCheck
+	f.fakeMu.Unlock()
+	// Cached answers may hold fake IPs for domains that are now whitelisted.
+	dnssystem.RefreshCache()
+}
+
+func (f *Fakedns) buildMatchers(c contractresolver.FakeDNS) (whitelist, skipCheck *domain.Fqdn[struct{}]) {
+	return f.buildMatcher(c.WhitelistListIDs), f.buildMatcher(c.SkipCheckListIDs)
+}
+
+func (f *Fakedns) buildMatcher(listIDs []string) *domain.Fqdn[struct{}] {
+	d := domain.NewTrie[struct{}]()
+	if len(listIDs) == 0 {
+		return d
+	}
+	source := f.lists.Load()
+	if source == nil || *source == nil {
+		return d
+	}
+	for _, id := range listIDs {
+		entries, err := (*source).HostListValues(id)
+		if err != nil {
+			log.Warn("load fakedns list failed", "list", id, "err", err)
+			continue
+		}
+		for v := range entries {
+			// Host lists also hold IPs and CIDRs; they never match a domain.
+			if _, err := netip.ParsePrefix(v); err == nil {
+				continue
+			}
+			if _, err := netip.ParseAddr(v); err == nil {
+				continue
+			}
+			d.Insert(v, struct{}{})
+		}
+	}
+	return d
+}
+
 func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 	defer dnssystem.RefreshCache()
+
+	// Lists can be large: build the matchers before blocking DNS lookups.
+	whitelist, skipCheck := f.buildMatchers(c)
 
 	f.fakeMu.Lock()
 	defer f.fakeMu.Unlock()
@@ -130,33 +203,8 @@ func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 	}
 
 	f.enabled.Store(c.Enabled)
-
-	if !slices.Equal(c.SkipCheckList, f.skipCheckSlice) {
-		d := domain.NewTrie[struct{}]()
-
-		for _, v := range c.SkipCheckList {
-			d.Insert(v, struct{}{})
-		}
-		f.skipCheck = d
-		f.skipCheckSlice = c.SkipCheckList
-	}
-
-	if !slices.Equal(c.Whitelist, f.whitelistSlice) {
-		d := domain.NewTrie[struct{}]()
-
-		for _, v := range c.Whitelist {
-			d.Insert(v, struct{}{})
-		}
-
-		// skip tailscale login url, because tailscale client will use default
-		// interface to connect controlplane, so we can't use fake ip for it
-		// d.Insert(strings.TrimPrefix(ipn.DefaultControlURL, "https://"), struct{}{})
-		// d.Insert(logtail.DefaultHost, struct{}{})
-		// d.Insert("login.tailscale.com", struct{}{})
-
-		f.whitelist = d
-		f.whitelistSlice = c.Whitelist
-	}
+	f.whitelist, f.skipCheck = whitelist, skipCheck
+	f.config = c
 
 	ipRange := configuration.GetFakeIPRange(c.IPv4Range, false)
 	ipv6Range := configuration.GetFakeIPRange(c.IPv6Range, true)
@@ -172,19 +220,29 @@ func (f *Fakedns) apply(c contractresolver.FakeDNS) error {
 }
 
 func (f *Fakedns) resolver(ctx context.Context, domain string) netapi.Resolver {
+	r, _ := f.selectResolver(ctx, domain)
+	return r
+}
+
+// selectResolver also reports why, for DNS history: "disabled", "whitelist",
+// "global_fakeip_enabled" or "force_fakeip".
+func (f *Fakedns) selectResolver(ctx context.Context, domain string) (netapi.Resolver, string) {
 	if !netapi.DNSCacheOnly(ctx) {
 		metrics.Counter.AddDNSProcess(domain)
 	}
 
-	if f.enabled.Load() || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
+	global := f.enabled.Load()
+	if global || netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP() {
 		if _, ok := f.whitelist.SearchString(system.RelDomain(domain)); ok {
-			return f.upstream
+			return f.upstream, "whitelist"
 		}
-
-		return f.fake
+		if global {
+			return f.fake, "global_fakeip_enabled"
+		}
+		return f.fake, "force_fakeip"
 	}
 
-	return f.upstream
+	return f.upstream, "disabled"
 }
 
 func (f *Fakedns) LookupIP(ctx context.Context, domain string, opts ...func(*netapi.LookupIPOption)) (*netapi.IPs, error) {
@@ -209,12 +267,19 @@ func (f *Fakedns) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi
 	f.fakeMu.RLock()
 	defer f.fakeMu.RUnlock()
 
+	skipCheck := false
 	if req.Qtype == dns.TypeAAAA || req.Qtype == dns.TypeA {
 		if _, ok := f.skipCheck.SearchString(system.RelDomain(req.Name)); ok {
 			netapi.GetContext(ctx).ConnOptions().Resolver().SetFakeIPSkipCheckUpstream(ok)
+			skipCheck = true
 		}
 	}
-	return lookup(ctx, f.resolver(ctx, req.Name), req)
+	r, reason := f.selectResolver(ctx, req.Name)
+	if trace := netapi.DNSTraceFromContext(ctx); trace != nil {
+		force := netapi.GetContext(ctx).ConnOptions().Resolver().UseFakeIP()
+		trace.FakeIPDecision(r == f.fake, f.enabled.Load(), force, skipCheck, reason)
+	}
+	return lookup(ctx, r, req)
 }
 
 func (f *Fakedns) Close() error {

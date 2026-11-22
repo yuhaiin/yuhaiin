@@ -12,7 +12,7 @@ import (
 // shareFeedsMigration replaces publishes with share feeds. A share feed is
 // identified by an ID so it can be renamed, and served by a random token.
 // Fetch statistics are runtime data kept apart from the configuration row.
-var shareFeedsMigration = Migration{Version: 26, Name: "share_feeds", Transform: migrateShareFeeds}
+var shareFeedsMigration = Migration{Version: 28, Name: "share_feeds", Transform: migrateShareFeeds}
 
 func migrateShareFeeds(ctx context.Context, tx *sql.Tx) error {
 	for _, statement := range []string{

@@ -143,7 +143,8 @@ func newCachedPipeline(t *testing.T) *cachedPipeline {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = fake.Close() })
-	if err := fake.Apply(contract.FakeDNS{SkipCheckList: []string{"synthetic.example"}, Whitelist: []string{"plain.example"}}); err != nil {
+	useTestLists(fake, map[string][]string{"skip": {"synthetic.example"}, "white": {"plain.example"}})
+	if err := fake.Apply(contract.FakeDNS{SkipCheckListIDs: []string{"skip"}, WhitelistListIDs: []string{"white"}}); err != nil {
 		t.Fatal(err)
 	}
 	root := response.New(fake)

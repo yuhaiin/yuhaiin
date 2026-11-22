@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/xml"
 	"errors"
 	"flag"
@@ -18,6 +19,8 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/cmd/yuhaiin/internal/servicehost"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/helper"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/pf"
 )
 
 const darwinLaunchdPlist = `
@@ -57,11 +60,51 @@ const targetBin = "/usr/local/bin/yuhaiin"
 const service = "com.asutorufa.yuhaiin"
 
 func install(args []string) error {
-	return installSystemDaemonDarwin(args)
+	// Create the kill switch's socket group before the Yuhaiin service
+	// starts: Yuhaiin joins it at startup, so every socket it opens,
+	// including the web interface's listener, already passes when
+	// protection is enabled later.
+	if _, err := helper.EnsureGroup(context.Background()); err != nil {
+		log.Warn("create the Network Protection socket group failed", "err", err)
+	}
+	if err := installSystemDaemonDarwin(args); err != nil {
+		return err
+	}
+	// The Network Protection service runs as its own LaunchDaemon from the
+	// same stable binary, so the kill switch and its recovery work while
+	// the Yuhaiin service is stopped or broken. It is installed now but
+	// only runs while the kill switch is on.
+	if err := helper.InstallDaemon(context.Background(), targetBin); err != nil {
+		log.Warn("install the Network Protection service failed; the kill switch is unavailable until it is installed", "err", err)
+	}
+	return nil
 }
 
 func uninstall(args []string) error {
-	return uninstallSystemDaemonDarwin(args)
+	err := uninstallProtectionDarwin()
+	return errors.Join(err, uninstallSystemDaemonDarwin(args))
+}
+
+// uninstallProtectionDarwin removes Network Protection completely: its rules
+// (through the same steps as the emergency recovery), the managed pf.conf
+// lines, the service, the socket group and the saved state. Only the
+// uninstall command does this; reinstalling keeps protection as it is.
+func uninstallProtectionDarwin() error {
+	ctx := context.Background()
+	report := helper.NewRecovery().Run(ctx)
+	var err error
+	if !report.Success {
+		err = errors.New("network protection could not be removed completely; run: sudo yuhaiin protection disable --recovery")
+	}
+	err = errors.Join(err, helper.UninstallDaemon(ctx))
+	if _, uerr := pf.NewEngine(helper.StateDir).Unregister(ctx); uerr != nil {
+		err = errors.Join(err, fmt.Errorf("remove the Yuhaiin lines from /etc/pf.conf: %w", uerr))
+	}
+	err = errors.Join(err, helper.DeleteGroup(ctx))
+	if err == nil {
+		_ = os.RemoveAll(helper.StateDir)
+	}
+	return err
 }
 
 func restart(args []string) error {

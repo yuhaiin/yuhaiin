@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 )
@@ -28,118 +29,129 @@ func isV2StreamEndpoint(endpoint v2Endpoint) bool {
 // Secret-bearing requests use small independent bounds without restricting
 // unrelated configuration-import payloads accepted by the same RPC adapter.
 var v2RPCBodyLimits = map[v2Endpoint]int64{
-	v2SystemNetworkConfigPut:    4 << 20,
-	v2SystemNetworkPreview:      4 << 20,
-	v2CertificateSave:           128 << 10,
-	v2CertificateProviderSave:   8 << 10,
-	v2CertificateDelete:         1 << 10,
-	v2CertificateRenew:          1 << 10,
-	v2CertificateProviderDelete: 1 << 10,
-	v2UpdateApply:               4 << 10,
-	v2UpdateRollback:            4 << 10,
-	v2UpdateCancel:              4 << 10,
-	v2RecoveryImportPreview:     16 << 10,
-	v2RecoveryImportActivate:    16 << 10,
-	v2RecoveryBackupVerify:      16 << 10,
-	v2RecoveryBackupRetrieve:    4 << 10,
+	v2SystemNetworkConfigPut:     4 << 20,
+	v2SystemNetworkPreview:       4 << 20,
+	v2SystemNetworkProtectionPut: 4 << 10,
+	v2CertificateSave:            128 << 10,
+	v2CertificateProviderSave:    8 << 10,
+	v2CertificateDelete:          1 << 10,
+	v2CertificateRenew:           1 << 10,
+	v2CertificateProviderDelete:  1 << 10,
+	v2UpdateApply:                4 << 10,
+	v2UpdateRollback:             4 << 10,
+	v2UpdateCancel:               4 << 10,
+	v2RecoveryImportPreview:      16 << 10,
+	v2RecoveryImportActivate:     16 << 10,
+	v2RecoveryBackupVerify:       16 << 10,
+	v2RecoveryBackupRetrieve:     4 << 10,
 }
 
 const (
-	v2CertificatesList          v2Endpoint = "certificates.list"
-	v2CertificateSave           v2Endpoint = "certificate.save"
-	v2CertificateDelete         v2Endpoint = "certificate.delete"
-	v2CertificateRenew          v2Endpoint = "certificate.renew"
-	v2CertificateProviderSave   v2Endpoint = "certificate.provider.save"
-	v2CertificateProviderDelete v2Endpoint = "certificate.provider.delete"
-	v2GatewayFilterRefresh      v2Endpoint = "gateway.filters.refresh"
-	v2GatewayWorkspaceGet       v2Endpoint = "gateway.workspace.get"
-	v2GatewayWorkspacePut       v2Endpoint = "gateway.workspace.put"
-	v2GatewayStatus             v2Endpoint = "gateway.status"
-	v2GatewayStatisticsReset    v2Endpoint = "gateway.statistics.reset"
-	v2GatewayTest               v2Endpoint = "gateway.test"
-	v2GatewayCAStatus           v2Endpoint = "gateway.ca.status"
-	v2GatewayCAGenerate         v2Endpoint = "gateway.ca.generate"
-	v2GatewayCAImport           v2Endpoint = "gateway.ca.import"
-	v2Info                      v2Endpoint = "info"
-	v2FrontendStatus            v2Endpoint = "frontend.status"
-	v2FrontendCheck             v2Endpoint = "frontend.check"
-	v2FrontendApply             v2Endpoint = "frontend.apply"
-	v2FrontendRollback          v2Endpoint = "frontend.rollback"
-	v2FrontendReset             v2Endpoint = "frontend.reset"
-	v2UpdateCheck               v2Endpoint = "update.check"
-	v2UpdateApply               v2Endpoint = "update.apply"
-	v2UpdateStatus              v2Endpoint = "update.status"
-	v2UpdateHistory             v2Endpoint = "update.history"
-	v2UpdateRollback            v2Endpoint = "update.rollback"
-	v2UpdateCancel              v2Endpoint = "update.cancel"
-	v2BackupRun                 v2Endpoint = "backup.run"
-	v2BackupRestore             v2Endpoint = "backup.restore"
-	v2RecoveryBackupStatus      v2Endpoint = "backup.recovery.status"
-	v2RecoveryBackupCreate      v2Endpoint = "backup.recovery.create"
-	v2RecoveryBackupDownload    v2Endpoint = "backup.recovery.download"
-	v2RecoveryBackupDelete      v2Endpoint = "backup.recovery.delete"
-	v2RecoveryBackupRetry       v2Endpoint = "backup.recovery.retry"
-	v2RecoveryBackupVerify      v2Endpoint = "backup.recovery.verify"
-	v2RecoveryBackupRetrieve    v2Endpoint = "backup.recovery.retrieve"
-	v2RecoveryImportList        v2Endpoint = "backup.recovery.imports"
-	v2RecoveryImportUpload      v2Endpoint = "backup.recovery.import.upload"
-	v2RecoveryImportPreview     v2Endpoint = "backup.recovery.import.preview"
-	v2RecoveryImportActivate    v2Endpoint = "backup.recovery.import.activate"
-	v2RecoveryImportDiscard     v2Endpoint = "backup.recovery.import.discard"
-	v2RecoveryRestoreStatus     v2Endpoint = "backup.recovery.restore.status"
-	v2ToolsDiagnostics          v2Endpoint = "tools.diagnostics"
-	v2ToolsInterfaces           v2Endpoint = "tools.interfaces"
-	v2ToolsLicenses             v2Endpoint = "tools.licenses"
-	v2ToolsLogs                 v2Endpoint = "tools.logs"
-	v2ToolsLogsV2               v2Endpoint = "tools.logs.v2"
-	v2ConnectionsTotal          v2Endpoint = "connections.total"
-	v2ConnectionsTraffic        v2Endpoint = "connections.traffic"
-	v2ConnectionsTelemetry      v2Endpoint = "connections.telemetry"
-	v2ConnectionsEvents         v2Endpoint = "connections.events"
-	v2Connections               v2Endpoint = "connections"
-	v2ConnectionsTrace          v2Endpoint = "connections.trace"
-	v2ConnectionsClose          v2Endpoint = "connections.close"
-	v2ConnectionsFailedHistory  v2Endpoint = "connections.failed_history"
-	v2ConnectionsHistory        v2Endpoint = "connections.history"
-	v2SubscriptionsUpdate       v2Endpoint = "subscriptions.update"
-	v2ShareFeeds                v2Endpoint = "share.feeds"
-	v2ShareFeedPreview          v2Endpoint = "share.feed.preview"
-	v2NodesGroups               v2Endpoint = "nodes.groups"
-	v2NodesSelected             v2Endpoint = "nodes.selected"
-	v2NodesSelect               v2Endpoint = "nodes.select"
-	v2NodesImportPreview        v2Endpoint = "nodes.import.preview"
-	v2InboundStatuses           v2Endpoint = "inbounds.status"
-	v2LANLinkInvite             v2Endpoint = "inbound.lan_link.invite"
-	v2LANLinkRevoke             v2Endpoint = "inbound.lan_link.revoke"
-	v2LANLinkClients            v2Endpoint = "inbound.lan_link.clients"
-	v2LANLinkAction             v2Endpoint = "inbound.lan_link.action"
-	v2LANLinkNetworks           v2Endpoint = "inbound.lan_link.networks"
-	v2InboundEvents             v2Endpoint = "inbound.events"
-	v2InboundRetry              v2Endpoint = "inbound.retry"
-	v2InboundCapabilities       v2Endpoint = "inbound.capabilities"
-	v2SystemNetworkConfigGet    v2Endpoint = "systemNetwork.config.get"
-	v2SystemNetworkConfigPut    v2Endpoint = "systemNetwork.config.put"
-	v2SystemNetworkStatus       v2Endpoint = "systemNetwork.status"
-	v2SystemNetworkInterfaces   v2Endpoint = "systemNetwork.interfaces"
-	v2SystemNetworkPreview      v2Endpoint = "systemNetwork.preview"
-	v2SystemNetworkRoutes       v2Endpoint = "systemNetwork.routes"
-	v2SystemNetworkOutbound     v2Endpoint = "systemNetwork.outbound"
-	v2NodePeerTunnelPeers       v2Endpoint = "nodes.peer_tunnel_peers"
-	v2NodesActive               v2Endpoint = "nodes.active"
-	v2NodeUse                   v2Endpoint = "node.use"
-	v2NodeStatuses              v2Endpoint = "nodes.status"
-	v2NodeSpeed                 v2Endpoint = "node.speed"
-	v2NodeLatency               v2Endpoint = "node.latency"
-	v2NodeClose                 v2Endpoint = "node.close"
-	v2NodeExtraInfo             v2Endpoint = "node.extra"
-	v2RouteActivation           v2Endpoint = "route.activation"
-	v2RouteApply                v2Endpoint = "route.apply"
-	v2RouteListRefresh          v2Endpoint = "route.lists.refresh"
-	v2RouteListActivation       v2Endpoint = "route.lists.activation"
-	v2RouteRulesPriority        v2Endpoint = "route.rules.priority"
-	v2RouteRulesTest            v2Endpoint = "route.rules.test"
-	v2RouteRulesBlockHistory    v2Endpoint = "route.rules.block_history"
-	v2NodesImportCommit         v2Endpoint = "nodes.import.commit"
+	v2LogsRecent                   v2Endpoint = "logs.recent"
+	v2RuntimeStats                 v2Endpoint = "runtime.stats"
+	v2ProfilerSessions             v2Endpoint = "profiler.sessions"
+	v2ProfilerStart                v2Endpoint = "profiler.start"
+	v2ProfilerDelete               v2Endpoint = "profiler.delete"
+	v2ProfilerAnalyze              v2Endpoint = "profiler.analyze"
+	v2CertificatesList             v2Endpoint = "certificates.list"
+	v2CertificateSave              v2Endpoint = "certificate.save"
+	v2CertificateDelete            v2Endpoint = "certificate.delete"
+	v2CertificateRenew             v2Endpoint = "certificate.renew"
+	v2CertificateProviderSave      v2Endpoint = "certificate.provider.save"
+	v2CertificateProviderDelete    v2Endpoint = "certificate.provider.delete"
+	v2GatewayFilterRefresh         v2Endpoint = "gateway.filters.refresh"
+	v2GatewayWorkspaceGet          v2Endpoint = "gateway.workspace.get"
+	v2GatewayWorkspacePut          v2Endpoint = "gateway.workspace.put"
+	v2GatewayStatus                v2Endpoint = "gateway.status"
+	v2GatewayStatisticsReset       v2Endpoint = "gateway.statistics.reset"
+	v2GatewayStatistics            v2Endpoint = "gateway.statistics"
+	v2GatewayTest                  v2Endpoint = "gateway.test"
+	v2GatewayCAStatus              v2Endpoint = "gateway.ca.status"
+	v2GatewayCAGenerate            v2Endpoint = "gateway.ca.generate"
+	v2GatewayCAImport              v2Endpoint = "gateway.ca.import"
+	v2Info                         v2Endpoint = "info"
+	v2FrontendStatus               v2Endpoint = "frontend.status"
+	v2FrontendCheck                v2Endpoint = "frontend.check"
+	v2FrontendApply                v2Endpoint = "frontend.apply"
+	v2FrontendRollback             v2Endpoint = "frontend.rollback"
+	v2FrontendReset                v2Endpoint = "frontend.reset"
+	v2UpdateCheck                  v2Endpoint = "update.check"
+	v2UpdateApply                  v2Endpoint = "update.apply"
+	v2UpdateStatus                 v2Endpoint = "update.status"
+	v2UpdateHistory                v2Endpoint = "update.history"
+	v2UpdateRollback               v2Endpoint = "update.rollback"
+	v2UpdateCancel                 v2Endpoint = "update.cancel"
+	v2BackupRun                    v2Endpoint = "backup.run"
+	v2BackupRestore                v2Endpoint = "backup.restore"
+	v2RecoveryBackupStatus         v2Endpoint = "backup.recovery.status"
+	v2RecoveryBackupCreate         v2Endpoint = "backup.recovery.create"
+	v2RecoveryBackupDownload       v2Endpoint = "backup.recovery.download"
+	v2RecoveryBackupDelete         v2Endpoint = "backup.recovery.delete"
+	v2RecoveryBackupRetry          v2Endpoint = "backup.recovery.retry"
+	v2RecoveryBackupVerify         v2Endpoint = "backup.recovery.verify"
+	v2RecoveryBackupRetrieve       v2Endpoint = "backup.recovery.retrieve"
+	v2RecoveryImportList           v2Endpoint = "backup.recovery.imports"
+	v2RecoveryImportUpload         v2Endpoint = "backup.recovery.import.upload"
+	v2RecoveryImportPreview        v2Endpoint = "backup.recovery.import.preview"
+	v2RecoveryImportActivate       v2Endpoint = "backup.recovery.import.activate"
+	v2RecoveryImportDiscard        v2Endpoint = "backup.recovery.import.discard"
+	v2RecoveryRestoreStatus        v2Endpoint = "backup.recovery.restore.status"
+	v2ToolsDiagnostics             v2Endpoint = "tools.diagnostics"
+	v2ToolsInterfaces              v2Endpoint = "tools.interfaces"
+	v2ToolsLicenses                v2Endpoint = "tools.licenses"
+	v2ToolsLogs                    v2Endpoint = "tools.logs"
+	v2ToolsLogsV2                  v2Endpoint = "tools.logs.v2"
+	v2ConnectionsTotal             v2Endpoint = "connections.total"
+	v2ConnectionsTraffic           v2Endpoint = "connections.traffic"
+	v2ConnectionsTelemetry         v2Endpoint = "connections.telemetry"
+	v2ConnectionsEvents            v2Endpoint = "connections.events"
+	v2Connections                  v2Endpoint = "connections"
+	v2ConnectionsTrace             v2Endpoint = "connections.trace"
+	v2ConnectionsClose             v2Endpoint = "connections.close"
+	v2ConnectionsFailedHistory     v2Endpoint = "connections.failed_history"
+	v2ConnectionsHistory           v2Endpoint = "connections.history"
+	v2SubscriptionsUpdate          v2Endpoint = "subscriptions.update"
+	v2ShareFeeds                   v2Endpoint = "share.feeds"
+	v2ShareFeedPreview             v2Endpoint = "share.feed.preview"
+	v2NodesGroups                  v2Endpoint = "nodes.groups"
+	v2NodesSelected                v2Endpoint = "nodes.selected"
+	v2NodesSelect                  v2Endpoint = "nodes.select"
+	v2NodesImportPreview           v2Endpoint = "nodes.import.preview"
+	v2InboundStatuses              v2Endpoint = "inbounds.status"
+	v2LANLinkInvite                v2Endpoint = "inbound.lan_link.invite"
+	v2LANLinkRevoke                v2Endpoint = "inbound.lan_link.revoke"
+	v2LANLinkClients               v2Endpoint = "inbound.lan_link.clients"
+	v2LANLinkAction                v2Endpoint = "inbound.lan_link.action"
+	v2LANLinkNetworks              v2Endpoint = "inbound.lan_link.networks"
+	v2InboundEvents                v2Endpoint = "inbound.events"
+	v2InboundRetry                 v2Endpoint = "inbound.retry"
+	v2InboundCapabilities          v2Endpoint = "inbound.capabilities"
+	v2SystemNetworkConfigGet       v2Endpoint = "systemNetwork.config.get"
+	v2SystemNetworkConfigPut       v2Endpoint = "systemNetwork.config.put"
+	v2SystemNetworkStatus          v2Endpoint = "systemNetwork.status"
+	v2SystemNetworkInterfaces      v2Endpoint = "systemNetwork.interfaces"
+	v2SystemNetworkPreview         v2Endpoint = "systemNetwork.preview"
+	v2SystemNetworkRoutes          v2Endpoint = "systemNetwork.routes"
+	v2SystemNetworkOutbound        v2Endpoint = "systemNetwork.outbound"
+	v2SystemNetworkProtection      v2Endpoint = "systemNetwork.protection.get"
+	v2SystemNetworkProtectionPut   v2Endpoint = "systemNetwork.protection.put"
+	v2SystemNetworkProtectionRules v2Endpoint = "systemNetwork.protection.rules"
+	v2NodePeerTunnelPeers          v2Endpoint = "nodes.peer_tunnel_peers"
+	v2NodesActive                  v2Endpoint = "nodes.active"
+	v2NodeUse                      v2Endpoint = "node.use"
+	v2NodeStatuses                 v2Endpoint = "nodes.status"
+	v2NodeSpeed                    v2Endpoint = "node.speed"
+	v2NodeLatency                  v2Endpoint = "node.latency"
+	v2NodeClose                    v2Endpoint = "node.close"
+	v2NodeExtraInfo                v2Endpoint = "node.extra"
+	v2RouteActivation              v2Endpoint = "route.activation"
+	v2RouteApply                   v2Endpoint = "route.apply"
+	v2RouteListRefresh             v2Endpoint = "route.lists.refresh"
+	v2RouteListActivation          v2Endpoint = "route.lists.activation"
+	v2RouteRulesPriority           v2Endpoint = "route.rules.priority"
+	v2RouteRulesTest               v2Endpoint = "route.rules.test"
+	v2RouteRulesBlockHistory       v2Endpoint = "route.rules.block_history"
+	v2NodesImportCommit            v2Endpoint = "nodes.import.commit"
 
 	v2SettingsGet           v2Endpoint = "settings.get"
 	v2SettingsPut           v2Endpoint = "settings.put"
@@ -153,6 +165,12 @@ const (
 	v2ResolverFakeDNSPut    v2Endpoint = "resolver.fakedns.put"
 	v2ResolverServerGet     v2Endpoint = "resolver.server.get"
 	v2ResolverServerPut     v2Endpoint = "resolver.server.put"
+	v2DNSHistoryList        v2Endpoint = "dns.history.list"
+	v2DNSHistoryGet         v2Endpoint = "dns.history.get"
+	v2DNSHistoryStats       v2Endpoint = "dns.history.stats"
+	v2DNSHistoryClear       v2Endpoint = "dns.history.clear"
+	v2DNSHistorySettingsGet v2Endpoint = "dns.history.settings.get"
+	v2DNSHistorySettingsPut v2Endpoint = "dns.history.settings.put"
 	v2FakeIPEntries         v2Endpoint = "resolver.fakeip.entries"
 	v2FakeIPEntryDelete     v2Endpoint = "resolver.fakeip.entry.delete"
 	v2ResolverCacheGet      v2Endpoint = "resolver.cache.get"
@@ -222,6 +240,12 @@ const (
 )
 
 var v2Routes = []v2Route{
+	{v2LogsRecent, "POST /api/v2/logs/recent"},
+	{v2RuntimeStats, "GET /api/v2/runtime/stats"},
+	{v2ProfilerSessions, "GET /api/v2/profiler"},
+	{v2ProfilerStart, "POST /api/v2/profiler"},
+	{v2ProfilerDelete, "DELETE /api/v2/profiler/{id}"},
+	{v2ProfilerAnalyze, "POST /api/v2/profiler/{id}/analyze"},
 	{v2CertificatesList, "GET /api/v2/certificates"},
 	{v2CertificateSave, "PUT /api/v2/certificates"},
 	{v2CertificateDelete, "DELETE /api/v2/certificates/{id}"},
@@ -233,6 +257,7 @@ var v2Routes = []v2Route{
 	{v2GatewayWorkspacePut, "PUT /api/v2/gateway/workspace"},
 	{v2GatewayStatus, "GET /api/v2/gateway/status"},
 	{v2GatewayStatisticsReset, "POST /api/v2/gateway/statistics/reset"},
+	{v2GatewayStatistics, "GET /api/v2/gateway/statistics"},
 	{v2GatewayTest, "POST /api/v2/gateway/test"},
 	{v2GatewayCAStatus, "GET /api/v2/gateway/ca"},
 	{v2GatewayCAGenerate, "POST /api/v2/gateway/ca/generate"},
@@ -290,6 +315,13 @@ var v2Routes = []v2Route{
 	{v2ResolverFakeDNSPut, "PUT /api/v2/resolver/fakedns"},
 	{v2ResolverServerGet, "GET /api/v2/resolver/server"},
 	{v2ResolverServerPut, "PUT /api/v2/resolver/server"},
+	{v2DNSHistoryList, "GET /api/v2/dns/history"},
+	{v2DNSHistoryStats, "GET /api/v2/dns/history/stats"},
+	{v2DNSHistorySettingsGet, "GET /api/v2/dns/history/settings"},
+	{v2DNSHistorySettingsPut, "PUT /api/v2/dns/history/settings"},
+	// After the fixed paths: {id} would otherwise match "stats" and "settings".
+	{v2DNSHistoryGet, "GET /api/v2/dns/history/{id}"},
+	{v2DNSHistoryClear, "DELETE /api/v2/dns/history"},
 	{v2FakeIPEntries, "GET /api/v2/resolver/fakeip/entries"},
 	{v2FakeIPEntryDelete, "DELETE /api/v2/resolver/fakeip/entries/{ip}/{domain}"},
 	{v2ResolverCacheGet, "GET /api/v2/resolver/cache"},
@@ -318,6 +350,9 @@ var v2Routes = []v2Route{
 	{v2SystemNetworkPreview, "POST /api/v2/system-network/preview"},
 	{v2SystemNetworkRoutes, "GET /api/v2/system-network/routes"},
 	{v2SystemNetworkOutbound, "GET /api/v2/system-network/outbound"},
+	{v2SystemNetworkProtection, "GET /api/v2/system-network/protection"},
+	{v2SystemNetworkProtectionPut, "PUT /api/v2/system-network/protection"},
+	{v2SystemNetworkProtectionRules, "GET /api/v2/system-network/protection/rules"},
 	{v2InboundsPost, "POST /api/v2/inbounds"},
 	{v2InboundStatuses, "GET /api/v2/inbounds/status"},
 	{v2LANLinkInvite, "POST /api/v2/inbounds/{id}/lan-link/invite"},
@@ -398,11 +433,12 @@ var v2Routes = []v2Route{
 }
 
 type v2Handlers struct {
-	values map[v2Endpoint]func(http.ResponseWriter, *http.Request) error
+	values     map[v2Endpoint]func(http.ResponseWriter, *http.Request) error
+	operations map[v2Endpoint]func(context.Context, []byte) (any, error)
 }
 
 func newV2Handlers(services V2Services) *v2Handlers {
-	handlers := &v2Handlers{values: make(map[v2Endpoint]func(http.ResponseWriter, *http.Request) error)}
+	handlers := &v2Handlers{values: make(map[v2Endpoint]func(http.ResponseWriter, *http.Request) error), operations: make(map[v2Endpoint]func(context.Context, []byte) (any, error))}
 	addFacadeRPCRoutesV2(handlers, services)
 	addRouteRPCRoutesV2(handlers, services)
 	addSelectorRPCRoutesV2(handlers, services)
@@ -414,6 +450,7 @@ func newV2Handlers(services V2Services) *v2Handlers {
 	addSystemNetworkRPCRoutes(handlers, services)
 	addGatewayRPCRoutesV2(handlers, services)
 	addCertificateRPCRoutes(handlers, services)
+	addDiagnosticRPCRoutes(handlers, services)
 	return handlers
 }
 
@@ -422,6 +459,10 @@ func (h *v2Handlers) add(endpoint v2Endpoint, handler func(http.ResponseWriter, 
 		panic(fmt.Sprintf("duplicate v2 handler %q", endpoint))
 	}
 	h.values[endpoint] = handler
+}
+
+func (h *v2Handlers) addOperation(endpoint v2Endpoint, operation func(context.Context, []byte) (any, error)) {
+	h.operations[endpoint] = operation
 }
 
 func (h *v2Handlers) handler(endpoint v2Endpoint) func(http.ResponseWriter, *http.Request) error {

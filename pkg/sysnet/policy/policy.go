@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"github.com/Asutorufa/yuhaiin/pkg/contract/sysnet"
 	"go4.org/netipx"
@@ -248,3 +249,19 @@ func RuleRoutes(match sysnet.RouteMatch, geoip GeoIPSource) ([]netip.Prefix, err
 	}
 	return routes, nil
 }
+
+// privateNetworks are the networks Network Protection lets applications reach
+// directly: the non_private exclusions (RFC 1918, RFC 6598 shared address
+// space, unique local IPv6) plus loopback and unicast link-local. Multicast
+// and other special-purpose ranges are not included; the protection backend
+// allows only the link-scoped services it needs (DHCP, Neighbor Discovery,
+// link-local multicast).
+var privateNetworks = append(slices.Clone(privateExclusions), mustPrefixes(
+	"127.0.0.0/8", "169.254.0.0/16",
+	"::1/128", "fe80::/10",
+)...)
+
+// PrivateNetworks returns the networks that are never Internet traffic for
+// Network Protection. They are the same private networks the non_private
+// route mode keeps local, so routing and protection agree.
+func PrivateNetworks() []netip.Prefix { return slices.Clone(privateNetworks) }

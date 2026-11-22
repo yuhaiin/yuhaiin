@@ -749,6 +749,12 @@ func restoreConfig(ctx context.Context, db *sql.DB, data []byte, commit bool) er
 			}
 		}
 	}
+	if slices.Contains(present, "dns_fakedns_lists") {
+		// Backups taken before the FakeDNS shared-lists migration hold inline entries.
+		if err := ConvertFakeDNSInlineLists(ctx, tx); err != nil {
+			return fmt.Errorf("convert restored FakeDNS lists: %w", err)
+		}
+	}
 	if backup.missingLegacyTables["route_configuration_state"] {
 		result, err := tx.ExecContext(ctx, `UPDATE route_configuration_state SET applied_revision=0, applied_rules_json='[]', applied_config_json='{}' WHERE id=1`)
 		if err != nil {

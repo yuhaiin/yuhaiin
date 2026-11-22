@@ -2,14 +2,17 @@ package forward
 
 import (
 	"fmt"
+
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/pf"
 	"net/netip"
 	"strings"
 )
 
-// PFAnchor is the only PF anchor this package loads or flushes. The default
-// macOS /etc/pf.conf evaluates every child of com.apple ("nat-anchor" and
-// "anchor com.apple/*"), so no global PF configuration is changed.
-const PFAnchor = "com.apple/yuhaiin"
+// PFAnchor is the only PF anchor this package loads or flushes. It is a
+// child of Yuhaiin's own anchor, io.github.yuhaiin, which the main ruleset
+// evaluates through two managed /etc/pf.conf lines (see protection/pf).
+// Anchors macOS manages (com.apple/*) are not used.
+const PFAnchor = pf.ForwardAnchor
 
 // NextHop returns the route-to next hop of a point-to-point egress without a
 // gateway: like macOS routes through a utun, its own address of the family.

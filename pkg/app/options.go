@@ -40,12 +40,16 @@ import (
 	storagesqlite "github.com/Asutorufa/yuhaiin/pkg/storage/sqlite"
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
 	"github.com/Asutorufa/yuhaiin/pkg/sysproxy"
 	updatepkg "github.com/Asutorufa/yuhaiin/pkg/update"
 	yf "github.com/yuhaiin/yuhaiin.github.io"
 )
 
 type AppInstance struct {
+	// Operations are the management API actions shared by the HTTP API and
+	// other resource servers registered by the identity middleware (MCP).
+	Operations           *httpapi.Operations
 	Frontend             *frontend.Manager
 	Certificates         *certmanager.Manager
 	Gateway              httpapi.GatewayController
@@ -58,6 +62,7 @@ type AppInstance struct {
 	UserUsage            httpapi.UserUsage
 	Resolver             httpapi.ResolverController
 	FakeIP               contractresolver.FakeIPEntries
+	DNSHistory           httpapi.DNSHistoryController
 	ResolverCache        httpapi.ResolverCacheController
 	ResolverCfg          httpapi.ResolverConfigController
 	Lists                httpapi.ListRuntimeController
@@ -66,6 +71,7 @@ type AppInstance struct {
 	Setting              httpapi.SettingsController
 	Inbound              *inbound.Inbound
 	SystemNetwork        *sysnet.Manager
+	NetworkProtection    *protection.Controller
 	Mux                  *http.ServeMux
 	ConfigurationChanges configchange.Backend
 	*StartOptions
@@ -215,42 +221,54 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		app.shareFeeds = httpapi.NewShareFeedHandler(subscriptionStore)
 	}
 	recoveryPoints, _ := app.Backup.(updatepkg.RecoveryPoints)
-	httpapi.RegisterV2(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
+	app.Operations = httpapi.NewOperations(httpapi.V2Services{
+		Certificates:      app.Certificates,
+		Gateway:           app.Gateway,
+		Settings:          app.Setting,
+		Inbounds:          inboundStore,
+		Nodes:             nodeStore,
+		Node:              app.Node,
+		Subscriptions:     subscriptionStore,
+		Resolvers:         resolverStore,
+		Resolver:          app.Resolver,
+		FakeIP:            app.FakeIP,
+		DNSHistory:        app.DNSHistory,
+		ResolverCache:     app.ResolverCache,
+		ResolverConfig:    resolverConfig,
+		Connections:       app.Connections,
+		Tools:             app.Tools,
+		Diagnostics:       app.Diagnostics,
+		Update:            updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
+		Frontend:          app.Frontend,
+		Backup:            app.Backup,
+		Lists:             app.Lists,
+		RouteSettings:     routeSettingsStore,
+		RouteLists:        routeListStore,
+		RouteRegistries:   routeRegistryStore,
+		RegistryCatalogs:  registryCatalogs,
+		Rules:             app.Rules,
+		RouteRules:        routeRuleStore,
+		RouteEditor:       routeEditor,
+		Selectors:         selectors,
+		Subscribe:         subscribeController,
+		SystemNetwork:     systemNetworkController(app.SystemNetwork),
+		NetworkProtection: networkProtectionController(app.NetworkProtection),
+		Profiler:          profilerController(app.profiler),
+	})
+	httpapi.RegisterOperations(func(pattern string, handler func(http.ResponseWriter, *http.Request) error) {
 		// The outer management gate covers all routes, including auxiliary
 		// registrations, and establishes a Principal before this handler runs.
 		handleRPCFunc(app.Mux, nil, nil, pattern, handler)
-	}, httpapi.V2Services{
-		Certificates:     app.Certificates,
-		Gateway:          app.Gateway,
-		Settings:         app.Setting,
-		Inbounds:         inboundStore,
-		Nodes:            nodeStore,
-		Node:             app.Node,
-		Subscriptions:    subscriptionStore,
-		Resolvers:        resolverStore,
-		Resolver:         app.Resolver,
-		FakeIP:           app.FakeIP,
-		ResolverCache:    app.ResolverCache,
-		ResolverConfig:   resolverConfig,
-		Connections:      app.Connections,
-		Tools:            app.Tools,
-		Diagnostics:      app.Diagnostics,
-		Update:           updatepkg.NewService(updatepkg.Options{Installer: app.Updater, Recovery: recoveryPoints}),
-		Frontend:         app.Frontend,
-		Backup:           app.Backup,
-		Lists:            app.Lists,
-		RouteSettings:    routeSettingsStore,
-		RouteLists:       routeListStore,
-		RouteRegistries:  routeRegistryStore,
-		RegistryCatalogs: registryCatalogs,
-		Rules:            app.Rules,
-		RouteRules:       routeRuleStore,
-		RouteEditor:      routeEditor,
-		Selectors:        selectors,
-		Subscribe:        subscribeController,
-		SystemNetwork:    systemNetworkController(app.SystemNetwork),
-	})
+	}, app.Operations)
 	return ctx.Err()
+}
+
+// profilerController avoids a non-nil interface holding a nil service.
+func profilerController(p *profilerService) httpapi.ProfilerController {
+	if p == nil {
+		return nil
+	}
+	return p
 }
 
 func (a *AppInstance) Close() error {

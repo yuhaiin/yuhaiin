@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
+	protectionplatform "github.com/Asutorufa/yuhaiin/pkg/sysnet/protection/platform"
 	"io"
 	"net"
 	"net/http"
 	"net/netip"
 	"strings"
+	"time"
 
 	dnswire "codeberg.org/miekg/dns"
 	backupapp "github.com/Asutorufa/yuhaiin/pkg/app/backup"
@@ -92,6 +95,11 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		return nil, err
 	}
 	configuration.DataDir.Store(so.ConfigPath)
+	// Join the kill switch's socket group before any socket is opened, so
+	// Yuhaiin's own connections pass while protection is on (macOS).
+	prepareCtx, cancelPrepare := context.WithTimeout(context.Background(), 20*time.Second)
+	protectionplatform.PrepareStartup(prepareCtx)
+	cancelPrepare()
 
 	ctx := so.Context
 	if ctx == nil {
@@ -201,6 +209,16 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		router,
 	))
 	metrics.SetFlowCounter(stcs.Cache)
+	// DNS history observes both local DNS listeners and DNS hijacking. It
+	// is optional: DNS works unchanged when the history store is unavailable.
+	var dnsObservers []netapi.DNSObserver
+	var dnsHistoryController httpapi.DNSHistoryController
+	if dnsHistory, err := stcs.EnableDNSHistory(statistics.DefaultDNSHistoryOptions()); err != nil {
+		log.Warn("dns history is unavailable", "err", err)
+	} else {
+		dnsObservers = append(dnsObservers, dnsHistory)
+		dnsHistoryController = dnsHistory
+	}
 	var userUsage httpapi.UserUsage
 	var usageRecorder *statistics.UserUsage
 	var localGatewayAudit func(*netapi.Context, string, bool)
@@ -231,7 +249,7 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	}
 	AddCloser(closers, "fakedns", fakedns)
 	responses := response.New(fakedns)
-	dnsServer := AddCloser(closers, "dns server", resolver.NewDNSServer(responses))
+	dnsServer := AddCloser(closers, "dns server", resolver.NewDNSServer(responses, dnsObservers...))
 	log.Info("init resolver controller")
 	resolverCtr := resolver.NewResolverCtr(resolverStore, resolverConfigStore, hosts, fakedns, dns, responses, dnsServer)
 	log.Info("init resolver controller finished")
@@ -240,6 +258,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	configuration.ProxyChain.Set(fakedns)
 	configuration.ResolverChain.Set(responses)
 	list.SetProxy(fakedns)
+	// FakeDNS whitelist and skip-check lists can reference shared host lists.
+	fakedns.SetHostListSource(list)
+	list.OnHostListsChange(fakedns.RefreshHostLists)
 
 	// inbound server
 	var gatewayManager *gateway.Manager
@@ -317,6 +338,9 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		interceptionOptions = append(interceptionOptions, inbound.WithInterceptor(router))
 	}
 	interceptionOptions = append(interceptionOptions, inbound.WithAuthentication(so.ProxyAuthentication), inbound.WithTrafficAccess(so.TrafficAccess), inbound.WithTrafficControl(so.TrafficControl), inbound.WithUserUsage(usageRecorder), inbound.WithDNSAgent(dnsServer), inbound.WithFakeIPRangeSource(fakedns))
+	if len(dnsObservers) > 0 {
+		interceptionOptions = append(interceptionOptions, inbound.WithDNSObserver(dnsObservers[0]))
+	}
 	if inboundConfigStore != nil {
 		interceptionOptions = append(interceptionOptions, inbound.WithIngressStatisticsStore(inboundConfigStore))
 	}
@@ -326,6 +350,10 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// The System Network Manager owns every system route and is closed after
 	// the inbounds, which detach their TUNs first.
 	systemNetwork := AddCloser(closers, "system_network", newSystemNetwork(list))
+	// Network Protection follows the System Network state. Closing it only
+	// disconnects from the protection service: the kill switch stays on.
+	networkProtection := AddCloser(closers, "network_protection", protection.NewController(protectionplatform.NewBackend()))
+	systemNetwork.SetProtection(networkProtection.SetInputs)
 	interceptionOptions = append(interceptionOptions, inbound.WithSystemNetwork(systemNetwork))
 	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	router.SetLANLinkFallback(func(ctx context.Context, ip netip.Addr) (contractroute.Target, bool) {
@@ -361,25 +389,27 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 		})))
 
 	app := &AppInstance{
-		Gateway:       gatewayManager,
-		StartOptions:  so,
-		Mux:           mux,
-		Tools:         tools,
-		Diagnostics:   newDiagnostics(inboundConfigStore, inbounds, nodeRuntime, hosts, rules),
-		Node:          nodeRuntime,
-		NodeRuntime:   nodeRuntime,
-		Connections:   statistics.NewConnectionMonitor(stcs),
-		UserUsage:     userUsage,
-		Lists:         route.NewContractListController(list),
-		Rules:         route.NewContractRuleController(rules),
-		Resolver:      resolver.NewContractController(resolverCtr),
-		FakeIP:        fakedns,
-		ResolverCache: resolver.NewContractController(resolverCtr),
-		ResolverCfg:   resolver.NewContractConfigController(resolverCtr),
-		Setting:       settingsController,
-		Inbound:       inbounds,
-		SystemNetwork: systemNetwork,
-		closers:       closers,
+		Gateway:           gatewayManager,
+		StartOptions:      so,
+		Mux:               mux,
+		Tools:             tools,
+		Diagnostics:       newDiagnostics(inboundConfigStore, inbounds, nodeRuntime, hosts, rules),
+		Node:              nodeRuntime,
+		NodeRuntime:       nodeRuntime,
+		Connections:       statistics.NewConnectionMonitor(stcs),
+		UserUsage:         userUsage,
+		Lists:             route.NewContractListController(list),
+		Rules:             route.NewContractRuleController(rules),
+		Resolver:          resolver.NewContractController(resolverCtr),
+		FakeIP:            fakedns,
+		DNSHistory:        dnsHistoryController,
+		ResolverCache:     resolver.NewContractController(resolverCtr),
+		ResolverCfg:       resolver.NewContractConfigController(resolverCtr),
+		Setting:           settingsController,
+		Inbound:           inbounds,
+		SystemNetwork:     systemNetwork,
+		NetworkProtection: networkProtection,
+		closers:           closers,
 	}
 
 	backup := backupapp.New(backupStore, so.ConfigPath, so.RecoveryMaintenance, fakedns)

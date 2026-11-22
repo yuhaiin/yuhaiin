@@ -174,20 +174,31 @@ func (f *FakeDNS) RawCached(ctx context.Context, req netapi.DNSQuestion) (*dns.M
 	return f.raw(ctx, req, netapi.CachedDNS)
 }
 
+// traceResult records what the pool really returned for the client question.
+func (f *FakeDNS) traceResult(ctx context.Context, status string, ipv4, ipv6 netip.Addr, err error) {
+	if trace := netapi.DNSTraceFromContext(ctx); trace != nil {
+		trace.FakeIPResult(status, ipv4, ipv6, f.ipv4.Prefix(), f.ipv6.Prefix(), err)
+	}
+}
+
 func (f *FakeDNS) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi.DNSLookupFunc) (*dns.Msg, error) {
 	switch req.Qtype {
 	case dns.TypeA, dns.TypeAAAA, dns.TypePTR, dns.TypeHTTPS:
 	default:
+		f.traceResult(ctx, "not_applicable_qtype", netip.Addr{}, netip.Addr{}, nil)
 		return lookup(ctx, f.Resolver, req)
 	}
 
 	if !system.IsDomainName(req.Name) {
+		netapi.DNSTraceFromContext(ctx).SetSource(netapi.DNSResolutionLocal)
+		f.traceResult(ctx, "invalid_name", netip.Addr{}, netip.Addr{}, nil)
 		return f.newAnswerMessage(req, dns.RcodeNameError), nil
 	}
 
 	domain := req.Name[:len(req.Name)-1]
 
 	if net.ParseIP(domain) != nil {
+		f.traceResult(ctx, "not_applicable_ip_literal", netip.Addr{}, netip.Addr{}, nil)
 		return lookup(ctx, f.Resolver, req)
 	}
 
@@ -195,13 +206,18 @@ func (f *FakeDNS) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi
 	case dns.TypePTR:
 		ip, err := RetrieveIPFromPtr(req.Name)
 		if err != nil {
+			netapi.DNSTraceFromContext(ctx).SetSource(netapi.DNSResolutionLocal)
+			f.traceResult(ctx, "invalid_ptr", netip.Addr{}, netip.Addr{}, nil)
 			return f.newAnswerMessage(req, dns.RcodeNameError), nil
 		}
 
 		domain, err := f.LookupPtr(ip)
 		if err != nil {
+			f.traceResult(ctx, "ptr_not_fakeip", netip.Addr{}, netip.Addr{}, nil)
 			return lookup(ctx, f.Resolver, req)
 		}
+		netapi.DNSTraceFromContext(ctx).SetSource(netapi.DNSResolutionFakeIP)
+		f.traceResult(ctx, "reverse_mapping", netip.Addr{}, netip.Addr{}, nil)
 
 		msg := f.newAnswerMessage(
 			req,
@@ -230,43 +246,53 @@ func (f *FakeDNS) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi
 			}
 		}
 		if !hasService {
+			f.traceResult(ctx, "no_service_record", netip.Addr{}, netip.Addr{}, nil)
 			return msg, nil
 		}
 		ipv4 := f.ipv4.GetFakeIPForDomain(domain)
 		if !ipv4.Is4() {
+			f.allocationFailed(ctx, "IPv4", domain)
 			return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
 		}
 		var ipv6 netip.Addr
 		if configuration.IPv6.Load() {
 			ipv6 = f.ipv6.GetFakeIPForDomain(domain)
 			if !ipv6.Is6() {
+				f.allocationFailed(ctx, "IPv6", domain)
 				return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
 			}
 		}
 		msg = msg.Copy() // Never mutate a message shared with upstream cache.
 		rewriteHTTPSHints(msg, req.Name, ipv4, ipv6)
+		f.traceResult(ctx, "allocated_hints", ipv4, ipv6, nil)
 		return msg, nil
 
 	case dns.TypeAAAA:
 		if !configuration.IPv6.Load() {
+			netapi.DNSTraceFromContext(ctx).SetSource(netapi.DNSResolutionLocal)
+			f.traceResult(ctx, "ipv6_disabled", netip.Addr{}, netip.Addr{}, nil)
 			return f.newAnswerMessage(req, dns.RcodeSuccess), nil
 		}
 
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := lookup(ctx, f.Resolver, req)
 			if err != nil {
+				f.traceLookupFailure(ctx, err)
 				return nil, err
 			}
 
 			if !f.existAnswer(msg, dns.TypeAAAA) {
+				f.traceResult(ctx, "upstream_no_answer", netip.Addr{}, netip.Addr{}, nil)
 				return msg, nil
 			}
 		}
 
 		ip := f.ipv6.GetFakeIPForDomain(domain)
 		if !ip.Is6() {
+			f.allocationFailed(ctx, "IPv6", domain)
 			return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
 		}
+		f.traceResult(ctx, "allocated", netip.Addr{}, ip, nil)
 
 		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.AAAA{
@@ -279,18 +305,22 @@ func (f *FakeDNS) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi
 		if !netapi.GetContext(ctx).ConnOptions().Resolver().FakeIPSkipCheckUpstream() {
 			msg, err := lookup(ctx, f.Resolver, req)
 			if err != nil {
+				f.traceLookupFailure(ctx, err)
 				return nil, err
 			}
 
 			if !f.existAnswer(msg, dns.TypeA) {
+				f.traceResult(ctx, "upstream_no_answer", netip.Addr{}, netip.Addr{}, nil)
 				return msg, nil
 			}
 		}
 
 		ip := f.ipv4.GetFakeIPForDomain(domain)
 		if !ip.Is4() {
+			f.allocationFailed(ctx, "IPv4", domain)
 			return f.newAnswerMessage(req, dns.RcodeServerFailure), nil
 		}
+		f.traceResult(ctx, "allocated", ip, netip.Addr{}, nil)
 
 		return f.newAnswerMessage(req, dns.RcodeSuccess, func(header dns.Header) dns.RR {
 			return &dns.A{
@@ -301,6 +331,21 @@ func (f *FakeDNS) raw(ctx context.Context, req netapi.DNSQuestion, lookup netapi
 	}
 
 	return lookup(ctx, f.Resolver, req)
+}
+
+// traceLookupFailure ignores the cache-only probe's miss: the queued request
+// repeats the check against the upstream.
+func (f *FakeDNS) traceLookupFailure(ctx context.Context, err error) {
+	if !errors.Is(err, netapi.ErrDNSCacheMiss) {
+		f.traceResult(ctx, "upstream_check_failed", netip.Addr{}, netip.Addr{}, err)
+	}
+}
+
+// allocationFailed keeps the cause of the SERVFAIL the client receives.
+func (f *FakeDNS) allocationFailed(ctx context.Context, family, domain string) {
+	err := fmt.Errorf("fakeip: cannot allocate %s for %q", family, domain)
+	f.traceResult(ctx, "allocation_failed", netip.Addr{}, netip.Addr{}, err)
+	netapi.DNSTraceFromContext(ctx).SetSource(netapi.DNSResolutionFakeIP)
 }
 
 func (f *FakeDNS) existAnswer(msg *dns.Msg, t uint16) bool {

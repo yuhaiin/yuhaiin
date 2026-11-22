@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -172,6 +171,7 @@ type V2Services struct {
 	Resolvers        *plainstore.ResolverStore
 	Resolver         ResolverController
 	FakeIP           contractresolver.FakeIPEntries
+	DNSHistory       DNSHistoryController
 	ResolverCache    ResolverCacheController
 	ResolverConfig   ResolverConfigController
 	Connections      ConnectionMonitor
@@ -191,6 +191,9 @@ type V2Services struct {
 	Selectors        SelectorController
 	Subscribe        SubscriptionController
 	SystemNetwork    SystemNetworkController
+	// NetworkProtection is the kill switch; nil where it is unavailable.
+	NetworkProtection NetworkProtectionController
+	Profiler          ProfilerController
 }
 type pageV2 struct {
 	Page     int `json:"page"`
@@ -208,17 +211,7 @@ type inboundConfigV2 struct {
 }
 
 func RegisterV2(register RegisterFunc, services V2Services) {
-	handlers := newV2Handlers(services)
-	// Cross-origin JSON RPC clients send an OPTIONS preflight because they use
-	// Content-Type: application/json and may include Authorization. ServeMux
-	// otherwise answers 405 since the actual endpoints are POST-only.
-	register("OPTIONS /api/v2/rpc/", func(w http.ResponseWriter, _ *http.Request) error {
-		w.WriteHeader(http.StatusNoContent)
-		return nil
-	})
-	for _, route := range v2Routes {
-		register(v2RoutePattern(route), handlers.handler(route.endpoint))
-	}
+	RegisterOperations(register, NewOperations(services))
 }
 func defaultInboundConfigV2() inboundConfigV2 {
 	return inboundConfigV2{HijackDNS: true, HijackDNSFakeIP: true, Sniff: true}

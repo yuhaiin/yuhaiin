@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/diagnostics"
 	"github.com/Asutorufa/yuhaiin/pkg/frontend"
+	managementpermission "github.com/Asutorufa/yuhaiin/pkg/management/permission"
 	"github.com/Asutorufa/yuhaiin/pkg/storage/sqlite/configbackup"
 )
 
@@ -72,6 +74,7 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ResolverHostsGet, api.hosts)
 	addRPCRoute(handlers, v2ResolverHostsPut, api.saveHosts)
 	addRPCRoute(handlers, v2ResolverFakeDNSGet, api.fakeDNS)
+	registerDNSHistoryRoutes(handlers, api)
 	addRPCRoute(handlers, v2FakeIPEntries, api.fakeIPEntries)
 	addRPCRoute(handlers, v2FakeIPEntryDelete, api.deleteFakeIPEntry)
 	addRPCRoute(handlers, v2ResolverFakeDNSPut, api.saveFakeDNS)
@@ -408,11 +411,33 @@ func (a v2API) saveFakeDNS(ctx context.Context, request *contractresolver.FakeDN
 	if a.services.ResolverConfig == nil {
 		return nil, unavailable("resolver controller is unavailable")
 	}
+	if err := a.authorizeFakeDNSListRefs(ctx, *request); err != nil {
+		return nil, err
+	}
 	value, err := a.services.ResolverConfig.SaveFakeDNS(ctx, *request)
 	if err != nil {
 		return nil, badRequest(err)
 	}
 	return &value, nil
+}
+
+// authorizeFakeDNSListRefs requires routes:read to change which shared lists
+// FakeDNS uses: list contents are routing data, and a reference blocks
+// deleting the list.
+func (a v2API) authorizeFakeDNSListRefs(ctx context.Context, next contractresolver.FakeDNS) error {
+	if allowed, authenticated := managementpermission.Granted(ctx, managementpermission.RoutesRead); allowed || !authenticated {
+		return nil
+	}
+	current, err := a.services.ResolverConfig.FakeDNS(ctx)
+	if err != nil {
+		return badRequest(err)
+	}
+	// nil keeps the stored references, so it is never a change.
+	unchanged := func(current, next []string) bool { return next == nil || slices.Equal(current, next) }
+	if unchanged(current.WhitelistListIDs, next.WhitelistListIDs) && unchanged(current.SkipCheckListIDs, next.SkipCheckListIDs) {
+		return nil
+	}
+	return &rpcError{status: http.StatusForbidden, code: "permission_denied", message: "changing the shared lists used by FakeDNS requires " + string(managementpermission.RoutesRead)}
 }
 
 func (a v2API) resolverServer(ctx context.Context, _ *emptyRequest) (*contractresolver.Server, error) {

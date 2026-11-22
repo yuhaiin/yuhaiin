@@ -27,7 +27,6 @@ import (
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/atomicx"
 	"github.com/Asutorufa/yuhaiin/pkg/utils/set"
-	"github.com/Asutorufa/yuhaiin/pkg/utils/syncmap"
 )
 
 type Cache interface {
@@ -118,63 +117,6 @@ func (h *hostMatcher) Include(list string) bool {
 	return h.lists.Has(list)
 }
 
-type processMatcher struct {
-	trie syncmap.SyncMap[string, *[]string]
-}
-
-func newProcessTrie() *processMatcher {
-	return &processMatcher{}
-}
-
-func (h *processMatcher) Add(process string, list string) {
-	set, _, _ := h.trie.LoadOrCreate(process, func() (*[]string, error) {
-		return &[]string{}, nil
-	})
-
-	if slices.Contains(*set, list) {
-		return
-	}
-
-	*set = append(*set, list)
-}
-
-func (h *processMatcher) Range(yield func(string) bool) {
-	for _, v := range h.trie.Range {
-		for _, v := range *v {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}
-
-func (h *processMatcher) Include(list string) bool {
-	for v := range h.Range {
-		if v == list {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *processMatcher) Search(ctx context.Context, addr netapi.Address) []string {
-	store := netapi.GetContext(ctx)
-	process := store.GetProcessName()
-	s, ok := h.trie.Load(process)
-	if !ok {
-		return nil
-	}
-	return *s
-}
-
-func (h *processMatcher) Empty() bool {
-	for range h.trie.Range {
-		return false
-	}
-
-	return true
-}
-
 type Lists struct {
 	contentMu           sync.Mutex
 	applyCoordinator    atomic.Pointer[func(context.Context) error]
@@ -210,18 +152,23 @@ type Lists struct {
 	hostTrieRefreshVersion atomic.Uint64
 	hostListMu             sync.RWMutex
 
-	processTrie *processMatcher
+	// processTrie is replaced, never modified, so lookups need no lock.
+	processTrie atomic.Pointer[processMatcher]
+	// processIssues are the entry problems of the installed process index,
+	// kept so an apply that reuses the index reports them again.
+	processIssues []contractroute.ListActivationIssue
 
 	geoipmu sync.RWMutex
 	// geoipChanged is notified after a different GeoIP database generation
 	// becomes current, for consumers such as TUN GeoIP routes.
 	geoipChanged atomic.Pointer[func()]
+	// hostListsChanged is notified after list content may have changed: a
+	// routing activation (list edits included) or a host index refresh.
+	hostListsChanged atomic.Pointer[func()]
 
 	tickermu sync.RWMutex
 
 	hostTrieMu sync.RWMutex
-
-	processTrieMu sync.RWMutex
 
 	refreshing atomic.Bool
 }
@@ -268,8 +215,8 @@ func NewLists(lists RouteListBook, settings RouteListSettingsBook, configPath st
 		proxy:          proxy,
 		downloader:     NewDownloader(filepath.Join(configPath, "rules"), proxy.Load),
 		hostTrie:       newHostTrie(configuration.DataDir.Load(), listConfig.HostIndexDisk),
-		processTrie:    newProcessTrie(),
 	}
+	l.processTrie.Store(emptyProcessMatcher())
 	l.hostTrieDisk.Store(listConfig.HostIndexDisk)
 
 	l.resetRefreshInterval(listConfig.RefreshInterval)
@@ -417,6 +364,30 @@ func (s *Lists) notifyGeoIPChanged() {
 	if f := s.geoipChanged.Load(); f != nil && *f != nil {
 		go (*f)()
 	}
+}
+
+// OnHostListsChange registers f to run, in its own goroutine, after list
+// content may have changed. A later call replaces the previous callback.
+func (s *Lists) OnHostListsChange(f func()) { s.hostListsChanged.Store(&f) }
+
+func (s *Lists) notifyHostListsChanged() {
+	if f := s.hostListsChanged.Load(); f != nil && *f != nil {
+		go (*f)()
+	}
+}
+
+// HostListValues returns the current entries of a host list, read from the
+// list itself or, for a remote list, from its downloaded cache. It does not
+// download anything, so it is safe to call from the DNS path.
+func (s *Lists) HostListValues(id string) (iter.Seq[string], error) {
+	list, values, err := s.getIter(id)
+	if err != nil {
+		return nil, err
+	}
+	if list.Type == "process" {
+		return nil, fmt.Errorf("list %s is a process list", id)
+	}
+	return values, nil
 }
 
 func (s *Lists) resetRefreshInterval(minute uint64) {
@@ -766,6 +737,7 @@ func (s *Lists) refreshHostTrie() {
 	if err := old.Close(); err != nil {
 		log.Error("close host trie failed", "err", err)
 	}
+	s.notifyHostListsChanged()
 }
 
 func (s *Lists) HostTrie() *hostMatcher {
@@ -891,73 +863,34 @@ func (s *Lists) syncHostTrie() {
 	}
 }
 
+// refreshProcessTrie rebuilds the process index from the current content of
+// the registered lists. Without an apply coordinator it is how list edits and
+// remote refreshes reach the index.
 func (s *Lists) refreshProcessTrie() {
-	processTrie := newProcessTrie()
-	for name := range s.processTrie.Range {
-		if processTrie.Include(name) {
-			continue
-		}
-
-		_, iter, err := s.getIter(name)
+	current := s.ProcessTrie()
+	build := newProcessMatcherBuilder()
+	for _, name := range current.index.Lists() {
+		list, values, err := s.getIter(name)
 		if err != nil {
-			log.Error("get iter failed", "err", err)
+			log.Error("get process list failed", "list", name, "err", err)
+			build.register(name)
 			continue
 		}
-
-		for v := range iter {
-			processTrie.Add(v, name)
+		if issue := build.addList(list, values); issue != nil {
+			log.Warn("process list has unusable entries", "list", name, "error", issue.Error)
 		}
 	}
-
-	s.processTrieMu.Lock()
-	s.processTrie = processTrie
-	s.processTrieMu.Unlock()
+	s.processTrie.Store(build.build())
 }
 
 func (s *Lists) ProcessTrie() *processMatcher {
-	s.processTrieMu.RLock()
-	defer s.processTrieMu.RUnlock()
-	return s.processTrie
-}
-
-func (s *Lists) SetProcessTrie(processTrie *processMatcher) {
-	s.processTrieMu.Lock()
-	s.processTrie = processTrie
-	s.processTrieMu.Unlock()
-}
-
-func (s *Lists) ResetProcessTrie() {
-	s.processTrieMu.Lock()
-	s.processTrie = newProcessTrie()
-	s.processTrieMu.Unlock()
-}
-
-func (s *Lists) AddNewProcessList(name string) {
-	rules, iter, err := s.getIter(name)
-	if err != nil {
-		log.Warn("get list failed", "list", name, "err", err)
-		return
+	if m := s.processTrie.Load(); m != nil {
+		return m
 	}
-
-	if rules.Type != "process" {
-		return
-	}
-
-	s.processTrieMu.Lock()
-	defer s.processTrieMu.Unlock()
-
-	for v := range iter {
-		s.processTrie.Add(v, name)
-	}
+	return emptyProcessMatcher()
 }
 
-func trimRule(str string) string {
-	if i := strings.IndexByte(str, '#'); i != -1 {
-		str = str[:i]
-	}
-
-	return strings.TrimSpace(str)
-}
+func trimRule(str string) string { return contractroute.TrimListEntry(str) }
 
 func trimRuleIter(strs iter.Seq[string]) iter.Seq[string] {
 	return func(yield func(string) bool) {

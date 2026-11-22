@@ -18,6 +18,7 @@ var (
 	ErrAuthorization = errors.New("configuration authorization changed")
 	ErrAudit         = errors.New("durable sensitive change authorization could not be recorded")
 	ErrSchema        = errors.New("unsupported secret field schema")
+	ErrRetrieval     = errors.New("retrieving raw data that may contain secrets requires secrets:read")
 )
 
 type Change struct {
@@ -31,6 +32,9 @@ type Capabilities struct {
 	Manage, Reveal, Execute, Security bool
 	Revalidate                        func(context.Context) (Capabilities, error)
 	BeforeChange                      func(context.Context, Change) error
+	// AuthorizeRetrieval re-checks secrets:read and records the audited
+	// retrieval of raw data, such as logs, that redaction cannot protect.
+	AuthorizeRetrieval                func(context.Context, string) error
 	change                            *Change
 	bindReferences, resolveReferences bool
 	existingPlaintext                 bool
@@ -46,6 +50,27 @@ func WithCapabilities(ctx context.Context, capabilities Capabilities) context.Co
 func FromContext(ctx context.Context) (Capabilities, bool) {
 	c, ok := ctx.Value(capabilityKey{}).(Capabilities)
 	return c, ok
+}
+
+// AuthorizeRetrieval authorizes reading raw data named by resource. Without
+// the management identity module (local management) nothing is checked, as
+// for every other management capability. With it, the request principal must
+// hold secrets:read, and the retrieval is audited before any data is read.
+func AuthorizeRetrieval(ctx context.Context, resource string) error {
+	c, managed := FromContext(ctx)
+	if !managed {
+		return nil
+	}
+	if c.AuthorizeRetrieval == nil {
+		return ErrRetrieval
+	}
+	if err := c.AuthorizeRetrieval(ctx, resource); err != nil {
+		if errors.Is(err, ErrAudit) {
+			return err
+		}
+		return errors.Join(ErrRetrieval, err)
+	}
+	return nil
 }
 
 // WithResolvedConfiguration is for a controller passing the result of Merge

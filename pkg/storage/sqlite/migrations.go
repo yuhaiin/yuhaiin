@@ -659,5 +659,7 @@ var migrations = []Migration{
 	}},
 	managedCertificatesMigration,
 	configurationChangesMigration,
+	fakeDNSSharedListsMigration,
+	dnsQueryHistoryMigration,
 	shareFeedsMigration,
 }

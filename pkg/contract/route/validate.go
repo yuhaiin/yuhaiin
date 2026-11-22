@@ -201,3 +201,12 @@ func VisitListRefs(rules []RuleExpr, visit func(kind, id string) error) error {
 	}
 	return nil
 }
+
+// TrimListEntry removes a trailing "#" comment and surrounding space from one
+// list line; an empty result is not an entry.
+func TrimListEntry(line string) string {
+	if i := strings.IndexByte(line, '#'); i != -1 {
+		line = line[:i]
+	}
+	return strings.TrimSpace(line)
+}

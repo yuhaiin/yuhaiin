@@ -64,3 +64,21 @@ func (t *Tools) TailLogs(ctx context.Context, send func(contracttools.LogBatch) 
 		return send(contracttools.LogBatch{Log: line})
 	})
 }
+
+// RecentLogs returns the newest matching lines of the current log file.
+func (t *Tools) RecentLogs(ctx context.Context, query contracttools.LogQuery) (contracttools.RecentLogs, error) {
+	recent := log.RecentQuery{Limit: query.Limit, Contains: query.Contains}
+	if query.Level != "" {
+		level := log.SLogLevel(query.Level)
+		recent.MinLevel = &level
+	}
+	result, err := t.logController.Recent(ctx, recent)
+	if err != nil {
+		return contracttools.RecentLogs{}, err
+	}
+	lines := result.Lines
+	if lines == nil {
+		lines = []string{}
+	}
+	return contracttools.RecentLogs{Lines: lines, Truncated: result.Truncated, Partial: result.Partial}, nil
+}

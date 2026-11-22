@@ -34,6 +34,8 @@ const (
 	ResolverWrite             = permission.ResolverWrite
 	ConnectionsRead           = permission.ConnectionsRead
 	ConnectionsWrite          = permission.ConnectionsWrite
+	DNSHistoryRead            = permission.DNSHistoryRead
+	DNSHistoryWrite           = permission.DNSHistoryWrite
 	GatewayRead               = permission.GatewayRead
 	CertificatesRead          = permission.CertificatesRead
 	CertificatesManage        = permission.CertificatesManage
@@ -56,6 +58,7 @@ const (
 	ProxyCredentialsOwn       = permission.ProxyCredentialsOwn
 	UsageOwn                  = permission.UsageOwn
 	UsageRead                 = permission.UsageRead
+	MCPConnect                = permission.MCPConnect
 )
 
 const (
@@ -77,7 +80,7 @@ func RolePermissions(role string) []Permission {
 	}
 	if role == ReadOnly {
 		return []Permission{NodesRead, InboundsRead, RoutesRead, ResolverRead,
-			ConnectionsRead, GatewayRead, CertificatesRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead}
+			ConnectionsRead, DNSHistoryRead, GatewayRead, CertificatesRead, TrafficAccessRead, ResourceRead, RolesRead, SettingsRead, MetricsRead, IdentityRead, TokensOwn, ProxyCredentialsOwn, UsageOwn, UsageRead, MCPConnect}
 	}
 	return nil
 }
@@ -88,6 +91,11 @@ type Principal struct {
 	CredentialType string       `json:"credentialType"`
 	AuthMethod     string       `json:"authMethod,omitempty"`
 	Permissions    []Permission `json:"permissions"`
+	// OAuth access tokens also identify the client, the grant and the single
+	// resource (audience) the token was issued for.
+	ClientID string `json:"clientId,omitempty"`
+	GrantID  string `json:"grantId,omitempty"`
+	Resource string `json:"resource,omitempty"`
 }
 
 func (p Principal) Allows(permission Permission) bool {
@@ -97,7 +105,8 @@ func (p Principal) Allows(permission Permission) bool {
 type principalKey struct{}
 
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
-	return context.WithValue(permission.WithActorID(ctx, p.UserID), principalKey{}, p)
+	ctx = permission.WithGranted(permission.WithActorID(ctx, p.UserID), p.Permissions)
+	return context.WithValue(ctx, principalKey{}, p)
 }
 
 func FromContext(ctx context.Context) (Principal, bool) {

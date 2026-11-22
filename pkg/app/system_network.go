@@ -16,6 +16,7 @@ import (
 	plainstore "github.com/Asutorufa/yuhaiin/pkg/store"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet"
 	"github.com/Asutorufa/yuhaiin/pkg/sysnet/forward"
+	"github.com/Asutorufa/yuhaiin/pkg/sysnet/protection"
 )
 
 // newSystemNetwork creates the System Network Manager with this platform's
@@ -83,4 +84,11 @@ func systemNetworkController(m *sysnet.Manager) httpapi.SystemNetworkController 
 		return nil
 	}
 	return m
+}
+
+func networkProtectionController(c *protection.Controller) httpapi.NetworkProtectionController {
+	if c == nil {
+		return nil
+	}
+	return c
 }

@@ -277,6 +277,8 @@ func newContractResolver(dc contractresolver.Resolver, dialer netapi.Proxy) (net
 	config := resolver.Config{
 		Type:       dc.Type,
 		Name:       dc.ID,
+		Label:      dc.Name,
+		PublicHost: publicResolverHost(dc.Host),
 		Host:       dc.Host,
 		Servername: dc.TLSServerName,
 		Subnet:     subnet,
@@ -291,6 +293,18 @@ func newContractResolver(dc contractresolver.Resolver, dialer netapi.Proxy) (net
 	return &dnsWrap{r}, nil
 }
 
+// publicResolverHost keeps a bare host[:port] for DNS history and redacts
+// anything that may carry a path, query or user info (DoH tokens).
+func publicResolverHost(host string) string {
+	if host == "" {
+		return ""
+	}
+	if strings.Contains(host, "://") || strings.ContainsAny(host, "/?@#") {
+		return secret.PublicURL(host)
+	}
+	return host
+}
+
 type dnsDialer struct {
 	netapi.Proxy
 	resolver  func() netapi.Resolver
@@ -299,7 +313,9 @@ type dnsDialer struct {
 }
 
 func (d *dnsDialer) newCtx(c context.Context) *netapi.Context {
-	ctx := netapi.WithContext(c)
+	// Dialing the upstream (and resolving its host name) is not part of the
+	// client request whose DNS history trace c may carry.
+	ctx := netapi.WithContext(netapi.WithoutDNSTrace(c))
 	if d.bootstrap {
 		ctx.ConnOptions().SetRouteMode("direct")
 	}

@@ -17,6 +17,14 @@ func TestDarwinLivePF(t *testing.T) {
 		t.Skip("set YUHAIIN_TEST_DARWIN_LIVE=1 and run as root")
 	}
 	before, _ := exec.Command("/usr/sbin/sysctl", "-n", darwinSysctlIPv4).Output()
+	conf, _ := os.ReadFile("/etc/pf.conf")
+	t.Cleanup(func() {
+		// Forwarding registers Yuhaiin's anchor in pf.conf; restore the file.
+		if now, _ := os.ReadFile("/etc/pf.conf"); string(now) != string(conf) {
+			_ = os.WriteFile("/etc/pf.conf", conf, 0o644)
+			_ = exec.Command("/sbin/pfctl", "-f", "/etc/pf.conf").Run()
+		}
+	})
 	m := New()
 	plan := Plan{IPv4: true, IPv6: true, Rules: []Rule{
 		{ID: "lan", Ingress: "lo0", Sources: []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24"), netip.MustParsePrefix("2001:db8:20::/64")},

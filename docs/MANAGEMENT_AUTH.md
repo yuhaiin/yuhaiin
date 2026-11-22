@@ -17,7 +17,8 @@ belongs to the app lifecycle, and initialization failure aborts startup. Core
 annotations are plain strings, validated against the module's scope registry.
 
 `cmd/android` deliberately omits the middleware and does not import the identity
-module. It creates no `management.db`, setup code or account routes. Without the
+module. It creates no `management.db`, setup code or account routes, and
+therefore also has no OAuth Authorization Server or MCP endpoint. Without the
 middleware, the core permits management only from actual loopback peers and
 trusted browser origins. Android explicitly opts into anonymous LAN management when the user enables Allow LAN.
 Remote API requests in this mode require direct HTTPS and same-origin browser
@@ -329,6 +330,31 @@ identifiers are defined in `pkg/management/permission`.
 `/api/v2/auth/me` returns the current principal's effective permissions. No
 wildcard scope is accepted. Each actual HTTP method/registered RPC action has
 an explicit permission; unclassified handlers deny even administrators.
+
+## Sessions, API tokens and OAuth access tokens
+
+Three credential types reach the management gate, and all of them resolve to
+the same `Principal` and the same permission checks:
+
+| Credential | Header | Issued to | Lifetime | Accepted by |
+| --- | --- | --- | --- | --- |
+| Session | Cookie or `Authorization: Session …` | The Web UI after an interactive sign-in | 8 hours | Management API |
+| API token (`yu_…`) | `Authorization: Bearer …` | CLI tools and simple automation the user controls | Chosen at creation | Management API |
+| OAuth access token (`yuat_…`) | `Authorization: Bearer …` | Third-party applications the user authorized on a consent page | 15 minutes, renewed with a rotating refresh token | Only the one resource it was issued for (`ISSUER/api` or `ISSUER/mcp`) |
+
+Bearer credentials are told apart by prefix. API tokens are never looked up as
+OAuth tokens or the other way round, and an OAuth token for MCP is rejected by
+the management API. OAuth access tokens are limited to the scopes the user
+granted. They can never hold the interactive-only permissions `users:manage`,
+`tokens:manage`, `tokens:own`, `roles:write`, `security:write` and
+`system:execute`, and they cannot use the session-only account and consent
+APIs. `secrets:read` can be granted only to the MCP resource, where it allows
+audited log reads; an OAuth token for the management API never holds it. See [OAuth 2.1 Authorization Server](oauth.md),
+[OAuth clients](oauth-clients.md) and [MCP server](mcp.md).
+
+The external GitHub, Google and OIDC providers described below are sign-in
+methods. They are unrelated to the Authorization Server, except that a user may
+use them to sign in before approving an application.
 
 ## Management API
 

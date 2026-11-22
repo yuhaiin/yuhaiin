@@ -2,7 +2,7 @@
 //
 //   - Linux: kernel IP forwarding, per-rule policy routing towards an egress,
 //     a Yuhaiin-only nftables table with masquerade and TProxy interception.
-//   - macOS: IP forwarding sysctls and a PF anchor (com.apple/yuhaiin) with
+//   - macOS: IP forwarding sysctls and a PF anchor (io.github.yuhaiin/forward) with
 //     route-to, source restriction and NAT.
 //   - Windows: per-interface forwarding; forwarded traffic follows the
 //     routing table (including System Network route rules).

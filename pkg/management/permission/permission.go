@@ -30,6 +30,8 @@ const (
 	ResolverWrite             Permission = "resolver:write"
 	ConnectionsRead           Permission = "connections:read"
 	ConnectionsWrite          Permission = "connections:write"
+	DNSHistoryRead            Permission = "dns-history:read"
+	DNSHistoryWrite           Permission = "dns-history:write"
 	GatewayRead               Permission = "gateway:read"
 	CertificatesRead          Permission = "certificates:read"
 	CertificatesManage        Permission = "certificates:manage"
@@ -52,6 +54,7 @@ const (
 	ProxyCredentialsOwn       Permission = "proxy-credentials:own"
 	UsageOwn                  Permission = "usage:own"
 	UsageRead                 Permission = "usage:read"
+	MCPConnect                Permission = "mcp:connect"
 )
 
 // Definition describes a permission in the management API catalog.
@@ -59,9 +62,17 @@ type Definition struct {
 	ID          Permission `json:"id"`
 	Category    string     `json:"category"`
 	Description string     `json:"description"`
+	// Delegable permissions may be granted to OAuth clients as scopes.
+	Delegable bool `json:"delegable"`
 }
 
-var catalog = [...]Definition{
+type entry struct {
+	ID          Permission
+	Category    string
+	Description string
+}
+
+var catalog = [...]entry{
 	{ConfigurationRead, "security", "Inspect permission-filtered configuration stages, diffs and history."},
 	{ConfigurationWrite, "security", "Stage, validate and commit configuration changes within resource permissions."},
 	{ConfigurationRollback, "security", "Prepare configuration rollback within current resource permissions."},
@@ -93,6 +104,8 @@ var catalog = [...]Definition{
 	{ResolverWrite, "resolver", "Change resolver settings, hosts, and cache."},
 	{ConnectionsRead, "connections", "View connections, traffic, events, and history."},
 	{ConnectionsWrite, "connections", "Close active connections."},
+	{DNSHistoryRead, "connections", "View DNS query history, including queried domains, clients and processes."},
+	{DNSHistoryWrite, "connections", "Clear DNS query history and change its recording and retention settings."},
 	{GatewayRead, "gateway", "View gateway configuration, status, CA, and statistics."},
 	{GatewayWrite, "gateway", "Change gateway settings, CA, filters, and statistics."},
 	{SettingsRead, "settings", "View general settings, traffic controls, and interface details."},
@@ -106,11 +119,51 @@ var catalog = [...]Definition{
 	{MetricsRead, "metrics", "Read process and service metrics."},
 	{IdentityRead, "identity", "Read the current identity and manage its session."},
 	{TokensOwn, "tokens", "Create, list, revoke, and rotate your own API tokens."},
+	{MCPConnect, "integrations", "Connect Model Context Protocol (MCP) clients; each tool still requires its own permission."},
 }
+
+// Permissions that mint credentials, change identities or trust boundaries or
+// run executables stay with sessions and API tokens. An OAuth client, which
+// acts for a user through a consent screen, can never receive them.
+// secrets:read is delegable, but only a resource that lists it (MCP, for raw
+// logs) can grant it; the management API resource does not.
+var interactiveOnly = [...]Permission{UsersManage, TokensManage, TokensOwn, RolesWrite, SecurityWrite, SystemExecute}
 
 // Catalog returns a copy of every permission definition in stable order.
 func Catalog() []Definition {
-	return slices.Clone(catalog[:])
+	out := make([]Definition, len(catalog))
+	for i, e := range catalog {
+		out[i] = Definition{ID: e.ID, Category: e.Category, Description: e.Description, Delegable: Delegable(e.ID)}
+	}
+	return out
+}
+
+// Delegable reports whether p may be granted to an OAuth client as a scope.
+// The OAuth scope identifier is the permission identifier itself, so no second
+// registry or mapping exists.
+func Delegable(p Permission) bool {
+	return slices.ContainsFunc(catalog[:], func(d entry) bool { return d.ID == p }) && !slices.Contains(interactiveOnly[:], p)
+}
+
+// DelegableValues returns every delegable permission in catalog order.
+func DelegableValues() []Permission {
+	out := make([]Permission, 0, len(catalog))
+	for _, definition := range catalog {
+		if Delegable(definition.ID) {
+			out = append(out, definition.ID)
+		}
+	}
+	return out
+}
+
+// Lookup returns the catalog definition of p.
+func Lookup(p Permission) (Definition, bool) {
+	for _, e := range catalog {
+		if e.ID == p {
+			return Definition{ID: e.ID, Category: e.Category, Description: e.Description, Delegable: Delegable(p)}, true
+		}
+	}
+	return Definition{}, false
 }
 
 // Values returns the permission identifiers in the same order as Catalog.
