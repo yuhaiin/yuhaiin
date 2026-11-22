@@ -661,4 +661,5 @@ var migrations = []Migration{
 	configurationChangesMigration,
 	fakeDNSSharedListsMigration,
 	dnsQueryHistoryMigration,
+	shareFeedsMigration,
 }

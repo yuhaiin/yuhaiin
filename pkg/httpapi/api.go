@@ -14,7 +14,6 @@ import (
 	contractresolver "github.com/Asutorufa/yuhaiin/pkg/contract/resolver"
 	contractroute "github.com/Asutorufa/yuhaiin/pkg/contract/route"
 	contractsettings "github.com/Asutorufa/yuhaiin/pkg/contract/settings"
-	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 	contracttools "github.com/Asutorufa/yuhaiin/pkg/contract/tools"
 	contractupdate "github.com/Asutorufa/yuhaiin/pkg/contract/update"
 	"github.com/Asutorufa/yuhaiin/pkg/frontend"
@@ -129,7 +128,6 @@ type NodeController interface {
 }
 type SubscriptionController interface {
 	Update(context.Context, []string) error
-	ResolvePublish(context.Context, string, contractsubscription.ResolvePublishRequest) (contractsubscription.ResolvePublishResponse, error)
 }
 type RouteRuntimeController interface {
 	ScheduleApply()

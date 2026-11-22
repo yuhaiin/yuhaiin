@@ -19,7 +19,7 @@ var excludedTables = []string{
 	"configuration_changes", "connection_history", "dns_query_history", "dns_query_history_settings", "connection_sessions", "failed_connection_history",
 	"failure_dimension_daily", "failure_dimension_hourly", "fakeip_cursors", "fakeip_entries", "fakeip_pool_counts",
 	"gateway_ca", "gateway_statistics", "inbound_statistics", "managed_certificate_material", "managed_certificates",
-	"node_runtime_stats", "node_speed_budget", "statistics_kv", "telemetry_dimension_values",
+	"node_runtime_stats", "node_speed_budget", "share_feed_access", "statistics_kv", "telemetry_dimension_values",
 	"traffic_dimension_daily", "traffic_dimension_hourly", "traffic_hourly",
 	"user_usage_activity", "user_usage_audit", "user_usage_buckets", "user_usage_flush", "user_usage_totals", "user_usage_users",
 }

@@ -14,7 +14,6 @@ import (
 	"uuid"
 
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
-	contractsubscription "github.com/Asutorufa/yuhaiin/pkg/contract/subscription"
 )
 
 // Share links are an import format, not a persisted model. Parse directly into
@@ -303,9 +302,7 @@ func parseYuhaiinURL(raw string) (ParsedYuhaiinURL, error) {
 		Points *struct {
 			Points []json.RawMessage `json:"points"`
 		} `json:"points"`
-		Remote *struct {
-			Publish *contractsubscription.Publish `json:"publish"`
-		} `json:"remote"`
+		Remote json.RawMessage `json:"remote"`
 	}
 	if err := json.Unmarshal(decoded, &payload); err != nil {
 		return ParsedYuhaiinURL{}, errors.New("invalid yuhaiin link JSON")
@@ -316,8 +313,8 @@ func parseYuhaiinURL(raw string) (ParsedYuhaiinURL, error) {
 	}
 	result := ParsedYuhaiinURL{Name: name}
 	switch {
-	case payload.Remote != nil && payload.Remote.Publish != nil:
-		result.Remote = payload.Remote.Publish
+	case payload.Remote != nil:
+		return ParsedYuhaiinURL{}, ErrLegacyPublishLink
 	case payload.Points != nil:
 		for _, raw := range payload.Points.Points {
 			point, err := decodeSharedPoint(raw)

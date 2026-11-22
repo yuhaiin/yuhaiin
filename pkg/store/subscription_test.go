@@ -58,58 +58,6 @@ func TestSubscriptionStoreSaveListDeleteLinks(t *testing.T) {
 	}
 }
 
-func TestSubscriptionStoreSaveListDeletePublishes(t *testing.T) {
-	ctx := t.Context()
-	sqliteStore, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "state.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = sqliteStore.Close() }()
-
-	store := NewSubscriptionStore(sqliteStore.DB())
-	if err := store.SavePublish(ctx, contractsubscription.Publish{
-		Name:     "share",
-		Points:   []string{"node-a", "node-b"},
-		Path:     "sub",
-		Password: "secret",
-		Address:  "example.com",
-		Insecure: true,
-	}, 123); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := store.ListPublishes(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got.Items) != 1 || got.Items[0].Name != "share" || len(got.Items[0].Points) != 2 || !got.Items[0].Insecure {
-		t.Fatalf("publishes = %+v", got)
-	}
-
-	var dataJSON string
-	if err := sqliteStore.DB().QueryRowContext(ctx, `SELECT data_json FROM publishes WHERE name = 'share'`).Scan(&dataJSON); err != nil {
-		t.Fatal(err)
-	}
-	var stored contractsubscription.Publish
-	if err := jsonUnmarshalContract(dataJSON, &stored); err != nil {
-		t.Fatalf("publish decode failed: %v; json=%s", err, dataJSON)
-	}
-	if stored.Name != "share" || len(stored.Points) != 2 || !stored.Insecure {
-		t.Fatalf("stored publish = %+v", stored)
-	}
-
-	if err := store.DeletePublish(ctx, "share"); err != nil {
-		t.Fatal(err)
-	}
-	got, err = store.ListPublishes(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got.Items) != 0 {
-		t.Fatalf("publishes after delete = %+v", got)
-	}
-}
-
 func jsonUnmarshalContract(data string, out any) error {
 	return json.Unmarshal([]byte(data), out)
 }

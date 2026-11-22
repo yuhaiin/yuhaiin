@@ -77,6 +77,8 @@ type AppInstance struct {
 	*StartOptions
 	closers  *closers
 	profiler *profilerService
+	// shareFeeds serves share feeds outside the management guard.
+	shareFeeds http.Handler
 }
 
 type closers struct {
@@ -215,6 +217,9 @@ func registerV2HTTP(ctx context.Context, app *AppInstance) error {
 		}
 	}
 
+	if subscriptionStore != nil {
+		app.shareFeeds = httpapi.NewShareFeedHandler(subscriptionStore)
+	}
 	recoveryPoints, _ := app.Backup.(updatepkg.RecoveryPoints)
 	app.Operations = httpapi.NewOperations(httpapi.V2Services{
 		Certificates:      app.Certificates,

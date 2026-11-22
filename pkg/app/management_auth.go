@@ -33,6 +33,11 @@ func (app *AppInstance) protectManagement(ctx context.Context) error {
 	}
 	outer := http.NewServeMux()
 	outer.Handle("/", handler)
+	if app.shareFeeds != nil {
+		// The token in the path authorizes the request; management sessions
+		// and origins play no part in it.
+		outer.Handle(httpapi.ShareFeedRoute, app.shareFeeds)
+	}
 	app.Mux = outer
 	return nil
 }

@@ -111,8 +111,8 @@ const (
 	v2ConnectionsFailedHistory     v2Endpoint = "connections.failed_history"
 	v2ConnectionsHistory           v2Endpoint = "connections.history"
 	v2SubscriptionsUpdate          v2Endpoint = "subscriptions.update"
-	v2Publishes                    v2Endpoint = "publishes"
-	v2PublishResolve               v2Endpoint = "publish.resolve"
+	v2ShareFeeds                   v2Endpoint = "share.feeds"
+	v2ShareFeedPreview             v2Endpoint = "share.feed.preview"
 	v2NodesGroups                  v2Endpoint = "nodes.groups"
 	v2NodesSelected                v2Endpoint = "nodes.selected"
 	v2NodesSelect                  v2Endpoint = "nodes.select"
@@ -178,8 +178,10 @@ const (
 	v2SubscriptionsGet      v2Endpoint = "subscriptions.get"
 	v2SubscriptionsPut      v2Endpoint = "subscriptions.put"
 	v2SubscriptionsDelete   v2Endpoint = "subscriptions.delete"
-	v2PublishPut            v2Endpoint = "publish.put"
-	v2PublishDelete         v2Endpoint = "publish.delete"
+	v2ShareFeedCreate       v2Endpoint = "share.feed.create"
+	v2ShareFeedPut          v2Endpoint = "share.feed.put"
+	v2ShareFeedDelete       v2Endpoint = "share.feed.delete"
+	v2ShareFeedRotate       v2Endpoint = "share.feed.rotate"
 	v2InboundConfigGet      v2Endpoint = "inbounds.config.get"
 	v2TrafficControlGet     v2Endpoint = "traffic_control.get"
 	v2TrafficControlStatus  v2Endpoint = "traffic_control.status"
@@ -328,10 +330,12 @@ var v2Routes = []v2Route{
 	{v2SubscriptionsPut, "PUT /api/v2/subscriptions"},
 	{v2SubscriptionsDelete, "DELETE /api/v2/subscriptions"},
 	{v2SubscriptionsUpdate, "POST /api/v2/subscriptions/update"},
-	{v2Publishes, "GET /api/v2/publishes"},
-	{v2PublishPut, "PUT /api/v2/publishes/{name}"},
-	{v2PublishDelete, "DELETE /api/v2/publishes/{name}"},
-	{v2PublishResolve, "POST /api/v2/publishes/{name}/resolve"},
+	{v2ShareFeeds, "GET /api/v2/share-feeds"},
+	{v2ShareFeedCreate, "POST /api/v2/share-feeds"},
+	{v2ShareFeedPreview, "POST /api/v2/share-feeds/preview"},
+	{v2ShareFeedPut, "PUT /api/v2/share-feeds/{id}"},
+	{v2ShareFeedDelete, "DELETE /api/v2/share-feeds/{id}"},
+	{v2ShareFeedRotate, "POST /api/v2/share-feeds/{id}/rotate"},
 	{v2InboundConfigGet, "GET /api/v2/inbounds/config"},
 	{v2TrafficControlGet, "GET /api/v2/traffic-control"},
 	{v2TrafficControlStatus, "GET /api/v2/traffic-control/status"},

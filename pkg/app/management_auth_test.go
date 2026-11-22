@@ -258,3 +258,36 @@ func TestManagementMiddlewareFailureDoesNotFallBack(t *testing.T) {
 		t.Fatalf("middleware failure did not abort: %v", err)
 	}
 }
+
+func TestShareFeedRouteBypassesManagementAuthOnly(t *testing.T) {
+	dir := t.TempDir()
+	inner := http.NewServeMux()
+	inner.HandleFunc("POST /api/v2/rpc/share.feeds", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	shared := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "feed:"+r.PathValue("token"))
+	})
+	app := &AppInstance{StartOptions: &StartOptions{ConfigPath: dir, HTTPMiddleware: managementauth.Middleware}, Mux: inner, Setting: NewSettingsController(nil, dir, nil), closers: &closers{}, shareFeeds: shared}
+	if err := app.protectManagement(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.closers.Close() })
+	for _, tt := range []struct {
+		method, path string
+		want         int
+	}{
+		{"GET", "/share/token", 200},
+		{"POST", "/share/token", 401},
+		{"POST", "/api/v2/rpc/share.feeds", 401},
+	} {
+		req := httptest.NewRequest(tt.method, tt.path, strings.NewReader("{}"))
+		req.RemoteAddr = "127.0.0.1:1000"
+		res := httptest.NewRecorder()
+		app.Mux.ServeHTTP(res, req)
+		if res.Code != tt.want {
+			t.Errorf("%s %s returned %d, want %d", tt.method, tt.path, res.Code, tt.want)
+		}
+		if tt.want == 200 && res.Body.String() != "feed:token" {
+			t.Errorf("share route body = %q", res.Body.String())
+		}
+	}
+}
