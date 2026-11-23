@@ -287,7 +287,8 @@ func (s *Server) startCommand(ctx context.Context, req request, files []*os.File
 	if err := processnet.CheckFakeIPOverlap(sessionnet.AddressConfig{}, s.pools, s.config.IPv6); err != nil {
 		return nil, err
 	}
-	cfg := sessionnet.Config{Command: req.Argv, Env: wrapEnvironment(req.Env, s.config.Timezone), Dir: req.Dir, Credential: credential, IPv6: s.config.IPv6, Cgroup: s.cgroups, IsolateDNS: true}
+	// The wrapper runs commands as its peers' accounts, which requires root.
+	cfg := sessionnet.Config{Mode: sessionnet.ModeRootful, Command: req.Argv, Env: wrapEnvironment(req.Env, s.config.Timezone), Dir: req.Dir, Credential: credential, IPv6: s.config.IPv6, Cgroup: s.cgroups, IsolateDNS: true}
 	if req.TTY {
 		cfg.PTYSlave = files[0]
 	} else {
@@ -365,6 +366,13 @@ func exitCode(err error) int {
 	if err == nil {
 		return 0
 	}
+	if e, ok := errors.AsType[*sessionnet.ExitError](err); ok {
+		if !e.Exited() {
+			return 128 + e.Signal()
+		}
+		return e.ExitCode()
+	}
+	// Test launchers use os/exec directly.
 	if e, ok := errors.AsType[*exec.ExitError](err); ok {
 		if status, ok := e.Sys().(syscall.WaitStatus); ok && status.Signaled() {
 			return 128 + int(status.Signal())

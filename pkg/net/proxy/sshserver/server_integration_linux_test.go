@@ -35,9 +35,14 @@ const (
 	sshDNSName        = "network-space.ssh.test."
 	sshDNSIPv4        = "198.51.100.42"
 	sshDNSIPv6        = "2001:db8::42"
+	// Addresses inside Yuhaiin's default FakeIP pools.
+	sshFakeIPName = "fakeip.ssh.test."
+	sshFakeIPv4   = "198.18.0.42"
+	sshFakeIPv6   = "2001:2::42"
 )
 
 type sshServerTestHandler struct {
+	streams   chan netip.AddrPort
 	tcp       chan struct{}
 	udp       chan struct{}
 	dnsTCP    chan struct{}
@@ -57,6 +62,7 @@ type sshProcessLookup struct {
 
 func newSSHServerTestHandler() *sshServerTestHandler {
 	return &sshServerTestHandler{
+		streams:   make(chan netip.AddrPort, 64),
 		tcp:       make(chan struct{}, 64),
 		udp:       make(chan struct{}, 64),
 		dnsTCP:    make(chan struct{}, 64),
@@ -87,6 +93,12 @@ func (h *sshServerTestHandler) lookupProcess(network string, scope netapi.Proces
 func (h *sshServerTestHandler) HandleStream(meta *netapi.StreamMeta) {
 	defer meta.Src.Close()
 	if !meta.DnsRequest {
+		if dst, err := netip.ParseAddrPort(meta.Destination.String()); err == nil {
+			select {
+			case h.streams <- dst:
+			default:
+			}
+		}
 		h.lookupProcess("tcp", meta.ProcessScope, meta.Source, meta.Destination)
 		h.tcp <- struct{}{}
 		_, _ = io.Copy(meta.Src, meta.Src)
@@ -150,19 +162,27 @@ func sshTestDNSResponse(wire []byte) ([]byte, error) {
 	response := dnsutil.SetReply(request)
 	response.RecursionAvailable = true
 	for _, question := range request.Question {
-		if question.Header().Name != sshDNSName || question.Header().Class != dns.ClassINET {
+		v4, v6 := sshDNSIPv4, sshDNSIPv6
+		switch question.Header().Name {
+		case sshDNSName:
+		case sshFakeIPName:
+			v4, v6 = sshFakeIPv4, sshFakeIPv6
+		default:
+			continue
+		}
+		if question.Header().Class != dns.ClassINET {
 			continue
 		}
 		switch dns.RRToType(question) {
 		case dns.TypeA:
 			response.Answer = append(response.Answer, &dns.A{
 				Hdr:  dns.Header{Name: question.Header().Name, Class: dns.ClassINET, TTL: 30},
-				Addr: netip.MustParseAddr(sshDNSIPv4),
+				Addr: netip.MustParseAddr(v4),
 			})
 		case dns.TypeAAAA:
 			response.Answer = append(response.Answer, &dns.AAAA{
 				Hdr:  dns.Header{Name: question.Header().Name, Class: dns.ClassINET, TTL: 30},
-				Addr: netip.MustParseAddr(sshDNSIPv6),
+				Addr: netip.MustParseAddr(v6),
 			})
 		}
 	}
@@ -195,27 +215,36 @@ func newSSHServerTestIdentity(tb testing.TB) (Config, gossh.Signer) {
 		HostKey:          string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKey})),
 		Username:         "alice",
 		AuthorizedKey:    string(gossh.MarshalAuthorizedKey(userSigner.PublicKey())),
-		UID:              65534,
-		GID:              65534,
+		NamespaceMode:    os.Getenv("YUH_SSH_SERVER_MODE"),
+		UID:              testShellID(),
+		GID:              testShellID(),
 		AllowUnsafeShell: true,
 	}, userSigner
+}
+
+// testShellID lets rootless mode pick the test user's own IDs (0 = default).
+// A root test process must name a non-root account explicitly.
+func testShellID() uint32 {
+	if os.Geteuid() == 0 {
+		return 65534
+	}
+	return 0
 }
 
 func startSSHServerTestServer(tb testing.TB, config Config, handler netapi.Handler) *Server {
 	tb.Helper()
 	var server *Server
 	var err error
-	if os.Getenv(sshIntegrationEnv) == "1" {
-		config.InboundID = "ssh-integration"
-		parent := os.Getenv("YUH_SSH_SERVER_CGROUP_ROOT")
-		if parent == "" {
-			tb.Fatal("YUH_SSH_SERVER_CGROUP_ROOT must name a delegated cgroup v2 directory")
+	if sessionsAvailable() == nil {
+		// The production path: containment selection and the preflight
+		// session that refuses to listen on an unsupported host.
+		config.InboundID = "ssh-integration-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+		if parent := os.Getenv("YUH_SSH_SERVER_CGROUP_ROOT"); parent != "" {
+			config.CgroupRoot = filepath.Join(parent, config.InboundID)
 		}
-		config.CgroupRoot = filepath.Join(parent, "ssh-integration")
 		server, err = NewServer(config, handler)
 	} else {
-		// Auth-only unit tests do not start a shell or open a TUN. The
-		// production NewServer path always requires a cgroup v2 manager.
+		// Auth-only unit tests do not start a shell or open a TUN.
 		var signer gossh.Signer
 		var key gossh.PublicKey
 		var addresses sessionnet.AddressConfig
@@ -389,8 +418,58 @@ func TestSSHServerProbeHelper(t *testing.T) {
 	if len(response.Answer) != 1 || dns.RRToType(response.Answer[0]) != dns.TypeA {
 		t.Fatalf("unexpected DNS-over-TCP response: %v", response)
 	}
+	// The session resolver also lists the IPv6 gateway.
+	for _, network := range []string{"udp", "tcp"} {
+		response, err = dns.Exchange(t.Context(), dns.NewMsg(sshDNSName, dns.TypeAAAA), network, "[fd42:7d2a:9b31::1]:53")
+		if err != nil || len(response.Answer) != 1 {
+			t.Fatalf("DNS over %s through the IPv6 gateway: %v %v", network, response, err)
+		}
+	}
 	if _, err := fmt.Fprintf(os.Stdout, "YUH_SSH_NETNS=%s\n", mustReadSSHNetNS(t)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestSSHServerFakeIPHelper resolves a name that the routing handler maps
+// into the FakeIP pools and connects to both answers.
+func TestSSHServerFakeIPHelper(t *testing.T) {
+	if os.Getenv(sshHelperModeEnv) != "fakeip" {
+		t.Skip("SSH FakeIP helper")
+	}
+	addresses, err := (&net.Resolver{PreferGo: true}).LookupIPAddr(t.Context(), strings.TrimSuffix(sshFakeIPName, "."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range addresses {
+		target := net.JoinHostPort(address.IP.String(), "80")
+		if err := sshServerEchoProbe(t, "tcp", target, []byte("fakeip")); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Println("REACHED", target)
+	}
+}
+
+func TestSSHServerFakeIPRouting(t *testing.T) {
+	requireSSHSessionIntegration(t)
+	config, signer := newSSHServerTestIdentity(t)
+	config.IPv6 = true
+	config.FakeIPRanges = [2]netip.Prefix{netip.MustParsePrefix("198.18.0.0/15"), netip.MustParsePrefix("2001:2::/48")}
+	handler := newSSHServerTestHandler()
+	server := startSSHServerTestServer(t, config, handler)
+	client := dialSSHServer(t, server, config.Username, signer)
+	binary := sshServerTestBinary(t)
+	output := runSSHCommand(t, client, fmt.Sprintf("%s=fakeip %s -test.run='^TestSSHServerFakeIPHelper$' -test.v", sshHelperModeEnv, sshShellQuote(binary)))
+	for _, want := range []string{"REACHED " + sshFakeIPv4 + ":80", "REACHED [" + sshFakeIPv6 + "]:80"} {
+		if !bytes.Contains(output, []byte(want)) {
+			t.Fatalf("FakeIP probe output lacks %q:\n%s", want, output)
+		}
+	}
+	seen := map[string]bool{}
+	for len(handler.streams) > 0 {
+		seen[(<-handler.streams).Addr().String()] = true
+	}
+	if !seen[sshFakeIPv4] || !seen[sshFakeIPv6] {
+		t.Fatalf("FakeIP flows did not reach the routing handler with their FakeIP destination: %v", seen)
 	}
 }
 
@@ -508,9 +587,7 @@ func sshNetworkProbeCommand(binary string) string {
 }
 
 func TestSSHServerNetworkIntegration(t *testing.T) {
-	if os.Getenv(sshIntegrationEnv) != "1" {
-		t.Skip("set " + sshIntegrationEnv + "=1 on a Linux host with TUN and network namespace privileges")
-	}
+	requireSSHSessionIntegration(t)
 	config, userSigner := newSSHServerTestIdentity(t)
 	config.IPv6 = true
 	handler := newSSHServerTestHandler()
@@ -550,7 +627,7 @@ func TestSSHServerNetworkIntegration(t *testing.T) {
 		t.Fatalf("DNS handler failed: %v", err)
 	default:
 	}
-	verifySSHProcessLookups(t, handler, binary, config.UID)
+	verifySSHProcessLookups(t, handler, binary, server.config.UID)
 }
 
 // verifySSHProcessLookups requires every routed TCP/UDP flow (IPv4 and IPv6)
@@ -587,9 +664,7 @@ func verifySSHProcessLookups(t *testing.T, handler *sshServerTestHandler, binary
 // Each SSH transport resolves processes only in its own namespace, and its
 // lookup socket is released when the transport disconnects.
 func TestSSHServerProcessLookupPerTransport(t *testing.T) {
-	if os.Getenv(sshIntegrationEnv) != "1" {
-		t.Skip("set " + sshIntegrationEnv + "=1 on a Linux host with TUN and network namespace privileges")
-	}
+	requireSSHSessionIntegration(t)
 	config, userSigner := newSSHServerTestIdentity(t)
 	config.IPv6 = true
 	handler := newSSHServerTestHandler()
@@ -615,7 +690,7 @@ func TestSSHServerProcessLookupPerTransport(t *testing.T) {
 		}
 		lookup := <-handler.processes
 		handler.processes <- lookup
-		verifySSHProcessLookups(t, handler, binary, config.UID)
+		verifySSHProcessLookups(t, handler, binary, server.config.UID)
 		scopes = append(scopes, lookup.scope)
 	}
 	if scopes[0] == nil || scopes[0] == scopes[1] {
@@ -641,9 +716,7 @@ func TestSSHServerProcessLookupPerTransport(t *testing.T) {
 }
 
 func TestSSHServerSharesOnlyWithinConnection(t *testing.T) {
-	if os.Getenv(sshIntegrationEnv) != "1" {
-		t.Skip("set " + sshIntegrationEnv + "=1 on a Linux host with TUN and network namespace privileges")
-	}
+	requireSSHSessionIntegration(t)
 	config, userSigner := newSSHServerTestIdentity(t)
 	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
 	first := dialSSHServer(t, server, config.Username, userSigner)
@@ -753,7 +826,9 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 		// Without this FD, Linux is free to recycle its nsfs inode number
 		// immediately after the final SSH lease is released. Comparing only
 		// readlink strings would incorrectly report a reused namespace.
-		nsPath := fmt.Sprintf("/proc/%d/ns/net", result.pid)
+		// $$ is a PID inside the session's own PID namespace; find a host PID
+		// of a process in that network namespace to open its handle.
+		nsPath := hostNamespacePath(result.namespace)
 		nsFile, err := os.Open(nsPath)
 		if err != nil {
 			_ = session.Close()
@@ -774,6 +849,22 @@ func startSSHNamespaceKeeper(t testing.TB, client *gossh.Client) (*gossh.Session
 		t.Fatal("SSH command did not start in its network namespace")
 		return nil, "", nil
 	}
+}
+
+// hostNamespacePath returns /proc/PID/ns/net for a host PID that is a member
+// of the network namespace named by readlink output such as "net:[123]".
+func hostNamespacePath(namespace string) string {
+	entries, _ := os.ReadDir("/proc")
+	for _, entry := range entries {
+		if _, err := strconv.Atoi(entry.Name()); err != nil {
+			continue
+		}
+		path := filepath.Join("/proc", entry.Name(), "ns/net")
+		if link, err := os.Readlink(path); err == nil && link == namespace {
+			return path
+		}
+	}
+	return "/proc/nonexistent/ns/net"
 }
 
 func runSSHCommand(tb testing.TB, client *gossh.Client, command string) []byte {

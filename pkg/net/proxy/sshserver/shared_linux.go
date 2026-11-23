@@ -4,7 +4,6 @@ package sshserver
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -14,18 +13,18 @@ import (
 	"github.com/yuhaiin/sessionnet"
 )
 
-// connectionNetwork holds one namespace, TUN and lightweight stack per
-// authenticated SSH transport. Each shell or exec holds exactly one lease.
-// SSH connections never share their localhost or packet-processing state.
+// connectionNetwork holds one session (namespaces, PID 1 supervisor, TUN)
+// and lightweight stack per authenticated SSH transport. Each shell, exec or
+// SFTP channel holds exactly one lease. SSH connections never share their
+// localhost, resolver or packet-processing state.
 type connectionNetwork struct {
-	server    *Server
-	ctx       context.Context
-	mu        sync.Mutex
-	owner     *sessionnet.Session
-	flows     io.Closer
-	keepalive *os.File
-	refs      int
-	closed    bool
+	server *Server
+	ctx    context.Context
+	mu     sync.Mutex
+	owner  *sessionnet.Session
+	flows  io.Closer
+	refs   int
+	closed bool
 }
 
 // acquire serializes first-use initialization. A command cannot start until
@@ -47,7 +46,13 @@ func (g *connectionNetwork) acquire() (*sessionnet.Session, error) {
 	}
 	select {
 	case <-g.owner.Done():
-		return nil, errors.New("ssh inbound: shared namespace owner exited")
+		// The supervisor died (for example it was killed from outside).
+		// Never reuse the dead session; replace it with a fresh one.
+		resources := g.detachLocked()
+		resources.close()
+		if err := g.openLocked(); err != nil {
+			return nil, err
+		}
 	default:
 	}
 	g.refs++
@@ -55,28 +60,11 @@ func (g *connectionNetwork) acquire() (*sessionnet.Session, error) {
 }
 
 func (g *connectionNetwork) openLocked() (err error) {
-	// A private pipe holds an unprivileged namespace owner alive without
-	// keeping any SSH channel open. The owner has no network access except
-	// through the TUN connected to the Yuhaiin lightweight stack.
-	read, write, err := os.Pipe()
-	if err != nil {
-		return err
-	}
-	defer read.Close()
-	defer func() {
-		if err != nil {
-			_ = write.Close()
-		}
-	}()
-
+	// The session supervisor keeps the namespaces alive without any SSH
+	// channel. Its processes have no network access except through the TUN
+	// connected to the Yuhaiin lightweight stack.
 	s := g.server
-	owner, err := sessionnet.Open(g.ctx, sessionnet.Config{
-		Command:    []string{"/bin/sh", "-c", "read -r keepalive"},
-		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
-		Stdin:      read, MTU: s.config.MTU, IPv6: s.config.IPv6,
-		Addresses: s.addresses,
-		Cgroup:    s.cgroups,
-	})
+	owner, err := sessionnet.Open(g.ctx, sessionConfig(s.config, s.addresses, s.cgroups))
 	if err != nil {
 		return err
 	}
@@ -93,7 +81,7 @@ func (g *connectionNetwork) openLocked() (err error) {
 		_ = flows.Close()
 		return err
 	}
-	g.owner, g.flows, g.keepalive = owner, flows, write
+	g.owner, g.flows = owner, flows
 	return nil
 }
 
@@ -115,26 +103,22 @@ func (g *connectionNetwork) release() {
 
 // detachLocked moves all owned resources out while g.mu is held.
 func (g *connectionNetwork) detachLocked() networkResources {
-	r := networkResources{g.owner, g.flows, g.keepalive}
-	g.owner, g.flows, g.keepalive = nil, nil, nil
+	r := networkResources{g.owner, g.flows}
+	g.owner, g.flows = nil, nil
 	return r
 }
 
 type networkResources struct {
-	owner     *sessionnet.Session
-	flows     io.Closer
-	keepalive *os.File
+	owner *sessionnet.Session
+	flows io.Closer
 }
 
+// close kills every session process (PID namespace and cgroup), then stops
+// the packet stack. Cleanup errors may contain credentials from the
+// underlying transport or routing stack, so only a fixed component label is
+// logged, never the raw error.
 func (r networkResources) close() {
-	owner, flows, keepalive := r.owner, r.flows, r.keepalive
-	// Cleanup errors may contain credentials from the underlying transport or
-	// routing stack. Only log a fixed component label, never the raw error.
-	if keepalive != nil {
-		if err := keepalive.Close(); err != nil {
-			slog.Error("ssh inbound: isolated session cleanup failed", "component", "keepalive")
-		}
-	}
+	owner, flows := r.owner, r.flows
 	if owner != nil {
 		if err := owner.Close(); err != nil {
 			slog.Error("ssh inbound: isolated session cleanup failed", "component", "namespace")

@@ -4,6 +4,9 @@ package sshserver
 
 import (
 	"os"
+	"runtime"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -11,9 +14,7 @@ import (
 )
 
 func BenchmarkSSHServerNetworkReuse(b *testing.B) {
-	if os.Getenv(sshIntegrationEnv) != "1" {
-		b.Skip("set " + sshIntegrationEnv + "=1 on a Linux host with TUN and network namespace privileges")
-	}
+	requireSSHSessionIntegration(b)
 
 	for _, scenario := range []struct {
 		name         string
@@ -47,6 +48,7 @@ func BenchmarkSSHServerNetworkReuse(b *testing.B) {
 			}
 
 			b.ReportAllocs()
+			fds, goroutines := openFDs(), runtime.NumGoroutine()
 			b.ResetTimer()
 			for b.Loop() {
 				if scenario.newTransport {
@@ -68,8 +70,59 @@ func BenchmarkSSHServerNetworkReuse(b *testing.B) {
 					b.Fatal(err)
 				}
 			}
+			b.StopTimer()
+			// Steady-state resources must not grow with the iteration count.
+			b.ReportMetric(float64(openFDs()-fds), "fd-delta")
+			b.ReportMetric(float64(runtime.NumGoroutine()-goroutines), "goroutine-delta")
 		})
 	}
+}
+
+// BenchmarkSSHServerParallelTransports opens n transports at once, each
+// creating its own session namespaces, as simultaneous logins do.
+func BenchmarkSSHServerParallelTransports(b *testing.B) {
+	requireSSHSessionIntegration(b)
+	for _, n := range []int{4, 8} {
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			config, userSigner := newSSHServerTestIdentity(b)
+			config.MaxSessions = 16
+			server := startSSHServerTestServer(b, config, newSSHServerTestHandler())
+			b.ReportAllocs()
+			for b.Loop() {
+				var wg sync.WaitGroup
+				errs := make(chan error, n)
+				for range n {
+					wg.Go(func() {
+						client, err := newSSHServerClient(server, config.Username, userSigner)
+						if err != nil {
+							errs <- err
+							return
+						}
+						defer client.Close()
+						session, err := client.NewSession()
+						if err == nil {
+							err = session.Run("true")
+							_ = session.Close()
+						}
+						errs <- err
+					})
+				}
+				wg.Wait()
+				close(errs)
+				for err := range errs {
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+			b.ReportMetric(float64(b.Elapsed().Microseconds())/float64(b.N*n), "µs/transport")
+		})
+	}
+}
+
+func openFDs() int {
+	entries, _ := os.ReadDir("/proc/self/fd")
+	return len(entries)
 }
 
 var _ netapi.Handler = (*sshServerTestHandler)(nil)

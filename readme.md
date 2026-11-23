@@ -80,7 +80,7 @@ The Traffic Access Policy is **optional** and acts before the ordinary L4 forwar
 | **Mesh & overlay networking** | WireGuard, AmneziaWG, Tailscale (tsnet), Nebula, ZeroTier, Cloudflare WARP |
 | **Modern proxies & tunnels** | Shadowsocks, ShadowsocksR, VMess, VLESS, Trojan, Hysteria 2, standard MASQUE CONNECT-IP client, SSH |
 | **Standard proxy & ingress** | SOCKS4a/5, HTTP, Mixed, TUN, Redir, TProxy, WireGuard inbound, MASQUE HTTP/3 CONNECT-IP inbound, authenticated SSTP server (IPv4) |
-| **Additional inbounds** | Experimental Linux SSH shell/exec with isolated per-connection networking; Krunlet microVM TCP/UDP over a local Unix socket |
+| **Additional inbounds** | Experimental Linux SSH shell/exec/SFTP with isolated per-connection networking, rootless by default; Krunlet microVM TCP/UDP over a local Unix socket |
 | **DNS transports** | Classic DNS over UDP/TCP, DoT, DoH, DoQ, FakeDNS |
 
 **LAN Link** connects Yuhaiin instances to remote LAN services over direct, encrypted WireGuard connections. Its self-contained gateway issues per-client invitations and dual-stack tunnel addresses, discovers public endpoints when possible, reports live peer status, and can optionally allow client-to-client traffic. See [the LAN Link guide](docs/peer-tunnel.md).
@@ -91,7 +91,7 @@ The Traffic Access Policy is **optional** and acts before the ordinary L4 forwar
 
 **Tailnet:** Tailscale connectivity uses the proven embedded `tsnet.Server` integration with Yuhaiin's configured outbound as its per-node network Underlay. TCP/UDP application traffic still runs through the shared lightweight userspace stack rather than an OS TUN. The previous `tailscaled.state` identity is reused when available; a node created only with `tailscale-lite` may need explicit enrollment or state recovery. See [Tailnet compatibility and rollback](docs/tailscale-rollback.md).
 
-**Support varies by protocol and platform.** The Linux-only SSH inbound is experimental and its network namespace does not provide filesystem or process isolation. The Krunlet inbound is a local Unix-socket integration, not a remote proxy listener. Some integrations have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
+**Support varies by protocol and platform.** The Linux-only SSH inbound is experimental. It runs as a normal user by default (user, network, mount and PID namespaces; no root or capabilities), but it isolates networking only: sessions share the host filesystem and run with the shell account's permissions. See [the SSH inbound guide](docs/ssh-session-inbound.md). The Krunlet inbound is a local Unix-socket integration, not a remote proxy listener. Some integrations have restricted transport/authentication modes. Nebula and ZeroTier are userspace outbound integrations, not general-purpose virtual Ethernet adapters. Check the linked implementation guides for supported features, packaging requirements, and limitations.
 
 ## System Network Management & Side Routing
 
@@ -254,7 +254,7 @@ See [managed certificates](docs/managed-certificates.md) and [enterprise reliabi
 
 ## Platforms
 
-- **Linux**, **macOS**, and **Windows** for desktop and server-oriented deployment. The experimental SSH shell/exec inbound requires Linux namespace and TUN privileges.
+- **Linux**, **macOS**, and **Windows** for desktop and server-oriented deployment. The experimental SSH shell/exec inbound needs Linux with unprivileged user namespaces and `/dev/net/tun` (rootless, the default), or root (rootful mode).
 - **Android** via the [Yuhaiin Android client](https://github.com/yuhaiin/yuhaiin-android).
 
 Availability of specific inbound modes, native VPN libraries, and platform integrations differs across builds.

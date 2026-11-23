@@ -3,18 +3,13 @@
 package netlink
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
-	"runtime"
-	"sync"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 /*
@@ -103,104 +98,5 @@ func FindProcessName(network string, ip netip.AddrPort, to netip.AddrPort) (neta
 	return findProcessName(network, ip, to)
 }
 
-// NetNSProcessDumper resolves socket owners inside one network namespace
-// only. It holds a single sock_diag socket created in that namespace, so
-// lookups never call setns. A failed lookup never consults the host namespace.
-type NetNSProcessDumper struct {
-	mu     sync.RWMutex
-	handle *netlink.Handle
-	netns  uint64
-}
-
-var _ netapi.ProcessDumper = (*NetNSProcessDumper)(nil)
-
-// NewNetNSProcessDumper binds a dumper to the network namespace file ns,
-// such as /proc/PID/ns/net. The caller keeps ownership of ns. CAP_SYS_ADMIN
-// is required to enter the namespace once while creating the socket.
-func NewNetNSProcessDumper(ns *os.File) (*NetNSProcessDumper, error) {
-	var stat unix.Stat_t
-	if err := unix.Fstat(int(ns.Fd()), &stat); err != nil {
-		return nil, err
-	}
-	if stat.Ino == 0 {
-		return nil, errors.New("netns process dumper: invalid namespace inode")
-	}
-	type result struct {
-		handle *netlink.Handle
-		err    error
-	}
-	done := make(chan result, 1)
-	go func() {
-		// The thread is never returned to the scheduler while it might still be
-		// in the target namespace: on a failed restore the goroutine exits
-		// locked, which terminates the OS thread.
-		runtime.LockOSThread()
-		host, err := os.Open("/proc/thread-self/ns/net")
-		if err != nil {
-			runtime.UnlockOSThread()
-			done <- result{err: err}
-			return
-		}
-		defer host.Close()
-		if err := unix.Setns(int(ns.Fd()), unix.CLONE_NEWNET); err != nil {
-			runtime.UnlockOSThread()
-			done <- result{err: fmt.Errorf("netns process dumper: enter namespace: %w", err)}
-			return
-		}
-		// No namespace handle is passed, so vishvananda/netlink creates the
-		// socket in this thread's current (target) namespace without setns.
-		handle, err := netlink.NewHandle(unix.NETLINK_INET_DIAG)
-		if restoreErr := unix.Setns(int(host.Fd()), unix.CLONE_NEWNET); restoreErr != nil {
-			if handle != nil {
-				handle.Close()
-			}
-			done <- result{err: fmt.Errorf("netns process dumper: restore namespace: %w", restoreErr)}
-			runtime.Goexit()
-		}
-		runtime.UnlockOSThread()
-		done <- result{handle, err}
-	}()
-	r := <-done
-	if r.err != nil {
-		return nil, r.err
-	}
-	if err := r.handle.SetSocketTimeout(netNSDiagTimeout); err != nil {
-		r.handle.Close()
-		return nil, err
-	}
-	return &NetNSProcessDumper{handle: r.handle, netns: stat.Ino}, nil
-}
-
+// netNSDiagTimeout bounds each sock_diag request of a namespace dumper.
 const netNSDiagTimeout = 2 * time.Second
-
-// ProcessName implements [netapi.ProcessDumper] for sockets in the namespace.
-func (d *NetNSProcessDumper) ProcessName(network string, src, dst netapi.Address) (netapi.Process, error) {
-	ip, to, err := ProcessAddrs(src, dst)
-	if err != nil {
-		return netapi.Process{}, err
-	}
-	return d.FindProcessName(network, ip, to)
-}
-
-// FindProcessName is the namespace-scoped equivalent of [FindProcessName].
-func (d *NetNSProcessDumper) FindProcessName(network string, ip, to netip.AddrPort) (netapi.Process, error) {
-	// Close must not race the request: a Handle without sockets silently
-	// falls back to a new socket in the caller's (host) namespace.
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if d.handle == nil {
-		return netapi.Process{}, net.ErrClosed
-	}
-	return findProcessNameWith(d.handle.SocketGet, d.netns, network, ip, to)
-}
-
-// Close releases the sock_diag socket after in-flight lookups complete.
-func (d *NetNSProcessDumper) Close() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.handle != nil {
-		d.handle.Close()
-		d.handle = nil
-	}
-	return nil
-}

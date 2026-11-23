@@ -5,11 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/yuhaiin/sessionnet"
 	"net/netip"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -34,7 +35,7 @@ func testConfig(t *testing.T) Config {
 	return Config{
 		Listen: "127.0.0.1:0", HostKey: string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8})),
 		Username: "alice", AuthorizedKey: string(gossh.MarshalAuthorizedKey(key)),
-		UID: 65534, GID: 65534, AllowUnsafeShell: true,
+		NamespaceMode: NamespaceModeRootful, UID: 65534, GID: 65534, AllowUnsafeShell: true,
 	}
 }
 
@@ -58,6 +59,7 @@ func TestValidate(t *testing.T) {
 		{"unsafe disabled", func(c *Config) { c.AllowUnsafeShell = false }, "allowUnsafeShell"},
 		{"root uid", func(c *Config) { c.UID = 0 }, "non-root"},
 		{"root gid", func(c *Config) { c.GID = 0 }, "non-root"},
+		{"unknown mode", func(c *Config) { c.NamespaceMode = "auto" }, "namespaceMode"},
 		{"relative shell", func(c *Config) { c.Shell = "sh" }, "absolute"},
 		{"invalid timezone", func(c *Config) { c.Timezone = "Mars/Olympus" }, "timezone"},
 		{"relative timezone path", func(c *Config) { c.Timezone = "../etc/passwd" }, "timezone"},
@@ -78,6 +80,32 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("validation got %v, expected substring %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestValidateNamespaceMode(t *testing.T) {
+	c := testConfig(t)
+	c.NamespaceMode, c.UID, c.GID = "", 0, 0
+	_, _, err := c.validate()
+	if os.Geteuid() == 0 {
+		if err == nil || !strings.Contains(err.Error(), "explicit non-root UID") {
+			t.Fatalf("root-owned rootless inbound without IDs: %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.NamespaceMode != NamespaceModeRootless || c.sessionMode() != sessionnet.ModeRootless {
+		t.Fatalf("saved inbounds without a mode must be rootless: %q", c.NamespaceMode)
+	}
+	if c.UID != uint32(os.Geteuid()) || c.GID != uint32(os.Getegid()) {
+		t.Fatalf("rootless default IDs %d:%d, want the Yuhaiin user", c.UID, c.GID)
+	}
+	c = testConfig(t)
+	c.NamespaceMode, c.UID = NamespaceModeRootful, 0
+	if _, _, err := c.validate(); err == nil {
+		t.Fatal("rootful mode must require an explicit non-root UID")
 	}
 }
 
