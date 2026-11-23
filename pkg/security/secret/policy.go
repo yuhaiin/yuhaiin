@@ -11,8 +11,13 @@ import (
 const Preserved = "__yuhaiin_secret_preserved_v1__"
 
 var (
-	ErrManage        = errors.New("changing a secret requires secrets:manage")
-	ErrPreserved     = errors.New("a masked secret requires its existing resource")
+	ErrManage = errors.New("changing a secret requires secrets:manage")
+	// ErrPreserved means a masked secret in a submitted configuration could
+	// not be matched to the stored value. References are signed per process
+	// and bound to the stored resource, so this happens when Yuhaiin restarted
+	// or the resource changed after the editor loaded it.
+	ErrPreserved = errors.New("the form is out of date: a hidden secret could not be matched to the saved configuration " +
+		"because Yuhaiin restarted or the configuration changed after it was loaded; reload it and save again")
 	ErrSecurity      = errors.New("changing management security requires security:write")
 	ErrExecute       = errors.New("changing executable configuration requires system:execute")
 	ErrAuthorization = errors.New("configuration authorization changed")
