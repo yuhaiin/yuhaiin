@@ -438,8 +438,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		// Setup errors are classified, user-facing explanations of the host
 		// environment; never fall back to an unisolated shell.
 		message := "unable to create the isolated session network"
-		var setup *sessionnet.SetupError
-		if errors.As(err, &setup) {
+		if setup, ok := errors.AsType[*sessionnet.SetupError](err); ok {
 			message = setup.Message
 			slog.Error("ssh inbound: isolated session setup failed", "stage", setup.Stage, "reason", setup.Error())
 		} else if ctx.Err() == nil {
