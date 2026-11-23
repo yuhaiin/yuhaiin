@@ -10,15 +10,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -60,24 +61,82 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Use a stable identity so the next process can reap orphaned sessions.
-	root := config.CgroupRoot
-	if root == "" {
-		if config.InboundID == "" {
-			return nil, errors.New("ssh inbound: an inbound ID is required for cgroup recovery")
+	cgroups, containment, err := selectContainment(config)
+	if err != nil {
+		return nil, err
+	}
+	// Refuse to listen when this host cannot create sessions, so the inbound
+	// reports the cause instead of every login failing later.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	err = sessionnet.Probe(ctx, sessionConfig(config, addresses, cgroups))
+	cancel()
+	if err != nil {
+		if cgroups != nil {
+			_ = cgroups.Close()
 		}
-		sum := sha256.Sum256([]byte(config.InboundID))
-		root = filepath.Join("/sys/fs/cgroup/yuhaiin/ssh", hex.EncodeToString(sum[:16]))
+		return nil, fmt.Errorf("ssh inbound (%s mode) cannot create isolated sessions: %w", config.NamespaceMode, err)
 	}
-	cgroups, err := sessionnet.NewCgroupManager(root)
-	if err != nil {
-		return nil, fmt.Errorf("ssh inbound: cgroup v2 containment is required: %w", err)
-	}
+	slog.Info("ssh inbound: isolated sessions ready", "mode", config.NamespaceMode,
+		"uid", config.UID, "gid", config.GID, "containment", containment)
 	server, err := newServerWithManager(config, handler, signer, key, addresses, cgroups)
-	if err != nil {
+	if err != nil && cgroups != nil {
 		_ = cgroups.Close()
 	}
 	return server, err
+}
+
+// selectContainment chooses how descendant processes are contained. Every
+// session has a PID namespace whose teardown kills all its processes; a
+// cgroup v2 subtree is added when one is configured or delegated, which also
+// lets a restarted Yuhaiin reap sessions orphaned by a crash. Rootful mode
+// keeps its historical requirement of a cgroup.
+func selectContainment(config Config) (*sessionnet.CgroupManager, string, error) {
+	if config.CgroupRoot != "" {
+		cgroups, err := sessionnet.NewCgroupManager(config.CgroupRoot)
+		if err != nil {
+			return nil, "", fmt.Errorf("ssh inbound: cgroupRoot %s must be a writable, delegated cgroup v2 directory: %w", config.CgroupRoot, err)
+		}
+		return cgroups, "cgroup v2 " + config.CgroupRoot, nil
+	}
+	if config.InboundID == "" {
+		return nil, "", errors.New("ssh inbound: an inbound ID is required for cgroup recovery")
+	}
+	// Use a stable identity so the next process can reap orphaned sessions.
+	sum := sha256.Sum256([]byte(config.InboundID))
+	id := hex.EncodeToString(sum[:16])
+	root := filepath.Join("/sys/fs/cgroup/yuhaiin/ssh", id)
+	if config.NamespaceMode == NamespaceModeRootful {
+		cgroups, err := sessionnet.NewCgroupManager(root)
+		if err != nil {
+			return nil, "", fmt.Errorf("ssh inbound: rootful mode requires cgroup v2 containment: %w", err)
+		}
+		return cgroups, "cgroup v2 " + root, nil
+	}
+	if os.Geteuid() == 0 {
+		cgroups, err := sessionnet.NewCgroupManager(root)
+		if err == nil {
+			return cgroups, "cgroup v2 " + root, nil
+		}
+		slog.Warn("ssh inbound: cgroup v2 is unavailable, using the PID namespace supervisor", "reason", err.Error())
+	} else if delegated, err := sessionnet.DelegatedCgroupRoot("yuhaiin-ssh-" + id); err == nil {
+		cgroups, err := sessionnet.NewCgroupManager(delegated)
+		if err == nil {
+			return cgroups, "delegated cgroup v2 " + delegated, nil
+		}
+		slog.Warn("ssh inbound: delegated cgroup v2 is unusable, using the PID namespace supervisor", "reason", err.Error())
+	}
+	return nil, "PID namespace supervisor", nil
+}
+
+// sessionConfig describes the namespaces of one SSH transport.
+func sessionConfig(config Config, addresses sessionnet.AddressConfig, cgroups *sessionnet.CgroupManager) sessionnet.Config {
+	return sessionnet.Config{
+		Mode:       config.sessionMode(),
+		Credential: &sessionnet.Credential{UID: config.UID, GID: config.GID},
+		MTU:        config.MTU, IPv6: config.IPv6,
+		Addresses: addresses,
+		Cgroup:    cgroups,
+	}
 }
 
 // newServerWithManager binds and runs the SSH listener. Production callers
@@ -234,11 +293,41 @@ type ptyRequest struct {
 type execRequest struct{ Command string }
 type subsystemRequest struct{ Name string }
 type resizeRequest struct{ Columns, Rows, Width, Height uint32 }
+type signalRequest struct{ Signal string }
+
+var sshSignals = map[string]syscall.Signal{
+	"ABRT": syscall.SIGABRT, "ALRM": syscall.SIGALRM, "FPE": syscall.SIGFPE, "HUP": syscall.SIGHUP,
+	"ILL": syscall.SIGILL, "INT": syscall.SIGINT, "KILL": syscall.SIGKILL, "PIPE": syscall.SIGPIPE,
+	"QUIT": syscall.SIGQUIT, "SEGV": syscall.SIGSEGV, "TERM": syscall.SIGTERM, "USR1": syscall.SIGUSR1,
+	"USR2": syscall.SIGUSR2,
+}
+
+// processSlot holds the command a channel is running, for signal requests.
+type processSlot struct {
+	mu      sync.Mutex
+	process *sessionnet.Process
+}
+
+func (p *processSlot) set(process *sessionnet.Process) {
+	p.mu.Lock()
+	p.process = process
+	p.mu.Unlock()
+}
+
+func (p *processSlot) signal(sig syscall.Signal) {
+	p.mu.Lock()
+	process := p.process
+	p.mu.Unlock()
+	if process != nil {
+		_ = process.Signal(sig)
+	}
+}
 
 func (s *Server) handleSession(parent context.Context, ch gossh.Channel, requests <-chan *gossh.Request, network *connectionNetwork) {
 	ctx, cancel := context.WithCancel(parent)
 	var pty *ptyPair
 	var done <-chan struct{}
+	running := &processSlot{}
 	defer func() {
 		// The SSH channel must not finish until the launched process has
 		// released its connection-scoped network and cgroup lease.
@@ -279,6 +368,17 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 					pty.term = r.Term
 				}
 				_ = req.Reply(err == nil, nil)
+			case "signal":
+				// RFC 4254 section 6.9: forward to the running command only.
+				var r signalRequest
+				if gossh.Unmarshal(req.Payload, &r) == nil {
+					if sig, ok := sshSignals[r.Signal]; ok {
+						running.signal(sig)
+					}
+				}
+				if req.WantReply {
+					_ = req.Reply(false, nil)
+				}
 			case "window-change":
 				var r resizeRequest
 				if gossh.Unmarshal(req.Payload, &r) == nil && pty != nil {
@@ -323,7 +423,7 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 				s.wg.Go(func() {
 					defer close(doneCh)
 					defer func() { <-s.slots }()
-					s.execute(ctx, ch, args, pty, network)
+					s.execute(ctx, ch, args, pty, network, running)
 				})
 			default:
 				_ = req.Reply(false, nil)
@@ -332,10 +432,19 @@ func (s *Server) handleSession(parent context.Context, ch gossh.Channel, request
 	}
 }
 
-func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair, network *connectionNetwork) {
+func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []string, pty *ptyPair, network *connectionNetwork, running *processSlot) {
 	owner, err := network.acquire()
 	if err != nil {
-		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: unable to create shared network\n")
+		// Setup errors are classified, user-facing explanations of the host
+		// environment; never fall back to an unisolated shell.
+		message := "unable to create the isolated session network"
+		if setup, ok := errors.AsType[*sessionnet.SetupError](err); ok {
+			message = setup.Message
+			slog.Error("ssh inbound: isolated session setup failed", "stage", setup.Stage, "reason", setup.Error())
+		} else if ctx.Err() == nil {
+			slog.Error("ssh inbound: isolated session setup failed", "reason", err.Error())
+		}
+		_, _ = io.WriteString(channel.Stderr(), "ssh inbound: "+message+"\n")
 		_ = sendExitStatus(channel, 255)
 		return
 	}
@@ -383,6 +492,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		return
 	}
 	defer process.Close()
+	running.set(process)
 	var output chan struct{}
 	if pty != nil {
 		output = make(chan struct{})
@@ -402,11 +512,16 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		case <-time.After(2 * time.Second):
 		}
 	}
+	running.set(nil)
 	code := uint32(0)
 	if err != nil {
 		code = 255
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-			code = uint32(exitErr.ExitCode())
+		if exitErr, ok := errors.AsType[*sessionnet.ExitError](err); ok {
+			if exitErr.Exited() {
+				code = uint32(exitErr.ExitCode())
+			} else {
+				code = 128 + uint32(exitErr.Signal())
+			}
 		}
 	}
 	_ = process.Close()

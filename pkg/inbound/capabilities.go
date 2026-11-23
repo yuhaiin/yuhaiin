@@ -1,6 +1,7 @@
 package inbound
 
 import (
+	"os"
 	"runtime"
 	"slices"
 
@@ -10,7 +11,11 @@ import (
 // Capabilities reports protocol support in this server, independent of the
 // operating system used by the browser. It does not claim device permissions.
 func Capabilities() contract.Capabilities {
-	return capabilitiesFor(runtime.GOOS, runtime.GOARCH)
+	c := capabilitiesFor(runtime.GOOS, runtime.GOARCH)
+	if slices.Contains(c.Protocols, contract.ProtocolSSH) {
+		c.SSH = &contract.SSHCapabilities{ServiceUID: uint32(os.Geteuid()), ServiceGID: uint32(os.Getegid()), Root: os.Geteuid() == 0}
+	}
+	return c
 }
 
 func capabilitiesFor(platform, arch string) contract.Capabilities {

@@ -4,6 +4,7 @@ package sshserver
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -11,9 +12,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
+	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -30,10 +34,36 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func requireSSHSessionIntegration(t *testing.T) {
-	t.Helper()
-	if os.Getenv(sshIntegrationEnv) != "1" && os.Getenv("YUH_SSH_SERVER_NAMESPACE_TEST") != "1" {
-		t.Skip("requires Linux TUN and namespace privileges; set YUH_SSH_SERVER_INTEGRATION=1")
+var (
+	probeOnce   sync.Once
+	probeResult error
+)
+
+// sessionsAvailable reports whether this host can create SSH sessions in
+// the default (rootless) mode, or in rootful mode when running as root.
+func sessionsAvailable() error {
+	probeOnce.Do(func() {
+		cfg := sessionnet.Config{IPv6: true}
+		if os.Geteuid() == 0 {
+			cfg.Mode, cfg.Credential = sessionnet.ModeRootful, &sessionnet.Credential{UID: 65534, GID: 65534}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		probeResult = sessionnet.Probe(ctx, cfg)
+	})
+	return probeResult
+}
+
+// requireSSHSessionIntegration runs the real namespace tests whenever the
+// host supports sessions. It skips with the reason otherwise, and fails when
+// YUH_SSH_SERVER_INTEGRATION=1 or YUH_REQUIRE_ROOTLESS=1 demands them.
+func requireSSHSessionIntegration(tb testing.TB) {
+	tb.Helper()
+	if err := sessionsAvailable(); err != nil {
+		if os.Getenv(sshIntegrationEnv) == "1" || os.Getenv("YUH_REQUIRE_ROOTLESS") == "1" {
+			tb.Fatalf("isolated SSH sessions are required but unavailable: %v", err)
+		}
+		tb.Skipf("isolated SSH sessions are unavailable on this host: %v", err)
 	}
 }
 
@@ -114,12 +144,13 @@ func TestSSHServerSFTPIntegration(t *testing.T) {
 
 func TestSSHServerUsesSystemHome(t *testing.T) {
 	requireSSHSessionIntegration(t)
-	account, err := user.LookupId("65534")
-	if err != nil {
-		t.Skip("system has no UID 65534 account")
-	}
 	config, signer := newSSHServerTestIdentity(t)
 	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
+	config = server.config
+	account, err := user.LookupId(strconv.FormatUint(uint64(config.UID), 10))
+	if err != nil {
+		t.Skipf("system has no account for UID %d", config.UID)
+	}
 	client := dialSSHServer(t, server, config.Username, signer)
 	output := runSSHCommand(t, client, "printf '%s\\n%s\\n%s\\n' \"$HOME\" \"$USER\" \"$SHELL\"; pwd")
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")

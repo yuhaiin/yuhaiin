@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,12 +16,23 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
+// Namespace modes. An empty mode is rootless, which is the default.
+const (
+	NamespaceModeRootless = "rootless"
+	NamespaceModeRootful  = "rootful"
+)
+
 // Config deliberately uses a single SSH identity. User management and
 // filesystem isolation are separate features and must not be inferred from
 // authenticating a public key.
 type Config struct {
-	Listen            string
-	InboundID         string
+	Listen    string
+	InboundID string
+	// NamespaceMode is "rootless" (default) or "rootful". Rootless sessions
+	// are created inside a user namespace and need no host privilege; the
+	// shell can then only run as Yuhaiin's own UID/GID unless the host
+	// delegates subordinate IDs. Rootful requires root.
+	NamespaceMode     string
 	CgroupRoot        string
 	HostKey           string
 	Username          string
@@ -41,6 +53,14 @@ type Config struct {
 	AllowUnsafeShell  bool
 }
 
+// sessionMode converts the validated mode for sessionnet.
+func (c Config) sessionMode() sessionnet.Mode {
+	if c.NamespaceMode == NamespaceModeRootful {
+		return sessionnet.ModeRootful
+	}
+	return sessionnet.ModeRootless
+}
+
 func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 	if !c.AllowUnsafeShell {
 		return nil, nil, errors.New("ssh inbound: enable allowUnsafeShell only on a trusted host; network namespaces do not isolate the filesystem")
@@ -54,7 +74,26 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 	if strings.TrimSpace(c.Username) == "" || strings.ContainsAny(c.Username, "\x00\r\n") {
 		return nil, nil, errors.New("ssh inbound: username is required")
 	}
+	switch c.NamespaceMode {
+	case "":
+		c.NamespaceMode = NamespaceModeRootless
+	case NamespaceModeRootless, NamespaceModeRootful:
+	default:
+		return nil, nil, fmt.Errorf("ssh inbound: unknown namespaceMode %q; use rootless or rootful", c.NamespaceMode)
+	}
+	if c.NamespaceMode == NamespaceModeRootless {
+		// Rootless shells run as Yuhaiin's own account unless told otherwise.
+		if c.UID == 0 {
+			c.UID = uint32(os.Geteuid())
+		}
+		if c.GID == 0 {
+			c.GID = uint32(os.Getegid())
+		}
+	}
 	if c.UID == 0 || c.GID == 0 {
+		if c.NamespaceMode == NamespaceModeRootless {
+			return nil, nil, errors.New("ssh inbound: Yuhaiin runs as root, so rootless mode needs an explicit non-root UID and GID for the shell")
+		}
 		return nil, nil, errors.New("ssh inbound: non-root UID and GID are required")
 	}
 	if c.Shell == "" {

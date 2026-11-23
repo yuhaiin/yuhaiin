@@ -319,24 +319,36 @@ func TestLocalWrapContainmentIntegration(t *testing.T) {
 		t.Skip("requires the production cgroup v2 supervisor")
 	}
 	server, binaryPath, _ := integrationServer(t)
-	command := integrationClient(t, server, binaryPath, "/bin/sh", "-c", "setsid /bin/sleep 300 </dev/null >/dev/null 2>&1 & echo $!")
+	// PIDs printed inside the session belong to its own PID namespace, so
+	// identify the namespace and require that none of its processes remain.
+	command := integrationClient(t, server, binaryPath, "/bin/sh", "-c", "setsid /bin/sleep 300 </dev/null >/dev/null 2>&1 & readlink /proc/self/ns/pid")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("detached descendant: %v\n%s", err, output)
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(output)))
-	if err != nil {
-		t.Fatal(err)
+	pidns := strings.TrimSpace(string(output))
+	if !strings.HasPrefix(pidns, "pid:[") {
+		t.Fatalf("unexpected PID namespace %q", pidns)
 	}
-	// An orphan may briefly remain as a zombie until PID 1 reaps it.
-	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if err == nil {
-		_, state, ok := strings.Cut(string(stat), ") ")
-		if !ok || !strings.HasPrefix(state, "Z ") {
-			t.Fatalf("detached descendant is still alive: %s", stat)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var alive []string
+		procs, _ := os.ReadDir("/proc")
+		for _, proc := range procs {
+			if _, err := strconv.Atoi(proc.Name()); err != nil {
+				continue
+			}
+			if link, err := os.Readlink("/proc/" + proc.Name() + "/ns/pid"); err == nil && link == pidns {
+				alive = append(alive, proc.Name())
+			}
 		}
-	} else if !os.IsNotExist(err) {
-		t.Fatal(err)
+		if len(alive) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("detached descendants are still alive: %v", alive)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 	entries, err := os.ReadDir(server.config.CgroupRoot)
 	if err != nil {

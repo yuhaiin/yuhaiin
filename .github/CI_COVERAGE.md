@@ -15,7 +15,7 @@ Specialized coverage stays separate:
 | `go.yml` / `build-binary.yml` | Release cross-compilation and PE/ELF checks; FreeBSD ARM64 and OpenBSD also cross-link storage, FakeIP and migration regressions |
 | `lightweight-stack.yml` | Portable checksum fallback, Linux kernel peers, all eight portable core targets, three cross-platform test builds, ARM64 QEMU |
 | `reliability.yml` | Real installed-service recovery and protected-update drills for system and user services |
-| `ssh-session.yml` | Native Linux SSH isolation with TUN and cgroup v2 |
+| `ssh-session.yml` | Native Linux SSH isolation: rootless as a normal user (no sudo), and rootful with TUN and cgroup v2 |
 | `profiler.yml` | macOS/Windows amd64/arm64 test cross-compilation on PRs; native profiler behavior weekly or manually; Linux runtime coverage in the application group |
 | Protocol interop workflows | Real independent protocol implementations and container fixtures |
 

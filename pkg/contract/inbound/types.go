@@ -76,6 +76,18 @@ type Inbound struct {
 type Capabilities struct {
 	Platform  string   `json:"platform"`
 	Protocols []string `json:"protocols"`
+	// SSH describes the account Yuhaiin runs as, which bounds the shell
+	// UID/GID a rootless SSH inbound can use. Only reported on Linux.
+	SSH *SSHCapabilities `json:"ssh,omitzero"`
+}
+
+// SSHCapabilities reports the Yuhaiin service account. A rootless session
+// runs as these IDs unless Yuhaiin runs as root or the host delegates
+// subordinate IDs (/etc/subuid, /etc/subgid with newuidmap/newgidmap).
+type SSHCapabilities struct {
+	ServiceUID uint32 `json:"serviceUID"`
+	ServiceGID uint32 `json:"serviceGID"`
+	Root       bool   `json:"root"`
 }
 
 type Network struct {
@@ -325,6 +337,10 @@ func (SSTPProtocol) ProtocolType() string { return ProtocolSSTP }
 // It requires explicit opt-in because network namespaces do not restrict the
 // host filesystem or Unix-domain sockets.
 type SSHProtocol struct {
+	// NamespaceMode is "rootless" (the default, also for saved inbounds that
+	// predate the field) or "rootful". Rootless needs no host privilege; its
+	// UID/GID default to Yuhaiin's own account (0 = Yuhaiin's ID).
+	NamespaceMode     string   `json:"namespaceMode,omitzero"`
 	CgroupRoot        string   `json:"cgroupRoot,omitzero"`
 	HostKey           string   `json:"hostKey" secret:"true"`
 	Username          string   `json:"username"`

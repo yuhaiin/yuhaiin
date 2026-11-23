@@ -12,6 +12,7 @@ on:
       - '.github/workflows/ssh-session.yml'
       - 'pkg/net/proxy/sshserver/**'
       - 'pkg/net/proxy/processnet/**'
+      - 'pkg/net/netlink/**'
       - 'pkg/contract/inbound/**'
       - 'pkg/inbound/**'
 
@@ -23,7 +24,36 @@ permissions:
   contents: read
 
 jobs:
-  ssh-linux-integration:
+  # The default mode. Everything runs as the unprivileged runner user: no
+  # sudo, no setcap. The only host change is lifting Ubuntu's AppArmor
+  # restriction on unprivileged user namespaces, which is a kernel policy
+  # switch, not a privilege granted to the tests.
+  ssh-rootless-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          cache-scope: ssh-rootless-integration
+      - name: Allow unprivileged user namespaces and verify TUN
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          if [ ! -c /dev/net/tun ]; then sudo modprobe tun; fi
+          test -c /dev/net/tun
+      - name: Build tests
+        run: |
+          go test -c -o /tmp/yuhaiin-ssh.test ./pkg/net/proxy/sshserver
+          go test -c -o /tmp/yuhaiin-netlink.test ./pkg/net/netlink
+      - name: Run rootless SSH and process lookup tests as a normal user
+        run: |
+          test "$(id -u)" != 0
+          YUH_REQUIRE_ROOTLESS=1 /tmp/yuhaiin-ssh.test -test.v -test.timeout=300s
+          YUH_REQUIRE_ROOTLESS=1 /tmp/yuhaiin-netlink.test -test.v -test.timeout=120s -test.run 'SockDiag|ProcSearch'
+
+  # Rootful mode, selected explicitly by administrators.
+  ssh-rootful-integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -40,11 +70,11 @@ jobs:
         run: go test -c -o /tmp/yuhaiin-ssh-integration.test ./pkg/net/proxy/sshserver
       - name: Run isolated SSH TCP UDP DNS and shared-session tests
         run: |
-          sudo YUH_SSH_SERVER_INTEGRATION=1 YUH_SSH_SERVER_CGROUP_ROOT=/sys/fs/cgroup/yuhaiin-ssh-integration \
-            /tmp/yuhaiin-ssh-integration.test -test.v -test.timeout=120s \
-            -test.run '^TestSSHServer(NetworkIntegration|SharesOnlyWithinConnection)$'
+          sudo YUH_SSH_SERVER_INTEGRATION=1 YUH_SSH_SERVER_MODE=rootful YUH_SSH_SERVER_CGROUP_ROOT=/sys/fs/cgroup/yuhaiin-ssh-integration \
+            /tmp/yuhaiin-ssh-integration.test -test.v -test.timeout=300s \
+            -test.run '^TestSSHServer(NetworkIntegration|SharesOnlyWithinConnection|FakeIPRouting|DisconnectKillsAllDescendants|SFTPIntegration)$'
       - name: Remove test cgroup parent
         if: always()
         run: |
-          sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration/ssh-integration || true
+          sudo find /sys/fs/cgroup/yuhaiin-ssh-integration -mindepth 1 -depth -type d -exec rmdir {} + || true
           sudo rmdir /sys/fs/cgroup/yuhaiin-ssh-integration || true

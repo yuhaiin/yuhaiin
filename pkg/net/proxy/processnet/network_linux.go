@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/netip"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -17,34 +16,47 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweighttun"
 	"github.com/yuhaiin/sessionnet"
+	"golang.org/x/sys/unix"
 )
 
 // Link owns the duplicated TUN descriptor, packet stack and process lookup.
 // The caller must keep the session alive and close Link after terminating it.
 type Link struct {
 	flows     io.Closer
-	processes *netlink.NetNSProcessDumper
+	processes *netlink.SockDiagProcessDumper
 	once      sync.Once
 	err       error
 }
 
-// Attach prepares routing before the caller releases the session's startup gate.
+// Attach prepares routing before the caller releases the session's startup
+// gate. Process lookup uses the sock_diag socket the session helper created
+// inside the session network namespace, so it works without any privilege
+// over that namespace, including in rootless mode.
 func Attach(owner *sessionnet.Session, handler netapi.Handler, addresses sessionnet.AddressConfig, mtu int, ipv6 bool, name string) (_ *Link, err error) {
 	addresses, err = addresses.Resolve(ipv6)
 	if err != nil {
 		return nil, err
 	}
-	ns, err := os.Open("/proc/" + strconv.Itoa(owner.PID()) + "/ns/net")
-	if err != nil {
-		return nil, err
-	}
-	defer ns.Close()
 	select {
 	case <-owner.Done():
 		return nil, errors.New("process network: namespace owner exited")
 	default:
 	}
-	processes, err := netlink.NewNetNSProcessDumper(ns)
+	ns, err := owner.DupNetNS()
+	if err != nil {
+		return nil, err
+	}
+	var stat unix.Stat_t
+	err = unix.Fstat(int(ns.Fd()), &stat)
+	_ = ns.Close()
+	if err != nil {
+		return nil, err
+	}
+	diag, err := owner.DupDiag()
+	if err != nil {
+		return nil, err
+	}
+	processes, err := netlink.NewSockDiagProcessDumper(diag, stat.Ino)
 	if err != nil {
 		return nil, err
 	}
