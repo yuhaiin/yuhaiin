@@ -71,6 +71,19 @@ Rootless:
   where present `kernel.unprivileged_userns_clone=1`. On Ubuntu 23.10+,
   `kernel.apparmor_restrict_unprivileged_userns=1` denies them unless an
   AppArmor profile allows Yuhaiin (or the restriction is lifted).
+  Granting a profile needs root, for example `/etc/apparmor.d/yuhaiin`:
+
+  ```
+  abi <abi/4.0>,
+  include <tunables/global>
+  profile yuhaiin /usr/local/bin/yuhaiin flags=(unconfined) {
+    userns,
+  }
+  ```
+
+  followed by `sudo apparmor_parser -r /etc/apparmor.d/yuhaiin`. Without
+  root on such a host the SSH inbound cannot be used (rootful mode needs
+  root too); Yuhaiin reports this restriction at inbound start.
 - `/dev/net/tun` as a character device accessible to the Yuhaiin user (the
   kernel default is mode `0666`).
 - A `/proc` that may be remounted inside a user namespace (not the case in

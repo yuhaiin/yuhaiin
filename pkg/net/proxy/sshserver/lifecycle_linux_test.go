@@ -259,6 +259,8 @@ func TestSSHServerForwardsSignals(t *testing.T) {
 func TestSSHServerIsolationAcrossTransports(t *testing.T) {
 	requireSSHSessionIntegration(t)
 	before := hostNetworkState(t)
+	// Compare contents: the test itself may run inside another session.
+	originalResolv, _ := os.ReadFile("/etc/resolv.conf")
 	config, signer := newSSHServerTestIdentity(t)
 	server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
 	binary := sshServerTestBinary(t)
@@ -303,7 +305,7 @@ func TestSSHServerIsolationAcrossTransports(t *testing.T) {
 	if after := hostNetworkState(t); after != before {
 		t.Fatalf("host network changed:\n%s\n---\n%s", before, after)
 	}
-	if hostResolv, err := os.ReadFile("/etc/resolv.conf"); err == nil && bytes.Contains(hostResolv, []byte("sessionnet")) {
+	if hostResolv, err := os.ReadFile("/etc/resolv.conf"); err == nil && !bytes.Equal(hostResolv, originalResolv) {
 		t.Fatal("host resolver was modified")
 	}
 }
