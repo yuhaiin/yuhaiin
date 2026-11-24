@@ -414,6 +414,8 @@ github.com/yuhaiin/sessionnet v0.0.0-20261123113957-f2437b721c96 h1:oGyybSy2agoO
 github.com/yuhaiin/sessionnet v0.0.0-20261123113957-f2437b721c96/go.mod h1:/ol/nFvhREUg4wA1IWUflGWxYqd8suw+TOX2f4v2BNM=
 github.com/yuhaiin/sessionnet v0.0.0-20261124021700-4efc9b5378e0 h1:ueANa6Iqj+WlpkXSE/d6Ck1ZV34Q2yLXgC9GKb4tjOA=
 github.com/yuhaiin/sessionnet v0.0.0-20261124021700-4efc9b5378e0/go.mod h1:/ol/nFvhREUg4wA1IWUflGWxYqd8suw+TOX2f4v2BNM=
+github.com/yuhaiin/sessionnet v0.0.0-20261124064921-ea7008270551 h1:gGhAeWm8gjAETBrWB7EL13RQ2rnjXrgEX6H+5b/R4pQ=
+github.com/yuhaiin/sessionnet v0.0.0-20261124064921-ea7008270551/go.mod h1:/ol/nFvhREUg4wA1IWUflGWxYqd8suw+TOX2f4v2BNM=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261114144434-c4bcf7256005 h1:/9dpRuHR1cmRlRXQBuNUlCjIuyHa1qCbvQ9I2zf8Myg=

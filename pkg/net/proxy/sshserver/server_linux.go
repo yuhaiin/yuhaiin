@@ -112,7 +112,7 @@ func selectContainment(config Config) (*sessionnet.CgroupManager, string, error)
 		}
 		return cgroups, "cgroup v2 " + root, nil
 	}
-	if os.Geteuid() == 0 {
+	if hostRoot() {
 		cgroups, err := sessionnet.NewCgroupManager(root)
 		if err == nil {
 			return cgroups, "cgroup v2 " + root, nil
@@ -126,6 +126,17 @@ func selectContainment(config Config) (*sessionnet.CgroupManager, string, error)
 		slog.Warn("ssh inbound: delegated cgroup v2 is unusable, using the PID namespace supervisor", "reason", err.Error())
 	}
 	return nil, "PID namespace supervisor", nil
+}
+
+// hostRoot reports whether Yuhaiin runs as root of the host. Root of a nested
+// user namespace (for example `podman unshare`) cannot write the host cgroup
+// hierarchy and is treated like the normal user it stands for.
+func hostRoot() bool {
+	if os.Geteuid() != 0 {
+		return false
+	}
+	ns, err := sessionnet.CurrentUserNamespace()
+	return err == nil && ns.Initial
 }
 
 // sessionConfig describes the namespaces of one SSH transport.

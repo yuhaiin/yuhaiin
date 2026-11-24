@@ -29,6 +29,8 @@ type SockDiagProcessDumper struct {
 	mu      sync.Mutex
 	diag    *os.File
 	netns   uint64
+	// procUID translates a socket owner into the UID /proc reports.
+	procUID func(uint32) (uint32, bool)
 	seq     uint32
 	buf     []byte
 }
@@ -65,6 +67,14 @@ func NewSockDiagProcessDumper(diag *os.File, netns uint64) (*SockDiagProcessDump
 	return &SockDiagProcessDumper{diag: diag, netns: netns, buf: make([]byte, 32<<10)}, nil
 }
 
+// SetOwnerUIDMapping makes lookups translate the socket owner UID reported by
+// sock_diag (in the user namespace of the diag socket) into the UID that
+// /proc shows, before matching process owners. Reported processes keep the
+// sock_diag UID. Call it before the first lookup.
+func (d *SockDiagProcessDumper) SetOwnerUIDMapping(procUID func(uint32) (uint32, bool)) {
+	d.procUID = procUID
+}
+
 // ProcessName implements [netapi.ProcessDumper] for sockets in the namespace.
 func (d *SockDiagProcessDumper) ProcessName(network string, src, dst netapi.Address) (netapi.Process, error) {
 	ip, to, err := ProcessAddrs(src, dst)
@@ -97,7 +107,14 @@ func (d *SockDiagProcessDumper) FindProcessName(network string, local, remote ne
 	if err != nil {
 		return netapi.Process{}, err
 	}
-	name, pid, err := resolveProcessNameInNetNSAt("/proc", socket.inode, socket.uid, d.netns, defaultProcSearchCalls)
+	owner := socket.uid
+	if d.procUID != nil {
+		var ok bool
+		if owner, ok = d.procUID(socket.uid); !ok {
+			return netapi.Process{}, fmt.Errorf("sock_diag process dumper: socket owner UID %d is not mapped", socket.uid)
+		}
+	}
+	name, pid, err := resolveProcessNameInNetNSAt("/proc", socket.inode, owner, d.netns, defaultProcSearchCalls)
 	if err != nil {
 		return netapi.Process{}, err
 	}

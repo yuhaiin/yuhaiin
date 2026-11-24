@@ -82,12 +82,158 @@ type Capabilities struct {
 }
 
 // SSHCapabilities reports the Yuhaiin service account. A rootless session
-// runs as these IDs unless Yuhaiin runs as root or the host delegates
-// subordinate IDs (/etc/subuid, /etc/subgid with newuidmap/newgidmap).
+// runs as these IDs unless Yuhaiin may map others (see Environment).
+//
+// ServiceUID and ServiceGID are host IDs (IDs of the initial user
+// namespace), the same ID space as the SSH inbound uid/gid settings, also
+// when Yuhaiin itself runs inside a user namespace such as `podman unshare`.
+// Only when that namespace cannot be resolved to the host are they IDs of
+// Yuhaiin's namespace (Environment.UserNamespace.HostIDsResolved is false).
 type SSHCapabilities struct {
 	ServiceUID uint32 `json:"serviceUID"`
 	ServiceGID uint32 `json:"serviceGID"`
-	Root       bool   `json:"root"`
+	// Root reports that Yuhaiin runs as root of the host (UID 0 of the
+	// initial user namespace). Root of a nested namespace is not host root.
+	Root bool `json:"root"`
+	// Environment is the detected SSH session environment. It is reported
+	// by the inbound capabilities endpoint only.
+	Environment *SSHEnvironment `json:"environment,omitzero"`
+}
+
+// SSH environment feature states. Unknown means the check did not run, for
+// example because an earlier setup step failed.
+const (
+	SSHFeatureAvailable   = "available"
+	SSHFeatureUnavailable = "unavailable"
+	SSHFeatureUnknown     = "unknown"
+)
+
+// SSHEnvironment is the result of inspecting the user namespace Yuhaiin runs
+// in and creating a short-lived rootless probe session with the default
+// identity. Probing never changes host network, mounts or firewall.
+type SSHEnvironment struct {
+	UserNamespace SSHUserNamespace `json:"userNamespace"`
+	Identity      SSHIdentity      `json:"identity"`
+	// Session is the kernel-verified identity of the probe session; absent
+	// when no probe session could be created.
+	Session  *SSHSessionIdentity `json:"session,omitzero"`
+	Features SSHFeatures         `json:"features"`
+	// Error explains why the probe session failed; ErrorStage names the
+	// setup stage (for example "uid-map" or "tun").
+	Error      string `json:"error,omitempty"`
+	ErrorStage string `json:"errorStage,omitempty"`
+	// CheckedAt is when the probe ran (RFC 3339).
+	CheckedAt string `json:"checkedAt"`
+}
+
+// SSHUserNamespace describes the user namespace Yuhaiin runs in.
+type SSHUserNamespace struct {
+	// Origin is "host" for the initial user namespace and "inherited" when
+	// Yuhaiin was started inside one created by another program (Podman,
+	// unshare, a container runtime).
+	Origin string `json:"origin"`
+	// Depth is the measured nesting level (0 host, 1 direct child); -1 when
+	// it could not be measured (DepthError explains why).
+	Depth      int    `json:"depth"`
+	DepthError string `json:"depthError,omitempty"`
+	// HostIDsResolved reports that IDs translate exactly to host IDs. It is
+	// false for deeper nesting, where only Yuhaiin's own identity is usable.
+	HostIDsResolved bool `json:"hostIDsResolved"`
+	// UIDMap and GIDMap are /proc/self/uid_map and gid_map: Yuhaiin's
+	// namespace IDs and the parent namespace IDs they stand for.
+	UIDMap           []SSHIDMapping `json:"uidMap"`
+	GIDMap           []SSHIDMapping `json:"gidMap"`
+	SetgroupsAllowed bool           `json:"setgroupsAllowed"`
+	// NestedUserNamespaceSupported reports that a session user namespace
+	// could be created below Yuhaiin's.
+	NestedUserNamespaceSupported bool `json:"nestedUserNamespaceSupported"`
+}
+
+// SSHIDMapping is one line of a user namespace ID map.
+type SSHIDMapping struct {
+	NamespaceID uint32 `json:"namespaceID"`
+	ParentID    uint32 `json:"parentID"`
+	Count       uint32 `json:"count"`
+}
+
+// SSHIDRange is Count consecutive host IDs starting at Start.
+type SSHIDRange struct {
+	Start uint32 `json:"start"`
+	Count uint32 `json:"count"`
+}
+
+// SSHIdentity is the identity Yuhaiin runs as.
+type SSHIdentity struct {
+	// HostUID and HostGID are absent when they cannot be resolved.
+	HostUID      *uint32 `json:"hostUID,omitempty"`
+	HostGID      *uint32 `json:"hostGID,omitempty"`
+	NamespaceUID uint32  `json:"namespaceUID"`
+	NamespaceGID uint32  `json:"namespaceGID"`
+	// Groups are Yuhaiin's supplementary groups.
+	Groups []SSHGroup `json:"groups"`
+	// UIDRanges and GIDRanges are the uid/gid values a rootless SSH inbound
+	// may be configured with; others are rejected.
+	UIDRanges []SSHIDRange `json:"uidRanges"`
+	GIDRanges []SSHIDRange `json:"gidRanges"`
+	// Effective capabilities in Yuhaiin's own user namespace.
+	CapSetUID   bool `json:"capSetUID"`
+	CapSetGID   bool `json:"capSetGID"`
+	CapSetFCAP  bool `json:"capSetFCAP"`
+	CapSysAdmin bool `json:"capSysAdmin"`
+	CapNetAdmin bool `json:"capNetAdmin"`
+}
+
+// SSHGroup is a supplementary group. A group Yuhaiin's namespace does not
+// map is shown as nogroup (65534) and has no HostGID, but the kernel still
+// grants its access.
+type SSHGroup struct {
+	NamespaceGID uint32  `json:"namespaceGID"`
+	HostGID      *uint32 `json:"hostGID,omitempty"`
+}
+
+// SSHSessionIdentity is how the kernel sees the probe session.
+type SSHSessionIdentity struct {
+	// UID and GID as shell processes see them (host IDs when resolvable).
+	UID uint32 `json:"uid"`
+	GID uint32 `json:"gid"`
+	// NamespaceUID and NamespaceGID are the same identity in Yuhaiin's
+	// namespace, which decides file access exactly as Yuhaiin's IDs do.
+	NamespaceUID uint32         `json:"namespaceUID"`
+	NamespaceGID uint32         `json:"namespaceGID"`
+	UIDMap       []SSHIDMapping `json:"uidMap"`
+	GIDMap       []SSHIDMapping `json:"gidMap"`
+	// SupplementaryGroupsInherited reports that the session keeps Yuhaiin's
+	// supplementary groups unchanged (setgroups is denied inside).
+	SupplementaryGroupsInherited bool `json:"supplementaryGroupsInherited"`
+	// SupplementaryGroupsSettable reports that setgroups(2) is possible, so
+	// a session could use groups other than Yuhaiin's.
+	SupplementaryGroupsSettable bool `json:"supplementaryGroupsSettable"`
+	// FilesystemIdentityPreserved reports that the kernel confirmed the
+	// session runs as exactly the planned host identity.
+	FilesystemIdentityPreserved bool   `json:"filesystemIdentityPreserved"`
+	Username                    string `json:"username,omitempty"`
+	Home                        string `json:"home,omitempty"`
+	Shell                       string `json:"shell,omitempty"`
+}
+
+// SSHFeatures lists the session building blocks, each SSHFeature*.
+type SSHFeatures struct {
+	UserNamespace    string `json:"userNamespace"`
+	NetworkNamespace string `json:"networkNamespace"`
+	MountNamespace   string `json:"mountNamespace"`
+	PIDNamespace     string `json:"pidNamespace"`
+	IDMapping        string `json:"idMapping"`
+	TUN              string `json:"tun"`
+	IPv4             string `json:"ipv4"`
+	IPv6             string `json:"ipv6"`
+	Supervisor       string `json:"supervisor"`
+	// CgroupV2 reports whether rootless sessions can use a delegated (or,
+	// as root, Yuhaiin's own) cgroup v2 subtree. Without it the PID
+	// namespace supervisor alone contains processes.
+	CgroupV2 string `json:"cgroupV2"`
+	// Rootful reports whether Yuhaiin holds what rootful mode needs: host
+	// root with CAP_SYS_ADMIN and CAP_NET_ADMIN.
+	Rootful string `json:"rootful"`
 }
 
 type Network struct {

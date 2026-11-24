@@ -223,12 +223,31 @@ func newSSHServerTestIdentity(tb testing.TB) (Config, gossh.Signer) {
 }
 
 // testShellID lets rootless mode pick the test user's own IDs (0 = default).
-// A root test process must name a non-root account explicitly.
+// A host-root test process must name a non-root account explicitly. Root of
+// a nested user namespace (`podman unshare`) is not host root: it uses its
+// own identity like a normal user.
 func testShellID() uint32 {
-	if os.Geteuid() == 0 {
+	if testHostRoot() {
 		return 65534
 	}
 	return 0
+}
+
+// testHostRoot reports whether the test runs as root of the host.
+func testHostRoot() bool {
+	ns, err := sessionnet.CurrentUserNamespace()
+	return os.Geteuid() == 0 && err == nil && ns.Initial
+}
+
+// testOwnIdentity returns the test user's host identity, which rootless
+// sessions run as by default.
+func testOwnIdentity(t testing.TB) sessionnet.Credential {
+	t.Helper()
+	own, err := sessionnet.DefaultCredential()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return own
 }
 
 func startSSHServerTestServer(tb testing.TB, config Config, handler netapi.Handler) *Server {

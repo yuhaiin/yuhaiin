@@ -159,8 +159,8 @@ func (a v2API) saveTrafficControl(ctx context.Context, cfg *trafficcontrol.Confi
 	return cfg, nil
 }
 
-func (a v2API) inboundCapabilities(context.Context, *emptyRequest) (*contractinbound.Capabilities, error) {
-	return new(inbound.Capabilities()), nil
+func (a v2API) inboundCapabilities(ctx context.Context, _ *emptyRequest) (*contractinbound.Capabilities, error) {
+	return new(inbound.CapabilitiesWithEnvironment(ctx)), nil
 }
 
 func (a v2API) inboundConfig(ctx context.Context, _ *emptyRequest) (*inboundConfigV2, error) {

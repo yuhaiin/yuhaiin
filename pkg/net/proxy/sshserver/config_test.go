@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"net/netip"
-	"os"
 	"strings"
 	"testing"
 
@@ -92,8 +91,12 @@ func TestValidateNamespaceMode(t *testing.T) {
 	if c.NamespaceMode != NamespaceModeRootless || c.sessionMode() != sessionnet.ModeRootless {
 		t.Fatalf("saved inbounds without a mode must be rootless: %q", c.NamespaceMode)
 	}
-	if c.UID != uint32(os.Geteuid()) || c.GID != uint32(os.Getegid()) {
-		t.Fatalf("rootless default IDs %d:%d, want the Yuhaiin user", c.UID, c.GID)
+	own, err := defaultIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.UID != own.UID || c.GID != own.GID {
+		t.Fatalf("rootless default IDs %d:%d, want the Yuhaiin user %d:%d", c.UID, c.GID, own.UID, own.GID)
 	}
 	c = testConfig(t)
 	c.NamespaceMode, c.UID = NamespaceModeRootful, 0

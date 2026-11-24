@@ -32,11 +32,15 @@ type Config struct {
 	// are created inside a user namespace and need no host privilege; the
 	// shell can then only run as Yuhaiin's own UID/GID unless the host
 	// delegates subordinate IDs. Rootful requires root.
-	NamespaceMode     string
-	CgroupRoot        string
-	HostKey           string
-	Username          string
-	AuthorizedKey     string
+	NamespaceMode string
+	CgroupRoot    string
+	HostKey       string
+	Username      string
+	AuthorizedKey string
+	// UID and GID are host IDs: IDs of the initial user namespace, also when
+	// Yuhaiin runs inside a user namespace (for example `podman unshare`,
+	// where host UID 1009 is UID 0 of Yuhaiin's namespace). In rootless mode
+	// 0 selects Yuhaiin's own host identity.
 	UID               uint32
 	GID               uint32
 	Shell             string
@@ -83,12 +87,20 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 	}
 	if c.NamespaceMode == NamespaceModeRootless {
 		// Rootless shells run as Yuhaiin's own account unless told otherwise,
-		// which is UID/GID 0 when Yuhaiin itself runs as root.
-		if c.UID == 0 {
-			c.UID = uint32(os.Geteuid())
-		}
-		if c.GID == 0 {
-			c.GID = uint32(os.Getegid())
+		// which is UID/GID 0 when Yuhaiin itself runs as host root. The
+		// account is named by its host IDs, not by the IDs of the user
+		// namespace Yuhaiin may run in.
+		if c.UID == 0 || c.GID == 0 {
+			own, err := defaultIdentity()
+			if err != nil {
+				return nil, nil, fmt.Errorf("ssh inbound: %w", err)
+			}
+			if c.UID == 0 {
+				c.UID = own.UID
+			}
+			if c.GID == 0 {
+				c.GID = own.GID
+			}
 		}
 	} else if c.UID == 0 || c.GID == 0 {
 		return nil, nil, errors.New("ssh inbound: non-root UID and GID are required")
@@ -133,6 +145,16 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 		return nil, nil, fmt.Errorf("ssh inbound: invalid authorizedKey: %w", err)
 	}
 	return hostKey, key, nil
+}
+
+// defaultIdentity returns Yuhaiin's own identity as host IDs. Off Linux,
+// where sessions are unavailable, it falls back to the process IDs.
+func defaultIdentity() (sessionnet.Credential, error) {
+	own, err := sessionnet.DefaultCredential()
+	if errors.Is(err, sessionnet.ErrUnsupported) {
+		return sessionnet.Credential{UID: uint32(os.Geteuid()), GID: uint32(os.Getegid())}, nil
+	}
+	return own, err
 }
 
 // resolveAddresses selects and validates non-overlapping session links.
