@@ -343,7 +343,7 @@ func hostNetworkState(t testing.TB) string {
 		counter map[int]bool
 	}{{"/proc/net/route", map[int]bool{4: true, 5: true}}, {"/proc/net/ipv6_route", map[int]bool{6: true, 7: true}}} {
 		data, _ := os.ReadFile(table.file)
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			for i, field := range strings.Fields(line) {
 				if !table.counter[i] {
 					b.WriteString(field + " ")

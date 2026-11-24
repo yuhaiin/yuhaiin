@@ -131,7 +131,7 @@ func TestSSHServerHostLoopbackHelper(t *testing.T) {
 	if spec == "" {
 		t.Skip("SSH host loopback helper")
 	}
-	for _, line := range strings.Split(spec, "\n") {
+	for line := range strings.SplitSeq(spec, "\n") {
 		fields := strings.SplitN(line, "|", 3)
 		if len(fields) != 3 {
 			continue
@@ -264,7 +264,7 @@ func TestSSHServerHostLoopbackForwarding(t *testing.T) {
 	before := hostNetworkState(t)
 	nftBefore, nftOK := nftRuleset()
 
-	dialer := &recordingDialer{DirectHostLoopbackDialer: processnet.DirectHostLoopbackDialer{Timeout: 5 * time.Second}}
+	dialer := &recordingDialer{Timeout: 5 * time.Second}
 	config, signer := newSSHServerTestIdentity(t)
 	config.IPv6 = true
 	config.HostLoopback = []processnet.HostLoopbackMapping{
@@ -373,7 +373,7 @@ func TestSSHServerHostLoopbackHostServiceDown(t *testing.T) {
 	}
 	down := l.Addr().(*net.TCPAddr).AddrPort()
 	_ = l.Close()
-	dialer := &recordingDialer{DirectHostLoopbackDialer: processnet.DirectHostLoopbackDialer{Timeout: 5 * time.Second}}
+	dialer := &recordingDialer{Timeout: 5 * time.Second}
 	config, signer := newSSHServerTestIdentity(t)
 	config.HostLoopback = []processnet.HostLoopbackMapping{mapping("tcp", "127.0.0.1:8080", down)}
 	config.HostLoopbackDialer = dialer
