@@ -9,8 +9,10 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"os"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
@@ -135,16 +137,47 @@ func (h *HostLoopback) Close() error {
 }
 
 // warn logs a forwarding failure at most once per mapping per backoff, so a
-// client retrying a stopped host service cannot flood the log.
+// client retrying a stopped host service cannot flood the log. Errors from
+// the dialer and connection accounting may carry credential material from
+// other parts of the stack, so only a fixed classification is logged, never
+// the error text.
 func (h *HostLoopback) warn(m HostLoopbackMapping, msg string, err error) {
+	reason := failureReason(err)
 	now := time.Now()
 	if last, ok := h.logged.Load(m.String()); ok && now.Sub(last.(time.Time)) < hostLoopbackLogBackoff {
-		slog.Debug(msg, "inbound", h.inboundID, "mapping", m.String(), "err", err)
+		slog.Debug(msg, "inbound", h.inboundID, "mapping", m.String(), "reason", reason)
 		return
 	}
 	h.logged.Store(m.String(), now)
-	slog.Warn(msg, "inbound", h.inboundID, "mapping", m.String(), "err", err)
+	slog.Warn(msg, "inbound", h.inboundID, "mapping", m.String(), "reason", reason)
 }
+
+// failureReason classifies a forwarding error without its text.
+func failureReason(err error) string {
+	var errno syscall.Errno
+	switch {
+	case err == nil:
+		return "none"
+	case errors.Is(err, errNotLoopback):
+		return "target is not a loopback address"
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed):
+		return "closed"
+	case errors.As(err, &errno):
+		return errno.Error()
+	case errors.Is(err, errFlowLimit):
+		return "UDP flow limit reached"
+	case errors.Is(err, errConnLimit):
+		return "connection limit reached"
+	}
+	return "other"
+}
+
+var (
+	errFlowLimit = errors.New("UDP flow limit reached")
+	errConnLimit = errors.New("connection limit reached")
+)
 
 // flow describes a session socket and resolves its process when possible.
 func (h *HostLoopback) flow(m HostLoopbackMapping, source netip.AddrPort) HostLoopbackFlow {
@@ -171,7 +204,7 @@ func (h *HostLoopback) acceptLoop(m HostLoopbackMapping, l net.Listener) {
 		select {
 		case h.tcpSlots <- struct{}{}:
 		default:
-			h.warn(m, "ssh inbound: host loopback connection limit reached", fmt.Errorf("%d connections", hostLoopbackMaxTCP))
+			h.warn(m, "ssh inbound: host loopback connection limit reached", errConnLimit)
 			_ = c.Close()
 			continue
 		}
@@ -255,7 +288,7 @@ func (u *udpForward) lookup(src netip.AddrPort) (*udpFlow, error) {
 		return nil, net.ErrClosed
 	}
 	if u.h.udpFlows.Load() >= hostLoopbackMaxUDP {
-		return nil, fmt.Errorf("UDP flow limit of %d reached", hostLoopbackMaxUDP)
+		return nil, fmt.Errorf("%w (%d flows)", errFlowLimit, hostLoopbackMaxUDP)
 	}
 	ctx, cancel := context.WithTimeout(u.h.ctx, hostLoopbackDialTime)
 	host, err := u.h.dialer.ListenUDP(ctx, u.h.flow(u.mapping, src))

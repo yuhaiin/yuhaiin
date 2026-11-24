@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -294,5 +295,27 @@ func TestValidateHostLoopbackMappings(t *testing.T) {
 	}
 	if _, err := (DirectHostLoopbackDialer{}).ListenUDP(context.Background(), HostLoopbackFlow{Mapping: HostLoopbackMapping{"udp", lo("127.0.0.1:1"), lo("8.8.8.8:53")}}); !errors.Is(err, errNotLoopback) {
 		t.Fatalf("the direct dialer must refuse non-loopback targets: %v", err)
+	}
+}
+
+// TestFailureReasonHidesErrorText checks that logged reasons are fixed
+// classifications: error text, which may carry credentials from other parts
+// of the stack, never reaches the log.
+func TestFailureReasonHidesErrorText(t *testing.T) {
+	secret := errors.New("dial user:hunter2@proxy failed")
+	for err, want := range map[error]string{
+		nil:    "none",
+		secret: "other",
+		fmt.Errorf("x: %w: %w", secret, syscall.ECONNREFUSED): "connection refused",
+		fmt.Errorf("%w", context.DeadlineExceeded):            "timeout",
+		os.ErrDeadlineExceeded:                                "timeout",
+		net.ErrClosed:                                         "closed",
+		fmt.Errorf("%w (256 flows)", errFlowLimit):            "UDP flow limit reached",
+		errConnLimit:                                          "connection limit reached",
+		errNotLoopback:                                        "target is not a loopback address",
+	} {
+		if got := failureReason(err); got != want || strings.Contains(got, "hunter2") {
+			t.Errorf("failureReason(%v) = %q, want %q", err, got, want)
+		}
 	}
 }
