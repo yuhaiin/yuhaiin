@@ -237,6 +237,133 @@ means host root.
 The SSH inbound editor shows this result and highlights only problems; the
 maps are under *Advanced details*.
 
+## Host loopback forwarding
+
+Optional and **off by default**. Selected loopback ports of every SSH session
+reach loopback services of the network namespace Yuhaiin runs in (a host
+PostgreSQL on `127.0.0.1:5432`, Redis on `127.0.0.1:6379`, an HTTP service
+on `[::1]:8080`). Programs in the session keep connecting to `127.0.0.1` /
+`::1` / `localhost`: no client setting, proxy variable, `/etc/hosts` entry or
+user-started proxy is involved, and nothing changes on the host.
+
+```json
+"hostLoopback": {
+  "enabled": true,
+  "mappings": [
+    { "protocol": "tcp", "sessionAddress": "127.0.0.1", "sessionPort": 5432, "hostAddress": "127.0.0.1", "hostPort": 5432 },
+    { "protocol": "tcp", "sessionAddress": "::1",       "sessionPort": 5432, "hostAddress": "::1",       "hostPort": 5432 },
+    { "protocol": "tcp", "sessionAddress": "::1",       "sessionPort": 8080, "hostAddress": "127.0.0.1", "hostPort": 18080 },
+    { "protocol": "udp", "sessionAddress": "127.0.0.1", "sessionPort": 5353, "hostAddress": "127.0.0.1", "hostPort": 5353 }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `protocol` | `tcp` or `udp` |
+| `sessionAddress` | `127.0.0.1` or `::1` inside the session (explicit IPs; `localhost` is not accepted) |
+| `sessionPort` | 1–65535, the port session programs connect to |
+| `hostAddress` | a loopback IP of Yuhaiin's namespace: `127.0.0.0/8` or `::1` |
+| `hostPort` | 1–65535, may differ from `sessionPort` |
+
+Validation runs on save, also while forwarding is disabled. It rejects:
+
+- non-loopback, unspecified (`0.0.0.0`, `::`) and IPv4-mapped addresses;
+- zones and invalid IPs;
+- ports outside 1–65535 and protocols other than `tcp`/`udp`;
+- duplicate `protocol`+`sessionAddress`+`sessionPort`;
+- more than 64 mappings;
+- enabling forwarding without mappings.
+
+LAN or external targets are not possible.
+
+**IPv4 and IPv6 are separate.** `localhost` usually resolves to both `::1`
+and `127.0.0.1`, and clients differ in which one they try first. Add both
+mappings (the editor's *Add IPv4 and IPv6 for this port*) when clients use
+`localhost`. The families may cross: `[::1]:8080` can forward to
+`127.0.0.1:8080`. A family that is not mapped is never redirected to the
+other one; it is the session's own loopback, so a client that tries `::1`
+first gets "connection refused" there and then falls back to `127.0.0.1` by
+its own logic.
+
+### How it works
+
+```text
+session process ── connect(127.0.0.1:5432) ──▶ socket bound at 127.0.0.1:5432
+                                                 (created by the session helper
+                                                  inside the session netns, held
+                                                  by Yuhaiin)
+                                                        │ accept()
+                                                        ▼
+                                   Yuhaiin, in its own network namespace:
+                                   dial tcp4 127.0.0.1:5432 ──▶ host PostgreSQL
+```
+
+1. For each mapping, the session helper binds a socket at exactly the
+   session address and port (a listening TCP socket, or a bound UDP socket)
+   inside the session network namespace. It does this after `lo` is up and
+   before any command runs, and hands the socket to Yuhaiin over
+   `SCM_RIGHTS`, like the TUN. A socket belongs to the namespace it was
+   created in wherever its descriptor goes, so Yuhaiin accepts and reads on
+   it without `setns` and without touching any OS thread's namespace.
+2. Yuhaiin opens the host side with an explicit family (`tcp4`/`tcp6`,
+   `udp4`/`udp6`) in its own namespace and relays. Forwarded flows bypass
+   routing: no rule can send them to an outbound, and they never pass the
+   session TUN or the packet stack, so they cannot loop back into a session.
+3. TCP uses the stream relay of normal inbounds: EOF, half-close, reset,
+   cancellation and session teardown behave the same, with up to 1024
+   concurrent connections per session.
+4. UDP keeps datagram boundaries. Each session source gets a host socket,
+   up to 256 flows per session. Replies are accepted only from the mapped
+   host endpoint and are sent back from the session address the program
+   used. A flow closes after 60 seconds without traffic.
+5. Each forwarded flow appears in Connections and the traffic statistics
+   with component `ssh-host-loopback` and node `host loopback`. It carries
+   the SSH inbound ID and the session process (resolved through the
+   session's sock_diag socket). Failures are logged at most once per
+   mapping every 10 seconds; per-connection and per-flow events are debug
+   logs.
+
+The endpoints belong to each session: separate SSH transports have separate
+sockets, and closing a session closes all its sockets, connections and flows.
+A mapped session port is in use inside the session (programs there cannot
+bind it); unmapped ports stay the session's own loopback. Changes apply to
+new SSH connections; open ones keep the mappings they started with.
+
+Why not NAT: an nftables `output` DNAT of `127.0.0.1` to the gateway does
+reach the TUN, but replies only return for IPv4, and only with
+`route_localnet`. For IPv6 the kernel drops the de-NATed reply whose
+destination becomes `::1` on a non-loopback device (`Ip6InAddrErrors`, no
+`route_localnet` equivalent). This was measured on Linux 7.2. Sockets in the
+session namespace serve both families the same way, so no nftables rule,
+sysctl or route exists anywhere, and the host's nftables and routing tables
+are never touched.
+
+### Requirements, runtime status and failures
+
+- **Platform:** the Linux SSH inbound, rootless or rootful, including Yuhaiin
+  started by `podman unshare`. No nftables or extra capability is needed.
+  Ports below 1024 work: the session helper briefly holds
+  `CAP_NET_BIND_SERVICE` in its own user namespace.
+- **Runtime check:** the capabilities endpoint reports
+  `ssh.environment.features.hostLoopbackIPv4` / `hostLoopbackIPv6` (with
+  `hostLoopbackError`) from a throw-away session that reserves `127.0.0.1:1`
+  and `[::1]:1`. IPv6 fails when IPv6 is disabled in the kernel. The editor
+  shows this next to the setting, separately from whether it saves.
+- **Failures:** a mapping that cannot be reserved makes the inbound fail to
+  start (its runtime status shows why). A host service that is not
+  listening makes only that connection fail (connection refused, or a closed
+  connection after the dial timeout); nothing is retried on another family.
+
+### Security
+
+Every user of the SSH inbound can reach the mapped host services, with the
+host service's own authentication. Map only what SSH users should use.
+Host targets are restricted to loopback addresses and to the configured
+ports. SSH authentication is unchanged. Nothing in the host's firewall,
+routes or interfaces changes, and no namespace privilege is added to
+session processes.
+
 ## Process containment and cleanup
 
 - **PID namespace (always).** Every session process lives in the session PID

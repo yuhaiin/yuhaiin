@@ -335,10 +335,25 @@ func TestSSHServerLoopbackHelper(t *testing.T) {
 func hostNetworkState(t testing.TB) string {
 	t.Helper()
 	var b strings.Builder
-	for _, file := range []string{"/proc/net/route", "/proc/net/ipv6_route", "/proc/net/dev_mcast"} {
-		data, _ := os.ReadFile(file)
-		b.Write(data)
+	// Route tables carry live reference and use counters (/proc/net/route
+	// RefCnt/Use, ipv6_route refcnt/use) that change with any host traffic;
+	// compare only the route definitions.
+	for _, table := range []struct {
+		file    string
+		counter map[int]bool
+	}{{"/proc/net/route", map[int]bool{4: true, 5: true}}, {"/proc/net/ipv6_route", map[int]bool{6: true, 7: true}}} {
+		data, _ := os.ReadFile(table.file)
+		for line := range strings.SplitSeq(string(data), "\n") {
+			for i, field := range strings.Fields(line) {
+				if !table.counter[i] {
+					b.WriteString(field + " ")
+				}
+			}
+			b.WriteString("\n")
+		}
 	}
+	data, _ := os.ReadFile("/proc/net/dev_mcast")
+	b.Write(data)
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		t.Fatal(err)

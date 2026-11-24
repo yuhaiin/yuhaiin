@@ -4,6 +4,7 @@ package sshserver
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -73,9 +74,21 @@ func (g *connectionNetwork) openLocked() (err error) {
 			_ = owner.Close()
 		}
 	}()
-	flows, err := processnet.Attach(owner, s.handler, s.addresses, s.config.MTU, s.config.IPv6, "ssh")
+	link, err := processnet.Attach(owner, s.handler, s.addresses, s.config.MTU, s.config.IPv6, "ssh")
 	if err != nil {
 		return err
+	}
+	var flows io.Closer = link
+	if len(s.config.HostLoopback) != 0 {
+		// Serve the forwarded loopback endpoints before any command runs,
+		// so a session never sees them refuse connections.
+		forward, err := processnet.StartHostLoopback(owner, s.config.HostLoopback, s.config.HostLoopbackDialer, link.ProcessScope(), s.config.InboundID)
+		if err != nil {
+			_ = link.Close()
+			slog.Error("ssh inbound: host loopback forwarding failed", "inbound", s.config.InboundID, "reason", err.Error())
+			return err
+		}
+		flows = closers{forward, link}
 	}
 	if err = owner.Release(); err != nil {
 		_ = flows.Close()
@@ -106,6 +119,17 @@ func (g *connectionNetwork) detachLocked() networkResources {
 	r := networkResources{g.owner, g.flows}
 	g.owner, g.flows = nil, nil
 	return r
+}
+
+// closers closes in order and reports every error.
+type closers []io.Closer
+
+func (c closers) Close() error {
+	var err error
+	for _, closer := range c {
+		err = errors.Join(err, closer.Close())
+	}
+	return err
 }
 
 type networkResources struct {

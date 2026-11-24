@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"fmt"
+	"net/netip"
 	"reflect"
 	"strings"
 )
@@ -238,6 +239,12 @@ type SSHFeatures struct {
 	// Rootful reports whether Yuhaiin holds what rootful mode needs: host
 	// root with CAP_SYS_ADMIN and CAP_NET_ADMIN.
 	Rootful string `json:"rootful"`
+	// HostLoopbackIPv4 and HostLoopbackIPv6 report whether a session could
+	// reserve forwarded 127.0.0.1 / ::1 endpoints (host loopback forwarding).
+	// HostLoopbackError explains an unavailable family.
+	HostLoopbackIPv4  string `json:"hostLoopbackIPv4"`
+	HostLoopbackIPv6  string `json:"hostLoopbackIPv6"`
+	HostLoopbackError string `json:"hostLoopbackError,omitempty"`
 }
 
 type Network struct {
@@ -516,9 +523,91 @@ type SSHProtocol struct {
 	IPv6               bool     `json:"ipv6"`
 	MaxSessions        int      `json:"maxSessions,omitzero"`
 	AllowUnsafeShell   bool     `json:"allowUnsafeShell"`
+	// HostLoopback forwards chosen loopback ports of every SSH session to
+	// loopback services of the host Yuhaiin runs on. Disabled by default.
+	HostLoopback *SSHHostLoopback `json:"hostLoopback,omitzero"`
 }
 
 func (SSHProtocol) ProtocolType() string { return ProtocolSSH }
+
+// MaxSSHHostLoopbackMappings bounds the mappings of one SSH inbound.
+const MaxSSHHostLoopbackMappings = 64
+
+// SSHHostLoopback makes connections that SSH session processes open to
+// 127.0.0.1 or ::1 on a mapped port reach a loopback service of the network
+// namespace Yuhaiin runs in, without changing what the process connects to.
+// Every SSH user can then use the mapped host services. Unmapped ports stay
+// the session's own loopback.
+type SSHHostLoopback struct {
+	Enabled  bool                     `json:"enabled"`
+	Mappings []SSHHostLoopbackMapping `json:"mappings,omitempty"`
+}
+
+// SSHHostLoopbackMapping forwards SessionAddress:SessionPort inside every
+// session to HostAddress:HostPort on the host. Addresses are explicit IP
+// literals: the IPv4 and IPv6 loopback are separate mappings.
+type SSHHostLoopbackMapping struct {
+	// Protocol is "tcp" or "udp".
+	Protocol string `json:"protocol"`
+	// SessionAddress is 127.0.0.1 or ::1.
+	SessionAddress string `json:"sessionAddress"`
+	SessionPort    uint16 `json:"sessionPort"`
+	// HostAddress is a loopback address of the host (127.0.0.0/8 or ::1).
+	HostAddress string `json:"hostAddress"`
+	HostPort    uint16 `json:"hostPort"`
+}
+
+// Session and Host return the parsed endpoints of a validated mapping.
+func (m SSHHostLoopbackMapping) Session() netip.AddrPort {
+	a, _ := netip.ParseAddr(m.SessionAddress)
+	return netip.AddrPortFrom(a, m.SessionPort)
+}
+
+func (m SSHHostLoopbackMapping) Host() netip.AddrPort {
+	a, _ := netip.ParseAddr(m.HostAddress)
+	return netip.AddrPortFrom(a, m.HostPort)
+}
+
+// Validate checks every mapping, also while forwarding is disabled, so a
+// saved configuration can always be enabled.
+func (h SSHHostLoopback) Validate() error {
+	if h.Enabled && len(h.Mappings) == 0 {
+		return fmt.Errorf("host loopback forwarding is enabled without mappings")
+	}
+	if len(h.Mappings) > MaxSSHHostLoopbackMappings {
+		return fmt.Errorf("host loopback forwarding has %d mappings; at most %d are supported", len(h.Mappings), MaxSSHHostLoopbackMappings)
+	}
+	seen := make(map[string]int, len(h.Mappings))
+	for i, m := range h.Mappings {
+		if err := m.Validate(); err != nil {
+			return fmt.Errorf("host loopback mapping %d: %w", i+1, err)
+		}
+		key := m.Protocol + " " + m.Session().String()
+		if j, ok := seen[key]; ok {
+			return fmt.Errorf("host loopback mapping %d: %s %s is already mapped by mapping %d", i+1, m.Protocol, m.Session(), j+1)
+		}
+		seen[key] = i
+	}
+	return nil
+}
+
+func (m SSHHostLoopbackMapping) Validate() error {
+	if m.Protocol != "tcp" && m.Protocol != "udp" {
+		return fmt.Errorf("protocol %q must be tcp or udp", m.Protocol)
+	}
+	session, err := netip.ParseAddr(m.SessionAddress)
+	if err != nil || session != netip.AddrFrom4([4]byte{127, 0, 0, 1}) && session != netip.IPv6Loopback() {
+		return fmt.Errorf("session address %q must be 127.0.0.1 or ::1", m.SessionAddress)
+	}
+	host, err := netip.ParseAddr(m.HostAddress)
+	if err != nil || host.Zone() != "" || host.Is4In6() || !host.IsLoopback() {
+		return fmt.Errorf("host address %q must be a loopback IP address (127.0.0.1, ::1 or another 127.0.0.0/8 address)", m.HostAddress)
+	}
+	if m.SessionPort == 0 || m.HostPort == 0 {
+		return fmt.Errorf("ports must be 1-65535")
+	}
+	return nil
+}
 
 // KrunletProtocol listens for native Krunlet virtual NIC flows on a local
 // Unix socket. It feeds TCP/UDP directly to yuhaiin's normal inbound handler.
@@ -999,6 +1088,12 @@ func (i Inbound) Validate() error {
 		return fmt.Errorf("protocol: %w", err)
 	}
 	switch i.Protocol.Type {
+	case ProtocolSSH:
+		if h := i.Protocol.SSH.HostLoopback; h != nil {
+			if err := h.Validate(); err != nil {
+				return err
+			}
+		}
 	case ProtocolLANLink:
 		if i.Network.Type != NetworkEmpty || len(i.Transports) != 0 {
 			return fmt.Errorf("LAN Link inbound requires an empty network without transports")

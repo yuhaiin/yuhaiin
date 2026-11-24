@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/processnet"
 	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -60,6 +61,12 @@ type Config struct {
 	IPv6              bool
 	MaxSessions       int
 	AllowUnsafeShell  bool
+	// HostLoopback lists the session loopback endpoints forwarded to host
+	// loopback services (empty: forwarding is disabled).
+	HostLoopback []processnet.HostLoopbackMapping
+	// HostLoopbackDialer opens the host side of forwarded flows, recording
+	// them in connection accounting. Nil dials directly.
+	HostLoopbackDialer processnet.HostLoopbackDialer
 }
 
 // credential is the session credential: the target identity and, when set,
@@ -144,6 +151,12 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 		if !filepath.IsAbs(path) || strings.ContainsRune(path, '\x00') {
 			return nil, nil, errors.New("ssh inbound: sftpReadOnlyPaths must contain absolute paths")
 		}
+	}
+	if err := processnet.ValidateHostLoopbackMappings(c.HostLoopback); err != nil {
+		return nil, nil, fmt.Errorf("ssh inbound: %w", err)
+	}
+	if len(c.HostLoopback) > sessionnet.MaxLoopbackForwards {
+		return nil, nil, fmt.Errorf("ssh inbound: at most %d host loopback mappings are supported", sessionnet.MaxLoopbackForwards)
 	}
 	if c.MTU == 0 {
 		c.MTU = 1500

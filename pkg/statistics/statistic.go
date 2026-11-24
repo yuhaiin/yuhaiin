@@ -295,7 +295,13 @@ func (c *Connections) storeConnection(o connection, info contractconnection.Conn
 }
 
 func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.PacketConn, error) {
-	con, err := c.Proxy.PacketConn(ctx, addr)
+	return c.PacketConnWithProxy(ctx, addr, c.Proxy)
+}
+
+// PacketConnWithProxy records a UDP socket opened by a preselected proxy, like
+// ConnWithProxy does for streams.
+func (c *Connections) PacketConnWithProxy(ctx context.Context, addr netapi.Address, proxy netapi.Proxy) (net.PacketConn, error) {
+	con, err := proxy.PacketConn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "udp", addr)
 		c.recordFailure(ctx, "udp", addr, err)

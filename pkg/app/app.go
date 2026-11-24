@@ -48,6 +48,7 @@ import (
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/nebula"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/openvpn"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/processnet"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	_ "github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
@@ -354,7 +355,8 @@ func Start(so *StartOptions) (_ *AppInstance, err error) {
 	// disconnects from the protection service: the kill switch stays on.
 	networkProtection := AddCloser(closers, "network_protection", protection.NewController(protectionplatform.NewBackend()))
 	systemNetwork.SetProtection(networkProtection.SetInputs)
-	interceptionOptions = append(interceptionOptions, inbound.WithSystemNetwork(systemNetwork))
+	interceptionOptions = append(interceptionOptions, inbound.WithSystemNetwork(systemNetwork),
+		inbound.WithHostLoopbackDialer(hostLoopbackDialer{connections: stcs, direct: processnet.DirectHostLoopbackDialer{Timeout: configuration.Timeout}}))
 	inbounds = AddCloser(closers, "inbound_listener", inbound.NewInbound(fakedns, interceptionOptions...))
 	router.SetLANLinkFallback(func(ctx context.Context, ip netip.Addr) (contractroute.Target, bool) {
 		// Traffic leaving a gateway goes straight to the LAN.
