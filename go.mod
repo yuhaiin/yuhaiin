@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.140
+	codeberg.org/miekg/dns v0.6.143
 	filippo.io/age v1.3.2
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20261116
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
@@ -27,7 +27,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oschwald/maxminddb-golang/v2 v2.9.1
 	github.com/pires/go-proxyproto v0.16.0
-	github.com/pkg/sftp v1.13.12
+	github.com/pkg/sftp v1.13.13
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/refraction-networking/utls v1.8.2
@@ -39,14 +39,14 @@ require (
 	github.com/xtls/reality v0.0.0-20261108102217-4a26e87788f5
 	github.com/yuhaiin/purego-sqlite v0.0.0-20261105112659-37f07d7891db
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104135523-4121a04c61b8
-	github.com/yuhaiin/sessionnet v0.0.0-20261124091417-8fa3411b3675
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261122063734-80cc14f6e91a
+	github.com/yuhaiin/sessionnet v0.0.0-20261124092242-a783553e1bda
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261124092710-a9c3c236f8fe
 	github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v4 v4.0.0
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
 	golang.org/x/crypto v0.59.0
-	golang.org/x/exp v0.0.0-20261121134650-e1094eeca1b5
+	golang.org/x/exp v0.0.0-20261124000051-d6646c509b6d
 	golang.org/x/mobile v0.0.0-20261117202452-47699113848a
 	golang.org/x/mod v0.43.0
 	golang.org/x/net v0.63.0

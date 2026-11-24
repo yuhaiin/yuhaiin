@@ -7,6 +7,8 @@ codeberg.org/miekg/dns v0.6.133 h1:c9mJDfQ1HFQ69Wk1p4HKwPf/kFOmF1leQs4LhRLwY9Q=
 codeberg.org/miekg/dns v0.6.133/go.mod h1:KFZNWDP1ssH2HHYpcOAt1IIjz3yLlmF3xYrYxArbnkk=
 codeberg.org/miekg/dns v0.6.140 h1:7injFkO8uIEaJgxBnR6uNXvXS8qK8A7JuYZSU/Vxag8=
 codeberg.org/miekg/dns v0.6.140/go.mod h1:GZQYwBsgLFxE+NImBtNZH/eph/CHD8oHuFVGOLHuaos=
+codeberg.org/miekg/dns v0.6.143 h1:ObGIjavScP1UHEhZY1uZsrxcK8RAQeXeqJP6qNyOtm4=
+codeberg.org/miekg/dns v0.6.143/go.mod h1:GZQYwBsgLFxE+NImBtNZH/eph/CHD8oHuFVGOLHuaos=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 filippo.io/age v1.3.2 h1:r6RSZLFSMm6rzKepZ7ZAYkKCu14f3/Me8c7uKYh7C8c=
@@ -306,6 +308,8 @@ github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/sftp v1.13.12 h1:Myhzy/ZzLPnCtE2F2WtDHsgs8RfgMnH2gfbHuCJhkMU=
 github.com/pkg/sftp v1.13.12/go.mod h1:uNkH9roSXglNJqM+glJJi+TQXQUm0fXFWqCFmT8hsN0=
+github.com/pkg/sftp v1.13.13 h1:lfbNTnT3zEilT8XxmwBBb5sdqJJBTunll5OVNCZPwrs=
+github.com/pkg/sftp v1.13.13/go.mod h1:uNkH9roSXglNJqM+glJJi+TQXQUm0fXFWqCFmT8hsN0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v1.0.0/go.mod h1:db9x61etRT2tGnBNRi70OPL5FsnadC4Ky3P0J6CfImo=
@@ -420,6 +424,8 @@ github.com/yuhaiin/sessionnet v0.0.0-20261124070336-9472c79d8e8b h1:F+HXYHFCWWna
 github.com/yuhaiin/sessionnet v0.0.0-20261124070336-9472c79d8e8b/go.mod h1:/ol/nFvhREUg4wA1IWUflGWxYqd8suw+TOX2f4v2BNM=
 github.com/yuhaiin/sessionnet v0.0.0-20261124091417-8fa3411b3675 h1:OpNiXtA9WALBOU/jRnSvOS46GCqugv5A4yLve7P2p6E=
 github.com/yuhaiin/sessionnet v0.0.0-20261124091417-8fa3411b3675/go.mod h1:/ol/nFvhREUg4wA1IWUflGWxYqd8suw+TOX2f4v2BNM=
+github.com/yuhaiin/sessionnet v0.0.0-20261124092242-a783553e1bda h1:ERLDTaYLMcHviduhx/fWGU/gVkrNTVX0oUx1nVUs5jg=
+github.com/yuhaiin/sessionnet v0.0.0-20261124092242-a783553e1bda/go.mod h1:/ol/nFvhREUg4wA1IWUflGWxYqd8suw+TOX2f4v2BNM=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e h1:twgfI/K3HcKc/QMkIYChggoBVQLcNC/At/rW+lhIluk=
 github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e/go.mod h1:vhut86B1vSakLe/+msNCZ4aaz83WTpb1ufWmKGog3cM=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261114144434-c4bcf7256005 h1:/9dpRuHR1cmRlRXQBuNUlCjIuyHa1qCbvQ9I2zf8Myg=
@@ -428,6 +434,8 @@ github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261121154059-78661564138f h1:YNhi2
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261121154059-78661564138f/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261122063734-80cc14f6e91a h1:OJg8dwJ6+8RxZgdJY9eu9ZfRbQ3rjS22gB+lZenO6/Y=
 github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261122063734-80cc14f6e91a/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261124092710-a9c3c236f8fe h1:tudcYCkCaWVUw/52h9KDRMhrWS+XG+8AWshGUD1rJF0=
+github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261124092710-a9c3c236f8fe/go.mod h1:4DvYL+RLBE1SO3+TuORbtCzMwp1lPUS+gUsKoTeuSVs=
 github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc h1:ZiA2zUDzCyAZt2pPraifRvfletbIHF739KZpXTQf9nM=
 github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc/go.mod h1:tj43hgM1bWIR/0HMUwaEOFVxPxCbr/HAnbAkSjn//Uo=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
@@ -459,6 +467,8 @@ golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4 h1:lfvjMWyv5q5oJgIhGfBDf7Szv
 golang.org/x/exp v0.0.0-20261113113407-e3970619a1a4/go.mod h1:J3U+E8RzytcGvwz+uJuAP4zULJ2TkAQBnmPZMexpdXs=
 golang.org/x/exp v0.0.0-20261121134650-e1094eeca1b5 h1:dy60w5SqNxJYBAYs1Fg7h4IIYR23bGbwIjTycad1Fe8=
 golang.org/x/exp v0.0.0-20261121134650-e1094eeca1b5/go.mod h1:xeYMf2GfgE/gQmBtvdPsBN608YETsXuvoiEhaOxGg/w=
+golang.org/x/exp v0.0.0-20261124000051-d6646c509b6d h1:GxW3ezPxBJFxB7GVPlqeQ6mi67zWQC5dFSzidYXJrV8=
+golang.org/x/exp v0.0.0-20261124000051-d6646c509b6d/go.mod h1:xeYMf2GfgE/gQmBtvdPsBN608YETsXuvoiEhaOxGg/w=
 golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f h1:+lI8cDJ4uceLipg2f1ODay7fEuLkk0BIHXd6PB8icxo=
 golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f/go.mod h1:PqrXSW65cXDZH0k4IeUbhmg/bcAZDbzNz3byBpKCsXo=
 golang.org/x/image v0.47.0 h1:za/8gVz++PPZqmZJBNSISICN5Rrj5zixP/8K++fgmqo=
