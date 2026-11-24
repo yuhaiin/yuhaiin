@@ -82,18 +82,15 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 		return nil, nil, fmt.Errorf("ssh inbound: unknown namespaceMode %q; use rootless or rootful", c.NamespaceMode)
 	}
 	if c.NamespaceMode == NamespaceModeRootless {
-		// Rootless shells run as Yuhaiin's own account unless told otherwise.
+		// Rootless shells run as Yuhaiin's own account unless told otherwise,
+		// which is UID/GID 0 when Yuhaiin itself runs as root.
 		if c.UID == 0 {
 			c.UID = uint32(os.Geteuid())
 		}
 		if c.GID == 0 {
 			c.GID = uint32(os.Getegid())
 		}
-	}
-	if c.UID == 0 || c.GID == 0 {
-		if c.NamespaceMode == NamespaceModeRootless {
-			return nil, nil, errors.New("ssh inbound: Yuhaiin runs as root, so rootless mode needs an explicit non-root UID and GID for the shell")
-		}
+	} else if c.UID == 0 || c.GID == 0 {
 		return nil, nil, errors.New("ssh inbound: non-root UID and GID are required")
 	}
 	if c.Shell == "" {

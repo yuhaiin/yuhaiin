@@ -86,14 +86,7 @@ func TestValidate(t *testing.T) {
 func TestValidateNamespaceMode(t *testing.T) {
 	c := testConfig(t)
 	c.NamespaceMode, c.UID, c.GID = "", 0, 0
-	_, _, err := c.validate()
-	if os.Geteuid() == 0 {
-		if err == nil || !strings.Contains(err.Error(), "explicit non-root UID") {
-			t.Fatalf("root-owned rootless inbound without IDs: %v", err)
-		}
-		return
-	}
-	if err != nil {
+	if _, _, err := c.validate(); err != nil {
 		t.Fatal(err)
 	}
 	if c.NamespaceMode != NamespaceModeRootless || c.sessionMode() != sessionnet.ModeRootless {
