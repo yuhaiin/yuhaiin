@@ -179,7 +179,8 @@ func TestDetectEnvironment(t *testing.T) {
 	}
 	for name, status := range map[string]string{"user": env.Features.UserNamespace, "net": env.Features.NetworkNamespace,
 		"mnt": env.Features.MountNamespace, "pid": env.Features.PIDNamespace, "idmap": env.Features.IDMapping,
-		"tun": env.Features.TUN, "ipv4": env.Features.IPv4, "ipv6": env.Features.IPv6, "supervisor": env.Features.Supervisor} {
+		"tun": env.Features.TUN, "ipv4": env.Features.IPv4, "ipv6": env.Features.IPv6, "supervisor": env.Features.Supervisor,
+		"host loopback ipv4": env.Features.HostLoopbackIPv4, "host loopback ipv6": env.Features.HostLoopbackIPv6} {
 		if status != contract.SSHFeatureAvailable {
 			t.Errorf("feature %s is %q", name, status)
 		}

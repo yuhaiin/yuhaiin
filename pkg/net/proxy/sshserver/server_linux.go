@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/processnet"
 	"github.com/yuhaiin/sessionnet"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
@@ -75,6 +76,13 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 			_ = cgroups.Close()
 		}
 		return nil, fmt.Errorf("ssh inbound (%s mode) cannot create isolated sessions: %w", config.NamespaceMode, err)
+	}
+	if len(config.HostLoopback) != 0 {
+		mappings := make([]string, len(config.HostLoopback))
+		for i, m := range config.HostLoopback {
+			mappings[i] = m.String()
+		}
+		slog.Info("ssh inbound: host loopback forwarding enabled", "inbound", config.InboundID, "mappings", mappings)
 	}
 	slog.Info("ssh inbound: isolated sessions ready", "mode", config.NamespaceMode,
 		"uid", config.UID, "gid", config.GID, "parentUID", optionalID(config.ParentUID), "parentGID", optionalID(config.ParentGID), "containment", containment)
@@ -154,6 +162,8 @@ func sessionConfig(config Config, addresses sessionnet.AddressConfig, cgroups *s
 		MTU:        config.MTU, IPv6: config.IPv6,
 		Addresses: addresses,
 		Cgroup:    cgroups,
+		// Each session reserves its own forwarded loopback endpoints.
+		LoopbackForwards: processnet.HostLoopbackForwards(config.HostLoopback),
 	}
 }
 

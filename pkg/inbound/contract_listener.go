@@ -22,6 +22,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mixed"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/mock"
 	ymux "github.com/Asutorufa/yuhaiin/pkg/net/proxy/mux"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/processnet"
 	yproxy "github.com/Asutorufa/yuhaiin/pkg/net/proxy/proxy"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/quic"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/reality"
@@ -41,10 +42,34 @@ import (
 )
 
 func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix, providers ...proxyauth.Provider) (result netapi.Accepter, resultErr error) {
-	var provider proxyauth.Provider
+	var deps listenDeps
 	if len(providers) > 0 {
-		provider = providers[0]
+		deps.provider = providers[0]
 	}
+	return listenContractWith(config, handler, ranges, deps)
+}
+
+// listenDeps carries the runtime services some listeners need.
+type listenDeps struct {
+	provider           proxyauth.Provider
+	hostLoopbackDialer processnet.HostLoopbackDialer
+}
+
+// sshHostLoopbackMappings returns the enabled, validated mappings of an SSH
+// inbound; disabled forwarding yields none.
+func sshHostLoopbackMappings(p *contract.SSHProtocol) []processnet.HostLoopbackMapping {
+	if p.HostLoopback == nil || !p.HostLoopback.Enabled {
+		return nil
+	}
+	out := make([]processnet.HostLoopbackMapping, len(p.HostLoopback.Mappings))
+	for i, m := range p.HostLoopback.Mappings {
+		out[i] = processnet.HostLoopbackMapping{Network: m.Protocol, Session: m.Session(), Host: m.Host()}
+	}
+	return out
+}
+
+func listenContractWith(config contract.Inbound, handler netapi.Handler, ranges [2]netip.Prefix, deps listenDeps) (result netapi.Accepter, resultErr error) {
+	provider := deps.provider
 	var verifier func(string) proxyauth.Verifier
 	var scope *proxyauth.Scope
 	if err := config.Validate(); err != nil {
@@ -108,6 +133,7 @@ func listenContract(config contract.Inbound, handler netapi.Handler, ranges [2]n
 			FakeIPRanges: ranges,
 			IPv6:         p.IPv6, MaxSessions: p.MaxSessions,
 			AllowUnsafeShell: p.AllowUnsafeShell,
+			HostLoopback:     sshHostLoopbackMappings(p), HostLoopbackDialer: deps.hostLoopbackDialer,
 		}, handler)
 	}
 	switch config.Protocol.Type {

@@ -16,6 +16,7 @@ import (
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/metrics"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/processnet"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/tun/lightweight"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxyauth"
 	"github.com/Asutorufa/yuhaiin/pkg/net/trafficcontrol"
@@ -39,6 +40,7 @@ type Inbound struct {
 	access              netapi.TrafficAccess
 	trafficPolicyReady  atomic.Bool
 	authentication      proxyauth.Provider
+	hostLoopbackDialer  processnet.HostLoopbackDialer
 	usage               *statistics.UserUsage
 	states              map[string]runtimeState
 	eventID             uint64
@@ -135,6 +137,12 @@ type Option func(*Inbound)
 
 func WithAuthentication(provider proxyauth.Provider) Option {
 	return func(l *Inbound) { l.authentication = provider }
+}
+
+// WithHostLoopbackDialer opens the host side of SSH host loopback
+// forwarding, normally through connection accounting.
+func WithHostLoopbackDialer(dialer processnet.HostLoopbackDialer) Option {
+	return func(l *Inbound) { l.hostLoopbackDialer = dialer }
 }
 
 func WithTrafficAccess(access netapi.TrafficAccess) Option {
@@ -618,7 +626,8 @@ func (l *Inbound) SaveContract(req contract.Inbound) (result error) {
 		counters = new(ingressCounters)
 		l.countersByID[key] = counters
 	}
-	server, err := listenContract(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges, l.authentication)
+	server, err := listenContractWith(req, &handlerWrap{id: req.ID, name: req.Name, handler: l, counters: counters}, l.fakeIPRanges,
+		listenDeps{provider: l.authentication, hostLoopbackDialer: l.hostLoopbackDialer})
 	if err != nil {
 		log.Error("start contract server failed", "name", req.Name, "id", req.ID, "err", err)
 		return err

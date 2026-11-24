@@ -4,7 +4,10 @@ package sshserver
 
 import (
 	"context"
+	"errors"
+	"net/netip"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,7 +69,8 @@ func DetectEnvironment(ctx context.Context) contract.SSHEnvironment {
 func unknownFeatures() contract.SSHFeatures {
 	u := contract.SSHFeatureUnknown
 	return contract.SSHFeatures{UserNamespace: u, NetworkNamespace: u, MountNamespace: u, PIDNamespace: u,
-		IDMapping: u, TUN: u, IPv4: u, IPv6: u, Supervisor: u, CgroupV2: u, Rootful: u}
+		IDMapping: u, TUN: u, IPv4: u, IPv6: u, Supervisor: u, CgroupV2: u, Rootful: u,
+		HostLoopbackIPv4: u, HostLoopbackIPv6: u}
 }
 
 func detectEnvironment(ctx context.Context) contract.SSHEnvironment {
@@ -122,8 +126,29 @@ func detectEnvironment(ctx context.Context) contract.SSHEnvironment {
 	}
 	if report.Error != nil {
 		env.Error, env.ErrorStage = report.Error.Message, string(report.Error.Stage)
+	} else {
+		var errs []string
+		env.Features.HostLoopbackIPv4, errs = probeHostLoopback(ctx, netip.AddrFrom4([4]byte{127, 0, 0, 1}), errs)
+		env.Features.HostLoopbackIPv6, errs = probeHostLoopback(ctx, netip.IPv6Loopback(), errs)
+		env.Features.HostLoopbackError = strings.Join(errs, "; ")
 	}
 	return env
+}
+
+// probeHostLoopback reserves TCP and UDP endpoints of one loopback family in
+// a throw-away session, as an inbound with host loopback mappings would.
+func probeHostLoopback(ctx context.Context, addr netip.Addr, errs []string) (string, []string) {
+	endpoint := netip.AddrPortFrom(addr, 1)
+	err := sessionnet.Probe(ctx, sessionnet.Config{Mode: sessionnet.ModeRootless, IPv6: true, LoopbackForwards: []sessionnet.LoopbackForward{
+		{Network: "tcp", Address: endpoint}, {Network: "udp", Address: endpoint}}})
+	if err == nil {
+		return contract.SSHFeatureAvailable, errs
+	}
+	message := err.Error()
+	if setup, ok := errors.AsType[*sessionnet.SetupError](err); ok {
+		message = setup.Message
+	}
+	return contract.SSHFeatureUnavailable, append(errs, message)
 }
 
 // cgroupAvailability mirrors selectContainment for rootless sessions

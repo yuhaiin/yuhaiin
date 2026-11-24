@@ -101,6 +101,9 @@ func (l *Link) Close() error {
 	return l.err
 }
 
+// ProcessScope resolves the session's sockets to processes.
+func (l *Link) ProcessScope() netapi.ProcessDumper { return l.processes }
+
 // CheckFakeIPOverlap rejects pools that shadow the isolated link or gateway.
 func CheckFakeIPOverlap(addresses sessionnet.AddressConfig, pools [2]netip.Prefix, ipv6 bool) error {
 	addresses, err := addresses.Resolve(ipv6)
