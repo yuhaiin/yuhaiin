@@ -41,8 +41,13 @@ type Config struct {
 	// Yuhaiin runs inside a user namespace (for example `podman unshare`,
 	// where host UID 1009 is UID 0 of Yuhaiin's namespace). In rootless mode
 	// 0 selects Yuhaiin's own host identity.
-	UID               uint32
-	GID               uint32
+	UID uint32
+	GID uint32
+	// ParentUID and ParentGID optionally override, in rootless mode, the
+	// IDs of Yuhaiin's own user namespace that UID and GID map to (see
+	// sessionnet.Credential). They never replace UID/GID.
+	ParentUID         *uint32
+	ParentGID         *uint32
 	Shell             string
 	Timezone          string
 	SFTPReadOnlyPaths []string
@@ -55,6 +60,12 @@ type Config struct {
 	IPv6              bool
 	MaxSessions       int
 	AllowUnsafeShell  bool
+}
+
+// credential is the session credential: the target identity and, when set,
+// the manual parent namespace IDs.
+func (c Config) credential() *sessionnet.Credential {
+	return &sessionnet.Credential{UID: c.UID, GID: c.GID, ParentUID: c.ParentUID, ParentGID: c.ParentGID}
 }
 
 // sessionMode converts the validated mode for sessionnet.
@@ -84,6 +95,16 @@ func (c *Config) validate() (gossh.Signer, gossh.PublicKey, error) {
 	case NamespaceModeRootless, NamespaceModeRootful:
 	default:
 		return nil, nil, fmt.Errorf("ssh inbound: unknown namespaceMode %q; use rootless or rootful", c.NamespaceMode)
+	}
+	if c.ParentUID != nil || c.ParentGID != nil {
+		if c.NamespaceMode != NamespaceModeRootless {
+			return nil, nil, errors.New("ssh inbound: parent namespace UID/GID only apply to rootless mode")
+		}
+		// The override pairs an explicit target identity with parent IDs;
+		// the default identity would make that pairing ambiguous.
+		if c.ParentUID != nil && c.UID == 0 || c.ParentGID != nil && c.GID == 0 {
+			return nil, nil, errors.New("ssh inbound: set uid/gid (the SSH target identity) explicitly when overriding the parent namespace UID/GID")
+		}
 	}
 	if c.NamespaceMode == NamespaceModeRootless {
 		// Rootless shells run as Yuhaiin's own account unless told otherwise,

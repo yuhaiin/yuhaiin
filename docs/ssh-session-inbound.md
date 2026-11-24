@@ -170,14 +170,52 @@ Yuhaiin detects this automatically; no setting is needed:
   host; a short chain of helper processes counts the remaining ones). At
   depth 1, the parent is the host and IDs translate exactly.
 - When Yuhaiin is nested deeper, or the depth cannot be measured, host IDs
-  cannot be verified: sessions can then only use Yuhaiin's own identity,
-  shown with the IDs of its namespace, and explicit `uid`/`gid` values are
-  refused.
+  cannot be verified: automatically, sessions then use only Yuhaiin's own
+  identity, shown with the IDs of its namespace, and explicit `uid`/`gid`
+  values are refused unless a manual parent mapping is set (below).
 - Mapping UID 0 of Yuhaiin's namespace needs `CAP_SETFCAP` there (Linux
   5.12+), which namespace root normally holds.
 - Namespace root cannot write the host cgroup hierarchy, so Yuhaiin uses a
   delegated cgroup if present and otherwise the PID namespace supervisor.
 - Rootful mode needs host root and is reported as unavailable.
+
+### Manual parent namespace mapping
+
+Deeper nesting is an implementation limit, not a kernel one: writing a
+session map needs only IDs of Yuhaiin's own namespace (the session's
+immediate parent), and the kernel checks those itself. What a nested process
+cannot do is see what they are on the host. For such cases the advanced,
+rootless-only `parentNamespaceUID`/`parentNamespaceGID` settings state the
+pairing directly:
+
+```json
+"uid": 1009, "gid": 1009,
+"parentNamespaceUID": 0, "parentNamespaceGID": 0
+```
+
+gives the session maps `1009 0 1` / `1009 0 1`. For example, Yuhaiin under
+`podman unshare unshare --user --map-root-user` (depth 2) runs as UID 0 of a
+namespace whose UID 0 is Podman's UID 0, i.e. host 1009.
+
+- `uid`/`gid` stay the SSH target identity; the override never replaces
+  them, and they must be set explicitly when it is used.
+- The override names IDs of **Yuhaiin's namespace, not host IDs**. They must
+  exist in Yuhaiin's `uid_map`/`gid_map` and pass the kernel rules: Yuhaiin's
+  own IDs always, others only with `CAP_SETUID`/`CAP_SETGID`; mapping its UID
+  0 needs `CAP_SETFCAP`; another GID needs a namespace that allows
+  `setgroups`. Nothing is bypassed; the kernel rejects anything else.
+- Where host IDs are resolvable (host, or one level like Podman), an
+  override must agree with the automatic mapping, so it cannot make a shell
+  show one host account while acting as another.
+- Every rootless session reads its own `/proc/self/uid_map`, `gid_map` and
+  IDs after switching to them, and the inbound refuses to start (each new
+  session fails) unless they equal the plan.
+- Yuhaiin cannot verify which host account the parent IDs stand for: the
+  override asserts it. File access is still limited to what Yuhaiin's own
+  namespace can do. Rootful mode refuses the setting.
+
+The editor shows each session map line as *Automatic* or *Manual* and
+rejects parent IDs that Yuhaiin's namespace cannot map.
 
 ## Detected environment
 
@@ -185,7 +223,8 @@ The inbound capabilities endpoint (`GET /api/v2/inbounds/capabilities`)
 reports `ssh.environment`: where Yuhaiin runs (`host`/`inherited`, nesting
 depth, its UID/GID maps and `setgroups` state), its host and namespace
 identity and supplementary groups, the host UID/GID ranges a rootless inbound
-may use, its capabilities, and the kernel-verified identity of a throw-away
+may use and the namespace IDs a manual parent mapping may name, its
+capabilities, and the kernel-verified identity of a throw-away
 probe session (session UID/GID, its maps, whether groups are inherited and
 whether the filesystem identity is preserved), plus the status of the user,
 network, mount and PID namespaces, ID mapping, TUN, IPv4/IPv6, the

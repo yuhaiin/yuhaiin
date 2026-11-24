@@ -31,6 +31,11 @@ import (
 // (default: what sessionnet resolves). YUH_SSH_TEST_DENIED_DIR optionally
 // names a directory the account must not read, and YUH_SSH_TEST_GROUP_DIR one
 // it may use only through a supplementary group.
+//
+// YUH_SSH_TEST_PARENT_UID/GID select the manual parent namespace override:
+// the target identity is then always set explicitly and paired with those
+// IDs of Yuhaiin's namespace, for runs nested deeper than Podman, e.g.
+// `podman unshare unshare --user --map-root-user env ... YUH_SSH_TEST_PARENT_UID=0`.
 func TestSSHServerHostFilesystemIdentity(t *testing.T) {
 	requireSSHSessionIntegration(t)
 	if testHostRoot() {
@@ -52,7 +57,9 @@ func TestSSHServerHostFilesystemIdentity(t *testing.T) {
 		}
 		want.GID = uint32(id)
 	}
-	if want.UID != own.UID || want.GID != own.GID {
+	parentUID, parentGID := optionalEnvID(t, "YUH_SSH_TEST_PARENT_UID"), optionalEnvID(t, "YUH_SSH_TEST_PARENT_GID")
+	manual := parentUID != nil || parentGID != nil
+	if !manual && (want.UID != own.UID || want.GID != own.GID) {
 		t.Fatalf("sessionnet resolves Yuhaiin's host identity to %d:%d, expected %d:%d", own.UID, own.GID, want.UID, want.GID)
 	}
 	home := os.Getenv("YUH_SSH_TEST_HOME")
@@ -65,12 +72,17 @@ func TestSSHServerHostFilesystemIdentity(t *testing.T) {
 	}
 
 	// The configuration that used to fail: the host IDs set explicitly.
-	for _, explicit := range []bool{false, true} {
+	modes := []bool{false, true}
+	if manual {
+		modes = []bool{true}
+	}
+	for _, explicit := range modes {
 		t.Run(fmt.Sprintf("explicit=%v", explicit), func(t *testing.T) {
 			config, signer := newSSHServerTestIdentity(t)
 			config.InboundID = fmt.Sprintf("identity-%v", explicit)
 			if explicit {
 				config.UID, config.GID = want.UID, want.GID
+				config.ParentUID, config.ParentGID = parentUID, parentGID
 			}
 			server := startSSHServerTestServer(t, config, newSSHServerTestHandler())
 			if server.config.UID != want.UID || server.config.GID != want.GID {
@@ -126,6 +138,19 @@ rm permission-test && echo "rm=ok"
 	}
 }
 
+func optionalEnvID(t *testing.T, name string) *uint32 {
+	t.Helper()
+	v := os.Getenv(name)
+	if v == "" {
+		return nil
+	}
+	id, err := strconv.ParseUint(v, 10, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return new(uint32(id))
+}
+
 func TestDetectEnvironment(t *testing.T) {
 	requireSSHSessionIntegration(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -142,6 +167,12 @@ func TestDetectEnvironment(t *testing.T) {
 	}
 	if env.UserNamespace.Origin != wantOrigin || env.UserNamespace.Depth != ns.Depth || !env.UserNamespace.NestedUserNamespaceSupported {
 		t.Fatalf("user namespace %+v", env.UserNamespace)
+	}
+	if !ns.HostIDs() {
+		// Deeper than Podman: only the namespace identity is verifiable.
+		if env.UserNamespace.HostIDsResolved || env.Identity.HostUID != nil {
+			t.Fatalf("host IDs must not be claimed at depth %d: %+v", ns.Depth, env.Identity)
+		}
 	}
 	if env.Error != "" || env.Session == nil || !env.Session.FilesystemIdentityPreserved {
 		t.Fatalf("probe session: %q %+v", env.Error, env.Session)

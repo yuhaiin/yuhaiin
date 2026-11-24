@@ -175,6 +175,10 @@ type SSHIdentity struct {
 	// may be configured with; others are rejected.
 	UIDRanges []SSHIDRange `json:"uidRanges"`
 	GIDRanges []SSHIDRange `json:"gidRanges"`
+	// ParentUIDRanges and ParentGIDRanges are IDs of Yuhaiin's namespace a
+	// manual parentNamespaceUID/GID may name.
+	ParentUIDRanges []SSHIDRange `json:"parentUIDRanges"`
+	ParentGIDRanges []SSHIDRange `json:"parentGIDRanges"`
 	// Effective capabilities in Yuhaiin's own user namespace.
 	CapSetUID   bool `json:"capSetUID"`
 	CapSetGID   bool `json:"capSetGID"`
@@ -486,24 +490,32 @@ type SSHProtocol struct {
 	// NamespaceMode is "rootless" (the default, also for saved inbounds that
 	// predate the field) or "rootful". Rootless needs no host privilege; its
 	// UID/GID default to Yuhaiin's own account (0 = Yuhaiin's ID).
-	NamespaceMode     string   `json:"namespaceMode,omitzero"`
-	CgroupRoot        string   `json:"cgroupRoot,omitzero"`
-	HostKey           string   `json:"hostKey" secret:"true"`
-	Username          string   `json:"username"`
-	AuthorizedKey     string   `json:"authorizedKey"`
-	UID               uint32   `json:"uid"`
-	GID               uint32   `json:"gid"`
-	Shell             string   `json:"shell,omitzero"`
-	Timezone          string   `json:"timezone,omitzero"`
-	SFTPReadOnlyPaths []string `json:"sftpReadOnlyPaths,omitempty"`
-	MTU               int      `json:"mtu,omitzero"`
-	GatewayIPv4       string   `json:"gatewayIPv4,omitzero"`
-	SessionIPv4       string   `json:"sessionIPv4,omitzero"`
-	GatewayIPv6       string   `json:"gatewayIPv6,omitzero"`
-	SessionIPv6       string   `json:"sessionIPv6,omitzero"`
-	IPv6              bool     `json:"ipv6"`
-	MaxSessions       int      `json:"maxSessions,omitzero"`
-	AllowUnsafeShell  bool     `json:"allowUnsafeShell"`
+	NamespaceMode string `json:"namespaceMode,omitzero"`
+	CgroupRoot    string `json:"cgroupRoot,omitzero"`
+	HostKey       string `json:"hostKey" secret:"true"`
+	Username      string `json:"username"`
+	AuthorizedKey string `json:"authorizedKey"`
+	UID           uint32 `json:"uid"`
+	GID           uint32 `json:"gid"`
+	// ParentNamespaceUID and ParentNamespaceGID are an advanced, rootless-only
+	// manual override: the IDs of Yuhaiin's own user namespace (the session's
+	// immediate parent) that uid and gid map to. They are not host IDs and do
+	// not replace uid/gid, which stay the SSH target identity. Leave them
+	// unset to map automatically; they are needed only when Yuhaiin runs more
+	// than one user namespace deep, where host IDs cannot be resolved.
+	ParentNamespaceUID *uint32  `json:"parentNamespaceUID,omitempty"`
+	ParentNamespaceGID *uint32  `json:"parentNamespaceGID,omitempty"`
+	Shell              string   `json:"shell,omitzero"`
+	Timezone           string   `json:"timezone,omitzero"`
+	SFTPReadOnlyPaths  []string `json:"sftpReadOnlyPaths,omitempty"`
+	MTU                int      `json:"mtu,omitzero"`
+	GatewayIPv4        string   `json:"gatewayIPv4,omitzero"`
+	SessionIPv4        string   `json:"sessionIPv4,omitzero"`
+	GatewayIPv6        string   `json:"gatewayIPv6,omitzero"`
+	SessionIPv6        string   `json:"sessionIPv6,omitzero"`
+	IPv6               bool     `json:"ipv6"`
+	MaxSessions        int      `json:"maxSessions,omitzero"`
+	AllowUnsafeShell   bool     `json:"allowUnsafeShell"`
 }
 
 func (SSHProtocol) ProtocolType() string { return ProtocolSSH }

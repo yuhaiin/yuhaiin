@@ -87,6 +87,7 @@ func detectEnvironment(ctx context.Context) contract.SSHEnvironment {
 	env.Identity = contract.SSHIdentity{
 		HostUID: report.HostUID, HostGID: report.HostGID, NamespaceUID: caller.UID, NamespaceGID: caller.GID,
 		UIDRanges: idRanges(report.UIDRanges), GIDRanges: idRanges(report.GIDRanges),
+		ParentUIDRanges: idRanges(report.ParentUIDRanges), ParentGIDRanges: idRanges(report.ParentGIDRanges),
 		CapSetUID: caller.CapSetUID, CapSetGID: caller.CapSetGID, CapSetFCAP: caller.CapSetFCAP,
 		CapSysAdmin: caller.CapSysAdm, CapNetAdmin: caller.CapNetAdm, Groups: []contract.SSHGroup{},
 	}

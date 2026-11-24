@@ -129,3 +129,25 @@ func TestResolveAddresses(t *testing.T) {
 		t.Fatal("expected legacy address collision to be rejected")
 	}
 }
+
+func TestValidateParentNamespaceOverride(t *testing.T) {
+	zero := uint32(0)
+	c := testConfig(t)
+	c.NamespaceMode, c.UID, c.GID, c.ParentUID, c.ParentGID = NamespaceModeRootless, 1009, 1009, &zero, &zero
+	if _, _, err := c.validate(); err != nil {
+		t.Fatal(err)
+	}
+	if cred := c.credential(); cred.UID != 1009 || cred.GID != 1009 || *cred.ParentUID != 0 || *cred.ParentGID != 0 {
+		t.Fatalf("the target identity and the parent IDs must stay separate: %+v", cred)
+	}
+	c = testConfig(t)
+	c.NamespaceMode, c.UID, c.GID, c.ParentUID = NamespaceModeRootless, 0, 1009, &zero
+	if _, _, err := c.validate(); err == nil || !strings.Contains(err.Error(), "explicitly") {
+		t.Fatalf("an override needs an explicit target UID: %v", err)
+	}
+	c = testConfig(t)
+	c.NamespaceMode, c.UID, c.GID, c.ParentGID = NamespaceModeRootful, 1009, 1009, &zero
+	if _, _, err := c.validate(); err == nil || !strings.Contains(err.Error(), "rootless") {
+		t.Fatalf("rootful mode must refuse parent overrides: %v", err)
+	}
+}
