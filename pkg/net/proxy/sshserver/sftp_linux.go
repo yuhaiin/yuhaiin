@@ -14,11 +14,9 @@ import (
 )
 
 // RunSFTP is the internal re-exec entry point. Session.Spawn drops credentials
-// and joins the session namespaces/cgroup before this process is started.
+// and joins the session namespaces/cgroup before this process is started, so
+// the account was already validated for the inbound's namespace mode.
 func RunSFTP(readOnlyPaths []string) error {
-	if os.Getuid() == 0 || os.Geteuid() == 0 || os.Getegid() == 0 {
-		return errors.New("SFTP requires an unprivileged UID and GID")
-	}
 	return serveSFTP(&sftpStdio{Reader: os.Stdin, Writer: os.Stdout}, readOnlyPaths)
 }
 
