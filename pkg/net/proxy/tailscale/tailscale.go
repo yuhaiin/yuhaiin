@@ -7,8 +7,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
-	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"net"
 	"net/http"
 	"net/netip"
@@ -20,12 +18,14 @@ import (
 
 	"github.com/Asutorufa/yuhaiin/pkg/configuration"
 	contractnode "github.com/Asutorufa/yuhaiin/pkg/contract/node"
+	"github.com/Asutorufa/yuhaiin/pkg/contract/transport"
 	"github.com/Asutorufa/yuhaiin/pkg/log"
 	"github.com/Asutorufa/yuhaiin/pkg/net/dialer"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netstate"
 	"github.com/Asutorufa/yuhaiin/pkg/net/pipe"
 	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/direct"
+	"github.com/Asutorufa/yuhaiin/pkg/net/proxy/wireguard"
 	"github.com/Asutorufa/yuhaiin/pkg/register"
 	"golang.org/x/sync/singleflight"
 	"tailscale.com/ipn/ipnstate"
@@ -144,8 +144,13 @@ func (t *Tailscale) init(ctx context.Context) (*tsnet.Server, error) {
 	}
 	u := &underlay{owner: t, ancestors: appendLoop(ctx, t)}
 	s := &tsnet.Server{
-		Hostname: t.config.Hostname, ControlURL: t.config.ControlURL,
-		RunWebClient: true, Dir: dir, UserLogf: log.InfoFormat, Underlay: u.network(), Tun: newTailnetTunWithOptions(t.config.TCPSettings),
+		Hostname:     t.config.Hostname,
+		ControlURL:   t.config.ControlURL,
+		RunWebClient: true,
+		Dir:          dir,
+		UserLogf:     log.InfoFormat,
+		Underlay:     u.network(),
+		Tun:          newTailnetTunWithOptions(t.config.TCPSettings),
 	}
 	if t.config.Debug {
 		s.Logf = log.InfoFormat
@@ -510,6 +515,7 @@ func (p *tailnetPacketConn) Close() error {
 	p.writeDeadline.Set(time.Time{})
 	return p.PacketConn.Close()
 }
+
 func (p *tailnetPacketConn) SetWriteDeadline(t time.Time) error {
 	if p.ctx.Err() != nil {
 		return net.ErrClosed
@@ -517,6 +523,7 @@ func (p *tailnetPacketConn) SetWriteDeadline(t time.Time) error {
 	p.writeDeadline.Set(t)
 	return p.PacketConn.SetWriteDeadline(t)
 }
+
 func (p *tailnetPacketConn) SetDeadline(t time.Time) error {
 	if err := p.SetReadDeadline(t); err != nil {
 		return err

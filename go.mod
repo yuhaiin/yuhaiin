@@ -1,10 +1,10 @@
 module github.com/Asutorufa/yuhaiin
 
-go 1.27.3
+go 1.27.4
 
 replace (
 	golang.zx2c4.com/wintun => github.com/yuhaiin/wintun v0.0.0-20240224105357-b28a4c71608e
-	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261024171005-32b103289bd3
+	tailscale.com => github.com/Asutorufa/tailscale v0.0.0-20261124202149-13bcaaf13db9
 )
 
 require (
@@ -33,7 +33,7 @@ require (
 	github.com/refraction-networking/utls v1.8.2
 	github.com/slackhq/nebula v1.12.0
 	github.com/tailscale/wf v0.0.0-20240214030419-6fbb0a674ee6
-	github.com/tailscale/wireguard-go v0.0.0-20261002162406-18e99eba5393
+	github.com/tailscale/wireguard-go v0.0.0-20261121000637-a8c4fbf26d6c
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
 	github.com/xtls/reality v0.0.0-20261108102217-4a26e87788f5
@@ -57,7 +57,7 @@ require (
 	golang.org/x/text v0.44.0
 	golang.org/x/time v0.16.0
 	golang.zx2c4.com/wireguard/windows v1.1.1
-	gvisor.dev/gvisor v0.0.0-20261014193016-04d31b385980
+	gvisor.dev/gvisor v0.0.0-20261117040555-0303b2605d5e
 	tailscale.com v1.9999999999.99999999999
 )
 
@@ -112,7 +112,7 @@ require (
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/kamstrup/intmap v0.5.2 // indirect
-	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
