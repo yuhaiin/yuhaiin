@@ -77,7 +77,7 @@ func NewServer(config Config, handler netapi.Handler) (*Server, error) {
 		return nil, fmt.Errorf("ssh inbound (%s mode) cannot create isolated sessions: %w", config.NamespaceMode, err)
 	}
 	slog.Info("ssh inbound: isolated sessions ready", "mode", config.NamespaceMode,
-		"uid", config.UID, "gid", config.GID, "containment", containment)
+		"uid", config.UID, "gid", config.GID, "parentUID", optionalID(config.ParentUID), "parentGID", optionalID(config.ParentGID), "containment", containment)
 	server, err := newServerWithManager(config, handler, signer, key, addresses, cgroups)
 	if err != nil && cgroups != nil {
 		_ = cgroups.Close()
@@ -112,7 +112,7 @@ func selectContainment(config Config) (*sessionnet.CgroupManager, string, error)
 		}
 		return cgroups, "cgroup v2 " + root, nil
 	}
-	if os.Geteuid() == 0 {
+	if hostRoot() {
 		cgroups, err := sessionnet.NewCgroupManager(root)
 		if err == nil {
 			return cgroups, "cgroup v2 " + root, nil
@@ -128,11 +128,29 @@ func selectContainment(config Config) (*sessionnet.CgroupManager, string, error)
 	return nil, "PID namespace supervisor", nil
 }
 
+func optionalID(id *uint32) string {
+	if id == nil {
+		return "auto"
+	}
+	return strconv.FormatUint(uint64(*id), 10)
+}
+
+// hostRoot reports whether Yuhaiin runs as root of the host. Root of a nested
+// user namespace (for example `podman unshare`) cannot write the host cgroup
+// hierarchy and is treated like the normal user it stands for.
+func hostRoot() bool {
+	if os.Geteuid() != 0 {
+		return false
+	}
+	ns, err := sessionnet.CurrentUserNamespace()
+	return err == nil && ns.Initial
+}
+
 // sessionConfig describes the namespaces of one SSH transport.
 func sessionConfig(config Config, addresses sessionnet.AddressConfig, cgroups *sessionnet.CgroupManager) sessionnet.Config {
 	return sessionnet.Config{
 		Mode:       config.sessionMode(),
-		Credential: &sessionnet.Credential{UID: config.UID, GID: config.GID},
+		Credential: config.credential(),
 		MTU:        config.MTU, IPv6: config.IPv6,
 		Addresses: addresses,
 		Cgroup:    cgroups,
@@ -457,7 +475,7 @@ func (s *Server) execute(ctx context.Context, channel gossh.Channel, argv []stri
 		Command:    argv,
 		Dir:        home,
 		Env:        sessionEnvironment(s.config, home, username),
-		Credential: &sessionnet.Credential{UID: s.config.UID, GID: s.config.GID},
+		Credential: s.config.credential(),
 	}
 	// Match sshd's fallback when an account has no usable home directory.
 	if info, err := os.Stat(home); err != nil || !info.IsDir() {

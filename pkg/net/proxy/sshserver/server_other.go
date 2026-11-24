@@ -3,8 +3,10 @@
 package sshserver
 
 import (
+	"context"
 	"errors"
 
+	contract "github.com/Asutorufa/yuhaiin/pkg/contract/inbound"
 	"github.com/Asutorufa/yuhaiin/pkg/net/netapi"
 )
 
@@ -18,3 +20,8 @@ func NewServer(Config, netapi.Handler) (*Server, error) {
 func (*Server) Close() error { return nil }
 
 func RunSFTP([]string) error { return errors.New("SFTP inbound requires Linux") }
+
+// DetectEnvironment reports that SSH sessions are unavailable.
+func DetectEnvironment(context.Context) contract.SSHEnvironment {
+	return contract.SSHEnvironment{Error: "SSH sessions require Linux"}
+}

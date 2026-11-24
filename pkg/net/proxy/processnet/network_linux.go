@@ -57,6 +57,11 @@ func Attach(owner *sessionnet.Session, handler netapi.Handler, addresses session
 		return nil, err
 	}
 	processes, err := netlink.NewSockDiagProcessDumper(diag, stat.Ino)
+	if err == nil {
+		// sock_diag reports owners in the session user namespace, /proc in
+		// Yuhaiin's; they differ when Yuhaiin itself runs in a namespace.
+		processes.SetOwnerUIDMapping(owner.UIDToCaller)
+	}
 	if err != nil {
 		return nil, err
 	}

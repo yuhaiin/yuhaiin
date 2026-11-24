@@ -44,7 +44,7 @@ var (
 func sessionsAvailable() error {
 	probeOnce.Do(func() {
 		cfg := sessionnet.Config{IPv6: true}
-		if os.Geteuid() == 0 {
+		if testHostRoot() {
 			cfg.Mode, cfg.Credential = sessionnet.ModeRootful, &sessionnet.Credential{UID: 65534, GID: 65534}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

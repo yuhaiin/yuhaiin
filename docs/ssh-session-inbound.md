@@ -17,8 +17,8 @@ account can access. See [Security](#security) before enabling it.
 | Yuhaiin runs as | any normal Linux user | root |
 | Host capabilities needed | none (no `sudo`, no `setcap`) | `CAP_SYS_ADMIN`, `CAP_NET_ADMIN` |
 | Namespaces | user, network, mount, PID | network, mount, PID |
-| Shell UID/GID | Yuhaiin's own UID/GID; any UID/GID if Yuhaiin is root; subordinate IDs via `/etc/subuid`/`/etc/subgid` + `newuidmap`/`newgidmap` | any non-root UID/GID |
-| Supplementary groups | inherited from Yuhaiin (kernel rule, see below) unless Yuhaiin is root or `newgidmap` maps the group | replaced (empty) |
+| Shell UID/GID (host IDs) | Yuhaiin's own account; any UID/GID if Yuhaiin is host root; IDs of its namespace if Yuhaiin is root of an inherited one (Podman); subordinate IDs via `/etc/subuid`/`/etc/subgid` + `newuidmap`/`newgidmap` | any non-root UID/GID |
+| Supplementary groups | Yuhaiin's own identity keeps Yuhaiin's groups; another UID/GID gets an empty list when Yuhaiin may call `setgroups` (see below) | replaced (empty) |
 | Process containment | PID namespace; plus cgroup v2 when delegated or configured | PID namespace plus cgroup v2 (required) |
 
 Set it with `"namespaceMode": "rootless"` or `"rootful"`. Saved inbounds
@@ -36,10 +36,12 @@ SFTP channel gets one *session*:
    PID, network and mount namespaces (and, in rootless mode, a new user
    namespace first). The main Yuhaiin process never calls `setns` and never
    touches the host network namespace.
-2. Rootless only: the parent writes identity UID/GID maps (`1000 → 1000`) to
-   the helper's `uid_map`/`gid_map` while the helper waits on its control
-   socket, then tells it to continue. IDs inside a session therefore mean the
-   same as on the host.
+2. Rootless only: the parent writes the helper's `uid_map`/`gid_map` while
+   the helper waits on its control socket, then tells it to continue. Each
+   map line takes a **host** ID to the ID of Yuhaiin's namespace that stands
+   for it: `1000 → 1000` for a Yuhaiin on the host, `1009 → 0` for a Yuhaiin
+   started by `podman unshare` (see [Inherited user namespaces](#inherited-user-namespaces-podman)).
+   IDs inside a session therefore always mean the same as on the host.
 3. Inside its namespaces, using capabilities that exist only in its own user
    namespace (rootless) the helper: makes mount propagation private, bind
    mounts a session-only `/etc/resolv.conf` (following symlinks; a dangling
@@ -101,35 +103,139 @@ for example:
 - `/dev/net/tun does not exist; load the tun kernel module …`
 - `/dev/net/tun is not accessible to the Yuhaiin user …`
 - `UID mapping failed: rootless mode can run the session as the Yuhaiin user (UID 1000) only …`
+- `UID mapping failed: host UID 1010 is not mapped into the user namespace Yuhaiin runs in, which maps only host UIDs 1009, 689824-755359`
 - `GID mapping failed: …`
 - `PID Namespace initialization failed: …`
 - `Rootful mode requires root privileges …`
 
 ## UID, GID and groups
 
-In rootless mode `uid`/`gid` default to Yuhaiin's own account (leave them at
+`uid` and `gid` are **host IDs** (IDs of the initial user namespace, as in
+the host's `/etc/passwd`), in both modes and wherever Yuhaiin runs. In
+rootless mode they default to Yuhaiin's own account (leave them at
 `0`/empty). Other values work only when:
 
-- Yuhaiin runs as root (it may map any ID); supplementary groups are then
-  replaced by an empty list, or
-- `/etc/subuid`/`/etc/subgid` delegate the ID to the Yuhaiin user and
-  `newuidmap`/`newgidmap` are installed. These tools are optional and only
-  used in this case.
+- Yuhaiin runs as host root (it may map any ID), or as root of an inherited
+  user namespace, where it may map the host IDs that namespace covers (for
+  Podman: the user's own ID and its `/etc/subuid` range); supplementary
+  groups are then replaced by an empty list, or
+- Yuhaiin runs on the host, `/etc/subuid`/`/etc/subgid` delegate the ID to
+  the Yuhaiin user and `newuidmap`/`newgidmap` are installed. These tools
+  are optional and only used in this case.
 
-Otherwise the inbound refuses to start with a UID/GID mapping error; it never
-pretends to switch users. The UI shows the IDs available on the server.
+Otherwise the inbound refuses to start with a UID/GID mapping error naming
+the IDs that can be mapped; it never pretends to switch users and never
+substitutes another ID. In rootless mode you cannot switch to arbitrary host
+accounts. The editor shows the detected usable IDs and rejects others before
+saving.
 
-Because an unprivileged process may only write a GID map after denying
-`setgroups(2)`, a normal-user rootless session **keeps the supplementary
-groups of the Yuhaiin process** (they appear as `nobody` inside the session
-but still grant their host access). Run Yuhaiin under a dedicated account
-without extra groups.
+The default identity **keeps the supplementary groups of the Yuhaiin
+process**: `setgroups(2)` is denied inside the session, so the kernel keeps
+every group unchanged. Groups that Yuhaiin's namespace does not map (for
+Podman, for example host group `users`) appear as `nogroup` (65534) inside
+the session but still grant their host access; this was verified with a
+group-only directory. Rootless sessions cannot add groups the Yuhaiin process
+does not have. Run Yuhaiin under a dedicated account without extra groups.
 
 The shell runs with UID/GID equal to their host values, so file permissions
-are exactly those of that host account. Root (UID 0) does not exist inside a
+are exactly those of that host account, and file ownership on the host is
+never changed. Root (UID 0) does not exist inside a
 rootless session; setuid-root programs such as `sudo` and file capabilities
 (for example on `ping`) have no effect, in both modes, because of
 `no_new_privs` and the empty bounding set.
+
+## Inherited user namespaces (Podman)
+
+Yuhaiin can be started inside a user namespace another program created, for
+example `podman unshare yuhaiin …` or a rootless container. Yuhaiin then runs
+as root *of that namespace*, which is not host root. For host user
+`example-user` (1009:1009) with `/etc/subuid` `example-user:689824:65536`:
+
+```
+Yuhaiin (podman unshare)  uid_map  0 1009 1        SSH session  uid_map  1009 0 1
+                                   1 689824 65536
+```
+
+The session process is UID 1009 inside, which is UID 0 of Yuhaiin's
+namespace, which is host UID 1009. `ls -l ~` in the shell shows
+`example-user example-user`, and `cd ~; touch f; cat f; rm f` works exactly
+as on the host. (Mapping the IDs one-to-one, `1009 1009 1`, would make the
+shell host UID 690832 and show the home directory as `nobody:nogroup` with
+`Permission denied`.)
+
+Yuhaiin detects this automatically; no setting is needed:
+
+- `/proc/self/uid_map` only describes the parent namespace, so Yuhaiin
+  measures how deeply it is nested (the kernel allows 32 levels below the
+  host; a short chain of helper processes counts the remaining ones). At
+  depth 1, the parent is the host and IDs translate exactly.
+- When Yuhaiin is nested deeper, or the depth cannot be measured, host IDs
+  cannot be verified: automatically, sessions then use only Yuhaiin's own
+  identity, shown with the IDs of its namespace, and explicit `uid`/`gid`
+  values are refused unless a manual parent mapping is set (below).
+- Mapping UID 0 of Yuhaiin's namespace needs `CAP_SETFCAP` there (Linux
+  5.12+), which namespace root normally holds.
+- Namespace root cannot write the host cgroup hierarchy, so Yuhaiin uses a
+  delegated cgroup if present and otherwise the PID namespace supervisor.
+- Rootful mode needs host root and is reported as unavailable.
+
+### Manual parent namespace mapping
+
+Deeper nesting is an implementation limit, not a kernel one: writing a
+session map needs only IDs of Yuhaiin's own namespace (the session's
+immediate parent), and the kernel checks those itself. What a nested process
+cannot do is see what they are on the host. For such cases the advanced,
+rootless-only `parentNamespaceUID`/`parentNamespaceGID` settings state the
+pairing directly:
+
+```json
+"uid": 1009, "gid": 1009,
+"parentNamespaceUID": 0, "parentNamespaceGID": 0
+```
+
+gives the session maps `1009 0 1` / `1009 0 1`. For example, Yuhaiin under
+`podman unshare unshare --user --map-root-user` (depth 2) runs as UID 0 of a
+namespace whose UID 0 is Podman's UID 0, i.e. host 1009.
+
+- `uid`/`gid` stay the SSH target identity; the override never replaces
+  them, and they must be set explicitly when it is used.
+- The override names IDs of **Yuhaiin's namespace, not host IDs**. They must
+  exist in Yuhaiin's `uid_map`/`gid_map` and pass the kernel rules: Yuhaiin's
+  own IDs always, others only with `CAP_SETUID`/`CAP_SETGID`; mapping its UID
+  0 needs `CAP_SETFCAP`; another GID needs a namespace that allows
+  `setgroups`. Nothing is bypassed; the kernel rejects anything else.
+- Where host IDs are resolvable (host, or one level like Podman), an
+  override must agree with the automatic mapping, so it cannot make a shell
+  show one host account while acting as another.
+- Every rootless session reads its own `/proc/self/uid_map`, `gid_map` and
+  IDs after switching to them, and the inbound refuses to start (each new
+  session fails) unless they equal the plan.
+- Yuhaiin cannot verify which host account the parent IDs stand for: the
+  override asserts it. File access is still limited to what Yuhaiin's own
+  namespace can do. Rootful mode refuses the setting.
+
+The editor shows each session map line as *Automatic* or *Manual* and
+rejects parent IDs that Yuhaiin's namespace cannot map.
+
+## Detected environment
+
+The inbound capabilities endpoint (`GET /api/v2/inbounds/capabilities`)
+reports `ssh.environment`: where Yuhaiin runs (`host`/`inherited`, nesting
+depth, its UID/GID maps and `setgroups` state), its host and namespace
+identity and supplementary groups, the host UID/GID ranges a rootless inbound
+may use and the namespace IDs a manual parent mapping may name, its
+capabilities, and the kernel-verified identity of a throw-away
+probe session (session UID/GID, its maps, whether groups are inherited and
+whether the filesystem identity is preserved), plus the status of the user,
+network, mount and PID namespaces, ID mapping, TUN, IPv4/IPv6, the
+supervisor, cgroup v2 delegation and rootful mode. Values that could not be
+determined are reported as `unknown` or omitted, never as 0. The probe
+creates only its own namespaces, is shared by concurrent requests and cached
+for 30 seconds. `ssh.serviceUID`/`serviceGID` are host IDs, and `ssh.root`
+means host root.
+
+The SSH inbound editor shows this result and highlights only problems; the
+maps are under *Advanced details*.
 
 ## Process containment and cleanup
 
@@ -193,8 +299,9 @@ Delegate=yes
 }
 ```
 
-A rootful inbound adds `"namespaceMode": "rootful"` and explicit
-`"uid"`/`"gid"`. The server generates an Ed25519 host key on the first save
+`uid`/`gid` are omitted (0) above, so the shell runs as Yuhaiin's own
+account. A rootful inbound adds `"namespaceMode": "rootful"` and explicit
+`"uid"`/`"gid"` (host IDs). The server generates an Ed25519 host key on the first save
 and preserves it across edits and restarts; a supplied `hostKey` overrides
 it. Keep host private keys out of logs and exports. Use a restricted
 listening address or a firewall.
@@ -230,8 +337,10 @@ exists only in the session's mount namespace and disappears with it.
 Routed flows carry a process scope backed by the session's sock_diag socket.
 Socket queries see only the session's sockets; the owner is then resolved
 in host `/proc` and must be a member of the session network namespace, so
-host processes are never reported. The PID is the host PID and the UID is
-the identity-mapped host UID.
+host processes are never reported. sock_diag reports the owner in the
+session's user namespace; it is translated through the session map before
+matching `/proc` owners, which Yuhaiin sees in its own namespace. The PID is
+the PID in Yuhaiin's PID namespace and the UID is the host UID.
 
 ## Security
 
@@ -284,6 +393,14 @@ to make that a failure (CI does).
 ```sh
 go test -race -count=1 ./pkg/net/proxy/sshserver ./pkg/net/netlink ./pkg/inbound
 YUH_REQUIRE_ROOTLESS=1 go test -count=1 -v ./pkg/net/proxy/sshserver
+```
+
+Inside Podman, the shell identity and host file access are checked with:
+
+```sh
+go test -c -o /tmp/ssh.test ./pkg/net/proxy/sshserver
+podman unshare env YUH_SSH_SERVER_INTEGRATION=1 YUH_SSH_TEST_HOME=$HOME \
+    YUH_SSH_TEST_UID=$(id -u) YUH_SSH_TEST_GID=$(id -g) /tmp/ssh.test -test.v
 ```
 
 They cover authentication and forwarding policy, shell/exec/PTY/SFTP,

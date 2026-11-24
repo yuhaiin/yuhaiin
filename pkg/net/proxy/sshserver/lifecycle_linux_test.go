@@ -378,8 +378,8 @@ func TestSSHServerRootlessRunsUnprivileged(t *testing.T) {
 	client := dialSSHServer(t, server, config.Username, signer)
 	out := string(runSSHCommand(t, client, "id -u; grep -E '^(CapEff|CapPrm|CapBnd|CapAmb|NoNewPrivs)' /proc/self/status"))
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if lines[0] != strconv.Itoa(os.Geteuid()) {
-		t.Fatalf("shell UID %q, want the Yuhaiin user %d", lines[0], os.Geteuid())
+	if own := testOwnIdentity(t); lines[0] != strconv.FormatUint(uint64(own.UID), 10) {
+		t.Fatalf("shell UID %q, want the Yuhaiin user %d", lines[0], own.UID)
 	}
 	for _, line := range lines[1:] {
 		fields := strings.Fields(line)
@@ -395,12 +395,12 @@ func TestSSHServerRootlessRunsUnprivileged(t *testing.T) {
 // configured UID.
 func TestSSHServerPreflightReportsUnmappableUID(t *testing.T) {
 	requireSSHSessionIntegration(t)
-	if os.Geteuid() == 0 {
+	if testHostRoot() {
 		t.Skip("root may map any UID")
 	}
 	config, _ := newSSHServerTestIdentity(t)
 	config.InboundID = "preflight"
-	config.UID = uint32(os.Geteuid()) + 1
+	config.UID = testOwnIdentity(t).UID + 1
 	server, err := NewServer(config, newSSHServerTestHandler())
 	if err == nil {
 		_ = server.Close()

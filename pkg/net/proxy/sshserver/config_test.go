@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"net/netip"
-	"os"
 	"strings"
 	"testing"
 
@@ -92,8 +91,12 @@ func TestValidateNamespaceMode(t *testing.T) {
 	if c.NamespaceMode != NamespaceModeRootless || c.sessionMode() != sessionnet.ModeRootless {
 		t.Fatalf("saved inbounds without a mode must be rootless: %q", c.NamespaceMode)
 	}
-	if c.UID != uint32(os.Geteuid()) || c.GID != uint32(os.Getegid()) {
-		t.Fatalf("rootless default IDs %d:%d, want the Yuhaiin user", c.UID, c.GID)
+	own, err := defaultIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.UID != own.UID || c.GID != own.GID {
+		t.Fatalf("rootless default IDs %d:%d, want the Yuhaiin user %d:%d", c.UID, c.GID, own.UID, own.GID)
 	}
 	c = testConfig(t)
 	c.NamespaceMode, c.UID = NamespaceModeRootful, 0
@@ -124,5 +127,27 @@ func TestResolveAddresses(t *testing.T) {
 	c.FakeIPRanges[0] = netip.MustParsePrefix("198.18.0.0/16")
 	if _, err = c.resolveAddresses(); err == nil {
 		t.Fatal("expected legacy address collision to be rejected")
+	}
+}
+
+func TestValidateParentNamespaceOverride(t *testing.T) {
+	zero := uint32(0)
+	c := testConfig(t)
+	c.NamespaceMode, c.UID, c.GID, c.ParentUID, c.ParentGID = NamespaceModeRootless, 1009, 1009, &zero, &zero
+	if _, _, err := c.validate(); err != nil {
+		t.Fatal(err)
+	}
+	if cred := c.credential(); cred.UID != 1009 || cred.GID != 1009 || *cred.ParentUID != 0 || *cred.ParentGID != 0 {
+		t.Fatalf("the target identity and the parent IDs must stay separate: %+v", cred)
+	}
+	c = testConfig(t)
+	c.NamespaceMode, c.UID, c.GID, c.ParentUID = NamespaceModeRootless, 0, 1009, &zero
+	if _, _, err := c.validate(); err == nil || !strings.Contains(err.Error(), "explicitly") {
+		t.Fatalf("an override needs an explicit target UID: %v", err)
+	}
+	c = testConfig(t)
+	c.NamespaceMode, c.UID, c.GID, c.ParentGID = NamespaceModeRootful, 1009, 1009, &zero
+	if _, _, err := c.validate(); err == nil || !strings.Contains(err.Error(), "rootless") {
+		t.Fatalf("rootful mode must refuse parent overrides: %v", err)
 	}
 }
