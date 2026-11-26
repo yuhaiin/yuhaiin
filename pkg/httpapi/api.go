@@ -91,6 +91,8 @@ type ConnectionMonitor interface {
 	Total(context.Context) (contractconnection.TotalFlow, error)
 	Traffic(context.Context, string, time.Time, time.Time) (contractconnection.TrafficSeries, error)
 	Telemetry(context.Context, time.Time, time.Time, int) (contractconnection.TelemetrySummary, error)
+	Statistics(context.Context) (contractconnection.Statistics, error)
+	ResetStatistics(context.Context) error
 	List(context.Context) (contractconnection.Connections, error)
 	MatchTrace(context.Context, uint64, int) (contractconnection.MatchTraceResponse, error)
 	Close(context.Context, []uint64) error

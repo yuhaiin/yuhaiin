@@ -63,6 +63,8 @@ func addFacadeRPCRoutesV2(handlers *v2Handlers, services V2Services) {
 	addRPCRoute(handlers, v2ConnectionsTotal, api.totalFlow)
 	addRPCRoute(handlers, v2ConnectionsTraffic, api.traffic)
 	addRPCRoute(handlers, v2ConnectionsTelemetry, api.telemetry)
+	addRPCRoute(handlers, v2ConnectionsStatistics, api.connectionStatistics)
+	addRPCRoute(handlers, v2ConnectionsStatisticsReset, api.resetConnectionStatistics)
 	handlers.add(v2ConnectionsEvents, connectionsEventsV2(services))
 	addRPCRoute(handlers, v2Connections, api.connections)
 	addRPCRoute(handlers, v2ConnectionsTrace, api.connectionTrace)
@@ -330,6 +332,23 @@ func (a v2API) telemetry(ctx context.Context, request *telemetryRequest) (*contr
 		return nil, badRequest(errors.New("limit must be between 1 and 50"))
 	}
 	return pointer(a.services.Connections.Telemetry(ctx, from, to, limit))
+}
+
+func (a v2API) connectionStatistics(ctx context.Context, _ *emptyRequest) (*contractconnection.Statistics, error) {
+	if a.services.Connections == nil {
+		return nil, unavailable("connections controller is unavailable")
+	}
+	return pointer(a.services.Connections.Statistics(ctx))
+}
+
+func (a v2API) resetConnectionStatistics(ctx context.Context, _ *emptyRequest) (*emptyResponse, error) {
+	if a.services.Connections == nil {
+		return nil, unavailable("connections controller is unavailable")
+	}
+	if err := a.services.Connections.ResetStatistics(ctx); err != nil {
+		return nil, err
+	}
+	return &emptyResponse{}, nil
 }
 
 func (a v2API) connections(ctx context.Context, _ *emptyRequest) (*contractconnection.Connections, error) {

@@ -179,3 +179,53 @@ type SessionSummary struct {
 	Opened        string `json:"opened"`
 	Failed        string `json:"failed"`
 }
+
+// Statistics is the runtime-only breakdown shown on the Connections statistics
+// page. It restarts with the process and can be reset independently of the
+// persisted traffic totals and telemetry.
+type Statistics struct {
+	SinceUnixMS int64  `json:"sinceUnixMs"`
+	Active      int    `json:"active"`
+	ActiveTCP   int    `json:"activeTcp"`
+	ActiveUDP   int    `json:"activeUdp"`
+	Opened      uint64 `json:"opened"`
+	Failed      uint64 `json:"failed"`
+	Closed      uint64 `json:"closed"`
+	Download    uint64 `json:"download"`
+	Upload      uint64 `json:"upload"`
+	// ConnectTime measures routing plus the outbound dial of successful
+	// connections. LeMS is the inclusive upper bound; 0 marks the +Inf bucket.
+	ConnectTime []StatisticsBucket `json:"connectTime"`
+	// Lifetime measures how long closed connections stayed open.
+	Lifetime []StatisticsBucket `json:"lifetime"`
+	Failures []FailureKind      `json:"failures"`
+	History  StatisticsHistory  `json:"history"`
+}
+
+type StatisticsBucket struct {
+	LeMS  int64  `json:"leMs"`
+	Count uint64 `json:"count"`
+}
+
+// FailureKind counts failed dials by cause: timeout, refused, reset,
+// unreachable, dns, blocked, canceled or other.
+type FailureKind struct {
+	Kind  string `json:"kind"`
+	Count uint64 `json:"count"`
+}
+
+// StatisticsHistory is columnar: element i covers the interval ending at
+// EndUnixMS - (len-1-i)*IntervalMS.
+type StatisticsHistory struct {
+	IntervalMS int64    `json:"intervalMs"`
+	EndUnixMS  int64    `json:"endUnixMs"`
+	Opened     []uint64 `json:"opened"`
+	Failed     []uint64 `json:"failed"`
+	Closed     []uint64 `json:"closed"`
+	// Active is the highest number of open connections seen in the interval.
+	Active []uint64 `json:"active"`
+	// ConnectNS sums the connect time of the interval's opened connections.
+	ConnectNS []uint64 `json:"connectNs"`
+	Download  []uint64 `json:"download"`
+	Upload    []uint64 `json:"upload"`
+}

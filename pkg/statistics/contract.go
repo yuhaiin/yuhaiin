@@ -47,6 +47,20 @@ func (m ConnectionMonitor) Telemetry(ctx context.Context, from, to time.Time, li
 	return m.connections.Telemetry(ctx, from, to, limit)
 }
 
+func (m ConnectionMonitor) Statistics(ctx context.Context) (contractconnection.Statistics, error) {
+	if m.connections == nil {
+		return contractconnection.Statistics{}, errors.New("connections controller is unavailable")
+	}
+	return m.connections.Statistics(ctx)
+}
+
+func (m ConnectionMonitor) ResetStatistics(ctx context.Context) error {
+	if m.connections == nil {
+		return errors.New("connections controller is unavailable")
+	}
+	return m.connections.ResetStatistics(ctx)
+}
+
 func (m ConnectionMonitor) List(ctx context.Context) (contractconnection.Connections, error) {
 	if m.connections == nil {
 		return contractconnection.Connections{}, errors.New("connections controller is unavailable")

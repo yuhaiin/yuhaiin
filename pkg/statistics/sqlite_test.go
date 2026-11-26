@@ -110,6 +110,8 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 		NodeName:     "edge-a",
 		Process:      "curl",
 		SelectorName: "streaming",
+		Geo:          "JP",
+		OutboundGeo:  "US",
 		Network:      contractconnection.NetworkType{ConnType: "tcp"},
 		MatchHistory: []contractconnection.MatchHistoryEntry{{
 			RuleName: "media-rule",
@@ -134,6 +136,7 @@ func TestTelemetryDimensionsAggregateTrafficAndFailures(t *testing.T) {
 	}
 	for dimension, value := range map[string]string{
 		"protocol": "tcp", "inbound": "socks5", "source": "127.0.0.1", "addr": "example.com:443", "outbound": "edge-a", "process": "curl", "rule": "media-rule", "selector": "streaming", "destination": "example.com",
+		"geo": "JP", "outboundGeo": "US",
 	} {
 		item, ok := groups[dimension]
 		if !ok || item.Value != value || item.Download != "123" || item.Upload != "456" || item.Failures != "1" {
