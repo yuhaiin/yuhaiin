@@ -186,10 +186,7 @@ func (s *sessionStatistics) sampleLocked(slot int64, download, upload uint64, ac
 	}
 	deltaDown, deltaUp := download-s.sampleDown, upload-s.sampleUp
 	s.sampleDown, s.sampleUp = download, upload
-	first := s.sampleSlot + 1
-	if first > slot {
-		first = slot
-	}
+	first := min(s.sampleSlot+1, slot)
 	if oldest := slot - statsHistorySlots + 1; first < oldest {
 		// Traffic older than the window is dropped from the history only.
 		span := uint64(slot - s.sampleSlot)
