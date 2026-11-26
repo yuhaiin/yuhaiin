@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	contractconnection "github.com/Asutorufa/yuhaiin/pkg/contract/connection"
 	"github.com/Asutorufa/yuhaiin/pkg/control"
@@ -43,6 +44,7 @@ type Connections struct {
 	history      HistoryStore
 
 	counters *counters
+	stats    *sessionStatistics
 
 	connStore syncmap.SyncMap[uint64, connection]
 	// Live-only sidecar: template pointers only; never pins leaf history arrays.
@@ -105,6 +107,7 @@ func NewSQLiteConnStore(path string, dialer netapi.Proxy) *Connections {
 		history:      history,
 	}
 	connections.persistence = newConnectionPersistence(db, infoStore, history)
+	connections.stats = newSessionStatistics(connections.Cache, time.Now())
 	return connections
 }
 
@@ -266,6 +269,10 @@ func (c *Connections) Remove(id uint64) {
 		c.infoStore.Delete(id)
 	}
 	if counter := c.counters.Remove(id); counter != nil {
+		if !counter.opened.IsZero() {
+			now := time.Now()
+			c.stats.connClosed(now.Sub(counter.opened), now)
+		}
 		c.telemetry.Remove(counter.telemetry)
 		counter.usage.end()
 	}
@@ -301,6 +308,7 @@ func (c *Connections) PacketConn(ctx context.Context, addr netapi.Address) (net.
 // PacketConnWithProxy records a UDP socket opened by a preselected proxy, like
 // ConnWithProxy does for streams.
 func (c *Connections) PacketConnWithProxy(ctx context.Context, addr netapi.Address, proxy netapi.Proxy) (net.PacketConn, error) {
+	start := time.Now()
 	con, err := proxy.PacketConn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "udp", addr)
@@ -312,6 +320,8 @@ func (c *Connections) PacketConnWithProxy(ctx context.Context, addr netapi.Addre
 	info := c.getConnection(ctx, con, addr, id)
 	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
 	counter.usage = c.userUsage.register(info, counter, trafficIdentityContext(ctx))
+	counter.opened = time.Now()
+	c.stats.connOpened(counter.opened.Sub(start), counter.opened)
 
 	z := &packetConn{
 		PacketConn: con,
@@ -344,6 +354,7 @@ func (c *Connections) Ping(ctx context.Context, addr netapi.Address) (uint64, er
 
 func (c *Connections) recordFailure(ctx context.Context, protocol string, addr netapi.Address, err error) {
 	c.failedConnections.Add(1)
+	c.stats.connFailed(err, time.Now())
 	info := c.getConnection(ctx, nil, addr, 0)
 	info.Network.ConnType = protocol
 	c.telemetry.RecordFailure(c.telemetryConnection(ctx, info))
@@ -505,6 +516,7 @@ func (c *Connections) Conn(ctx context.Context, addr netapi.Address) (net.Conn, 
 // ConnWithProxy records a preselected Gateway dial in the ordinary Connections
 // and traffic stores, without selecting an outbound again at connection time.
 func (c *Connections) ConnWithProxy(ctx context.Context, addr netapi.Address, proxy netapi.Proxy) (net.Conn, error) {
+	start := time.Now()
 	con, err := proxy.Conn(ctx, addr)
 	if err != nil {
 		c.faildHistory.Push(ctx, err, "tcp", addr)
@@ -516,6 +528,8 @@ func (c *Connections) ConnWithProxy(ctx context.Context, addr netapi.Address, pr
 	info := c.getConnection(ctx, con, addr, id)
 	counter := newCounter(c.Cache, c.telemetry.Register(c.telemetryConnection(ctx, info)))
 	counter.usage = c.userUsage.register(info, counter, trafficIdentityContext(ctx))
+	counter.opened = time.Now()
+	c.stats.connOpened(counter.opened.Sub(start), counter.opened)
 
 	z := &conn{
 		Conn:    con,
@@ -587,6 +601,7 @@ type Counter struct {
 	cache     *TotalCache
 	telemetry *dimensionCounter
 	usage     *usageSession
+	opened    time.Time // set once before the counter is published
 	download  atomic.Uint64
 	upload    atomic.Uint64
 }

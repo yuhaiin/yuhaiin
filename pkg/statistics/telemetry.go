@@ -248,6 +248,9 @@ func dimensionsForConnection(info contractconnection.Connection) []telemetryDime
 		"process":     info.Process,
 		"selector":    info.SelectorName,
 		"destination": telemetryDestination(info),
+		// ISO country codes from the GeoIP database; empty when it is not set.
+		"geo":         info.Geo,
+		"outboundGeo": info.OutboundGeo,
 	}
 	for _, match := range info.MatchHistory {
 		if match.RuleName != "" {

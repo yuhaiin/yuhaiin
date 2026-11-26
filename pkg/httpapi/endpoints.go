@@ -104,6 +104,8 @@ const (
 	v2ConnectionsTotal             v2Endpoint = "connections.total"
 	v2ConnectionsTraffic           v2Endpoint = "connections.traffic"
 	v2ConnectionsTelemetry         v2Endpoint = "connections.telemetry"
+	v2ConnectionsStatistics        v2Endpoint = "connections.statistics"
+	v2ConnectionsStatisticsReset   v2Endpoint = "connections.statistics.reset"
 	v2ConnectionsEvents            v2Endpoint = "connections.events"
 	v2Connections                  v2Endpoint = "connections"
 	v2ConnectionsTrace             v2Endpoint = "connections.trace"
@@ -301,6 +303,8 @@ var v2Routes = []v2Route{
 	{v2ConnectionsTotal, "GET /api/v2/connections/total"},
 	{v2ConnectionsTraffic, "GET /api/v2/connections/traffic"},
 	{v2ConnectionsTelemetry, "GET /api/v2/connections/telemetry"},
+	{v2ConnectionsStatistics, "GET /api/v2/connections/statistics"},
+	{v2ConnectionsStatisticsReset, "POST /api/v2/connections/statistics/reset"},
 	{v2ConnectionsEvents, "GET /api/v2/connections/events"},
 	{v2Connections, "GET /api/v2/connections"},
 	{v2ConnectionsTrace, "POST /api/v2/connections/trace"},
