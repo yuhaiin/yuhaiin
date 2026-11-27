@@ -208,7 +208,7 @@ func requireNodeRoot(t testing.TB) {
 // veth connects the node to the namespace of pid and assigns addresses.
 func veth(t testing.TB, name string, pid int, nodeAddrs, peerAddrs []netip.Prefix, peerRoutes []netip.Addr) {
 	t.Helper()
-	link := &netlink.Veth{LinkAttrs: netlink.LinkAttrs{Name: name}, PeerName: name + "p"}
+	link := &netlink.Veth{Name: name, PeerName: name + "p"}
 	if err := netlink.LinkAdd(link); err != nil {
 		t.Fatal(err)
 	}

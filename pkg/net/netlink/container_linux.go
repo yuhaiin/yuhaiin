@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
 	"os"
 	"runtime"
@@ -272,9 +273,7 @@ func (x *netNSIndex) rebuild() error {
 	closed := x.closed
 	host := x.host
 	known := make(map[uint64]*netNS, len(x.namespaces))
-	for inode, ns := range x.namespaces {
-		known[inode] = ns
-	}
+	maps.Copy(known, x.namespaces)
 	failed := make(map[uint64]struct{}, len(x.failed))
 	for inode := range x.failed {
 		failed[inode] = struct{}{}
