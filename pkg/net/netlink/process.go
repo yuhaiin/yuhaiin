@@ -32,3 +32,15 @@ func ProcessAddrs(src, dst netapi.Address) (ip, to netip.AddrPort, err error) {
 	}
 	return ip, to, nil
 }
+
+// HostProcessDumper resolves socket owners in the namespace yuhaiin runs in.
+type HostProcessDumper struct{}
+
+// ProcessName implements [netapi.ProcessDumper].
+func (HostProcessDumper) ProcessName(network string, src, dst netapi.Address) (netapi.Process, error) {
+	ip, to, err := ProcessAddrs(src, dst)
+	if err != nil {
+		return netapi.Process{}, err
+	}
+	return FindProcessName(network, ip, to)
+}
