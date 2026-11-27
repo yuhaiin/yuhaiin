@@ -323,6 +323,7 @@ func TestOAuthAuthorizationRequestValidation(t *testing.T) {
 		{"missing resource", set("resource", ""), true, "invalid_target"},
 		{"scope beyond client", set("scope", "nodes:write"), true, "invalid_scope"},
 		{"non-delegable scope", set("scope", "users:manage"), true, "invalid_scope"},
+		{"oversized state", set("state", strings.Repeat("s", maxStateLength+1)), false, "invalid_request"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := o.as.StartAuthorization(t.Context(), tt.values)
@@ -369,6 +370,27 @@ func asOAuth(err error, out **oauth.Error) bool {
 	r, ok := err.(*oauth.Error)
 	*out = r
 	return ok
+}
+
+func TestOAuthAuthorizationAcceptsLongState(t *testing.T) {
+	o := newOAuthTest(t)
+	client := o.client("public", nil, nil)
+	// Google's account-linking state is about 1.5 KB of base64url.
+	state := strings.Repeat("AMskz5qUvVnKjImA46DaNMj_mYASyACuDOT20nsa", 40)
+	values := authorizeValues(client.ID, "/mcp", "mcp:connect")
+	values.Set("state", state)
+	request, err := o.as.StartAuthorization(t.Context(), values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	redirect, err := o.as.Decide(t.Context(), principal(o.admin), request.ID, true, request.Scopes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(redirect)
+	if u.Query().Get("state") != state || u.Query().Get("code") == "" {
+		t.Fatalf("authorization response %s", redirect)
+	}
 }
 
 func TestOAuthConsentNeverExceedsUserPermissions(t *testing.T) {

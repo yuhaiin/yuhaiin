@@ -73,6 +73,12 @@ func singleValues(values url.Values, names ...string) error {
 	return nil
 }
 
+// maxStateLength bounds the opaque client state kept with a pending request.
+// RFC 6749 sets no limit, and some clients send large encrypted states: Google's
+// account-linking redirect sends about 1.5 KB. Pending requests are capped by
+// maxPendingRequests, so this also bounds their memory.
+const maxStateLength = 8 << 10
+
 // StartAuthorization validates an authorization request (RFC 6749 4.1.1 with
 // OAuth 2.1 and RFC 8707 rules). Errors that occur before the client and its
 // redirect URI are verified are returned as plain *oauth.Error and must never
@@ -100,7 +106,7 @@ func (a *AuthorizationServer) StartAuthorization(ctx context.Context, values url
 		return authorizationRequest{}, oauth.InvalidRequest("redirect_uri is not registered for this client")
 	}
 	state := values.Get("state")
-	if len(state) > 1024 {
+	if len(state) > maxStateLength {
 		return authorizationRequest{}, oauth.InvalidRequest("state is too long")
 	}
 	fail := func(err *oauth.Error) (authorizationRequest, error) {
