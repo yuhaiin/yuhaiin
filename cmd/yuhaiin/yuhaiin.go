@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -458,21 +459,15 @@ func getPorcessDumper() netapi.ProcessDumper {
 
 	switch runtime.GOOS {
 	case "linux", "darwin", "windows":
-		return processDumperImpl{}
+		return processDumper()
 	}
 
 	return nil
 }
 
-type processDumperImpl struct{}
-
-func (processDumperImpl) ProcessName(network string, src, dst netapi.Address) (netapi.Process, error) {
-	ip, to, err := netlink.ProcessAddrs(src, dst)
-	if err != nil {
-		return netapi.Process{}, err
-	}
-	return netlink.FindProcessName(network, ip, to)
-}
+// processDumper is shared by every app instance of this process, so the
+// namespace index and its sockets are created once.
+var processDumper = sync.OnceValue(netlink.NewProcessDumper)
 
 func validateLocalWrapCLIConfig(cfg contractsettings.WrapSettings) error {
 	if cfg.UID == 0 || cfg.GID == 0 {
