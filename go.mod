@@ -8,13 +8,13 @@ replace (
 )
 
 require (
-	codeberg.org/miekg/dns v0.6.143
+	codeberg.org/miekg/dns v0.6.152
 	filippo.io/age v1.3.2
 	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20261116
 	github.com/apernet/quic-go v0.63.1-0.20261004180939-a10df75c260c
-	github.com/aws/aws-sdk-go-v2 v1.48.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.21.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.116.0
+	github.com/aws/aws-sdk-go-v2 v1.48.2
+	github.com/aws/aws-sdk-go-v2/credentials v1.21.5
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.116.2
 	github.com/coder/websocket v1.8.15
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-jose/go-jose/v4 v4.1.9
@@ -40,13 +40,13 @@ require (
 	github.com/yuhaiin/purego-sqlite v0.0.0-20261105112659-37f07d7891db
 	github.com/yuhaiin/purego-sqlite-embed v0.0.0-20261104135523-4121a04c61b8
 	github.com/yuhaiin/sessionnet v0.0.0-20261124092242-a783553e1bda
-	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261124092710-a9c3c236f8fe
+	github.com/yuhaiin/yuhaiin.github.io v0.0.0-20261126074830-dabaf00e91c7
 	github.com/yuhaiin/zerotier-go v0.0.0-20261105080316-75c7046fe4cc
 	go.uber.org/goleak v1.3.0
 	go.yaml.in/yaml/v4 v4.0.0
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
 	golang.org/x/crypto v0.59.0
-	golang.org/x/exp v0.0.0-20261124000051-d6646c509b6d
+	golang.org/x/exp v0.0.0-20261128033645-f63ec7c7eed0
 	golang.org/x/mobile v0.0.0-20261117202452-47699113848a
 	golang.org/x/mod v0.43.0
 	golang.org/x/net v0.63.0
@@ -74,15 +74,15 @@ require (
 	github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.27 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.12 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.12 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.25 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.12 // indirect
-	github.com/aws/smithy-go v1.28.9 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.14 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.14 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.14 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.27 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.14 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.14 // indirect
+	github.com/aws/smithy-go v1.28.11 // indirect
 	github.com/axiomhq/hyperloglog v0.2.6 // indirect
 	github.com/benbjohnson/immutable v0.4.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -144,7 +144,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260811152304-ee035b5b010f // indirect
-	golang.org/x/tools v0.53.0 // indirect
+	golang.org/x/tools v0.53.1-0.20261126161324-9b1bd87ef490 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20260522210424-ecfc5a8d5446 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
